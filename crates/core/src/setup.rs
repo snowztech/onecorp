@@ -142,6 +142,17 @@ pub fn repo_notes(repo: &Path) -> Option<String> {
 }
 
 /// Where new repos go by default: ~/dev when it exists, otherwise your home folder.
+/// Clones one of your GitHub repos next to your other projects, or uses the folder if it's
+/// already there. Returns where it is.
+pub fn clone_from_github(full_name: &str) -> Result<PathBuf> {
+    let name = full_name.rsplit('/').next().unwrap_or(full_name);
+    let dest = default_parent().join(name);
+    if !dest.exists() {
+        crate::forge::Forge::GitHub.clone_repo(full_name, &dest)?;
+    }
+    Ok(dest)
+}
+
 pub fn default_parent() -> PathBuf {
     let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
     let dev = home.join("dev");

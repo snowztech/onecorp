@@ -1109,8 +1109,18 @@ function viewSetup() {
       ${nav("Continue")}`;
   } else if (s.step === 2) {
     const tabs = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-su="mode-existing" aria-selected="${s.mode === "existing"}">Use an existing repo</button>
+      <button type="button" role="tab" data-su="mode-github" aria-selected="${s.mode === "github"}">From GitHub</button>
       <button type="button" role="tab" data-su="mode-new" aria-selected="${s.mode === "new"}">Start a new one</button></div>`;
-    if (s.mode === "new") {
+    if (s.mode === "github") {
+      const g = s.gh;
+      const list = !g ? `<p class="muted">Looking up your repos…</p>`
+        : g.error ? `<p class="su-warn">Sign in to GitHub with <code>gh auth login</code>, then come back to this tab.</p>`
+        : `<input id="gh-q" placeholder="Search ${g.repos.length} repos" autocomplete="off" spellcheck="false" aria-label="Search your repos">
+           <ul class="gh-list">${g.repos.map(r => `<li data-name="${esc(r.name.toLowerCase())} ${esc((r.description || "").toLowerCase())}"><button type="button" data-su="clone:${esc(r.name)}" ${s.cloning ? "disabled" : ""}>
+             <b>${esc(r.name)}</b>${r.private ? `<span class="pill-state">Private</span>` : ""}<span>${esc(r.description || "")}</span>${s.cloning === r.name ? `<em>Cloning…</em>` : ""}</button></li>`).join("")}</ul>`;
+      body = `<h1>Pick one of your repos</h1><p class="muted">OneCorp clones it into ${esc(s.repoInfo?.parent || "your dev folder")}, or uses it if it's already there.</p>${tabs}${list}
+        <div class="su-nav">${back}</div>`;
+    } else if (s.mode === "new") {
       const owners = s.repoInfo.owners || [];
       const github = owners.length
         ? `<label class="su-check" for="su-gh"><input type="checkbox" id="su-gh" data-su="toggle-gh" ${s.owner ? "checked" : ""}> Also create it on GitHub</label>
@@ -1463,6 +1473,17 @@ document.addEventListener("click", async e => {
       return render();
     }
     if (d.su === "mode-existing" || d.su === "mode-new") { s.mode = d.su.slice(5); return render(); }
+    if (d.su === "mode-github") {
+      s.mode = "github"; render();
+      if (!s.gh?.repos) { s.gh = null; render(); s.gh = await invoke("github_repos").then(repos => ({ repos })).catch(e => ({ error: String(e) })); render(); }
+      return $("#gh-q")?.focus();
+    }
+    if (d.su.startsWith("clone:")) {
+      s.cloning = d.su.slice(6); render();
+      try { const path = await invoke("clone_repo", { name: s.cloning }); s.cloning = null; s.mode = "existing"; await checkRepo(path); }
+      catch (e) { s.cloning = null; render(); toast(String(e), true); }
+      return;
+    }
     if (d.su === "create-repo") return makeRepo();
     if (d.su === "toggle-gh") { s.owner = s.owner ? "" : (s.repoInfo.owners[0] || ""); return render(); }
     if (d.su === "add-person") { s.people.push({ name: "", role: "Engineer", dept: "Engineering", runtime: s.runtime }); render(); return document.getElementById(`su-p${s.people.length - 1}-name`)?.focus(); }
@@ -1634,6 +1655,12 @@ document.addEventListener("submit", async e => {
 // The drawn face follows your name as you type it.
 const faceLater = {};
 document.addEventListener("input", e => {
+  // Filters the repo list in place: redrawing would take the cursor out of the search box.
+  if (e.target.id === "gh-q") {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll(".gh-list li").forEach(li => (li.hidden = q && !li.dataset.name.includes(q)));
+    return;
+  }
   if (e.target.id === "say-text") updateMentions(e.target);
   if (e.target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (e.target.value.trim() || "?")[0].toUpperCase(); }
   if (e.target.id === "hb-text") $("#hb-preview").innerHTML = md(e.target.value).html;
@@ -1714,6 +1741,7 @@ async function previewScreen() {
   if (screen === "edit-person") { await openPerson("tomas"); S.drawer.edit = true; S.person.runtime = "codex"; renderDrawer(); }
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
   if (screen === "setup") await startSetup();
+  if (screen === "github") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; render(); }
   if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.profile = { name: "" }; render(); }
   if (["popover", "you", "agents"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
@@ -1761,6 +1789,7 @@ function preview(cmd, args) {
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
     wiki: "# snowztech wiki\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
+    github_repos: [["snowztech/vikusha", "A Go framework for building AI agents", false], ["snowztech/onecorp", "Run a company of AI employees", false], ["lucas/notes", "Notes app for writers", true], ["snowztech/website", "", false]].map(([name, description, priv]) => ({ name, description, private: priv })),
     setup_info: { runtimes: ["claude", "fake"], voices: VOICES, templates: [
       { key: "solo", name: "Solo builder", description: "One engineer who ships. Hire more when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
       { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", voice: "calm", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", role: "Product manager", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth writer", dept: "Growth" }] },

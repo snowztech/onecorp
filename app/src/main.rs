@@ -335,6 +335,18 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
     Ok(c.name)
 }
 
+/// Your GitHub repos, for cloning one in onboarding.
+#[tauri::command(async)]
+fn github_repos() -> Res<Value> {
+    let list = onecorp::forge::Forge::GitHub.repos().map_err(err)?;
+    Ok(list.into_iter().map(|(name, description, private)| json!({"name": name, "description": description, "private": private})).collect())
+}
+
+#[tauri::command(async)]
+fn clone_repo(name: String) -> Res<String> {
+    onecorp::setup::clone_from_github(&name).map(|p| p.display().to_string()).map_err(err)
+}
+
 /// Where a new repo would go, and where you could also create it on GitHub.
 #[tauri::command(async)]
 fn new_repo_info() -> Res<Value> {
@@ -619,6 +631,8 @@ fn main() {
             delete_message,
             set_voice,
             set_commands,
+            github_repos,
+            clone_repo,
             voices,
             say,
             settings,

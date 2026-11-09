@@ -1091,3 +1091,12 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .row-set.stack { flex-direction: column; align-items: stretch; gap: 8px; }
 .row-set.stack > div:first-child span .link-btn { display: inline; padding: 0; margin: 0 0 0 4px; font-size: 13px; }
 #commands-in { width: 100%; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 9px; background: var(--surface-2); font: 12px var(--mono); }
+#gh-q { width: 100%; margin-bottom: 8px; border: 1px solid var(--line); border-radius: var(--r-md); padding: 8px 10px; background: var(--surface-2); }
+.gh-list { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-md); }
+.gh-list li + li { border-top: 1px solid var(--line); }
+.gh-list li[hidden] { display: none; }
+.gh-list button { width: 100%; display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 8px; padding: 9px 12px; border: 0; background: none; text-align: left; font-size: 13px; }
+.gh-list button:hover:not(:disabled) { background: var(--surface-2); }
+.gh-list b { font: 500 13px var(--mono); }
+.gh-list span:not(.pill-state) { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-list em { font-style: normal; color: var(--accent); font-size: 12px; }

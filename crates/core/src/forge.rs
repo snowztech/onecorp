@@ -152,6 +152,32 @@ impl Forge {
         }
     }
 
+    /// Your repos and your orgs' repos on GitHub, most recently pushed first: (owner/name, description, private).
+    pub fn repos(self) -> Result<Vec<(String, String, bool)>> {
+        if self != Forge::GitHub {
+            bail!("browsing repos is only on GitHub for now");
+        }
+        let here = std::env::temp_dir();
+        let mut out = vec![];
+        for owner in self.owners()? {
+            let json = self.run(&here, &["repo", "list", &owner, "--limit", "100", "--json", "nameWithOwner,description,isPrivate,pushedAt"], None)?;
+            let list: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap_or_default();
+            out.extend(list.into_iter().map(|r| {
+                let s = |k: &str| r[k].as_str().unwrap_or("").to_string();
+                (s("pushedAt"), s("nameWithOwner"), s("description"), r["isPrivate"] == true)
+            }));
+        }
+        out.sort_by(|a, b| b.0.cmp(&a.0));
+        Ok(out.into_iter().map(|(_, n, d, p)| (n, d, p)).collect())
+    }
+
+    /// Clones `full_name` (owner/name) into `into`.
+    pub fn clone_repo(self, full_name: &str, into: &Path) -> Result<()> {
+        let parent = into.parent().ok_or_else(|| anyhow::anyhow!("nowhere to clone into"))?;
+        self.run(parent, &["repo", "clone", full_name, &into.to_string_lossy()], None)?;
+        Ok(())
+    }
+
     /// Creates `full_name` (owner/name) from the local repo at `dir`, sets it as origin and pushes.
     pub fn create_repo(self, dir: &Path, full_name: &str, private: bool) -> Result<String> {
         if self != Forge::GitHub {
