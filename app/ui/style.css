@@ -45,7 +45,15 @@ button { cursor: pointer; }
 .navbtn:hover { background: var(--surface); color: var(--fg); }
 .navbtn[aria-current="page"] { background: var(--surface); color: var(--fg); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
 .badge { font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 99px; background: var(--signal-soft); color: var(--signal); font-variant-numeric: tabular-nums; }
-.side-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px 8px 4px; border-top: 1px solid var(--line); }
+.side-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px 8px 4px; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; width: 100%; border-radius: 0; }
+.side-foot:hover b { text-decoration: underline; }
+.side-foot .av { width: 30px; height: 30px; }
+.av img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.me-btn { border: 0; background: transparent; padding: 0; border-radius: 50%; }
+.me-btn .av { width: 44px; height: 44px; }
+.me-btn:hover .av { box-shadow: 0 0 0 3px var(--accent-soft); }
+.pf-row { display: flex; align-items: center; gap: 16px; }
+.pf-pic .av { width: 84px; height: 84px; }
 .side-foot b { display: block; font-size: 13px; }
 .side-foot span { font-size: 12px; color: var(--muted); }
 .serve { font-size: 11px; color: var(--muted); padding: 6px 10px; }

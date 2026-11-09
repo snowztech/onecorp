@@ -169,6 +169,17 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// You, the founder: your name and photo, shown in the app and known by your team
+    Founder {
+        #[arg(long)]
+        name: Option<String>,
+        /// A photo file: png, jpg, webp, gif or heic
+        #[arg(long)]
+        photo: Option<PathBuf>,
+        /// Go back to the generated face
+        #[arg(long, conflicts_with = "photo")]
+        no_photo: bool,
+    },
     /// How approved work lands: local merges, or pull requests on github or gitlab
     Ship {
         /// local, github or gitlab. Leave out to see the current one
@@ -533,6 +544,26 @@ fn run(cmd: Cmd) -> Result<()> {
             }
         }
         Cmd::Serve { max } => onecorp::serve::serve(max)?,
+        Cmd::Founder { name, photo, no_photo } => {
+            use onecorp::founder::Photo;
+            let current = onecorp::founder::load();
+            if name.is_some() || photo.is_some() || no_photo {
+                let name = name.or_else(|| current.as_ref().map(|f| f.name.clone()));
+                let Some(name) = name else { bail!("say what to call you first: onecorp founder --name Lucas") };
+                let choice = match (&photo, no_photo) {
+                    (Some(p), _) => Photo::Use(p),
+                    (None, true) => Photo::Remove,
+                    (None, false) => Photo::Keep,
+                };
+                let f = onecorp::founder::save(&name, choice)?;
+                println!("You're {}, the founder.{}", f.name, if f.photo.is_some() { " Photo saved." } else { "" });
+            } else {
+                match current {
+                    Some(f) => println!("{}, the founder{}", f.name, f.photo.map(|p| format!(". Photo: {}", p.display())).unwrap_or_default()),
+                    None => println!("No founder profile yet. Set one: onecorp founder --name Lucas --photo ~/me.jpg"),
+                }
+            }
+        }
         Cmd::Ship { mode, company } => {
             let c = open(company)?;
             if let Some(m) = mode {

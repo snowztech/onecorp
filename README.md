@@ -39,6 +39,7 @@ cargo build
 alias onecorp=./target/debug/onecorp
 
 onecorp doctor                                # checks git, Claude Code, Codex and your companies
+onecorp founder --name Lucas --photo ~/me.jpg  # who your team works for
 
 onecorp new snowztech --repo ~/dev/some-repo --mission "Open source tools for AI agents"
 onecorp new acme --repo ~/dev/other --team small   # starting team: solo, small, demo (free, no AI) or empty

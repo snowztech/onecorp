@@ -71,6 +71,50 @@ fn request_changes(company: String, key: String, feedback: String) -> Res<()> {
 }
 
 /// What the new company flow needs: the starting teams, and which runtimes are installed here.
+/// The founder profile, with the photo inlined so the UI can show it without serving files.
+#[tauri::command(async)]
+fn founder() -> Res<Value> {
+    let Some(f) = onecorp::founder::load() else { return Ok(Value::Null) };
+    let photo = f.photo.as_deref().and_then(|p| {
+        let bytes = std::fs::read(p).ok()?;
+        let ext = p.extension()?.to_string_lossy().to_lowercase();
+        let mime = match ext.as_str() {
+            "jpg" | "jpeg" => "image/jpeg",
+            "heic" => "image/heic",
+            other => return Some(format!("data:image/{other};base64,{}", base64(&bytes))),
+        };
+        Some(format!("data:{mime};base64,{}", base64(&bytes)))
+    });
+    Ok(json!({ "name": f.name, "photo": photo }))
+}
+
+/// `photo`: a file to use. `remove_photo`: back to the generated face. Neither: keep what's there.
+#[tauri::command(async)]
+fn save_founder(name: String, photo: Option<String>, remove_photo: bool) -> Res<()> {
+    use onecorp::founder::Photo;
+    let path = photo.filter(|p| !p.trim().is_empty()).map(std::path::PathBuf::from);
+    let choice = match (&path, remove_photo) {
+        (Some(p), _) => Photo::Use(p),
+        (None, true) => Photo::Remove,
+        (None, false) => Photo::Keep,
+    };
+    onecorp::founder::save(&name, choice).map(|_| ()).map_err(err)
+}
+
+/// Standard base64, for inlining the founder's photo. Small enough not to need a dependency.
+fn base64(bytes: &[u8]) -> String {
+    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
+        for i in 0..4 {
+            out.push(if i <= chunk.len() { ABC[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' });
+        }
+    }
+    out
+}
+
 #[tauri::command(async)]
 fn setup_info() -> Res<Value> {
     let runtimes = onecorp::doctor::installed_runtimes();
@@ -246,6 +290,8 @@ fn main() {
             save_handbook,
             add_to_handbook,
             setup_info,
+            founder,
+            save_founder,
             check_repo,
             create_company,
             new_ticket,
@@ -258,4 +304,16 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("couldn't start the OneCorp window");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn base64_matches_the_standard() {
+        assert_eq!(super::base64(b""), "");
+        assert_eq!(super::base64(b"f"), "Zg==");
+        assert_eq!(super::base64(b"fo"), "Zm8=");
+        assert_eq!(super::base64(b"foo"), "Zm9v");
+        assert_eq!(super::base64(b"foobar"), "Zm9vYmFy");
+    }
 }

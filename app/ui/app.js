@@ -7,7 +7,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, diffs: {}, handbook: null, hbRaw: false, setup: null };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -67,6 +67,12 @@ function prLink(url, n) {
   return `<a class="link" data-open-url="${esc(url)}">#${esc(n)} on ${esc(where)} ↗</a>`;
 }
 const mergeLabel = () => (S.snap?.ship?.forge ? `Merge ${S.snap.ship.pr_word}` : "Approve and merge");
+/* You, the founder: your photo, or a face generated from your name */
+function me() {
+  const f = S.founder;
+  return f?.photo ? `<span class="av"><img src="${esc(f.photo)}" alt=""></span>` : face(f?.name || "You", "neutral");
+}
+const myName = () => S.founder?.name || "You";
 const byId = id => (S.snap?.employees || []).find(e => e.id === id);
 const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S.snap.failed || []).length : 0);
 
@@ -79,11 +85,11 @@ function renderSide() {
     ${S.company ? `<h6>${esc(S.company)}</h6>${Object.entries(pages).map(([k, v]) =>
       `<button class="navbtn" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${v}${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}</button>`).join("")}` : ""}
     ${S.snap ? `<div class="serve ${S.snap.serve ? "" : "off"}"><i></i>${S.snap.serve ? "Your team is working" : "Nobody is running work"}</div>` : ""}
-    <div class="side-foot"><span class="logo" style="background:var(--accent);color:#fff;border-radius:50%">Y</span><div><b>You</b><span>Founder</span></div></div>`;
+    <button class="side-foot" data-profile="1" title="Edit your profile">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div></button>`;
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board" }[S.view] || S.company || "OneCorp";
+  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board" }[S.view] || S.company || "OneCorp";
   const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
   const ships = s?.ship?.forge ? ` · ships to ${s.ship.forge}` : s ? " · merges locally" : "";
   $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}${ships}` : "";
@@ -92,8 +98,8 @@ function renderTop() {
   sel.innerHTML = (s?.employees || []).map(e => `<option value="${esc(e.id)}">${esc(first(e.name))}${e.status === "idle" ? " (free)" : ""}</option>`).join("");
   if (keep && s?.employees.some(e => e.id === keep)) sel.value = keep;
   else { const free = s?.employees.find(e => e.status === "idle"); if (free) sel.value = free.id; }
-  $("#give").hidden = !!S.setup || !s || !s.employees.length;
-  if (S.setup) { $("#sub").textContent = ""; $("#spend").innerHTML = ""; }
+  $("#give").hidden = !!S.setup || !!S.profile || !s || !s.employees.length;
+  if (S.setup || S.profile) { $("#sub").textContent = ""; $("#spend").innerHTML = ""; }
 }
 
 /* Company page: you on top, departments beneath as rooms of desks */
@@ -126,7 +132,7 @@ function viewCompany() {
   const items = [...(s.failed || []).map(t => ({ who: t.employee, name: t.name, text: `${t.key} stopped. Retry it?` })), ...s.reviews.map(r => ({ who: r.employee, name: r.name, text: `${r.key} is ready for review` })), ...s.inbox.map(q => ({ who: q.employee, name: q.name, text: q.kind === "handbook" ? "Handbook proposal" : q.question }))];
   const needs = items.slice(0, 4).map(i => `<button class="need" data-view="inbox">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   return `<div class="hq"><div>
-      <div class="founder"><span class="me">Y</span><div><b>You</b><span>Founder · ${s.employees.length} people · ${working} working now</span></div><button class="btn" data-add-dept="1">+ Department</button></div>
+      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${s.employees.length} people · ${working} working now</span></div><button class="btn" data-add-dept="1">+ Department</button></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
       ${items.length ? `<section class="panel"><h3>Needs you <span class="badge">${items.length}</span></h3><div class="needs">${needs}</div></section>` : ""}
@@ -350,6 +356,29 @@ async function openPerson(id) {
   renderDrawer();
 }
 
+/* Your profile: a name and a photo, kept on this Mac. No account. */
+function viewProfile() {
+  const p = S.profile, first = !S.founder;
+  const preview = S.founder?.photo ? me() : face(p.name || "You", "neutral");
+  return `<form class="setup" id="profile">
+    <h2>${first ? "Who's running the company?" : "Your profile"}</h2>
+    <p class="muted">Your team sees your name and works for you. It stays on this Mac. There's no account.</p>
+    <div class="pf-row"><span class="pf-pic">${preview}</span><div class="acts">
+      ${window.__TAURI__?.dialog ? `<button class="btn" type="button" data-pf="pick">${S.founder?.photo ? "Change photo…" : "Choose a photo…"}</button>` : ""}
+      ${S.founder?.photo ? `<button class="btn" type="button" data-pf="face">Use a generated face</button>` : `<span class="muted">Or keep a face drawn from your name.</span>`}</div></div>
+    <div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(p.name)}" placeholder="Lucas" autocomplete="off"></div>
+    <div class="su-nav">${first ? "<span></span>" : `<button class="btn" type="button" data-pf="cancel">Cancel</button>`}<button class="btn primary">${first ? "Continue" : "Save"}</button></div></form>`;
+}
+async function saveProfile(photo, removePhoto) {
+  const name = ($("#pf-name")?.value ?? S.profile.name).trim();
+  if (!name) { toast("Say what to call you first", true); $("#pf-name")?.focus(); return false; }
+  try {
+    await invoke("save_founder", { name, photo: photo || null, removePhoto: !!removePhoto });
+    S.founder = await invoke("founder");
+    return true;
+  } catch (e) { toast(String(e), true); return false; }
+}
+
 /* New company: repo, name, starting team, review. Four short steps, nothing needs the terminal. */
 async function startSetup() {
   try {
@@ -429,9 +458,12 @@ function viewSetup() {
 function render() {
   // Background refreshes re-render too, so keep whatever is typed in the new company flow.
   if (S.setup && $("#setup")) readSetup();
+  if (S.profile && $("#pf-name")) S.profile.name = $("#pf-name").value;
   renderSide(); renderTop();
   const v = $("#view");
-  if (S.setup) {
+  if (S.profile) {
+    v.innerHTML = viewProfile();
+  } else if (S.setup) {
     v.innerHTML = viewSetup();
   } else if (!S.company) {
     v.innerHTML = `<div class="empty-state"><b>No company yet</b>Opening the new company flow…</div>`;
@@ -448,12 +480,15 @@ function typing() {
 }
 async function refresh(force) {
   try {
+    if (S.founder === undefined) S.founder = await invoke("founder");
+    // A first launch says hello before anything else: who you are, then your first company.
+    if (S.founder === null && !S.profile && !S.setup) S.profile = { name: "" };
     const c = await invoke("companies");
     S.companies = c.list;
     if (!S.company || !c.list.includes(S.company)) S.company = c.current;
     if (!S.company) {
       S.snap = null;
-      if (!S.setup) return startSetup(); // A first launch goes straight to creating a company.
+      if (!S.setup && !S.profile) return startSetup(); // No company yet: create one.
       return;
     }
     const snap = await invoke("snapshot", { company: S.company });
@@ -473,9 +508,20 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.profile) { S.profile = { name: myName() === "You" ? "" : myName() }; S.drawer = null; return render(); }
+  if (d.pf) {
+    if (d.pf === "cancel") { S.profile = null; return render(); }
+    if (d.pf === "face") { if (await saveProfile(null, true)) render(); return; }
+    if (d.pf === "pick") {
+      const path = await window.__TAURI__.dialog.open({ multiple: false, title: "Pick a photo of you", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif", "heic"] }] }).catch(() => null);
+      // Saved straight away, so the preview shows the copy OneCorp keeps.
+      if (path && await saveProfile(String(path))) render();
+      return;
+    }
+  }
   if (d.openUrl) {
     e.preventDefault();
     return window.__TAURI__?.opener ? window.__TAURI__.opener.openUrl(d.openUrl).catch(err => toast(String(err), true)) : window.open(d.openUrl, "_blank");
@@ -540,6 +586,14 @@ document.addEventListener("click", async e => {
 document.addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
+  if (f.id === "profile") {
+    const firstTime = !S.founder;
+    if (!(await saveProfile())) return;
+    S.profile = null;
+    toast(firstTime ? `Welcome, ${myName()}.` : "Saved");
+    if (!S.companies.length) return startSetup();
+    return refresh(true);
+  }
   if (f.id === "setup") {
     readSetup();
     const s = S.setup;
@@ -647,6 +701,7 @@ function preview(cmd) {
     ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
     check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [], forge: "GitHub", pr_word: "pull request", signed_in: true, account: "Logged in to github.com account you" },
+    founder: { name: "Lucas", photo: null },
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
       activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }],
       memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing"] },
@@ -655,6 +710,6 @@ function preview(cmd) {
     files: [{ path: "web/src/pages/pricing.tsx", added: 4, removed: 1 }, { path: "README.md", added: 1, removed: 0 }],
     commits: [{ hash: "c3dbf20", author: "Odile Martin", subject: "SNO-11: pricing page" }],
     patch: "diff --git a/web/src/pages/pricing.tsx b/web/src/pages/pricing.tsx\nindex 1..2 100644\n--- a/web/src/pages/pricing.tsx\n+++ b/web/src/pages/pricing.tsx\n@@ -1,3 +1,6 @@\n export function Pricing() {\n-  return null\n+  return <>\n+    <Plan name=\"Free\" price={0} />\n+    <Plan name=\"Pro\" price={6} />\n+  </>\n }\ndiff --git a/README.md b/README.md\nindex 3..4 100644\n--- a/README.md\n+++ b/README.md\n@@ -1 +1,2 @@\n # Notes\n+Pricing: free, or $6 a month.\n", truncated: false };
-  if (data[cmd]) return Promise.resolve(data[cmd]);
+  if (cmd in data) return Promise.resolve(data[cmd]);
   return Promise.reject("This is a preview. Open the OneCorp app to make changes.");
 }

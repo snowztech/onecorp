@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Founder profile: your name and photo, set on first launch or with `onecorp founder`. It shows on the org chart, and employees know who they work for. No account, it stays on your Mac.
 - Ship as pull requests: finished work opens a PR on GitHub or GitLab, sending it back updates it, and approving merges it. PRs merged or closed on the forge are picked up. `onecorp ship` switches modes.
 
 ## 0.1.0

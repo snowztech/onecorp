@@ -43,6 +43,7 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 | `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the handbook, remember, mark blocked. |
 | `ship.rs` | How approved work lands: a local merge, or a pull request on GitHub or GitLab. Publishing, approving, and noticing PRs merged or closed on the forge. |
 | `forge.rs` | The only code that talks to `gh` and `glab`: open, look at and merge a pull request, check the login. |
+| `founder.rs` | You: a name and an optional photo in `~/.onecorp/founder.json`, shared by every company. Prompts use the name. No account. |
 | `setup.rs` | Creating a company in one step: the company, its starting team, and how it ships. |
 | `git.rs` | Worktrees, commits under an employee's name, diffs, merges and conflicts. |
 | `templates.rs` | Role presets (engineer, reviewer, designer, writer) and starting teams for new companies. |
@@ -72,7 +73,7 @@ The main tables: `employees` (with `department` and `fired_at`), `departments` (
 1. **You give the ticket.** `onecorp run "add a --version flag" --to maya`, or the box in the app's top bar. `store` adds a row in `tickets` with status `todo`.
 2. **Now or later.** `work::dispatch` checks whether `serve` is running. If not, it runs the ticket right there. If it is, it adds a row in `jobs`, marks the ticket `queued` and returns straight away.
 3. **A private workspace.** `work::start` records the base branch (usually `main`) and has `git` create a worktree on a fresh branch, `onecorp/snowztech/sno-12`. Your own checkout is never touched.
-4. **The prompt.** It's built from the employee's name, role and bio, the ticket, what their runtime can do, the company handbook, the list of who works here, and their own memory.
+4. **The prompt.** It's built from the employee's name, role and bio, the ticket, what their runtime can do, who the founder is, the company handbook, the list of who works here, and their own memory.
 5. **The runtime starts.** `runtime::run` picks `claude.rs`, `codex.rs` or `fake.rs`, which start the agent CLI headless in the worktree. It runs with `runtime::path()`: your current PATH plus your login shell's PATH and the usual install folders, because an app opened from the Dock gets a bare PATH and wouldn't find `claude` or `codex`. They pass it two things: the git identity of the employee, so any commit is theirs, and an MCP config pointing at `onecorp mcp --company snowztech --ticket 12 --employee maya`. Only that MCP server loads. Your personal ones stay out.
 6. **Watching it work.** The runtime prints JSON lines. Each runtime's `parse` turns them into a small set of `Event`s: start, say, tool, error, done. `work::drive` stores every event, prints it, and keeps the session id so the ticket can be picked back up later.
 7. **Company tools.** While it works, the agent can call the MCP tools. `ask_human` puts a question in your inbox, and a blocking one marks the ticket `blocked`. `post_message` posts to chat. `propose_handbook` suggests a rule. `remember` adds to its own memory.

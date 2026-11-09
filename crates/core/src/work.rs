@@ -258,6 +258,9 @@ fn company_knowledge(c: &Company) -> Result<String> {
     }
     let team: Vec<String> = c.employees()?.iter().map(|e| format!("- {}, {} (works on {})", e.name, e.role, e.runtime)).collect();
     let mut out = String::new();
+    if let Some(f) = crate::founder::load() {
+        out.push_str(&format!("You work for {}, the founder of {}. Questions with ask_human go to them.\n\n", f.name, c.name));
+    }
     if !doc.is_empty() {
         out.push_str(&format!("The company handbook. Everyone reads it, so follow it:\n\n{doc}\n\n"));
     }
@@ -285,7 +288,7 @@ pub fn resume(c: &Company, q: &Question) -> Result<()> {
     // Who answered, so the asker knows whether it came from their lead or the founder.
     let by = match q.answered_by.as_deref() {
         Some(id) if id != "founder" => c.employee(id)?.map(|e| format!("{}, your lead,", e.name)).unwrap_or_else(|| "Your lead".into()),
-        _ => "The founder".into(),
+        _ => crate::founder::load().map(|f| format!("{}, the founder,", f.name)).unwrap_or_else(|| "The founder".into()),
     };
     let prompt = format!(
         "{by} answered your question #{n}: \"{question}\"\n\nTheir answer: {answer}\n\n\
