@@ -4,7 +4,12 @@ use std::process::{Command, Output};
 
 type Env = [(String, String)];
 
+// Parallel tickets share one repo, and git takes lock files (index.lock, packed-refs) while it
+// works. One git command at a time inside OneCorp avoids "unable to lock" failures. They're fast.
+static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn run(dir: &Path, args: &[&str], env: &Env) -> Result<Output> {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     Ok(Command::new("git").arg("-C").arg(dir).args(args).envs(env.iter().map(|(k, v)| (k, v))).output()?)
 }
 

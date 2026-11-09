@@ -1,3 +1,4 @@
+use crate::work::Job;
 use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::fs;
@@ -49,6 +50,18 @@ CREATE TABLE IF NOT EXISTS inbox (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   answered_at TEXT
 );
+CREATE TABLE IF NOT EXISTS jobs (
+  id INTEGER PRIMARY KEY,
+  ticket_id INTEGER NOT NULL REFERENCES tickets(id),
+  kind TEXT NOT NULL,
+  why TEXT NOT NULL DEFAULT '',
+  prompt TEXT NOT NULL DEFAULT '',
+  label TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT,
+  finished_at TEXT,
+  error TEXT
+);
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY,
   channel TEXT NOT NULL,
@@ -97,6 +110,13 @@ pub struct Employee {
 
 /// (time, channel, author, text, ticket)
 pub type Message = (String, String, String, String, Option<i64>);
+
+/// A job serve has claimed and is about to run.
+pub struct Claimed {
+    pub id: i64,
+    pub ticket: i64,
+    pub job: Job,
+}
 
 pub struct Question {
     pub id: i64,
@@ -269,6 +289,64 @@ impl Company {
         Ok(())
     }
 
+    pub fn enqueue(&self, ticket: i64, job: &Job) -> Result<()> {
+        let (kind, why, prompt, label) = match job {
+            Job::Start => ("start", "", "", ""),
+            Job::Resume { why, prompt, label } => ("resume", why.as_str(), prompt.as_str(), label.as_str()),
+        };
+        self.db.execute(
+            "INSERT INTO jobs (ticket_id, kind, why, prompt, label) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![ticket, kind, why, prompt, label],
+        )?;
+        Ok(())
+    }
+
+    /// Takes the oldest queued job whose ticket and employee are both free. Each employee works
+    /// one ticket at a time, like a person, which also keeps their runtime's rate limits sane.
+    pub fn claim_job(&self) -> Result<Option<Claimed>> {
+        let next = self
+            .db
+            .query_row(
+                "SELECT j.id, j.ticket_id, j.kind, j.why, j.prompt, j.label FROM jobs j JOIN tickets t ON t.id = j.ticket_id
+                 WHERE j.started_at IS NULL AND NOT EXISTS (
+                   SELECT 1 FROM jobs r JOIN tickets rt ON rt.id = r.ticket_id
+                   WHERE r.started_at IS NOT NULL AND r.finished_at IS NULL
+                     AND (r.ticket_id = j.ticket_id OR rt.assignee = t.assignee))
+                 ORDER BY j.id LIMIT 1",
+                [],
+                |r| {
+                    let job = match r.get::<_, String>(2)?.as_str() {
+                        "start" => Job::Start,
+                        _ => Job::Resume { why: r.get(3)?, prompt: r.get(4)?, label: r.get(5)? },
+                    };
+                    Ok(Claimed { id: r.get(0)?, ticket: r.get(1)?, job })
+                },
+            )
+            .optional()?;
+        if let Some(j) = &next {
+            self.db.execute("UPDATE jobs SET started_at = datetime('now') WHERE id = ?1", [j.id])?;
+        }
+        Ok(next)
+    }
+
+    pub fn finish_job(&self, id: i64, error: Option<&str>) -> Result<()> {
+        self.db.execute("UPDATE jobs SET finished_at = datetime('now'), error = ?2 WHERE id = ?1", params![id, error])?;
+        Ok(())
+    }
+
+    /// Jobs that were running when serve stopped can't be trusted to resume cleanly.
+    /// Marks them and their tickets failed, and returns the ticket keys.
+    pub fn recover_interrupted(&self) -> Result<Vec<String>> {
+        let mut st = self.db.prepare("SELECT id, ticket_id FROM jobs WHERE started_at IS NOT NULL AND finished_at IS NULL")?;
+        let stuck: Vec<(i64, i64)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?;
+        for (job, ticket) in &stuck {
+            self.finish_job(*job, Some("interrupted"))?;
+            self.set_status(*ticket, "failed")?;
+            self.add_event(*ticket, "error", "interrupted when onecorp serve stopped", "")?;
+        }
+        Ok(stuck.iter().map(|(_, t)| self.key(*t)).collect())
+    }
+
     pub fn handbook_path(&self) -> PathBuf {
         self.dir.join("handbook.md")
     }
@@ -434,7 +512,38 @@ pub fn add_to_section(doc: &str, section: &str, text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::add_to_section;
+    use super::*;
+
+    #[test]
+    fn claims_one_ticket_per_employee_at_a_time() {
+        let dir = std::env::temp_dir().join(format!("onecorp-jobs-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let c = Company::open_dir("snowztech", dir.clone()).unwrap();
+        for id in ["maya", "tomas"] {
+            let e = Employee { id: id.into(), name: id.into(), role: "Engineer".into(), runtime: "claude".into(), model: None, bio: String::new() };
+            c.hire(&e).unwrap();
+        }
+        let m1 = c.add_ticket("one", "maya").unwrap();
+        let m2 = c.add_ticket("two", "maya").unwrap();
+        let t1 = c.add_ticket("three", "tomas").unwrap();
+        for t in [m1, m2, t1] {
+            c.enqueue(t, &Job::Start).unwrap();
+        }
+
+        let a = c.claim_job().unwrap().unwrap();
+        let b = c.claim_job().unwrap().unwrap();
+        assert_eq!((a.ticket, b.ticket), (m1, t1), "maya's second ticket waits, tomas works in parallel");
+        assert!(c.claim_job().unwrap().is_none());
+
+        c.finish_job(a.id, None).unwrap();
+        assert_eq!(c.claim_job().unwrap().unwrap().ticket, m2);
+
+        // Serve died with t1 and m2 running: both come back failed instead of stuck.
+        assert_eq!(c.recover_interrupted().unwrap(), vec![c.key(m2), c.key(t1)]);
+        assert_eq!(c.ticket(t1).unwrap().unwrap().status, "failed");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn adds_bullets_to_the_right_section() {

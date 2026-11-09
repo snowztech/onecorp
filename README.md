@@ -28,6 +28,7 @@ onecorp handbook                              # what every employee reads before
 onecorp handbook add "No ORMs"                # under Decisions, or --section Conventions
 onecorp handbook edit                         # open it in $EDITOR
 onecorp fire maya
+onecorp serve                                 # run queued work, several employees at a time
 ```
 
 Presets for `--as`: `engineer`, `reviewer`, `designer`, `writer`. Override the title with `--role` and how they work with `--bio`.
@@ -40,6 +41,15 @@ Each agent gets the company's MCP server (`onecorp mcp`, started by the agent ov
 - `post_message` posts to a team channel.
 - `update_ticket` marks the ticket blocked, with a reason.
 - `propose_handbook` suggests a decision or convention. It lands in your inbox, and `onecorp answer N yes` (or `no`, or your own wording) settles it.
+
+## Running in the background
+
+Without `onecorp serve`, every command runs its work right there in your terminal. With it running, `run`, `answer`, `changes` and a conflicting `approve` queue the work and return straight away, and serve picks it up:
+
+- Up to `--max` employees work at the same time (default 3), across all your companies.
+- Each employee works one ticket at a time, like a person. Their next ticket waits.
+- Every line serve prints is tagged with the ticket and the employee, like `SNO-3 tomas`.
+- If serve is stopped mid-ticket, the next start marks that ticket failed instead of leaving it stuck.
 
 ## Shared knowledge
 
