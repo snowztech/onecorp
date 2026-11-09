@@ -32,6 +32,14 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         return Ok(());
     }
 
+    // Writing the handbook: a short one, from the prompt's company name.
+    if company_ticket(o).is_some_and(|(c, t)| c.ticket(t).ok().flatten().is_some_and(|t| t.kind == "handbook")) {
+        let name = prompt.split("Start with \"# ").nth(1).and_then(|r| r.split(" handbook").next()).unwrap_or("the company");
+        let text = format!("# {name} handbook\n\n## Mission\n\nNotes for writers.\n\n## Codebase\n\n- A README, and not much else yet.\n\n## Decisions\n");
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
+        return Ok(());
+    }
+
     // On a plan ticket, planning or planning again: create tickets through the real company tools.
     if company_ticket(o).is_some_and(|(c, t)| c.ticket(t).ok().flatten().is_some_and(|t| t.kind == "plan")) {
         let made = plan(o, prompt)?;

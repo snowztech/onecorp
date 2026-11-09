@@ -20,6 +20,9 @@ pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], br
     }
     let hired = templates::hire(&c, people)?;
     crate::store::set_current(&c.name)?;
+    if hired.iter().any(|e| e.runtime != "fake") {
+        crate::work::write_handbook(&c, None)?;
+    }
     if !brief.trim().is_empty() {
         c.write_brief(brief)?;
         if !hired.is_empty() {

@@ -225,6 +225,9 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     if t.kind == "plan" {
         return run_plan(c, t);
     }
+    if t.kind == "handbook" {
+        return run_handbook(c, t);
+    }
     let (id, key, title) = (t.id, c.key(t.id), t.title.as_str());
     let e = employee_of(c, t)?;
     let wt = c.dir.join("wt").join(key.to_lowercase());
@@ -358,6 +361,74 @@ pub fn delete(c: &Company, t: &Ticket) -> Result<()> {
     c.forget_ticket(t.id)?;
     out(&format!("Deleted {key}."));
     Ok(())
+}
+
+/// Has someone read the repo and write the company handbook, so the team starts out knowing the
+/// codebase. Your engineering lead by default. Runs read-only, like a plan.
+pub fn write_handbook(c: &Company, by: Option<&str>) -> Result<i64> {
+    let writer = match by {
+        Some(id) => c.employee(id)?.ok_or_else(|| anyhow!("nobody called {id} works here"))?,
+        None => {
+            let depts = c.departments()?;
+            let lead = depts.iter().find(|d| d.name.to_lowercase().contains("eng")).or(depts.first()).and_then(|d| d.lead.clone());
+            match lead.and_then(|id| c.employee(&id).ok().flatten()) {
+                Some(e) => e,
+                None => c.employees()?.into_iter().next().ok_or_else(|| anyhow!("hire someone first"))?,
+            }
+        }
+    };
+    let id = c.new_ticket(&crate::store::NewTicket { title: "Write the handbook".into(), assignee: Some(writer.id.clone()), ..Default::default() }, "todo")?;
+    c.set_kind(id, "handbook")?;
+    out(&format!("{} writes the handbook: {}.", c.key(id), writer.name));
+    dispatch(c, id, Job::Start)?;
+    Ok(id)
+}
+
+fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
+    let (id, key) = (t.id, c.key(t.id));
+    let e = employee_of(c, t)?;
+    c.start_plan_ticket(id)?;
+    let mission = handbook_section(&c.handbook()?, "Mission");
+    let prompt = format!(
+        "You are {name}, {role} at {company}. {bio}\n\n\
+         Your ticket is {key}: write the company handbook. Every teammate reads it before every ticket, so it's how a \
+         new hire learns this codebase. Read the repo as much as you need, but don't change any files.\n\n\
+         Reply with the handbook in Markdown and nothing else. Start with \"# {company} handbook\", then these sections:\n\
+         ## Mission: {mission}\n\
+         ## Codebase: what this is, the stack, and where things live, folder by folder.\n\
+         ## Build and test: the exact commands, and what to run before calling work done.\n\
+         ## Conventions: what you can see the code already does (naming, structure, style, testing). Only what's really there.\n\
+         ## Decisions: leave it empty.\n\
+         Short bullets, plain words, nothing invented. If something isn't clear from the repo, leave it out.\n\n{knowledge}",
+        name = e.name,
+        role = e.role,
+        company = c.name,
+        bio = e.bio,
+        mission = if mission.is_empty() { "one or two sentences on what the company is for, from the README.".to_string() } else { format!("keep exactly this: {mission}") },
+        knowledge = company_knowledge(c)?,
+    );
+    drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)?;
+    // The reply is the handbook. Only a reply that looks like one replaces what's there.
+    let said = c.events(id)?.into_iter().rev().find(|(_, kind, _)| kind == "handbook-text").map(|(_, _, s)| s).unwrap_or_default();
+    let doc = said.trim().trim_start_matches("```markdown").trim_start_matches("```md").trim_start_matches("```").trim_end_matches("```").trim();
+    let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+    if t.status == "review" && doc.starts_with('#') && doc.contains("\n## ") {
+        c.write_handbook(&format!("{doc}\n"))?;
+        c.set_status(id, "done")?;
+        c.add_event(id, "handbook", "wrote the handbook", "")?;
+        out(&format!("{key}  the handbook is written. Read it: onecorp handbook"));
+    } else if t.status == "review" {
+        c.set_status(id, "failed")?;
+        c.add_event(id, "error", "the reply wasn't a handbook, so nothing was changed", "")?;
+    }
+    Ok(())
+}
+
+/// The text of one `## name` section of a Markdown document.
+fn handbook_section(doc: &str, name: &str) -> String {
+    let mut lines = doc.lines().skip_while(|l| !l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case(name)));
+    lines.next();
+    lines.take_while(|l| !l.starts_with("## ")).collect::<Vec<_>>().join("\n").trim().to_string()
 }
 
 /// Plans a project: a feature or a goal, like "Stripe billing". The planner breaks it into tickets
@@ -687,7 +758,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         let _ = c.set_agent_pid(id, Some(pid));
     };
     // A plan only reads the repo and creates tickets. It must never change your checkout.
-    let planning = c.ticket(id)?.is_some_and(|t| t.kind == "plan");
+    let planning = c.ticket(id)?.is_some_and(|t| t.kind == "plan" || t.kind == "handbook");
     let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid) };
 
     let wt_prefix = format!("{}/", wt.display());
@@ -740,6 +811,10 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
 
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     let text = if text.is_empty() { last_say } else { text };
+    // A writing ticket's whole reply is its work, kept in full for whoever reads it next.
+    if c.ticket(id)?.is_some_and(|t| t.kind == "handbook") {
+        c.add_event(id, "handbook-text", &text, "")?;
+    }
     if ok && !planning {
         let msg = short(&format!("{key}: {label}"), 72);
         if let Some(hash) = git::commit_all(wt, &msg, &identity)? {

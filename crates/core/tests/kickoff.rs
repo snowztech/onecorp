@@ -68,6 +68,13 @@ fn an_idea_becomes_a_plan_becomes_work() {
     assert_eq!((status(second), c.plan_tickets(second).unwrap().len()), ("review".into(), 3));
     assert!(repo.join("README.md").exists());
 
+    // Someone reads the repo and writes the handbook, read-only, and it lands as the handbook.
+    let hb = work::write_handbook(&c, None).unwrap();
+    let t = c.ticket(hb).unwrap().unwrap();
+    assert_eq!((t.kind.as_str(), t.status.as_str(), t.assignee.as_deref()), ("handbook", "done", Some("odile")), "the engineering lead writes it");
+    assert!(c.handbook().unwrap().contains("## Codebase\n\n- A README"));
+    assert!(git_status_clean(&repo), "writing the handbook never touches your checkout");
+
     // Paused, nothing starts. Resuming lets queued work go.
     c.set_paused(true).unwrap();
     let waiting = work::plan_project(&c, "Search", "Full-text search over notes", Some("rui")).unwrap();

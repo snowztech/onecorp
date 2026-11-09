@@ -512,6 +512,11 @@ impl Company {
     }
 
     /// A planning ticket: its work is reading the brief and the repo and creating tickets.
+    pub fn set_kind(&self, id: i64, kind: &str) -> Result<()> {
+        self.db.execute("UPDATE tickets SET kind = ?2 WHERE id = ?1", params![id, kind])?;
+        Ok(())
+    }
+
     /// A project: a plan ticket whose title names it and whose description says what it should do.
     pub fn new_plan(&self, title: &str, goal: &str, planner: &str) -> Result<i64> {
         self.db.execute("INSERT INTO tickets (title, description, assignee, kind, status) VALUES (?1, ?2, ?3, 'plan', 'todo')", params![title, goal, planner])?;
@@ -979,7 +984,7 @@ impl Company {
         let mut st = self.db.prepare(
             "SELECT e.at, e.ticket_id, coalesce(t.assignee, ''), e.kind, e.summary, t.title
              FROM events e JOIN tickets t ON t.id = e.ticket_id
-             WHERE e.kind NOT IN ('tool', 'say', 'error', 'commit') ORDER BY e.id DESC LIMIT ?1",
+             WHERE e.kind NOT IN ('tool', 'say', 'error', 'commit', 'handbook-text') ORDER BY e.id DESC LIMIT ?1",
         )?;
         let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
