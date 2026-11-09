@@ -142,25 +142,30 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
     crate::work::release_waiting(c, t.id)
 }
 
-/// After the work is on base: mark it done, bring your local base up to date, and clean up.
+/// After the work is on base: bring your local base up to date, clean up, and only then mark the
+/// ticket done. If OneCorp stops halfway, the ticket is still in review and the next sync finishes
+/// the job, since every step here is safe to repeat.
 fn landed(c: &Company, t: &Ticket, forge: Option<Forge>, what: &str) -> Result<()> {
-    c.set_status(t.id, "done")?;
-    c.add_event(t.id, "merge", what, "")?;
     let repo = c.repo()?;
-    let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) else { return Ok(()) };
-    if forge.is_some() {
-        let base = t.base.clone().unwrap_or_else(|| "main".into());
-        git::delete_remote_branch(&repo, branch);
-        // Your local base follows the forge when it can. If you have local work on it, it waits for you.
-        let updated = git::fetch(&repo, &base).and_then(|_| git::fast_forward(&repo, &base, &format!("origin/{base}")));
-        if let Err(e) = updated {
-            out(&format!("Your local {base} wasn't updated ({e:#}). Pull when you're ready."));
+    if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
+        if forge.is_some() {
+            let base = t.base.clone().unwrap_or_else(|| "main".into());
+            git::delete_remote_branch(&repo, branch);
+            // Your local base follows the forge when it can. If you have local work on it, it waits for you.
+            let updated = git::fetch(&repo, &base).and_then(|_| git::fast_forward(&repo, &base, &format!("origin/{base}")));
+            if let Err(e) = updated {
+                out(&format!("Your local {base} wasn't updated ({e:#}). Pull when you're ready."));
+            }
+        }
+        // The work is safe on base now, so a failed cleanup is only worth a warning.
+        if Path::new(wt).exists()
+            && let Err(e) = git::clean_up(&repo, Path::new(wt), branch)
+        {
+            out(&format!("warning: merged, but couldn't remove the worktree: {e:#}"));
         }
     }
-    // The work is safe on base now, so a failed cleanup is only worth a warning.
-    if let Err(e) = git::clean_up(&repo, Path::new(wt), branch) {
-        out(&format!("warning: merged, but couldn't remove the worktree: {e:#}"));
-    }
+    c.set_status(t.id, "done")?;
+    c.add_event(t.id, "merge", what, "")?;
     Ok(())
 }
 

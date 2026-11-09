@@ -90,6 +90,10 @@ In GitHub or GitLab mode:
 - `ship::approve` brings in the latest base (conflicts go back to the employee), merges the PR with a merge commit so every employee's commits keep their name, fast-forwards your local base when it can, and deletes the branch.
 - `ship::sync`, called by serve about once a minute, notices PRs merged or closed on the forge itself.
 
+Landing a ticket does the git work first (delete the remote branch, update your local base, remove the worktree) and marks the ticket done last. If OneCorp stops halfway, the ticket is still in review and the next sync finishes the job, since each step is safe to repeat.
+
+This was tested against real GitHub with `gh`: opening a PR, updating it with changes, merging it on approve with each employee's commits keeping their name, and a PR merged directly on GitHub being picked up.
+
 OneCorp has no account of its own. `gh` and `glab` use the login you already have, and PRs are opened by your account.
 
 ### After that
