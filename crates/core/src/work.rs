@@ -320,6 +320,26 @@ pub fn kickoff(c: &Company, by: Option<&str>) -> Result<i64> {
     plan_project(c, "First version", "", by)
 }
 
+/// Deletes a ticket that isn't running: one that's merged, stopped, or never started. Merged
+/// work stays in your repo. A stopped ticket's worktree and branch go with it.
+pub fn delete(c: &Company, t: &Ticket) -> Result<()> {
+    let key = c.key(t.id);
+    match t.status.as_str() {
+        "doing" | "queued" | "blocked" => bail!("{key} is still running. Stop it first, then delete it"),
+        "review" => bail!("{key} is waiting for your review. Merge it or dismiss it first"),
+        _ => {}
+    }
+    if t.status == "failed"
+        && t.kind != "plan"
+        && let (Some(wt), Some(branch)) = (t.worktree.as_deref(), t.branch.as_deref())
+    {
+        git::discard(&c.repo()?, Path::new(wt), branch, &c.dir.join("wt"));
+    }
+    c.forget_ticket(t.id)?;
+    out(&format!("Deleted {key}."));
+    Ok(())
+}
+
 /// Plans a project: a feature or a goal, like "Stripe billing". The planner breaks it into tickets
 /// you review. With no goal it plans the first version from the company brief.
 pub fn plan_project(c: &Company, name: &str, goal: &str, by: Option<&str>) -> Result<i64> {

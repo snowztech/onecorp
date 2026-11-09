@@ -384,6 +384,28 @@ impl Company {
         if n == 0 {
             bail!("nobody called {id} works at {}", self.name);
         }
+        // A department they led passes to whoever joined it next, or waits for a new lead.
+        self.db.execute(
+            "UPDATE departments SET lead = (SELECT e.id FROM employees e WHERE e.department = departments.id AND e.fired_at IS NULL ORDER BY e.hired_at LIMIT 1)
+             WHERE lead = ?1",
+            [id],
+        )?;
+        Ok(())
+    }
+
+    /// Changes how someone works: their name as shown, role, runtime, model and bio. Their id stays,
+    /// so their tickets, memory and git identity follow them.
+    pub fn update_employee(&self, e: &Employee) -> Result<()> {
+        if e.name.trim().is_empty() {
+            bail!("everyone needs a name");
+        }
+        let n = self.db.execute(
+            "UPDATE employees SET name = ?2, role = ?3, runtime = ?4, model = ?5, bio = ?6 WHERE id = ?1 AND fired_at IS NULL",
+            params![e.id, e.name.trim(), e.role.trim(), e.runtime, e.model, e.bio],
+        )?;
+        if n == 0 {
+            bail!("nobody called {} works at {}", e.id, self.name);
+        }
         Ok(())
     }
 
@@ -453,9 +475,18 @@ impl Company {
         if t.status != "backlog" || t.branch.is_some() {
             bail!("{} has already started, so it can't be removed. Stop it instead", self.key(id));
         }
+        self.forget_ticket(id)
+    }
+
+    /// Removes a ticket and everything recorded about it. Tickets that waited for it, or came
+    /// from it as a plan, stay. Callers check it's safe to remove first.
+    pub(crate) fn forget_ticket(&self, id: i64) -> Result<()> {
         self.db.execute("UPDATE tickets SET after = NULL WHERE after = ?1", [id])?;
-        self.db.execute("DELETE FROM events WHERE ticket_id = ?1", [id])?;
-        self.db.execute("DELETE FROM jobs WHERE ticket_id = ?1", [id])?;
+        self.db.execute("UPDATE tickets SET plan = NULL WHERE plan = ?1", [id])?;
+        self.db.execute("UPDATE messages SET ticket_id = NULL WHERE ticket_id = ?1", [id])?;
+        for table in ["events", "jobs", "inbox"] {
+            self.db.execute(&format!("DELETE FROM {table} WHERE ticket_id = ?1"), [id])?;
+        }
         self.db.execute("DELETE FROM tickets WHERE id = ?1", [id])?;
         Ok(())
     }

@@ -261,6 +261,12 @@ enum Cmd {
         #[arg(long, conflicts_with_all = ["name", "photo", "no_photo"])]
         forget: bool,
     },
+    /// Delete a ticket that's merged, stopped or never started. Merged work stays in your repo
+    Rm {
+        ticket: String,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Delete a company and everything OneCorp kept for it. Your repo and its branches stay
     Delete {
         name: String,
@@ -725,6 +731,10 @@ fn run(cmd: Cmd) -> Result<()> {
         Cmd::Founder { forget: true, .. } => {
             onecorp::founder::remove()?;
             println!("Forgot your profile. The app asks who you are next time.");
+        }
+        Cmd::Rm { ticket, company } => {
+            let c = open(company)?;
+            work::delete(&c, &find_ticket(&c, &ticket)?)?;
         }
         Cmd::Delete { name, yes } => {
             let c = store::Company::open(&name)?;

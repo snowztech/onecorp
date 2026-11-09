@@ -666,14 +666,6 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .acts.center { justify-content: center; margin-top: 16px; }
 
 /* Needs you: always there. A list when something waits, a calm all clear when nothing does. */
-.needs-card { padding: 12px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
-.needs-card h3.label { display: flex; align-items: center; gap: 8px; margin: 0 4px 6px; }
-.needs-card h3 .badge { margin-left: auto; }
-.needs-card .more-in { margin: 4px 8px 2px; text-decoration: none; color: var(--accent); }
-.needs-card.clear { display: flex; align-items: center; gap: 12px; }
-.needs-card.clear div { display: flex; flex-direction: column; font-size: 13px; }
-.needs-card.clear span { color: var(--muted); }
-.ok-ic { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--good-soft); color: var(--good); }
 .idle { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 .idle .link-btn { margin: 0; font-size: 13px; color: var(--accent); text-decoration: none; }
 .idle .link-btn:hover { text-decoration: underline; }
@@ -697,3 +689,32 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .app.rail .co-switch, .app.rail .side-foot { width: auto; justify-content: center; }
 .app.rail .switch { width: 100%; display: flex; justify-content: center; }
 .app.rail .menu { right: auto; min-width: 220px; }
+
+/* Needs you and Live share one look. All clear is a calm line, not a card. */
+.needs-sec { margin-bottom: 18px; }
+.needs-sec .more-in { margin: 2px 8px 0; text-decoration: none; color: var(--accent); }
+.all-clear { display: flex; align-items: center; gap: 8px; margin: 0 8px; font-size: 13px; color: var(--muted); }
+.all-clear .ic { width: 14px; height: 14px; color: var(--good); }
+
+/* Inbox zero: centered, light, no box around the icon */
+.empty-state.calm { margin-top: 18vh; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.empty-state.calm .empty-ic { width: 56px; height: 56px; border: 0; border-radius: 99px; background: var(--good-soft); margin-bottom: 10px; }
+.empty-state.calm b { margin: 0; font-size: 17px; }
+.empty-state.calm span { font-size: 13px; max-width: 320px; }
+
+.dfoot { padding-top: 8px; border-top: 1px solid var(--line); }
+.danger-link { color: #d4483e; margin: 0; }
+
+/* Hiring and editing people */
+.room-h .hire-btn { margin-left: auto; }
+.founder > .btn.ghost { margin-left: auto; align-self: flex-start; }
+.picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pick { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); text-align: left; }
+.pick:hover { border-color: var(--muted); }
+.pick .av { width: 28px; height: 28px; }
+.pick div { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+.pick span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hire-face .av { width: 44px; height: 44px; }
+.kv dd .link-btn { margin: 0 0 0 10px; }
+.kv dd .leadtag { margin-left: 10px; }

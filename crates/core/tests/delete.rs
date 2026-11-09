@@ -1,7 +1,7 @@
 //! Deleting a company removes everything OneCorp kept for it, and nothing of yours.
 
 use onecorp::store::{self, Company};
-use onecorp::{setup, templates, work};
+use onecorp::{setup, ship, templates, work};
 use std::process::Command;
 
 #[test]
@@ -29,6 +29,15 @@ fn deleting_a_company_leaves_your_repo_alone() {
     let id = c.add_ticket("Write the readme", "maya").unwrap();
     work::start(&c, &c.ticket(id).unwrap().unwrap()).unwrap();
     assert_eq!(git(&["worktree", "list"]).lines().count(), 2, "the ticket has its worktree");
+
+    // A ticket waiting for review can't be deleted. Once merged, it can, and the work stays.
+    let other = c.add_ticket("Add a changelog", "maya").unwrap();
+    work::start(&c, &c.ticket(other).unwrap().unwrap()).unwrap();
+    assert!(work::delete(&c, &c.ticket(other).unwrap().unwrap()).unwrap_err().to_string().contains("review"));
+    ship::approve(&c, &c.ticket(other).unwrap().unwrap()).unwrap();
+    work::delete(&c, &c.ticket(other).unwrap().unwrap()).unwrap();
+    assert!(c.ticket(other).unwrap().is_none());
+    assert!(git(&["log", "--oneline"]).contains("Add a changelog"), "merged work stays in the repo");
     drop(c);
 
     setup::delete_company("acme").unwrap();

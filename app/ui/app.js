@@ -137,11 +137,11 @@ function viewCompany() {
     if (busy) meta.push(`<span class="ok">${busy} working</span>`);
     if (stuck) meta.push(`<span class="warn">${stuck} waiting on you</span>`);
     const empty = d.id === null ? "" : `<button class="desk empty" data-hire="${d.id}"><span class="station"><span class="seat ghost"></span></span><span class="table"></span><span class="plate"><b>Empty desk</b><span>Hire into ${esc(d.name)}</span></span></button>`;
-    return `<li><section class="room"><header class="room-h"><div><h3>${esc(d.name)}</h3><p>${meta.join(" · ")}</p></div></header>
+    return `<li><section class="room"><header class="room-h"><div><h3>${esc(d.name)}</h3><p>${meta.join(" · ")}</p></div>${d.id === null ? "" : `<button class="btn ghost hire-btn" data-hire="${d.id}">+ Hire</button>`}</header>
       <div class="room-floor">${ms.map(e => desk(e, d.lead === e.id)).join("")}${empty}</div></section></li>`;
   }).join("");
   const add = S.addingDept
-    ? `<li><form class="room-new" id="dept-form"><label for="dept-name"><b>Name the department</b></label><div class="row"><input id="dept-name" placeholder="Engineering, Design, Growth…" autocomplete="off"><button class="btn primary">Add</button></div></form></li>`
+    ? `<li><form class="room-new" id="dept-form"><label for="dept-name"><b>Name the department</b></label><div class="row"><input id="dept-name" placeholder="Engineering, Design, Growth…" autocomplete="off"><button class="btn primary">Add</button><button class="btn ghost" type="button" data-dept-cancel="1">Cancel</button></div></form></li>`
     : `<li><button class="dept-add" data-add-dept="1">+ New department</button></li>`;
   const working = s.employees.filter(e => e.status === "working").length;
   const depts = s.departments.filter(d => d.id !== null).length;
@@ -154,17 +154,16 @@ function viewCompany() {
     ...s.reviews.filter(r => r.kind !== "plan").map(r => ({ to: r.key, name: r.name, text: `${r.title} is ready for review` })),
     ...s.inbox.filter(q => !q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "handbook" ? `proposes: ${q.question}` : q.question }))];
   const needs = items.slice(0, 3).map(i => `<button class="need" data-goto="${esc(i.to)}">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
-  const needsCard = items.length
-    ? `<section class="needs-card"><h3 class="label">Needs you <span class="badge">${items.length}</span></h3><div class="needs">${needs}</div><button class="link-btn more-in" data-view="inbox">Open Inbox →</button></section>`
-    : `<section class="needs-card clear"><span class="ok-ic">${icon("check")}</span><div><b>All clear</b><span>Nothing needs you right now.</span></div></section>`;
+  const needsCard = `<section class="side-sec needs-sec"><h3 class="label">Needs you ${items.length ? `<span class="badge">${items.length}</span>` : ""}</h3>
+    ${items.length ? `<div class="needs">${needs}</div><button class="link-btn more-in" data-view="inbox">Open Inbox →</button>` : `<p class="all-clear">${icon("check")}All clear, nothing waiting on you</p>`}</section>`;
   // Nobody working and nothing waiting: say what you could do next.
   const busy = s.employees.some(e => ["working", "queued", "blocked"].includes(e.status)) || s.kickoff.planning.length;
   const free = s.employees.find(e => e.status === "idle");
   const idle = !busy && s.tickets.length && free
-    ? `<p class="idle">Your team is free · <button class="link-btn" data-plan-new="1">Plan a project</button> · <button class="link-btn" data-new-ticket="1">Give ${esc(first(free.name))} a ticket</button></p>` : "";
+    ? `<p class="idle">Your team is free · <button class="link-btn" data-plan-new="1">Plan a project</button> · <button class="link-btn" data-new-ticket="${esc(free.id)}">Give ${esc(first(free.name))} a ticket</button></p>` : "";
   return `<div class="hq"><div>
       ${kickoffCard()}
-      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span>${idle}</div></div>
+      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span>${idle}</div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
       ${needsCard}
@@ -255,7 +254,7 @@ function viewInbox() {
   const plans = s.reviews.filter(r => r.kind === "plan"), work = s.reviews.filter(r => r.kind !== "plan");
   const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(handbook)];
   const leads = (s.with_leads || []).map(q => question(q, true));
-  const zero = `<div class="empty-state"><span class="empty-ic">${icon("check")}</span><b>You're all caught up</b>Your team puts questions, reviews and handbook ideas here when they need you.</div>`;
+  const zero = `<div class="empty-state calm"><span class="empty-ic">${icon("check")}</span><b>You're all caught up</b><span>Questions, plans and reviews from your team land here when they need you.</span></div>`;
   return `<div class="inbox">${cards.length ? cards.join("") : zero}
     ${leads.length ? `<h2 class="section">With your leads <small class="muted">They decide what they can and pass up the rest. Step in anytime.</small></h2>${leads.join("")}` : ""}</div>`;
 }
@@ -459,12 +458,16 @@ function drawerTicket() {
         ${t.branch ? `<dt>Branch</dt><dd class="mono">${esc(t.branch)}${t.base ? ` <span class="muted">from ${esc(t.base)}</span>` : ""}</dd>` : ""}</dl>
       ${acts ? `<div class="acts">${acts}</div>` : ""}${back}${changes(t.key)}
       <div><h5>Everything that happened</h5>${log ? `<div class="term tall" id="term">${log}</div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`}</div>
+      ${["backlog", "todo", "waiting", "done", "failed"].includes(t.status) ? (S.confirm === "ticket:" + t.key
+        ? `<div class="confirm"><p>Delete ${esc(t.key)}? Its log goes with it.${t.status === "done" ? " The merged work stays in your repo." : t.status === "failed" ? " Its unfinished branch is thrown away." : ""}</p>
+            <div class="acts"><button class="btn danger" data-remove="${esc(t.key)}">Delete</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
+        : `<div class="dfoot"><button class="link-btn danger-link" data-confirm="ticket:${esc(t.key)}">Delete ticket…</button></div>`) : ""}
     </div>`;
 }
 /* New ticket: details, who, what it waits for, and start now or later */
 function drawerNewTicket() {
   const open = (S.snap?.tickets || []).filter(t => t.status !== "done"), team = S.snap?.employees || [];
-  const pick = (team.find(e => e.status === "idle") || team[0])?.id;
+  const pick = S.drawer?.who || (team.find(e => e.status === "idle") || team[0])?.id;
   return `<div class="dhead"><div><h2>New ticket</h2><span class="muted">Plan it now, start it now or later.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <form class="dbody" id="nt">
       <div class="field"><label for="nt-title">What needs doing</label><input id="nt-title" placeholder="Add magic link login" autocomplete="off"></div>
@@ -483,7 +486,7 @@ async function saveNewTicket(later) {
 }
 
 async function openTicket(key) {
-  S.drawer = { type: "ticket", key }; S.ticket = null; renderDrawer();
+  S.drawer = { type: "ticket", key }; S.ticket = null; S.confirm = null; renderDrawer();
   try { S.ticket = await invoke("ticket_detail", { company: S.company, key }); } catch (e) { toast(String(e), true); }
   renderDrawer();
 }
@@ -523,28 +526,37 @@ function renderDrawer() {
   const p = S.person;
   if (!p) return (d.innerHTML = `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
   const e = byId(p.id) || { status: "idle" };
-  const depts = S.snap.departments.filter(x => x.id !== null);
+  const depts = S.snap.departments.filter(x => x.id !== null), dept = depts.find(x => x.id === p.department);
+  const head = `<div class="dhead">${face(p.name, e.status)}<div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
+  if (S.drawer.edit) {
+    d.innerHTML = `${head}<form class="dbody" id="emp-form">
+      ${personFields({ name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio })}
+      <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`;
+    return;
+  }
+  const leads = dept?.lead === p.id;
   const activity = p.activity.map(a => `<div class="${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(11, 16))}</span>${esc(a.kind)} ${esc(a.summary)}</div>`).join("");
-  d.innerHTML = `<div class="dhead">${face(p.name, e.status)}<div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
+  const letGo = S.confirm === "fire:" + p.id
+    ? `<div class="confirm"><p>Let ${esc(first(p.name))} go? They stop taking work. Their tickets and commits stay on record${leads ? `, and ${esc(dept.name)} passes to the next person in it` : ""}.</p>
+        <div class="acts"><button class="btn danger" data-fire="${esc(p.id)}">Let go</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
+    : `<div class="dfoot"><button class="link-btn danger-link" data-confirm="fire:${esc(p.id)}">Let ${esc(first(p.name))} go…</button></div>`;
+  d.innerHTML = `${head}
     <div class="dbody">
       ${p.bio ? `<p style="margin:0">${esc(p.bio)}</p>` : ""}
-      <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></dd>
+      <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
+          ${dept ? (leads ? `<span class="leadtag">Lead</span>` : `<button class="link-btn" data-make-lead="${esc(p.id)}">Make lead</button>`) : ""}</dd>
         <dt>Works on</dt><dd>${chip(p)}</dd></dl>
-      <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free. Give ${esc(first(p.name))} a ticket with New ticket.</p>`}</div>
+      <div class="acts"><button class="btn" data-edit-person="1">Edit</button><button class="btn" data-new-ticket="${esc(p.id)}">Give ${esc(first(p.name))} a ticket</button></div>
+      <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free right now.</p>`}</div>
       <div><h5>What ${esc(first(p.name))} has learned</h5>${p.memory.length ? `<ul class="notes">${p.memory.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="muted" style="margin:0">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>
       <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(STATUS[t.status] || t.status)}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
+      ${letGo}
     </div>`;
   const term = $("#term"); if (term) term.scrollTop = term.scrollHeight;
 }
 
 // Candidates differ in how they work, not just in name: cheap and fast, senior, or one that can build and test.
 const NAMES = ["Noor Haddad", "Jonas Berg", "Inês Costa", "Kwame Mensah", "Priya Raman", "Léa Moreau", "Mateo Silva", "Hana Sato", "Oskar Lind", "Amara Obi", "Rafael Duarte", "Mei Lin"];
-const BIOS = [
-  [/design/i, "Designs in code. Keeps screens simple and copy short, and follows the styles already in the repo."],
-  [/review|cto|lead/i, "Reads diffs carefully. Flags risks, missing tests and new dependencies that don't earn their place."],
-  [/writ|doc|market|growth|content/i, "Writes docs, changelogs and posts. Short sentences, plain words, no hype."],
-  [/./, "Reads the code around a change before touching it. Makes the smallest diff that does the job and says what to check."],
-];
 function candidates(role) {
   const taken = new Set((S.snap?.employees || []).map(e => first(e.name).toLowerCase()));
   const pool = NAMES.filter(n => !taken.has(first(n).toLowerCase()));
@@ -554,17 +566,37 @@ function candidates(role) {
     { tier: "Senior", runtime: "claude", model: "sonnet", line: "Pushes back on vague tickets and ships small, careful changes." },
     { tier: "Builds and tests", runtime: "codex", model: "", line: "Runs your build and tests in a sandbox before handing work back." },
   ];
-  return tiers.map((t, i) => ({ ...t, name: pool[(start + i) % pool.length] || "New hire " + (i + 1) }));
+  const have = S.runtimes || ["claude", "codex"];
+  const usable = tiers.map(t => (have.includes(t.runtime) ? t : { ...t, runtime: have.find(r => r !== "fake") || "fake", model: "" }));
+  return usable.map((t, i) => ({ ...t, name: pool[(start + i) % pool.length] || "New hire " + (i + 1) }));
 }
+// The fields for a person, shared by hiring and editing, so both look and behave the same.
+function personFields(f) {
+  // Their current runtime is always listed, so saving never switches it by accident.
+  const runtimes = [...new Set([...(S.runtimes || ["claude", "codex", "fake"]), ...(f.runtime ? [f.runtime] : [])])];
+  return `<div class="field"><label for="pf-n">Name</label><input id="pf-n" value="${esc(f.name)}" placeholder="Noor Haddad" autocomplete="off"></div>
+    <div class="field"><label for="pf-r">Role</label><input id="pf-r" value="${esc(f.role)}" placeholder="Engineer, Designer, Writer…" autocomplete="off"></div>
+    <div class="row2"><div class="field"><label for="pf-rt">Works on</label><select id="pf-rt">${runtimes.map(r => `<option value="${r}" ${r === f.runtime ? "selected" : ""}>${RUNTIME_NAMES[r] || r}</option>`).join("")}</select></div>
+      <div class="field"><label for="pf-m">Model <span class="muted">(optional)</span></label><input id="pf-m" value="${esc(f.model || "")}" placeholder="Their runtime's default" autocomplete="off"></div></div>
+    <div class="field"><label for="pf-b">How they work <span class="muted">(optional)</span></label><textarea id="pf-b" rows="3" placeholder="Left empty, it's written from their role.">${esc(f.bio || "")}</textarea></div>`;
+}
+const readPerson = () => ({ name: $("#pf-n").value.trim(), role: $("#pf-r").value.trim() || "Engineer", runtime: $("#pf-rt").value, model: $("#pf-m").value.trim() || null, bio: $("#pf-b").value.trim() });
 function drawerHire() {
-  const dept = S.snap.departments.find(x => x.id === S.drawer.dept), role = S.drawer.role;
-  return `<div class="dhead"><div><h2>Hire into ${esc(dept?.name || "the company")}</h2><span class="muted">Pick how they work. They get a desk right away.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
-    <div class="dbody">
-      <form class="field" id="role-form"><label for="role">Role</label><input id="role" value="${esc(role)}" autocomplete="off"></form>
-      ${candidates(role).map((c, i) => `<div class="cand"><div class="who">${face(c.name, "neutral")}<div><b>${esc(c.name)}</b><div class="tier">${esc(c.tier)}</div></div></div>
-        <q>${esc(c.line)}</q><div>${chip(c)}</div>
-        <div><button class="btn primary" data-pick="${i}">Hire ${esc(first(c.name))}</button></div></div>`).join("")}
-    </div>`;
+  const dept = S.snap.departments.find(x => x.id === S.drawer.dept), f = S.drawer.form;
+  const picks = candidates(f.role || "Engineer");
+  return `<div class="dhead"><span class="hire-face">${face(f.name || "New hire", "neutral")}</span><div><h2>Hire into ${esc(dept?.name || "the company")}</h2><span class="muted">Start from a suggestion or make your own. You can change anything later.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
+    <form class="dbody" id="hire-form">
+      <div class="picks">${picks.map((c, i) => `<button type="button" class="pick" data-pick-fill="${i}">${face(c.name, "neutral")}<div><b>${esc(first(c.name))}</b><span>${esc(c.tier)}</span></div></button>`).join("")}</div>
+      ${personFields(f)}
+      <div class="acts"><button class="btn primary">Hire</button></div>
+    </form>`;
+}
+function openHire(deptId) {
+  const dept = S.snap.departments.find(x => x.id === deptId);
+  const role = !dept || /eng/i.test(dept.name) ? "Engineer" : /design/i.test(dept.name) ? "Product designer" : /product/i.test(dept.name) ? "Product manager" : dept.name + " specialist";
+  const c = candidates(role)[1] || candidates(role)[0];
+  S.drawer = { type: "hire", dept: deptId, form: { name: c.name, role, runtime: c.runtime, model: c.model, bio: "" } };
+  renderDrawer();
 }
 async function openPerson(id) {
   S.drawer = { type: "person", id }; S.person = null; renderDrawer();
@@ -794,6 +826,7 @@ function typing() {
 async function refresh(force) {
   try {
     if (S.founder === undefined) S.founder = await invoke("founder");
+    if (!S.runtimes) S.runtimes = (await invoke("setup_info").catch(() => null))?.runtimes || null;
     // A first launch says hello before anything else: who you are, then your first company.
     if (S.founder === null && !S.profile && !S.setup) S.profile = { name: "" };
     const c = await invoke("companies");
@@ -827,7 +860,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -838,7 +871,7 @@ document.addEventListener("click", async e => {
     await call("kickoff", { company: S.company, brief, by: null }, "Saved. Your team is planning it").catch(() => {});
     return;
   }
-  if (d.newTicket) { S.drawer = { type: "new-ticket" }; renderDrawer(); return $("#nt-title")?.focus(); }
+  if (d.newTicket) { S.drawer = { type: "new-ticket", who: byId(d.newTicket) ? d.newTicket : null }; renderDrawer(); return $("#nt-title")?.focus(); }
   if (d.nt) { e.preventDefault(); return saveNewTicket(d.nt === "later"); }
   if (d.start) {
     el.disabled = true;
@@ -851,6 +884,20 @@ document.addEventListener("click", async e => {
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
   }
+  if (d.pickFill) {
+    const keep = readPerson(), c = candidates(keep.role)[Number(d.pickFill)];
+    S.drawer.form = { ...keep, name: c.name, runtime: c.runtime, model: c.model };
+    renderDrawer(); return $("#pf-n")?.focus();
+  }
+  if ("editPerson" in d) { S.drawer.edit = !!d.editPerson; S.confirm = null; renderDrawer(); return $("#pf-n")?.focus(); }
+  if (d.makeLead) { await call("make_lead", { company: S.company, id: d.makeLead }, "They lead the department now").catch(() => {}); return openPerson(d.makeLead); }
+  if (d.fire) {
+    el.disabled = true;
+    const who = first(byId(d.fire)?.name || d.fire);
+    try { await invoke("fire", { company: S.company, id: d.fire }); } catch (err) { el.disabled = false; return toast(String(err), true); }
+    toast(`${who} has left the company`); S.confirm = null; S.drawer = null; renderDrawer(); return refresh(true);
+  }
+  if (d.deptCancel) { S.addingDept = false; return render(); }
   if (d.goto) {
     S.view = "inbox"; S.drawer = null; render();
     const card = document.getElementById("in-" + d.goto);
@@ -870,7 +917,13 @@ document.addEventListener("click", async e => {
   }
   if (d.reveal) return window.__TAURI__.opener.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
   if (d.health) { S.health = null; renderSheet(); S.health = await invoke("health").catch(() => []); return renderSheet(); }
-  if ("confirm" in d) { S.confirm = d.confirm || null; renderSheet(); return $("#del-name")?.focus(); }
+  if ("confirm" in d) { S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); renderSheet(); return $("#del-name")?.focus(); }
+  if (d.remove) {
+    el.disabled = true;
+    try { await invoke("remove_ticket", { company: S.company, key: d.remove }); }
+    catch (err) { el.disabled = false; return toast(String(err), true); }
+    toast(`Deleted ${d.remove}`); S.confirm = null; S.drawer = null; renderDrawer(); return refresh(true);
+  }
   if (d.forget) {
     el.disabled = true;
     try { await invoke("forget_founder"); } catch (err) { el.disabled = false; return toast(String(err), true); }
@@ -948,20 +1001,12 @@ document.addEventListener("click", async e => {
   if (d.co) { S.switching = false; S.setup = null; S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
   else if (d.view) { S.view = d.view; S.hbRaw = false; if (d.close) S.drawer = null; render(); if (d.view === "handbook") refresh(true); }
   else if (d.person) openPerson(d.person);
-  else if (d.hire) { const dept = S.snap.departments.find(x => String(x.id) === d.hire); S.drawer = { type: "hire", dept: dept.id, role: /eng/i.test(dept.name) ? "Engineer" : dept.name + " specialist" }; renderDrawer(); }
+  else if (d.hire) { openHire(Number(d.hire)); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
   else if (d.close) { S.drawer = null; renderDrawer(); }
   else if (d.answer) { el.disabled = true; await call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.val === "no" ? "Left out of the handbook" : "Answered").catch(() => (el.disabled = false)); }
   else if (d.approve) { el.disabled = true; el.textContent = "Merging…"; await call("approve", { company: S.company, key: d.approve }, `${d.approve} merged. New tickets start from it.`).catch(() => { el.disabled = false; el.textContent = mergeLabel(); }); }
-  else if (d.pick) {
-    const role = $("#role").value.trim() || S.drawer.role, c = candidates(role)[Number(d.pick)];
-    const bio = BIOS.find(([re]) => re.test(role))[1];
-    el.disabled = true;
-    try {
-      await call("hire", { company: S.company, name: c.name, role, bio, runtime: c.runtime, model: c.model || null, department: S.drawer.dept }, `${c.name} joined. Give them a ticket with New ticket.`);
-      S.drawer = null; renderDrawer();
-    } catch { el.disabled = false; }
-  }
+
 });
 document.addEventListener("submit", async e => {
   e.preventDefault();
@@ -1039,7 +1084,7 @@ document.addEventListener("submit", async e => {
     const name = $("#dept-name").value.trim();
     if (!name) return $("#dept-name").focus();
     const id = await call("add_department", { company: S.company, name }, `${name} is set up. Hire its first person.`).catch(() => null);
-    if (id !== null) { S.addingDept = false; S.drawer = { type: "hire", dept: id, role: /eng/i.test(name) ? "Engineer" : name + " specialist" }; render(); }
+    if (id !== null) { S.addingDept = false; render(); openHire(id); }
   } else if (f.dataset.hbAdd) {
     const input = f.querySelector("input"), text = input.value.trim();
     if (!text) return input.focus();
@@ -1053,8 +1098,20 @@ document.addEventListener("submit", async e => {
     await call("save_handbook", { company: S.company, text: writeHandbook(book) }, `Added the ${name} section`).catch(() => {});
   } else if (f.id === "hb-raw") {
     await call("save_handbook", { company: S.company, text: $("#hb-text").value }, "Handbook saved").then(() => { S.hbRaw = false; render(); }).catch(() => {});
-  } else if (f.id === "role-form") {
-    S.drawer.role = $("#role").value.trim() || S.drawer.role; renderDrawer();
+  } else if (f.id === "hire-form" || f.id === "emp-form") {
+    const p = readPerson();
+    if (!p.name) { toast("Give them a name", true); return $("#pf-n").focus(); }
+    const btn = f.querySelector(".btn.primary"); btn.disabled = true;
+    try {
+      if (f.id === "hire-form") {
+        await invoke("hire", { company: S.company, ...p, department: S.drawer.dept });
+        toast(`${first(p.name)} joined. Give them a ticket whenever you're ready`); S.drawer = null; renderDrawer();
+      } else {
+        await invoke("update_employee", { company: S.company, id: S.drawer.id, ...p });
+        toast("Saved"); S.drawer.edit = false; await openPerson(S.drawer.id);
+      }
+      await refresh(true);
+    } catch (err) { btn.disabled = false; toast(String(err), true); }
   } else if (f.dataset.reply) {
     const input = f.querySelector("input"), text = input.value.trim();
     if (!text) return input.focus();
@@ -1067,6 +1124,7 @@ document.addEventListener("submit", async e => {
 });
 // The drawn face follows your name as you type it.
 document.addEventListener("input", e => {
+  if (e.target.id === "pf-n" && S.drawer?.type === "hire") $(".hire-face").innerHTML = face(e.target.value || "New hire", "neutral");
   if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) $(".welcome .pf-pic").innerHTML = face(e.target.value || "You", "neutral");
 });
 document.addEventListener("change", async e => {
@@ -1086,7 +1144,7 @@ document.addEventListener("change", async e => {
   }
 });
 document.addEventListener("keydown", e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); return toggleRail(); }
+  if ((e.metaKey || e.ctrlKey) && (e.code === "Backslash" || e.key === "\\" || e.key.toLowerCase() === "b") && !e.target.closest?.("input, textarea")) { e.preventDefault(); return toggleRail(); }
   if (e.key === "Escape" && S.sheet) { S.sheet = null; return renderSheet(); }
   if (e.key === "Escape" && S.switching) { S.switching = false; return renderSide(); }
   if (e.key === "Escape" && S.pop) { S.pop = false; return renderPop(); }
@@ -1104,6 +1162,8 @@ async function previewScreen() {
   if (screen === "switcher") { S.switching = true; renderSide(); }
   if (screen === "plan") { S.view = "board"; S.drawer = { type: "plan" }; render(); }
   if (screen === "rail") toggleRail(true);
+  if (screen === "hire") openHire(1);
+  if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
   if (screen === "idle") { S.snap.employees.forEach(e => (e.status = "idle")); S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; render(); }
   if (screen === "project") { S.view = "board"; S.project = "SNO-20"; render(); }
   if (["board", "inbox", "handbook", "chat"].includes(screen)) { S.view = screen; render(); }

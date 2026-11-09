@@ -15,6 +15,7 @@ Quiet and calm. You run a company, the app shouldn't shout. The team's faces and
 - **Color.** Accent for links, keys and the selected thing. Orange (`--signal`) only for what blocks on you. Green only for working or success. No colored rings around cards to get attention.
 - **Buttons.** One primary button per view at most. Secondary actions are plain buttons. Free text and rare actions stay folded behind a small link until asked for.
 - **Icons.** One inline stroke set (`ICON` in app.js), 16px, 1.8 stroke. Add new ones in the same style, never mix icon families.
+- **Every object can be undone or removed where you see it.** People, tickets and companies each have their own quiet delete or let-go at the bottom of their drawer or sheet, behind an inline confirm that says what stays and what goes.
 - **Where things live.** The sidebar holds pages only. Anything about you or the app (profile, settings, forgetting your profile) is in your menu at the bottom. Settings is a sheet over the app, never a page. The top bar says where you are and holds New ticket, nothing else.
 - **What goes where.** The Company page is the office: your team, what needs you, what's happening. Planning and tickets live on the Board, decisions in the Inbox, knowledge in the Handbook.
 - **Reassure, don't hide.** A summary that can be empty says so in a calm way ("All clear") instead of disappearing. Absence reads as broken; a check reads as good news.

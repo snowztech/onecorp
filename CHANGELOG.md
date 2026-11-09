@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Hire anyone you like: the hire drawer is a form (name, role, runtime, model, how they work) with three suggestions that fill it in one click, and a face that follows the name. + Hire is back on each department and + Department on your card. In someone's drawer you can edit them, make them lead, give them a ticket, or let them go; a lead who leaves hands the department to the next person in it.
+- Delete tickets that are merged, stopped or never started, from the ticket drawer or `onecorp rm`. Merged work stays in your repo, and a stopped ticket's branch is cleaned up.
+- Calmer all-clear states, a Cancel on the department form, and ⌘B also folds the sidebar.
 - Needs you is always on the Company page: the top three things waiting on you, most urgent first, each opening the Inbox right at that card. With nothing waiting it says so: all clear. When your whole team is free, a line under your name offers to plan a project or give someone a ticket.
 - The sidebar folds into a rail of icons (⌘\\ or the button in the top bar), and remembers how you left it. The top bar names the page you're on, and the org chart ends with a quiet + New department.
 - Projects, like epics that plan themselves. Plan a project from the Board (or `onecorp plan "Stripe billing" --goal "..."`): your planner breaks it into tickets with owners and order, and you approve it in the Inbox. The Board shows each project as a chip with its progress, and picking one shows only its tickets. The first version is simply your first project. The Company page is the office again: your team at their desks, with planning shown only while it happens.

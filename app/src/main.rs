@@ -298,6 +298,14 @@ fn delete_ticket(company: String, key: String) -> Res<()> {
     c.delete_ticket(t.id).map_err(err)
 }
 
+/// Deletes a merged, stopped or unstarted ticket from anywhere, not just a plan.
+#[tauri::command(async)]
+fn remove_ticket(company: String, key: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    work::delete(&c, &t).map_err(err)
+}
+
 #[tauri::command(async)]
 fn handbook(company: String) -> Res<String> {
     open(&company)?.handbook().map_err(err)
@@ -392,8 +400,34 @@ fn hire(company: String, name: String, role: String, bio: String, runtime: Strin
         return Err(format!("{runtime} isn't supported yet."));
     }
     let model = model.filter(|m| !m.trim().is_empty());
+    // An empty bio gets one that fits the role, like the CLI and templates do.
+    let bio = if bio.trim().is_empty() { onecorp::templates::bio_for(&role).to_string() } else { bio };
     c.hire(&store::Employee { id: id.clone(), name, role, runtime, model, bio, department }).map_err(err)?;
     Ok(id)
+}
+
+#[tauri::command(async)]
+fn update_employee(company: String, id: String, name: String, role: String, runtime: String, model: Option<String>, bio: String) -> Res<()> {
+    let c = open(&company)?;
+    let e = c.employee(&id).map_err(err)?.ok_or_else(|| format!("Nobody called {id} works here."))?;
+    if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
+        return Err(format!("{runtime} isn't supported yet."));
+    }
+    let bio = if bio.trim().is_empty() { onecorp::templates::bio_for(&role).to_string() } else { bio };
+    c.update_employee(&store::Employee { name, role, runtime, model: model.filter(|m| !m.trim().is_empty()), bio, ..e }).map_err(err)
+}
+
+#[tauri::command(async)]
+fn fire(company: String, id: String) -> Res<()> {
+    open(&company)?.fire(&id).map_err(err)
+}
+
+#[tauri::command(async)]
+fn make_lead(company: String, id: String) -> Res<()> {
+    let c = open(&company)?;
+    let e = c.employee(&id).map_err(err)?.ok_or_else(|| format!("Nobody called {id} works here."))?;
+    let dept = e.department.ok_or_else(|| format!("{} isn't in a department yet.", e.name))?;
+    c.set_lead(dept, &id).map_err(err)
 }
 
 fn ticket(c: &Company, key: &str) -> Res<store::Ticket> {
@@ -442,6 +476,10 @@ fn main() {
             handbook,
             kickoff,
             plan_project,
+            remove_ticket,
+            update_employee,
+            fire,
+            make_lead,
             save_brief,
             dismiss_plan,
             delete_ticket,

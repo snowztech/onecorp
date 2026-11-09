@@ -15,6 +15,7 @@ eval(src + `
   for (const v of ["company", "board", "inbox", "chat", "handbook"]) { S.view = v; await refresh(true); console.log(v, document.querySelector("#view").innerHTML.length, "chars"); }
   await openTicket("SNO-11"); console.log("ticket drawer", document.querySelector("#drawer").innerHTML.length, "chars");
   S.drawer = { type: "new-ticket" }; renderDrawer(); console.log("new ticket drawer", document.querySelector("#drawer").innerHTML.length, "chars");
+  openHire(1); console.log("hire drawer", document.querySelector("#drawer").innerHTML.length, "chars");
   await openPerson("tomas"); console.log("person drawer", document.querySelector("#drawer").innerHTML.length, "chars");
   S.drawer = null;
   S.profile = { name: "Lucas" }; render(); console.log("profile", document.querySelector("#view").innerHTML.length, "chars"); S.profile = null;

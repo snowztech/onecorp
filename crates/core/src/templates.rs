@@ -241,6 +241,14 @@ mod tests {
         assert!(check(&team).is_ok());
         assert_eq!(bio_for("Growth writer"), preset("writer").unwrap().bio);
 
+        // Editing keeps the id. Letting a lead go hands the department to the next person in it.
+        let mut odile = c.employee("odile").unwrap().unwrap();
+        odile.role = "CTO and reviewer".into();
+        c.update_employee(&odile).unwrap();
+        assert_eq!(c.employee("odile").unwrap().unwrap().role, "CTO and reviewer");
+        c.fire("odile").unwrap();
+        assert_eq!(c.department("Engineering").unwrap().unwrap().lead.as_deref(), Some("maya"));
+
         assert_eq!(suggest_name("My Notes App"), "my-notes-app");
         assert_eq!(suggest_name("  snowztech.com "), "snowztech-com");
         let _ = std::fs::remove_dir_all(&dir);
