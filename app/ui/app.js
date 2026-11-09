@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, project: null, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, project: null, rail: false, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -95,6 +95,12 @@ const ICON = {
 const icon = k => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
 
 /* Sidebar and top bar */
+function toggleRail(on = !S.rail) {
+  S.rail = on;
+  document.querySelector(".app").classList.toggle("rail", on);
+  try { localStorage.setItem("onecorp.rail", on ? "1" : ""); } catch {}
+  renderSide();
+}
 function renderSide() {
   const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
@@ -103,12 +109,12 @@ function renderSide() {
       ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : ""}</button>`).join("")}
         <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
     ${S.company ? `${Object.entries(pages).map(([k, v]) =>
-      `<button class="navbtn" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${icon(k)}<span>${v}</span>${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
+      `<button class="navbtn" data-view="${k}" title="${v}" ${S.view === k ? 'aria-current="page"' : ""}>${icon(k)}<span>${v}</span>${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
     <button class="side-foot" data-pop="menu" aria-expanded="${!!S.pop}" title="You and settings">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div><span class="foot-more">${icon("more")}</span></button>`;
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board", chat: "Chat" }[S.view] || S.company || "OneCorp";
+  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board", chat: "Chat" }[S.view] || (S.company ? "Company" : "OneCorp");
   $("#new-ticket").hidden = !!S.setup || !!S.profile || !s;
 }
 
@@ -136,19 +142,32 @@ function viewCompany() {
   }).join("");
   const add = S.addingDept
     ? `<li><form class="room-new" id="dept-form"><label for="dept-name"><b>Name the department</b></label><div class="row"><input id="dept-name" placeholder="Engineering, Design, Growth…" autocomplete="off"><button class="btn primary">Add</button></div></form></li>`
-    : `<li><button class="room-new" data-add-dept="1"><b>+ New department</b><span>Engineering, Design, Growth. Hire into it right after.</span></button></li>`;
+    : `<li><button class="dept-add" data-add-dept="1">+ New department</button></li>`;
   const working = s.employees.filter(e => e.status === "working").length;
   const depts = s.departments.filter(d => d.id !== null).length;
   const facts = [`${s.employees.length} ${s.employees.length === 1 ? "person" : "people"}`, `${depts} ${depts === 1 ? "department" : "departments"}`,
     s.ship?.forge ? `ships to ${s.ship.forge}` : "merges locally", ...(s.spend.cost > 0 || s.spend.tokens > 0 ? [`${s.spend.label} spent`] : []), ...(working ? [`<span class="ok">${working} working now</span>`] : [])];
-  const items = [...(s.failed || []).map(t => ({ who: t.employee, name: t.name, text: `${t.key} stopped. Retry it?` })), ...s.reviews.map(r => ({ who: r.employee, name: r.name, text: `${r.key} is ready for review` })), ...s.inbox.map(q => ({ who: q.employee, name: q.name, text: q.kind === "handbook" ? "Handbook proposal" : q.question }))];
-  const needs = items.slice(0, 4).map(i => `<button class="need" data-view="inbox">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
+  const items = [
+    ...s.reviews.filter(r => r.kind === "plan").map(r => ({ to: r.key, name: r.name, text: `planned ${r.title}. Review the plan` })),
+    ...s.inbox.filter(q => q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.question })),
+    ...(s.failed || []).map(t => ({ to: t.key, name: t.name, text: `${t.key} stopped. Retry it?` })),
+    ...s.reviews.filter(r => r.kind !== "plan").map(r => ({ to: r.key, name: r.name, text: `${r.title} is ready for review` })),
+    ...s.inbox.filter(q => !q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "handbook" ? `proposes: ${q.question}` : q.question }))];
+  const needs = items.slice(0, 3).map(i => `<button class="need" data-goto="${esc(i.to)}">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
+  const needsCard = items.length
+    ? `<section class="needs-card"><h3 class="label">Needs you <span class="badge">${items.length}</span></h3><div class="needs">${needs}</div><button class="link-btn more-in" data-view="inbox">Open Inbox →</button></section>`
+    : `<section class="needs-card clear"><span class="ok-ic">${icon("check")}</span><div><b>All clear</b><span>Nothing needs you right now.</span></div></section>`;
+  // Nobody working and nothing waiting: say what you could do next.
+  const busy = s.employees.some(e => ["working", "queued", "blocked"].includes(e.status)) || s.kickoff.planning.length;
+  const free = s.employees.find(e => e.status === "idle");
+  const idle = !busy && s.tickets.length && free
+    ? `<p class="idle">Your team is free · <button class="link-btn" data-plan-new="1">Plan a project</button> · <button class="link-btn" data-new-ticket="1">Give ${esc(first(free.name))} a ticket</button></p>` : "";
   return `<div class="hq"><div>
       ${kickoffCard()}
-      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span></div></div>
+      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span>${idle}</div></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
-      ${items.length ? `<section class="side-sec"><h3 class="label">Needs you <span class="badge">${items.length}</span></h3><div class="needs">${needs}</div></section>` : ""}
+      ${needsCard}
       <section class="side-sec"><h3 class="label">Live <span class="live ${s.serve ? "" : "off"}">${s.serve ? "On" : "Paused"}</span></h3><ul class="feed">${feed(s.feed)}</ul></section>
     </aside></div>`;
 }
@@ -241,7 +260,7 @@ function viewInbox() {
     ${leads.length ? `<h2 class="section">With your leads <small class="muted">They decide what they can and pass up the rest. Step in anytime.</small></h2>${leads.join("")}` : ""}</div>`;
 }
 function stopped(t) {
-  return `<article class="ask stopped">${face(t.name, "blocked")}<div>
+  return `<article class="ask stopped" id="in-${esc(t.key)}">${face(t.name, "blocked")}<div>
     <span class="kind">Stopped · ${esc(t.key)}</span><h4>${esc(t.title)}</h4>
     <p>${esc(first(t.name))}'s run ${t.why && !/^stopped before/.test(t.why) ? `failed: ${esc(t.why)}` : "stopped before it finished."}</p>
     <div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button></div></div></article>`;
@@ -251,7 +270,7 @@ function question(q, withLead) {
   const def = q.default && !q.options.includes(q.default) ? `<button class="btn" data-answer="${q.id}" data-val="${esc(q.default)}">Go with ${esc(q.default)}</button>` : "";
   const kind = withLead ? `With ${esc(first(q.lead_name || "their lead"))}` : q.blocking ? "Blocking" : "Question";
   const via = q.via_name ? `<p class="via"><b>${esc(first(q.via_name))}</b> passed this to you${q.note ? `: ${esc(q.note)}` : "."}</p>` : "";
-  return `<article class="ask ${q.blocking ? "blocking" : ""} ${withLead ? "lead" : ""}">${face(q.name, q.blocking ? "blocked" : "neutral")}<div>
+  return `<article class="ask ${q.blocking ? "blocking" : ""} ${withLead ? "lead" : ""}" id="in-q${q.id}">${face(q.name, q.blocking ? "blocked" : "neutral")}<div>
     <span class="kind">${kind} · ${esc(q.key || "")}</span><h4>${esc(q.question)}</h4>${via}
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
     <div class="acts">${opts}${def}</div>
@@ -268,7 +287,7 @@ function planReview(r) {
     <div class="pt-main"><b>${esc(t.title)}</b>${t.description ? `<span class="muted">${esc(t.description)}</span>` : ""}${t.after ? `<span class="after">after ${esc(t.after)}</span>` : ""}</div>
     <select data-plan-assign="${esc(t.key)}" aria-label="Who does ${esc(t.key)}"><option value="">Nobody yet</option>${people.map(e => `<option value="${esc(e.id)}" ${e.id === t.assignee ? "selected" : ""}>${esc(first(e.name))}</option>`).join("")}</select>
     <button class="x" data-plan-del="${esc(t.key)}" title="Remove from the plan" aria-label="Remove ${esc(t.key)}">×</button></li>`).join("");
-  return `<article class="ask plan">${face(r.name, "done")}<div>
+  return `<article class="ask plan" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Project plan · ${esc(r.key)} · by ${esc(first(r.name))}</span><h4>${esc(r.title)}, in ${r.tickets.length} ${r.tickets.length === 1 ? "ticket" : "tickets"}</h4>
     ${r.summary ? `<p>${esc(r.summary)}</p>` : ""}
     <ol class="plan-list">${rows || `<li class="muted">No tickets left. Plan again, or dismiss it.</li>`}</ol>
@@ -276,14 +295,14 @@ function planReview(r) {
     ${more(`chg-${r.key}`, "Plan it again…", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Plan again</button></form>`)}</div></article>`;
 }
 function review(r) {
-  return `<article class="ask review">${face(r.name, "done")}<div>
+  return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}<p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>
     <div class="acts"><button class="btn good" data-approve="${esc(r.key)}">${mergeLabel()}</button>${S.diffs[r.key] ? "" : `<button class="btn" data-diff="${esc(r.key)}">Show changes</button>`}</div>
     ${changes(r.key)}
     ${more(`chg-${r.key}`, "Ask for changes", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>`)}</div></article>`;
 }
 function handbook(q) {
-  return `<article class="ask">${face(q.name, "neutral")}<div>
+  return `<article class="ask" id="in-q${q.id}">${face(q.name, "neutral")}<div>
     <span class="kind">Handbook · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the handbook</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
     ${more(`ans-${q.id}`, "Add it in your own words", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="The rule, as you'd put it"><button class="btn">Add</button></form>`)}</div></article>`;
@@ -808,7 +827,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -832,6 +851,13 @@ document.addEventListener("click", async e => {
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
   }
+  if (d.goto) {
+    S.view = "inbox"; S.drawer = null; render();
+    const card = document.getElementById("in-" + d.goto);
+    if (card) { card.scrollIntoView({ behavior: "smooth", block: "center" }); card.classList.add("flash"); setTimeout(() => card.classList.remove("flash"), 1600); }
+    return;
+  }
+  if (d.rail) return toggleRail();
   if (d.planNew) { S.drawer = { type: "plan" }; renderDrawer(); return $("#pj-name")?.select(); }
   if ("project" in d) { S.project = d.project || null; return render(); }
   if (d.switch) { S.switching = !S.switching; return renderSide(); }
@@ -1060,6 +1086,7 @@ document.addEventListener("change", async e => {
   }
 });
 document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); return toggleRail(); }
   if (e.key === "Escape" && S.sheet) { S.sheet = null; return renderSheet(); }
   if (e.key === "Escape" && S.switching) { S.switching = false; return renderSide(); }
   if (e.key === "Escape" && S.pop) { S.pop = false; return renderPop(); }
@@ -1076,6 +1103,8 @@ async function previewScreen() {
   if (screen === "settings") await openSettings();
   if (screen === "switcher") { S.switching = true; renderSide(); }
   if (screen === "plan") { S.view = "board"; S.drawer = { type: "plan" }; render(); }
+  if (screen === "rail") toggleRail(true);
+  if (screen === "idle") { S.snap.employees.forEach(e => (e.status = "idle")); S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; render(); }
   if (screen === "project") { S.view = "board"; S.project = "SNO-20"; render(); }
   if (["board", "inbox", "handbook", "chat"].includes(screen)) { S.view = screen; render(); }
   if (screen === "ticket") openTicket("SNO-11");
@@ -1088,6 +1117,7 @@ async function previewScreen() {
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
   if (screen === "health") await openSettings("health");
 }
+try { if (localStorage.getItem("onecorp.rail")) toggleRail(true); } catch {}
 if (window.__TAURI__) refresh(true); else previewScreen();
 setInterval(() => refresh(false), 1500);
 

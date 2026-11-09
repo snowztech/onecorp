@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Needs you is always on the Company page: the top three things waiting on you, most urgent first, each opening the Inbox right at that card. With nothing waiting it says so: all clear. When your whole team is free, a line under your name offers to plan a project or give someone a ticket.
+- The sidebar folds into a rail of icons (⌘\\ or the button in the top bar), and remembers how you left it. The top bar names the page you're on, and the org chart ends with a quiet + New department.
 - Projects, like epics that plan themselves. Plan a project from the Board (or `onecorp plan "Stripe billing" --goal "..."`): your planner breaks it into tickets with owners and order, and you approve it in the Inbox. The Board shows each project as a chip with its progress, and picking one shows only its tickets. The first version is simply your first project. The Company page is the office again: your team at their desks, with planning shown only while it happens.
 - A lighter top bar and a cleaner company switcher.
 - A polish pass so every screen feels like the same app. Settings left the sidebar: your face at the bottom opens your menu (Edit profile, Settings ⌘,, Forget my profile), and Settings is a sheet over the app with Company and Setup check tabs. The top bar only says where you are, with company facts and spend on the Company page. Pages have icons, empty states are friendly, and small animations make it feel alive: pages ease in, menus and sheets open smoothly, buttons press, all off with Reduce Motion.

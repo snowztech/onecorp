@@ -664,3 +664,36 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .pchip .n { font: 11px var(--mono); color: var(--muted); font-weight: 400; }
 .pgoal { margin: -4px 0 14px; font-size: 13px; color: var(--muted); max-width: 760px; }
 .acts.center { justify-content: center; margin-top: 16px; }
+
+/* Needs you: always there. A list when something waits, a calm all clear when nothing does. */
+.needs-card { padding: 12px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.needs-card h3.label { display: flex; align-items: center; gap: 8px; margin: 0 4px 6px; }
+.needs-card h3 .badge { margin-left: auto; }
+.needs-card .more-in { margin: 4px 8px 2px; text-decoration: none; color: var(--accent); }
+.needs-card.clear { display: flex; align-items: center; gap: 12px; }
+.needs-card.clear div { display: flex; flex-direction: column; font-size: 13px; }
+.needs-card.clear span { color: var(--muted); }
+.ok-ic { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--good-soft); color: var(--good); }
+.idle { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.idle .link-btn { margin: 0; font-size: 13px; color: var(--accent); text-decoration: none; }
+.idle .link-btn:hover { text-decoration: underline; }
+.ask.flash { animation: flash 1.6s var(--ease); }
+@keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); } }
+
+/* The org chart ends with a quiet row */
+.dept-add { border: 0; background: none; padding: 10px 2px; color: var(--muted); font-size: 13px; font-weight: 500; }
+.dept-add:hover { color: var(--fg); }
+
+/* Sidebar as a rail of icons */
+.rail-btn { border: 0; background: none; padding: 5px; margin-left: -6px; border-radius: var(--r-sm); color: var(--muted); display: flex; transition: background-color .14s, color .14s; }
+.rail-btn:hover { background: var(--surface-2); color: var(--fg); }
+.app { transition: grid-template-columns .22s var(--ease); }
+.app.rail { grid-template-columns: 72px minmax(0, 1fr); }
+.app.rail .side { padding-left: 12px; padding-right: 12px; align-items: center; overflow: visible; }
+.app.rail .navbtn { width: 44px; justify-content: center; position: relative; padding: 9px 0; }
+.app.rail .navbtn > span:not(.badge), .app.rail .coname, .app.rail .chev, .app.rail .side-foot > div, .app.rail .foot-more { display: none; }
+.app.rail .navbtn .badge { position: absolute; top: 2px; right: 0; font-size: 10px; padding: 0 5px; }
+.app.rail .navbtn .dot { position: absolute; top: 6px; right: 6px; }
+.app.rail .co-switch, .app.rail .side-foot { width: auto; justify-content: center; }
+.app.rail .switch { width: 100%; display: flex; justify-content: center; }
+.app.rail .menu { right: auto; min-width: 220px; }
