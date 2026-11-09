@@ -6,6 +6,10 @@ The rules every screen follows, so the app feels like one product. Read this bef
 
 Quiet and calm. You run a company, the app shouldn't shout. The team's faces and desks bring the warmth. Everything around them stays plain.
 
+## Brand
+
+Our mascot is the OneCorp badge: an employee ID badge on a lanyard clip, with a face like the team's. It has moods like they do: happy, asleep, wink. It's the app icon (`docs/brand/icon.html`, rendered to `app/icons`), the mark next to the name, and the face of empty states. One source: `app/ui/mascot.js`. Use it where a moment deserves warmth, never as decoration on busy screens.
+
 ## System
 
 - **Type.** Bricolage Grotesque for titles, always weight 700. IBM Plex Sans for text, IBM Plex Mono for keys, times and code. Page titles 18px, card titles 15px, body 14px, meta 12 to 13px.

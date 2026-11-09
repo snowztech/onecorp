@@ -8,7 +8,8 @@ global.window = {};
 global.location = { hash: "" };
 global.document = { addEventListener() {}, querySelector: s => (els[s] ||= el()), getElementById: () => null, activeElement: null };
 global.setInterval = () => {};
-const src = require("fs").readFileSync(require("path").join(__dirname, "../ui/app.js"), "utf8");
+const read = f => require("fs").readFileSync(require("path").join(__dirname, "../ui", f), "utf8");
+const src = read("mascot.js") + "\n" + read("app.js");
 eval(src + `
 (async () => {
   await refresh(true);

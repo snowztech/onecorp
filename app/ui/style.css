@@ -840,3 +840,8 @@ input.big { font-size: 18px; padding: 10px 12px; }
 .launch-team { display: inline-flex; margin-right: 8px; vertical-align: middle; }
 .launch-team .av { width: 26px; height: 26px; margin-right: -6px; box-shadow: 0 0 0 2px var(--surface); }
 .welcome .su-steps { width: 100%; margin-bottom: 18px; }
+
+/* The OneCorp badge, our mascot */
+.mascot { display: block; width: 100%; height: 100%; }
+.brand .mascot { width: 26px; height: 26px; }
+.empty-mascot { display: block; width: 72px; height: 72px; margin: 0 auto 14px; animation: float 3.2s ease-in-out infinite; }

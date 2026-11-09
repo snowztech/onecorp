@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Meet the OneCorp badge, our mascot: a friendly employee ID badge. It's the new app icon, the mark next to the name, and it winks when you're all caught up.
 - Onboarding is one journey, shown on every step: You, Company, Repo, Team, Launch. Found your company first (its name, a color or your own logo, its mission, what you're building), then its repo with a check of your Mac, then a starting team from template cards you can edit, then a launch summary. Companies wear their logo in the switcher, and `make bundle` also builds a DMG.
 - The Handbook is a wiki page: it reads as formatted Markdown with a table of contents, and Edit opens the Markdown beside a live preview.
 - A new company's Handbook starts with a Codebase section read from the repo: the stack, build and test commands, the layout and what the README says. Free and local. Update it anytime from the Handbook.
