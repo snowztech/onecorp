@@ -140,7 +140,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
 
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
-    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: &mcp, resume: None, env: &[], read_only: true, on_spawn: None };
+    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -237,7 +237,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
          If you learn or decide something every teammate should know from now on, propose it with propose_handbook. \
          If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
          save it with remember: one line per note.\n\n\
-         {knowledge}{notes}",
+         {knowledge}{notes}{chat}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -246,6 +246,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         details = ticket_details(c, t)?,
         knowledge = company_knowledge(c)?,
         notes = own_notes(c, &e.id)?,
+        chat = crate::chat::catch_up(c, &e)?,
     );
     drive(c, &e, id, &wt, None, &prompt, title)
 }
@@ -399,7 +400,7 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 }
 
 /// What every employee should know before starting: the handbook, and who does what.
-fn company_knowledge(c: &Company) -> Result<String> {
+pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
     // Keeps a runaway handbook from eating the whole context window.
     const MAX: usize = 12_000;
     let mut doc = c.handbook()?.trim().to_string();
@@ -426,7 +427,7 @@ fn company_knowledge(c: &Company) -> Result<String> {
 }
 
 /// The employee's own notes, newest kept when they get long.
-fn own_notes(c: &Company, employee: &str) -> Result<String> {
+pub(crate) fn own_notes(c: &Company, employee: &str) -> Result<String> {
     const MAX: usize = 4_000;
     let notes = c.memory(employee)?;
     let mut lines: Vec<&str> = notes.lines().filter(|l| !l.trim().is_empty()).collect();
@@ -632,7 +633,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     };
     // A plan only reads the repo and creates tickets. It must never change your checkout.
     let planning = c.ticket(id)?.is_some_and(|t| t.kind == "plan");
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid) };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid) };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;

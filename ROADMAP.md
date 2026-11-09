@@ -25,7 +25,7 @@ The whole company loop works in the CLI, tested end to end on throwaway repos.
 - [x] Company MCP server: `ask_human`, `post_message`, `update_ticket`, `propose_handbook`, `remember`
 - [x] Inbox, and answering resumes the same agent session (`inbox`, `answer`)
 - [x] Review: `diff`, `changes`, `approve`. Conflicts go back to the employee to fix
-- [x] Team chat (`chat`)
+- [x] Team chat: #general and a channel per department, agents read it before each ticket, @mentions get replies (`chat`, `say`)
 - [x] Company handbook everyone reads before each ticket, with agent proposals (`handbook`)
 - [x] Personal memory per employee, learned from your reviews (`memory`)
 - [x] `serve` runs queued tickets in parallel, one ticket per employee at a time
@@ -55,7 +55,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Real tickets: details, a backlog, tickets that wait for others, and `create_ticket` for the team
 - [x] Founder profile: your name and photo, no account, and your team knows who they work for
 - [x] Ship as pull requests on GitHub or GitLab, merged on approve
-- [ ] Chat page
+- [x] Chat page: channels, live typing, @mention anyone to ask them
 - [x] Reviews in the Inbox show the real changes: commits, files, diff
 - [x] Handbook page: read, edit and accept proposals in the app
 - [x] New company flow in the app: pick the repo, name it, pick a starting team
@@ -64,6 +64,8 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 
 ## Next
 
+- [ ] Agents answer each other's @mentions, with a cap so two of them can't chat forever
+- [ ] Ask for a ticket from chat: "@rui plan the export feature" turns into a ticket
 - [ ] Faces and personality from the prototype (generated avatars, moods, voice in chat)
 - [ ] Budgets and payroll: a daily cap per employee and per company, pause at the cap
 - [ ] Pi runtime

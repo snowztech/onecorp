@@ -11,7 +11,6 @@ use std::process::Command;
 pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     // -c values are parsed as TOML. JSON strings and string arrays are valid TOML too.
     let q = |s: &str| serde_json::to_string(s).unwrap();
-    let env = o.mcp.env.iter().map(|(k, v)| format!("{k}={}", q(v))).collect::<Vec<_>>().join(",");
 
     let mut cmd = Command::new("codex");
     cmd.args(["exec", "--json", "--skip-git-repo-check"])
@@ -20,13 +19,16 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         // Writes stay inside the worktree. .git is read-only there, which is why OneCorp commits for the agent.
         .args(["--sandbox", if o.read_only { "read-only" } else { "workspace-write" }, "--cd"])
         .arg(o.cwd)
-        .args(["-c", &format!("mcp_servers.onecorp.command={}", q(&o.mcp.command))])
-        .args(["-c", &format!("mcp_servers.onecorp.args={}", serde_json::to_string(&o.mcp.args)?)])
-        .args(["-c", &format!("mcp_servers.onecorp.env={{{env}}}")])
-        // Without this, every company tool call is refused in non-interactive mode.
-        .args(["-c", "mcp_servers.onecorp.default_tools_approval_mode=\"approve\""])
         .current_dir(o.cwd)
         .envs(o.env.iter().map(|(k, v)| (k, v)));
+    if let Some(m) = o.mcp {
+        let env = m.env.iter().map(|(k, v)| format!("{k}={}", q(v))).collect::<Vec<_>>().join(",");
+        cmd.args(["-c", &format!("mcp_servers.onecorp.command={}", q(&m.command))])
+            .args(["-c", &format!("mcp_servers.onecorp.args={}", serde_json::to_string(&m.args)?)])
+            .args(["-c", &format!("mcp_servers.onecorp.env={{{env}}}")])
+            // Without this, every company tool call is refused in non-interactive mode.
+            .args(["-c", "mcp_servers.onecorp.default_tools_approval_mode=\"approve\""]);
+    }
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
     }

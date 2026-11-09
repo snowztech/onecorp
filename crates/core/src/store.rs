@@ -137,6 +137,7 @@ pub fn list() -> Result<Vec<String>> {
     Ok(names)
 }
 
+#[derive(Clone, Debug)]
 pub struct Employee {
     pub id: String,
     pub name: String,
@@ -156,8 +157,18 @@ pub struct Department {
 /// (time, ticket, employee, kind, summary)
 pub type FeedEvent = (String, i64, String, String, String);
 
-/// (time, channel, author, text, ticket)
-pub type Message = (String, String, String, String, Option<i64>);
+/// A chat message. `author` is an employee id, or "founder".
+#[derive(Clone, Debug)]
+pub struct Message {
+    pub id: i64,
+    pub at: String,
+    pub channel: String,
+    pub author: String,
+    pub text: String,
+    pub ticket: Option<i64>,
+    /// A reply someone is still writing.
+    pub pending: bool,
+}
 
 /// A job serve has claimed and is about to run.
 pub struct Claimed {
@@ -617,6 +628,12 @@ impl Company {
     /// stay "doing" forever. Marks them and their tickets failed and returns the ticket keys.
     /// Safe to call anytime: a job whose process is still alive is left alone.
     pub fn recover_interrupted(&self) -> Result<Vec<String>> {
+        // Chat replies run on a thread with no job behind them. A reply still "typing" after
+        // 30 minutes lost its process, most likely when the app quit.
+        self.db.execute(
+            "UPDATE messages SET pending = 0, text = '(stopped before replying)' WHERE pending = 1 AND at < datetime('now', '-30 minutes')",
+            [],
+        )?;
         let mut st = self.db.prepare("SELECT id, ticket_id, pid FROM jobs WHERE started_at IS NOT NULL AND finished_at IS NULL")?;
         let running: Vec<(i64, i64, Option<u32>)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<_, _>>()?;
         let mut keys = vec![];
@@ -773,10 +790,24 @@ impl Company {
         )?)
     }
 
-    pub fn post(&self, channel: &str, author: &str, text: &str, ticket: Option<i64>) -> Result<()> {
+    pub fn post(&self, channel: &str, author: &str, text: &str, ticket: Option<i64>) -> Result<i64> {
         self.db.execute(
             "INSERT INTO messages (channel, author, text, ticket_id) VALUES (?1, ?2, ?3, ?4)",
             params![channel, author, text, ticket],
+        )?;
+        Ok(self.db.last_insert_rowid())
+    }
+
+    /// A reply that shows as "typing" until `finish_message` fills it in.
+    pub fn post_pending(&self, channel: &str, author: &str) -> Result<i64> {
+        self.db.execute("INSERT INTO messages (channel, author, text, pending) VALUES (?1, ?2, '', 1)", params![channel, author])?;
+        Ok(self.db.last_insert_rowid())
+    }
+
+    pub fn finish_message(&self, id: i64, text: &str, cost: f64, tokens: u64) -> Result<()> {
+        self.db.execute(
+            "UPDATE messages SET text = ?2, pending = 0, cost_usd = ?3, tokens = ?4, at = datetime('now') WHERE id = ?1",
+            params![id, text, cost, tokens as i64],
         )?;
         Ok(())
     }
@@ -784,11 +815,30 @@ impl Company {
     /// Messages in a channel, or every channel when None. Oldest first.
     pub fn messages(&self, channel: Option<&str>) -> Result<Vec<Message>> {
         let mut st = self.db.prepare(
-            "SELECT at, channel, author, text, ticket_id FROM messages
+            "SELECT id, at, channel, author, text, ticket_id, pending FROM messages
              WHERE ?1 IS NULL OR channel = ?1 ORDER BY id",
         )?;
-        let rows = st.query_map([channel], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
+        let rows = st.query_map([channel], row_to_message)?;
         Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn message(&self, id: i64) -> Result<Option<Message>> {
+        Ok(self
+            .db
+            .query_row("SELECT id, at, channel, author, text, ticket_id, pending FROM messages WHERE id = ?1", [id], row_to_message)
+            .optional()?)
+    }
+
+    /// Every channel anything was ever posted in.
+    pub fn channel_names(&self) -> Result<Vec<String>> {
+        let mut st = self.db.prepare("SELECT DISTINCT channel FROM messages ORDER BY channel")?;
+        let rows = st.query_map([], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// What chat replies cost, which belongs to no ticket.
+    pub fn chat_spend(&self) -> Result<(f64, i64)> {
+        Ok(self.db.query_row("SELECT coalesce(sum(cost_usd), 0), coalesce(sum(tokens), 0) FROM messages", [], |r| Ok((r.get(0)?, r.get(1)?)))?)
     }
 
     pub fn add_event(&self, ticket: i64, kind: &str, summary: &str, raw: &str) -> Result<()> {
@@ -898,6 +948,9 @@ fn migrate(db: &Connection) -> Result<()> {
         ("inbox", "via", "TEXT"),
         ("inbox", "note", "TEXT"),
         ("inbox", "answered_by", "TEXT"),
+        ("messages", "pending", "INTEGER NOT NULL DEFAULT 0"),
+        ("messages", "cost_usd", "REAL NOT NULL DEFAULT 0"),
+        ("messages", "tokens", "INTEGER NOT NULL DEFAULT 0"),
     ];
     for (table, column, decl) in ADDED {
         let has: bool = db.query_row(
@@ -910,6 +963,10 @@ fn migrate(db: &Connection) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn row_to_message(r: &rusqlite::Row) -> rusqlite::Result<Message> {
+    Ok(Message { id: r.get(0)?, at: r.get(1)?, channel: r.get(2)?, author: r.get(3)?, text: r.get(4)?, ticket: r.get(5)?, pending: r.get(6)? })
 }
 
 fn row_to_employee(r: &rusqlite::Row) -> rusqlite::Result<Employee> {

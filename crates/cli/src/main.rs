@@ -227,8 +227,18 @@ enum Cmd {
     },
     /// Read team chat
     Chat {
-        /// Channel, like eng or #eng. All channels when left out
+        /// Channel, like engineering or #eng. All channels when left out
         channel: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Post in team chat. Anyone you @mention replies
+    Say {
+        /// Channel, like general or engineering
+        channel: String,
+        /// What to say, like "@maya how does login work?"
+        #[arg(allow_hyphen_values = true, num_args = 1..)]
+        text: Vec<String>,
         #[arg(short, long)]
         company: Option<String>,
     },
@@ -674,14 +684,23 @@ fn run(cmd: Cmd) -> Result<()> {
         }
         Cmd::Chat { channel, company } => {
             let c = open(company)?;
-            let channel = channel.map(|ch| ch.trim_start_matches('#').to_string());
+            let channel = channel.map(|ch| onecorp::chat::resolve(&c, &ch)).transpose()?;
             let msgs = c.messages(channel.as_deref())?;
             if msgs.is_empty() {
                 println!("Nothing posted yet.");
             }
-            for (at, ch, author, text, ticket) in msgs {
-                let ticket = ticket.map(|t| format!("  ({})", c.key(t))).unwrap_or_default();
-                println!("{} #{ch:<8} {author}: {text}{ticket}", at.get(11..16).unwrap_or(&at));
+            for m in msgs.iter().filter(|m| !m.pending) {
+                let ticket = m.ticket.map(|t| format!("  ({})", c.key(t))).unwrap_or_default();
+                println!("{} #{:<12} {}: {}{ticket}", m.at.get(11..16).unwrap_or(&m.at), m.channel, m.author, m.text);
+            }
+        }
+        Cmd::Say { channel, text, company } => {
+            let c = open(company)?;
+            for id in onecorp::chat::say(&c, &channel, &text.join(" "))? {
+                onecorp::chat::reply(&c, id)?;
+                if let Some(m) = c.message(id)? {
+                    println!("{}: {}", m.author, m.text);
+                }
             }
         }
         Cmd::Serve { max } => onecorp::serve::serve(max)?,

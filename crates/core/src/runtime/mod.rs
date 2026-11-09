@@ -37,7 +37,8 @@ pub struct Mcp {
 pub struct Opts<'a> {
     pub cwd: &'a Path,
     pub model: Option<&'a str>,
-    pub mcp: &'a Mcp,
+    /// The company tools. None for a chat reply, which only talks.
+    pub mcp: Option<&'a Mcp>,
     /// Continue this session instead of starting a new one. Must run in the same cwd.
     pub resume: Option<&'a str>,
     /// Extra env for the agent process, like the employee's git identity.

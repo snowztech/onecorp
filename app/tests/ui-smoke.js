@@ -12,7 +12,7 @@ const src = require("fs").readFileSync(require("path").join(__dirname, "../ui/ap
 eval(src + `
 (async () => {
   await refresh(true);
-  for (const v of ["company", "board", "inbox", "handbook"]) { S.view = v; await refresh(true); console.log(v, document.querySelector("#view").innerHTML.length, "chars"); }
+  for (const v of ["company", "board", "inbox", "chat", "handbook"]) { S.view = v; await refresh(true); console.log(v, document.querySelector("#view").innerHTML.length, "chars"); }
   await openTicket("SNO-11"); console.log("ticket drawer", document.querySelector("#drawer").innerHTML.length, "chars");
   S.drawer = { type: "new-ticket" }; renderDrawer(); console.log("new ticket drawer", document.querySelector("#drawer").innerHTML.length, "chars");
   await openPerson("tomas"); console.log("person drawer", document.querySelector("#drawer").innerHTML.length, "chars");

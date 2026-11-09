@@ -25,6 +25,13 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         return Ok(());
     }
 
+    // Mentioned in the team chat: a short, friendly reply that quotes what it was asked, so tests can check it.
+    if let Some(said) = prompt.lines().find_map(|l| l.strip_prefix("They wrote: ")) {
+        let text = format!("Got it: \"{}\". I'll keep it in mind on my next ticket.", said.trim());
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
+        return Ok(());
+    }
+
     // On a plan ticket, planning or planning again: create tickets through the real company tools.
     if company_ticket(o).is_some_and(|(c, t)| c.ticket(t).ok().flatten().is_some_and(|t| t.kind == "plan")) {
         let made = plan(o, prompt)?;
@@ -77,12 +84,14 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
 /// stand-in has no MCP client, and in tests there's no onecorp binary to start one with.
 /// The company and ticket this run is for, read from its company tool settings.
 fn company_ticket(o: &Opts) -> Option<(crate::store::Company, i64)> {
-    let arg = |flag: &str| o.mcp.args.iter().position(|a| a == flag).and_then(|i| o.mcp.args.get(i + 1)).cloned();
+    let args = &o.mcp?.args;
+    let arg = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).cloned();
     Some((crate::store::Company::open(&arg("--company")?).ok()?, arg("--ticket")?.parse().ok()?))
 }
 
 fn plan(o: &Opts, prompt: &str) -> Result<Vec<String>> {
-    let arg = |flag: &str| o.mcp.args.iter().position(|a| a == flag).and_then(|i| o.mcp.args.get(i + 1)).cloned().unwrap_or_default();
+    let args = o.mcp.map(|m| m.args.clone()).unwrap_or_default();
+    let arg = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).cloned().unwrap_or_default();
     let (c, ticket) = company_ticket(o).ok_or_else(|| anyhow::anyhow!("no company to plan for"))?;
     let ctx = crate::mcp::Ctx { ticket, employee: arg("--employee") };
     let team = c.employees()?;

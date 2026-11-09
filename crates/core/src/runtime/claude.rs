@@ -10,18 +10,20 @@ use std::process::Command;
 const ALLOWED: &str = "Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__onecorp";
 
 pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
-    let env: serde_json::Map<String, Value> = o.mcp.env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
-    let mcp = json!({"mcpServers": {"onecorp": {"command": o.mcp.command, "args": o.mcp.args, "env": env}}});
-
     let mut cmd = Command::new("claude");
     // Without acceptEdits, edits need a permission nobody can give in headless mode, so they're refused.
     let mode = if o.read_only { "default" } else { "acceptEdits" };
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode])
-        // Only the company server loads. The user's own MCP servers stay out.
-        .args(["--mcp-config", &mcp.to_string(), "--strict-mcp-config"])
+        // Only the company server loads, if any. The user's own MCP servers stay out.
+        .arg("--strict-mcp-config")
         .args(["--allowedTools", ALLOWED])
         .current_dir(o.cwd)
         .envs(o.env.iter().map(|(k, v)| (k, v)));
+    if let Some(m) = o.mcp {
+        let env: serde_json::Map<String, Value> = m.env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
+        let mcp = json!({"mcpServers": {"onecorp": {"command": m.command, "args": m.args, "env": env}}});
+        cmd.args(["--mcp-config", &mcp.to_string()]);
+    }
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
     }

@@ -92,11 +92,11 @@ fn tools() -> Value {
         },
         {
             "name": "post_message",
-            "description": "Post a short message to a team channel, like #eng or #general. Use it for things teammates should know, not for progress logs.",
+            "description": "Post a short message to the team chat. Use it for things teammates should know, not for progress logs. Mention someone with @firstname.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "channel": {"type": "string", "description": "Channel name without #. Defaults to general"},
+                    "channel": {"type": "string", "description": "general for the whole company, or a department's channel like engineering. Defaults to your department's"},
                     "text": {"type": "string"}
                 },
                 "required": ["text"]
@@ -198,10 +198,14 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
         "post_message" => {
             let text = s("text");
             anyhow::ensure!(!text.is_empty(), "text is required");
-            let channel = s("channel");
-            let channel = channel.trim_start_matches('#');
-            let channel = if channel.is_empty() { "general" } else { channel };
-            c.post(channel, &ctx.employee, &text, Some(ctx.ticket))?;
+            let channel = match s("channel") {
+                typed if !typed.trim().is_empty() => crate::chat::resolve(c, &typed)?,
+                _ => match c.employee(&ctx.employee)? {
+                    Some(e) => crate::chat::home(c, &e)?,
+                    None => crate::chat::GENERAL.into(),
+                },
+            };
+            c.post(&channel, &ctx.employee, &text, Some(ctx.ticket))?;
             Ok(format!("Posted in #{channel}."))
         }
         "propose_handbook" => {
@@ -297,9 +301,9 @@ mod tests {
         c.finish_ticket(t, "review", 0.1, 0).unwrap();
         assert_eq!(c.ticket(t).unwrap().unwrap().status, "blocked");
 
-        let post = json!({"name": "post_message", "arguments": {"channel": "#eng", "text": "hashing tokens at rest"}});
+        let post = json!({"name": "post_message", "arguments": {"channel": "#general", "text": "hashing tokens at rest"}});
         handle(&c, &ctx, &req(4, "tools/call", post)).unwrap();
-        assert_eq!(c.messages(Some("eng")).unwrap()[0].3, "hashing tokens at rest");
+        assert_eq!(c.messages(Some("general")).unwrap()[0].text, "hashing tokens at rest");
 
         let prop = json!({"name": "propose_handbook", "arguments": {"text": "Tokens are hashed at rest", "section": "conventions"}});
         handle(&c, &ctx, &req(7, "tools/call", prop)).unwrap();

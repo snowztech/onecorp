@@ -121,8 +121,17 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         departments.push(json!({"id": null, "name": "No department yet", "lead": null, "members": loose}));
     }
 
-    let cost = tickets.iter().fold(0.0, |s, t| s + t.cost_usd);
-    let tokens: i64 = tickets.iter().map(|t| t.tokens).sum();
+    let (chat_cost, chat_tokens) = c.chat_spend()?;
+    let cost = tickets.iter().fold(chat_cost, |s, t| s + t.cost_usd);
+    let tokens: i64 = chat_tokens + tickets.iter().map(|t| t.tokens).sum::<i64>();
+    let all_messages = c.messages(None)?;
+    let channels: Vec<Value> = crate::chat::channels(c)?
+        .into_iter()
+        .map(|ch| {
+            let last = all_messages.iter().filter(|m| m.channel == ch.name).map(|m| m.id).max();
+            json!({"name": ch.name, "title": ch.title, "department": ch.department, "last": last})
+        })
+        .collect();
     let forge = crate::ship::forge(c)?;
     // Kickoff: what you're building, who'd plan it, and any planning happening now.
     let planning: Vec<Value> = tickets
@@ -153,8 +162,28 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "reviews": reviews,
         "failed": failed,
         "feed": feed,
+        "channels": channels,
         "spend": { "cost": cost, "tokens": tokens, "label": spend(cost, tokens) },
     }))
+}
+
+/// One channel's messages, newest last, for the Chat page.
+pub fn chat(c: &Company, channel: &str) -> Result<Value> {
+    const SHOWN: usize = 200;
+    let msgs = c.messages(Some(channel))?;
+    let founder = crate::founder::name();
+    let shown: Vec<Value> = msgs
+        .iter()
+        .skip(msgs.len().saturating_sub(SHOWN))
+        .map(|m| {
+            let name = if m.author == "founder" { founder.clone() } else { c.employee(&m.author).ok().flatten().map(|e| e.name).unwrap_or_else(|| m.author.clone()) };
+            json!({
+                "id": m.id, "at": m.at, "author": m.author, "name": name, "text": m.text,
+                "key": m.ticket.map(|t| c.key(t)), "pending": m.pending, "founder": m.author == "founder",
+            })
+        })
+        .collect();
+    Ok(json!({"channel": channel, "messages": shown}))
 }
 
 /// One ticket for the ticket drawer: who, where, what it cost, and everything that happened.

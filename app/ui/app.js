@@ -7,7 +7,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -78,18 +78,19 @@ const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S
 
 /* Sidebar and top bar */
 function renderSide() {
-  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", handbook: "Handbook" };
+  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
+  const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `
     <div class="cos">${S.companies.map(c => `<button class="cobtn" data-co="${esc(c)}" aria-current="${!S.setup && c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span></button>`).join("")}
       <button class="cobtn add" data-new-co="1" aria-current="${!!S.setup}"><span class="logo">+</span><span class="coname">New company</span></button></div>
     ${S.company ? `<h6>${esc(S.company)}</h6>${Object.entries(pages).map(([k, v]) =>
-      `<button class="navbtn" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${v}${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}</button>`).join("")}` : ""}
+      `<button class="navbtn" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${v}${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
     ${S.snap ? `<div class="serve ${S.snap.serve ? "" : "off"}"><i></i>${S.snap.serve ? "Your team is working" : "Nobody is running work"}</div>` : ""}
     <button class="side-foot" data-profile="1" title="Edit your profile">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div></button>`;
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board" }[S.view] || S.company || "OneCorp";
+  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board", chat: "Chat" }[S.view] || S.company || "OneCorp";
   const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
   const ships = s?.ship?.forge ? ` · ships to ${s.ship.forge}` : s ? " · merges locally" : "";
   $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}${ships}` : "";
@@ -155,7 +156,7 @@ function kickoffCard() {
 
 function feed(items) {
   if (!items.length) return `<li><span></span><span class="muted">Nothing yet. Start a ticket and it shows up here.</span></li>`;
-  return items.map(f => `<li>${face(f.name, "neutral")}<div><b>${esc(first(f.name))}</b> <span class="key">${esc(f.key)}</span> ${esc(f.summary)}<time>${esc(String(f.at).slice(11, 16))}</time></div></li>`).join("");
+  return items.map(f => `<li>${face(f.name, "neutral")}<div><b>${esc(first(f.name))}</b> <span class="key">${esc(f.key)}</span> ${esc(f.summary)}<time>${hhmm(f.at)}</time></div></li>`).join("");
 }
 
 /* Inbox: everything that needs you, answerable in one click */
@@ -216,6 +217,46 @@ function handbook(q) {
     <span class="kind">Handbook · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the handbook</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
     ${more(`ans-${q.id}`, "Add it in your own words", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="The rule, as you'd put it"><button class="btn">Add</button></form>`)}</div></article>`;
+}
+
+/* Chat: #general and a channel per department. Your team posts as they work; @mention someone to ask them. */
+function viewChat() {
+  const s = S.snap, chans = s.channels || [];
+  const ch = chans.find(c => c.name === S.channel) || chans[0];
+  if (!ch) return "";
+  S.seen[ch.name] = ch.last || 0;
+  const dept = s.departments.find(d => d.id === ch.department);
+  const people = (dept ? dept.members.map(byId) : s.employees).filter(Boolean);
+  const lead = dept?.lead && byId(dept.lead);
+  const list = chans.map(c => `<button class="chan" data-channel="${esc(c.name)}" aria-current="${c.name === ch.name}"><span class="hash">#</span>${esc(c.name)}${c.last && c.last > (S.seen[c.name] || 0) ? '<i class="dot"></i>' : ""}</button>`).join("");
+  const msgs = S.chat?.channel === ch.name ? S.chat.messages : null;
+  let prev = null;
+  const rows = (msgs || []).map(m => {
+    const same = prev && prev.author === m.author && !prev.pending && !m.pending && sameMinutes(prev.at, m.at, 5);
+    prev = m;
+    const who = m.founder ? me() : face(m.name, m.pending ? "working" : "neutral");
+    const body = m.pending ? `<p class="typing">writing<span><i></i><i></i><i></i></span></p>` : `<p>${chatText(m.text)}</p>`;
+    const meta = `<header><b>${esc(m.founder ? m.name : first(m.name))}</b>${m.founder ? '<span class="you">you</span>' : ""}<time>${hhmm(m.at)}</time>${m.key ? `<a class="tkey" data-ticket="${esc(m.key)}">${esc(m.key)}</a>` : ""}</header>`;
+    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}</div></li>`;
+  }).join("");
+  const empty = `<li class="chat-empty"><b>Nothing in #${esc(ch.name)} yet</b>Your team posts here as they work. Mention someone with @ to ask them something.</li>`;
+  const sub = dept ? `${lead ? "Led by " + esc(first(lead.name)) + " · " : ""}${people.length} ${people.length === 1 ? "person" : "people"}` : ch.name === "general" ? "Everyone at " + esc(s.company) : "";
+  return `<div class="chat">
+    <nav class="chans" aria-label="Channels"><h6>Channels</h6>${list}</nav>
+    <section class="room-chat">
+      <header class="chat-h"><div><h3>#${esc(ch.name)}</h3><span class="muted">${sub}</span></div>
+        <div class="faces">${people.slice(0, 8).map(e => `<button class="face-btn" data-mention="${esc(e.id)}" title="Mention ${esc(first(e.name))}">${face(e.name, e.status)}</button>`).join("")}</div></header>
+      <ul class="msgs" id="msgs">${msgs === null ? `<li class="chat-empty muted">Loading…</li>` : rows || empty}</ul>
+      <form class="composer" id="say"><input id="say-text" placeholder="Message #${esc(ch.name)}. Use @name to ask someone" autocomplete="off"><button class="btn primary">Send</button></form>
+    </section></div>`;
+}
+// The database keeps UTC. Shown in your own time.
+const utc = at => new Date(String(at).replace(" ", "T") + "Z");
+const hhmm = at => { const d = utc(at); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+const sameMinutes = (a, b, n) => Math.abs(utc(b) - utc(a)) <= n * 60000;
+// Mentions and ticket keys stand out, and a ticket key opens the ticket.
+function chatText(text) {
+  return esc(text).replace(/@([\p{L}\d]+)/gu, '<span class="mention">@$1</span>').replace(/\b([A-Z]{2,5}-\d+)\b/g, '<a class="tkey" data-ticket="$1">$1</a>');
 }
 
 /* Handbook: the file every employee reads before each ticket, shown as sections you can edit in place */
@@ -592,7 +633,9 @@ function render() {
   } else if (!S.snap) {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
-    v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard }[S.view]?.() ?? viewCompany();
+    v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard, chat: viewChat }[S.view]?.() ?? viewCompany();
+    v.classList.toggle("flush", S.view === "chat");
+    const m = $("#msgs"); if (m) m.scrollTop = m.scrollHeight;
   }
   renderDrawer();
 }
@@ -616,9 +659,12 @@ async function refresh(force) {
     const snap = await invoke("snapshot", { company: S.company });
     // The handbook is a small file and can change outside the app, so it's read with every refresh.
     const book = S.view === "handbook" ? await invoke("handbook", { company: S.company }) : S.handbook;
-    const json = JSON.stringify(snap) + (book ?? "");
+    if (S.view === "chat") S.chat = await invoke("chat", { company: S.company, channel: S.channel }).catch(() => S.chat);
+    const json = JSON.stringify(snap) + (book ?? "") + (S.view === "chat" ? JSON.stringify(S.chat) : "");
     if (!force && (json === S.last || typing())) return;
     S.snap = snap; S.last = json; S.handbook = book;
+    // Channels count as read the first time they're seen, so opening the app doesn't light up every dot.
+    for (const ch of snap.channels || []) if (!(ch.name in S.seen)) S.seen[ch.name] = ch.last || 0;
     if (S.drawer?.type === "person") S.person = await invoke("person", { company: S.company, id: S.drawer.id }).catch(() => S.person);
     if (S.drawer?.type === "ticket") S.ticket = await invoke("ticket_detail", { company: S.company, key: S.drawer.key }).catch(() => S.ticket);
     render();
@@ -630,7 +676,7 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -647,6 +693,12 @@ document.addEventListener("click", async e => {
     el.disabled = true;
     await call("start_ticket", { company: S.company, key: d.start }, `${d.start} is starting`).catch(() => (el.disabled = false));
     return;
+  }
+  if (d.channel) { S.channel = d.channel; S.chat = null; render(); return refresh(true); }
+  if (d.mention) {
+    const input = $("#say-text"), name = first(byId(d.mention)?.name || d.mention);
+    input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
+    return input.focus();
   }
   if (d.more) { S.open[d.more] = true; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) { S.profile = { name: myName() === "You" ? "" : myName() }; S.drawer = null; return render(); }
@@ -785,6 +837,13 @@ document.addEventListener("submit", async e => {
     } catch (e) { toast(String(e), true); btn.disabled = false; btn.textContent = "Create the company"; }
     return;
   }
+  if (f.id === "say") {
+    const input = $("#say-text"), text = input.value.trim();
+    if (!text) return input.focus();
+    input.value = "";
+    await call("say", { company: S.company, channel: S.channel, text }).catch(() => (input.value = text));
+    return $("#say-text")?.focus();
+  }
   if (f.id === "dept-form") {
     const name = $("#dept-name").value.trim();
     if (!name) return $("#dept-name").focus();
@@ -841,7 +900,7 @@ document.addEventListener("keydown", e => {
 async function previewScreen() {
   const screen = location.hash.slice(1);
   await refresh(true);
-  if (["board", "inbox", "handbook"].includes(screen)) { S.view = screen; render(); }
+  if (["board", "inbox", "handbook", "chat"].includes(screen)) { S.view = screen; render(); }
   if (screen === "ticket") openTicket("SNO-11");
   if (screen === "person") openPerson("tomas");
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
@@ -882,6 +941,7 @@ function preview(cmd) {
         { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "tool", summary: "Bash cargo test billing" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
+      channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
     handbook: "# snowztech handbook\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
     setup_info: { runtimes: ["claude", "fake"], templates: [
@@ -894,6 +954,14 @@ function preview(cmd) {
     new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
     check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [], forge: "GitHub", pr_word: "pull request", signed_in: true, account: "Logged in to github.com account you" },
     founder: { name: "Lucas", photo: null },
+    chat: { channel: "general", messages: [
+      { id: 1, at: "2026-11-09 09:12:00", author: "founder", name: "Lucas", founder: true, text: "Morning team. Goal this week: magic link login and the pricing page live.", key: null, pending: false },
+      { id: 2, at: "2026-11-09 09:40:00", author: "rui", name: "Rui Alves", text: "Plan is in your inbox as SNO-20. Setup first, then login and sync in parallel.", key: "SNO-20", pending: false },
+      { id: 3, at: "2026-11-09 10:05:00", author: "maya", name: "Maya Okafor", text: "Heads up: magic links need an email provider. I'll stub it behind a trait for now.", key: "SNO-12", pending: false },
+      { id: 4, at: "2026-11-09 10:06:00", author: "maya", name: "Maya Okafor", text: "@odile can you look at the token hashing when you review?", key: "SNO-12", pending: false },
+      { id: 5, at: "2026-11-09 11:02:00", author: "odile", name: "Odile Martin", text: "Pricing page is up for review in SNO-11. Copy needs a look on mobile.", key: "SNO-11", pending: false },
+      { id: 6, at: "2026-11-09 11:20:00", author: "founder", name: "Lucas", founder: true, text: "@tomas how far are the Stripe webhook retries?", key: null, pending: false },
+      { id: 7, at: "2026-11-09 11:20:00", author: "tomas", name: "Tomás Reis", text: "", key: null, pending: true }] },
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
       activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }],
       memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing"] },

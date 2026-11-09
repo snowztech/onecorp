@@ -255,6 +255,26 @@ fn handbook(company: String) -> Res<String> {
 }
 
 #[tauri::command(async)]
+fn chat(company: String, channel: String) -> Res<Value> {
+    onecorp::view::chat(&open(&company)?, &channel).map_err(err)
+}
+
+/// Posts as the founder. Each @mentioned person replies on their own thread, so a slow reply
+/// never holds up the app. The UI shows them typing until it lands.
+#[tauri::command(async)]
+fn say(company: String, channel: String, text: String) -> Res<()> {
+    for id in onecorp::chat::say(&open(&company)?, &channel, &text).map_err(err)? {
+        let company = company.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = Company::open(&company).and_then(|c| onecorp::chat::reply(&c, id)) {
+                eprintln!("chat reply: {e:#}");
+            }
+        });
+    }
+    Ok(())
+}
+
+#[tauri::command(async)]
 fn save_handbook(company: String, text: String) -> Res<()> {
     open(&company)?.write_handbook(&text).map_err(err)
 }
@@ -357,6 +377,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             companies,
             use_company,
+            chat,
+            say,
             snapshot,
             person,
             review,
