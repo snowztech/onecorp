@@ -126,7 +126,7 @@ function renderTop() {
 // The agent someone runs on, as a small badge on their avatar.
 function agentBadge(runtime) {
   const a = AGENTS[runtime];
-  return a ? `<span class="agent-badge" style="--c:${a.color}" title="Works on ${esc(a.name)}">${esc(a.name[0])}</span>` : "";
+  return a ? `<span class="agent-badge" style="--c:${a.color}" title="Works on ${esc(a.name)}">${agentMark(runtime)}</span>` : "";
 }
 function desk(e, lead) {
   const show = e.bubble ? "show" : "";
@@ -283,7 +283,8 @@ function kickoffCard() {
 /* Getting started: five steps from an empty company to your first merged work. Each step is done
    by doing it for real, so the list can't lie. It goes away when you're through, or when you hide it. */
 function gettingStarted() {
-  const s = S.snap, work = s.tickets.filter(t => t.kind !== "plan");
+  // Only real work counts: planning and the handbook your lead writes at launch are not "work" yet.
+  const s = S.snap, work = s.tickets.filter(t => !t.kind || t.kind === "work");
   const firstDept = s.departments.find(d => d.id !== null);
   const plan = (s.projects || [])[0];
   const steps = [
@@ -673,16 +674,23 @@ function candidates(role) {
 // The agents someone can work on, and the models each offers. Default means the agent's own choice.
 const AGENTS = {
   claude: { name: "Claude Code", by: "Anthropic", color: "#d97757", models: [["", "Default"], ["opus", "Opus"], ["sonnet", "Sonnet"], ["haiku", "Haiku"]] },
-  codex: { name: "Codex", by: "OpenAI", color: "#3a9b7a", models: [["", "Default"], ["gpt-5-codex", "GPT-5 Codex"], ["gpt-5", "GPT-5"]] },
+  codex: { name: "Codex", by: "OpenAI", color: "#18181b", models: [["", "Default"], ["gpt-5-codex", "GPT-5 Codex"], ["gpt-5", "GPT-5"]] },
   fake: { name: "Stand-in", by: "Free, no AI", color: "#8a90a0", models: [["", "No model"]] },
 };
+const GLYPHS = {
+  claude: '<path d="M12 3.5v17M3.5 12h17M6 6l12 12M18 6 6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>',
+  codex: '<path d="M6 8.5 10 12l-4 3.5M12.5 16H18" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+  gh: '<path d="M12 3.5a8.5 8.5 0 0 0-2.7 16.6c.4.1.6-.2.6-.4v-1.5c-2.4.5-2.9-1-2.9-1-.4-1-1-1.3-1-1.3-.8-.5.1-.5.1-.5.9.1 1.3.9 1.3.9.8 1.3 2 1 2.5.7.1-.6.3-1 .6-1.2-1.9-.2-3.9-.9-3.9-4.2 0-.9.3-1.7.9-2.3-.1-.2-.4-1.1.1-2.3 0 0 .7-.2 2.3.9a8 8 0 0 1 4.2 0c1.6-1.1 2.3-.9 2.3-.9.5 1.2.2 2.1.1 2.3.6.6.9 1.4.9 2.3 0 3.3-2 4-3.9 4.2.3.3.6.8.6 1.6v2.4c0 .2.2.5.6.4A8.5 8.5 0 0 0 12 3.5z" fill="#fff"/>',
+};
+// An agent's mark: its glyph, white on its color.
+const agentMark = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[k] || ""}</svg>`;
 function agentPicker(f) {
   const have = S.runtimes || Object.keys(AGENTS), a = AGENTS[f.runtime] || AGENTS.claude;
   const models = a.models.some(([v]) => v === (f.model || "")) ? a.models : [...a.models, [f.model, f.model]];
   return `<div class="field"><span class="flabel">Works on</span><div class="agents">${Object.entries(AGENTS).filter(([k]) => k !== "fake" || f.runtime === "fake").map(([k, x]) => {
       const ok = have.includes(k) || k === f.runtime;
       return `<button type="button" class="agent" data-agent="${k}" aria-pressed="${k === f.runtime}" ${ok ? "" : 'disabled title="Not installed on this Mac. Settings shows how to install it"'}>
-        <span class="glyph" style="--c:${x.color}">${x.name[0]}</span><span><b>${x.name}</b><small>${ok ? x.by : "Not installed"}</small></span></button>`;
+        <span class="glyph" style="--c:${x.color}">${agentMark(k)}</span><span><b>${x.name}</b><small>${ok ? x.by : "Not installed"}</small></span></button>`;
     }).join("")}</div><input type="hidden" id="pf-rt" value="${esc(f.runtime)}"></div>
     <div class="field"><span class="flabel">Model</span><div class="models">${models.map(([v, n]) => `<button type="button" class="mchip" data-model="${esc(v)}" aria-pressed="${v === (f.model || "")}">${esc(n)}</button>`).join("")}</div><input type="hidden" id="pf-m" value="${esc(f.model || "")}"></div>`;
 }
@@ -791,7 +799,7 @@ async function startSetup() {
     invoke("readiness").then(r => { if (S.setup) { S.setup.ready = r; render(); } }).catch(() => {});
     S.setup = { step: 0, mode: "existing", path: "", repo: null, name: "", mission: "", runtime: real[0] || "fake", info, repoInfo,
       folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [], color: PALETTE[S.companies.length % PALETTE.length], logo: null, logoUrl: null };
-    setTemplate("small");
+    setTemplate("startup");
   } catch (e) { return toast(String(e), true); }
   S.drawer = null;
   render();
@@ -882,7 +890,7 @@ function viewSetup() {
     const card = ([what, about, key]) => {
       const h = find(what), state = !r ? "checking" : !h ? "missing" : h.level === "ok" ? "ok" : /not signed in/.test(h.detail) ? "signin" : "missing";
       const pill = { checking: "Checking…", ok: "Connected", signin: "Not signed in", missing: "Not installed" }[state];
-      return `<div class="tool t-${state}"><span class="tool-ic" style="--c:${AGENTS[key]?.color || "var(--fg)"};${AGENTS[key] ? "" : "color:var(--bg)"}">${esc(what[0])}</span>
+      return `<div class="tool t-${state}"><span class="tool-ic" style="--c:${AGENTS[key]?.color || "#18181b"}">${agentMark(key)}</span>
         <div class="tool-main"><b>${esc(what)}</b><span>${esc(about)}</span>${h?.fix && state !== "ok" ? `<div class="fix"><code>${esc(h.fix)}</code><button class="link-btn" type="button" data-copy="${esc(h.fix)}">Copy</button></div>` : ""}</div>
         <span class="pill-state">${pill}</span></div>`;
     };
@@ -934,7 +942,7 @@ function viewSetup() {
       <input id="su-p${i}-name" value="${esc(p.name)}" placeholder="Name" aria-label="Name" autocomplete="off">
       <input id="su-p${i}-role" value="${esc(p.role)}" placeholder="Role" aria-label="Role" autocomplete="off">
       <input id="su-p${i}-dept" value="${esc(p.dept)}" placeholder="Department" aria-label="Department" list="su-depts" autocomplete="off">
-      <span class="mini-agents" role="group" aria-label="Works on">${real.map(k => `<button type="button" class="mini-agent" data-su-agent="${i}:${k}" aria-pressed="${k === p.runtime}" title="${esc(AGENTS[k]?.name || k)}" style="--c:${AGENTS[k]?.color || "#888"}">${esc((AGENTS[k]?.name || k)[0])}</button>`).join("")}<input type="hidden" id="su-p${i}-runtime" value="${esc(p.runtime)}"></span>
+      <span class="mini-agents" role="group" aria-label="Works on">${real.map(k => `<button type="button" class="mini-agent" data-su-agent="${i}:${k}" aria-pressed="${k === p.runtime}" title="${esc(AGENTS[k]?.name || k)}" style="--c:${AGENTS[k]?.color || "#888"}">${agentMark(k)}</button>`).join("")}<input type="hidden" id="su-p${i}-runtime" value="${esc(p.runtime)}"></span>
       <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
     const depts = [...new Set(s.people.map(p => p.dept).filter(Boolean).concat(["Engineering", "Product", "Design", "Growth"]))];
     body = `<h1>Who's on the team to start?</h1><p class="muted">Start from a template, then change anything: names, roles, departments. The first person in a department leads it.</p>
@@ -1458,9 +1466,10 @@ function preview(cmd) {
     handbook: "# snowztech handbook\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
     setup_info: { runtimes: ["claude", "fake"], templates: [
       { key: "solo", name: "Solo builder", description: "One engineer who ships. Hire more when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
-      { key: "small", name: "Product team", description: "A CTO who reviews, an engineer, a product manager who plans, and a designer.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Rui Alves", role: "Product manager", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }] },
       { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", role: "Product manager", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth writer", dept: "Growth" }] },
-      { key: "oss", name: "Open source project", description: "A maintainer who reviews every change, an engineer, and a writer for docs and changelogs.", runtime: null, hires: [{ name: "Odile Martin", role: "Maintainer", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Sam Duarte", role: "Docs writer", dept: "Docs" }] },
+      { key: "indie", name: "Indie maker", description: "Build it and launch it yourself: an engineer, a designer, and a growth marketer.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth marketer", dept: "Growth" }] },
+      { key: "agency", name: "Agency", description: "Client work: a PM who plans, two engineers, a designer, and a QA reviewer who checks every change.", runtime: null, hires: [{ name: "Rui Alves", role: "Project manager", dept: "Delivery" }, { name: "Maya Okafor", role: "Engineer", dept: "Delivery" }, { name: "Tomás Reis", role: "Engineer", dept: "Delivery" }, { name: "Lina Park", role: "Product designer", dept: "Delivery" }, { name: "Odile Martin", role: "QA reviewer", dept: "Delivery" }] },
+      { key: "oss", name: "Open source", description: "A maintainer who reviews every change, an engineer, and a writer for docs and changelogs.", runtime: null, hires: [{ name: "Odile Martin", role: "Maintainer", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Sam Duarte", role: "Docs writer", dept: "Docs" }] },
       { key: "empty", name: "Start empty", description: "No one yet. Add departments and hire them yourself.", runtime: null, hires: [] }] },
     ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },

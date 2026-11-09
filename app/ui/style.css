@@ -943,3 +943,15 @@ h1, h2, h3, .titles h1 { letter-spacing: -.02em; }
 .co-switch .dot { margin-left: auto; }
 .co-switch .dot + .chev { margin-left: 6px; }
 .menu .cobtn .badge { margin-left: auto; }
+
+/* Agent marks: the glyph, white on the agent's color, ringed so a dark tile still reads on dark */
+.agent-badge svg, .mini-agent svg, .glyph svg, .tool-ic svg { width: 66%; height: 66%; display: block; }
+.agent-badge, .glyph, .tool-ic { box-shadow: 0 0 0 1px color-mix(in srgb, var(--fg) 14%, transparent); }
+.agent-badge { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px color-mix(in srgb, var(--fg) 12%, transparent); }
+.mini-agent { display: grid; place-items: center; padding: 0; }
+.mini-agent svg { width: 62%; height: 62%; }
+.mini-agent:not([aria-pressed="true"]) svg path { stroke: var(--muted); }
+.mini-agent:not([aria-pressed="true"]) svg path[fill="#fff"] { fill: var(--muted); }
+.tpl-cards { grid-template-columns: repeat(3, 1fr); }
+.agents { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.agent b { white-space: nowrap; }
