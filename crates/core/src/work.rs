@@ -154,7 +154,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         name = lead.name,
         role = lead.role,
         company = c.name,
-        bio = lead.bio,
+        bio = crate::voice::intro(c, &lead)?,
         title = t.title,
         knowledge = company_knowledge(c)?,
     );
@@ -267,7 +267,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         name = e.name,
         role = e.role,
         company = c.name,
-        bio = e.bio,
+        bio = crate::voice::intro(c, &e)?,
         abilities = runtime::abilities(&e.runtime),
         details = ticket_details(c, t)?,
         knowledge = company_knowledge(c)?,
@@ -407,7 +407,7 @@ fn run_wiki(c: &Company, t: &Ticket) -> Result<()> {
         name = e.name,
         role = e.role,
         company = c.name,
-        bio = e.bio,
+        bio = crate::voice::intro(c, &e)?,
         building = match c.brief()?.trim() {
             "" => "## What we're building: the product, who it's for and what it does today, in a short paragraph. The team plans from it.\n".to_string(),
             b => format!("## What we're building: keep exactly what the founder wrote: {b}\n"),
@@ -477,7 +477,7 @@ fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
         name = e.name,
         role = e.role,
         company = c.name,
-        bio = e.bio,
+        bio = crate::voice::intro(c, &e)?,
         what = if t.description.trim().is_empty() {
             "plan the first version of what the founder wants to build, using the brief below and the code in this repo.".to_string()
         } else {

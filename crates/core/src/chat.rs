@@ -134,13 +134,13 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         "You are {name}, {role} at {company}. {bio}\n\n\
          {founder} {place}. The conversation so far:\n\n{history}\n\n\
          They wrote: {asked}\n\n\
-         Reply like a colleague would in chat: a few short sentences, plain words, no headings. \
+         Reply like a colleague would in chat, in your own manner: plain words, no headings. \
          Read the code in this repo if it helps you answer, but don't change any files. \
          If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
-        bio = e.bio,
+        bio = crate::voice::intro(c, &e)?,
         founder = crate::founder::name(),
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),

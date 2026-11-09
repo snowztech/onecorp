@@ -402,6 +402,11 @@ fn chat(company: String, channel: String) -> Res<Value> {
 }
 
 #[tauri::command(async)]
+fn set_voice(company: String, id: String, voice: String) -> Res<()> {
+    onecorp::voice::set(&open(&company)?, &id, &voice).map_err(err)
+}
+
+#[tauri::command(async)]
 fn delete_message(company: String, id: i64) -> Res<()> {
     open(&company)?.delete_message(id).map_err(err)
 }
@@ -585,6 +590,7 @@ fn main() {
             use_company,
             chat,
             delete_message,
+            set_voice,
             say,
             settings,
             set_ship,

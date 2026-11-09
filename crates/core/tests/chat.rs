@@ -85,6 +85,14 @@ fn channels_posts_and_replies() {
     work::write_wiki(&c, None).unwrap();
     assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, from the README.");
 
+    // Everyone has a personality, kept until you change it, and it reaches their prompts.
+    let voice = onecorp::voice::of(&c, "maya").unwrap();
+    assert_eq!(onecorp::voice::of(&c, "maya").unwrap(), voice);
+    onecorp::voice::set(&c, "maya", "terse").unwrap();
+    let maya = c.employee("maya").unwrap().unwrap();
+    assert!(onecorp::voice::intro(&c, &maya).unwrap().contains("You are terse"));
+    assert!(onecorp::voice::set(&c, "maya", "rude").is_err());
+
     // You can take back a message.
     let id = c.post("general", "founder", "oops", None).unwrap();
     c.delete_message(id).unwrap();

@@ -824,6 +824,7 @@ function renderDrawer() {
       ${p.bio ? `<p style="margin:0">${esc(p.bio)}</p>` : ""}
       <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
           ${dept ? (leads ? `<span class="leadtag">Lead</span>` : `<button class="link-btn" data-make-lead="${esc(p.id)}">Make lead</button>`) : ""}</dd>
+        <dt>Personality</dt><dd><select data-voice="${esc(p.id)}" aria-label="Personality">${(p.voices || []).map(v => `<option value="${v.key}" ${v.key === p.voice ? "selected" : ""}>${esc(v.label)}</option>`).join("")}</select></dd>
         <dt>Works on</dt><dd>${chip(p)}</dd></dl>
       <div class="acts"><button class="btn" data-edit-person="1">Edit</button><button class="btn" data-new-ticket="${esc(p.id)}">Give ${esc(first(p.name))} a ticket</button><button class="btn" data-dm="${esc(p.id)}">Message</button></div>
       <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free right now.</p>`}</div>
@@ -1614,6 +1615,10 @@ document.addEventListener("input", e => {
   if (e.target.id === "pf-name" && S.profile && !hasPhoto()) { const m = $(".welcome .mono-av"); if (m) m.innerHTML = e.target.value.trim() ? esc(initials(e.target.value)) : icon("user"); }
 });
 document.addEventListener("change", async e => {
+  if (e.target.dataset?.voice) {
+    await invoke("set_voice", { company: S.company, id: e.target.dataset.voice, voice: e.target.value }).then(() => toast(`${first(byId(e.target.dataset.voice)?.name)} sounds different from their next message`)).catch(err => toast(String(err), true));
+    return openPerson(e.target.dataset.voice);
+  }
   if (e.target.dataset?.price) {
     await invoke("set_price", { company: S.company, runtime: e.target.dataset.price, perMillion: Math.max(0, Number(e.target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
     return loadSpend();
