@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, project: null, rail: false, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -398,23 +398,52 @@ function chatText(text) {
 }
 
 /* Handbook: the file every employee reads before each ticket, shown as sections you can edit in place */
-function parseHandbook(doc) {
-  const book = { title: "", sections: [] };
-  let cur = null;
-  for (const line of String(doc || "").split("\n")) {
-    if (line.startsWith("# ")) book.title = line.slice(2).trim();
-    else if (line.startsWith("## ")) book.sections.push((cur = { name: line.slice(3).trim(), text: [], items: [] }));
-    else if (cur && /^\s*[-*] /.test(line)) cur.items.push(line.replace(/^\s*[-*] /, ""));
-    else if (cur && line.trim()) cur.text.push(line);
-  }
-  return book;
+// A small Markdown renderer for the handbook: headings, lists, quotes, code, bold, italics, links.
+// Enough for a wiki page, and nothing that needs a library.
+function inline(t) {
+  return esc(t)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a class="link" data-open-url="$2">$1</a>');
 }
-function writeHandbook(book) {
-  const parts = book.sections.map(s => {
-    const lines = [...s.text, ...s.items.map(i => "- " + i)];
-    return `## ${s.name}\n` + (lines.length ? "\n" + lines.join("\n") + "\n" : "");
-  });
-  return `# ${book.title || S.company + " handbook"}\n\n` + parts.join("\n");
+function md(text) {
+  const out = [], toc = [];
+  let list = null, para = [], code = null;
+  const flush = () => {
+    if (para.length) out.push(`<p>${inline(para.join(" "))}</p>`), (para = []);
+    if (list) out.push(`<${list.tag}>${list.items.map(i => `<li>${inline(i)}</li>`).join("")}</${list.tag}>`), (list = null);
+  };
+  for (const line of String(text || "").split("\n")) {
+    if (code !== null) {
+      if (line.startsWith("```")) { out.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`); code = null; } else code.push(line);
+      continue;
+    }
+    if (line.startsWith("```")) { flush(); code = []; continue; }
+    const h = line.match(/^(#{1,3})\s+(.*)/);
+    if (h) {
+      flush();
+      const n = h[1].length, id = "hb-" + toc.length;
+      if (n === 2) toc.push([id, h[2]]);
+      out.push(n === 1 ? `<h1>${inline(h[2])}</h1>` : n === 2 ? `<h2 id="${id}">${inline(h[2])}</h2>` : `<h3>${inline(h[2])}</h3>`);
+      continue;
+    }
+    const li = line.match(/^\s*(?:[-*]|(\d+)\.)\s+(.*)/);
+    if (li) {
+      if (para.length) flush();
+      const tag = li[1] ? "ol" : "ul";
+      if (list && list.tag !== tag) flush();
+      (list ||= { tag, items: [] }).items.push(li[2]);
+      continue;
+    }
+    if (line.startsWith("> ")) { flush(); out.push(`<blockquote>${inline(line.slice(2))}</blockquote>`); continue; }
+    if (!line.trim()) { flush(); continue; }
+    if (list) flush();
+    para.push(line.trim());
+  }
+  if (code !== null) out.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`);
+  flush();
+  return { html: out.join(""), toc };
 }
 function viewHandbook() {
   if (S.handbook === null) return `<p class="muted">Opening the handbook…</p>`;
@@ -422,35 +451,30 @@ function viewHandbook() {
   const props = proposals.length ? `<section class="doc-props"><span class="label">Proposed by your team</span><div class="props">${proposals.map(q => `
       <div class="prop">${face(q.name, "neutral")}<div><b>${esc(first(q.name))}</b> <span class="muted">for ${esc(q.section)}</span><p>${esc(q.question)}</p>
         <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div></div></div>`).join("")}</div></section>` : "";
-  if (S.hbRaw) {
-    return `<div class="book">${props}<form class="panel raw" id="hb-raw"><h3>Edit as text <small class="muted">Markdown. Sections start with ##</small></h3>
-      <textarea id="hb-text" spellcheck="false">${esc(S.handbook)}</textarea>
-      <div class="acts"><button class="btn primary">Save</button><button class="btn" type="button" data-hb-raw="0">Cancel</button></div></form></div>`;
+  // Editing: Markdown on the left, the page as everyone will read it on the right.
+  if (S.hbEdit) {
+    return `<form class="wiki-edit" id="hb-raw">
+      <header><div><span class="label">Editing the handbook</span><span class="muted">Markdown. ## starts a section. Everyone reads it from their next ticket.</span></div>
+        <div class="acts"><button class="btn ghost" type="button" data-hb-edit="0">Cancel</button><button class="btn primary">Save</button></div></header>
+      <div class="wiki-split"><textarea id="hb-text" spellcheck="false">${esc(S.handbook)}</textarea><article class="doc wiki" id="hb-preview">${md(S.handbook).html}</article></div></form>`;
   }
-  // Read first, like a company doc. Editing is there when you reach for it: hover a rule to remove it,
-  // and the add fields stay folded until asked for.
-  const book = parseHandbook(S.handbook), brief = S.snap.kickoff.brief;
-  const toc = [["hb-brief", "What we're building"], ...book.sections.map((x, i) => [`hb-s${i}`, x.name])];
+  const brief = S.snap.kickoff.brief;
   const briefBody = S.open.brief
     ? `<form id="brief-form" class="doc-edit"><textarea id="brief-text" class="brief-text" rows="5" placeholder="The product, who it's for, what the first version needs.">${esc(brief)}</textarea>
         <div class="acts"><button class="btn primary">Save</button><button class="btn" type="button" data-replan="1">Save and plan it</button><button class="btn ghost" type="button" data-close-open="brief">Cancel</button></div></form>`
     : brief ? `<p>${esc(brief).replace(/\n/g, "<br>")}</p>` : `<p class="muted">Nothing yet. Say what you're building and your team can plan it.</p>`;
-  const sections = book.sections.map((x, i) => `<section id="hb-s${i}" class="doc-sec"><h2>${esc(x.name)}</h2>
-      ${x.text.length ? `<p>${x.text.map(esc).join("<br>")}</p>` : ""}
-      ${x.items.length ? `<ul class="doc-rules">${x.items.map((it, k) => `<li><span>${esc(it)}</span><button class="x" data-hb-del="${i}:${k}" aria-label="Remove" title="Remove">×</button></li>`).join("")}</ul>` : ""}
-      ${!x.text.length && !x.items.length ? `<p class="muted">Nothing here yet.</p>` : ""}
-      ${more(`hb-add-${i}`, `+ Add to ${esc(x.name)}`, `<form class="reply" data-hb-add="${esc(x.name)}"><input id="hb-add-${i}" placeholder="One line everyone should follow"><button class="btn">Add</button></form>`)}</section>`).join("");
+  // The page's own # title leads, then what we're building, then the rest of the page.
+  const title = (S.handbook.match(/^#\s+(.*)$/m) || [])[1] || `${S.company} handbook`;
+  const page = md(S.handbook.replace(/^#\s+.*$/m, ""));
   return `<div class="doc-wrap"><article class="doc">
-      <span class="label">Handbook</span>
-      <h1>${esc(book.title || S.company + " handbook")}</h1>
-      <p class="doc-lede">Everyone reads this before every ticket. Decide something once, write it here, and the whole team follows it.</p>
+      <div class="wiki-top"><span class="label">Handbook · everyone reads it before every ticket</span><button class="btn" data-hb-edit="1">Edit</button></div>
+      <div class="wiki"><h1>${inline(title)}</h1></div>
       ${props}
-      <section id="hb-brief" class="doc-sec"><h2>What we're building ${S.open.brief ? "" : `<button class="link-btn" data-more="brief">Edit</button>`}</h2>${briefBody}</section>
-      ${sections}
-      <footer class="doc-foot">${more("hb-new", "+ New section", `<form class="reply" id="hb-section"><input id="hb-new" placeholder="Glossary, Tone of voice, Security…" autocomplete="off"><button class="btn">Add section</button></form>`)}
-        <button class="link-btn" data-hb-raw="1">Edit as text</button></footer>
+      <section id="hb-brief" class="doc-sec brief-sec"><h2>What we're building ${S.open.brief ? "" : `<button class="link-btn" data-more="brief">Edit</button>`}</h2>${briefBody}</section>
+      <div class="wiki">${page.html || `<p class="muted">Empty for now. Edit it to write your mission, decisions and conventions.</p>`}</div>
+      <footer class="doc-foot"><button class="link-btn" data-hb-edit="1">Edit this page</button><button class="link-btn" data-learn="1">Update Codebase from the repo</button></footer>
     </article>
-    <nav class="toc" aria-label="On this page"><span class="label">On this page</span>${toc.map(([id, n]) => `<button data-toc="${id}">${esc(n)}</button>`).join("")}</nav></div>`;
+    <nav class="toc" aria-label="On this page"><span class="label">On this page</span><button data-toc="hb-brief">What we're building</button>${page.toc.map(([id, n]) => `<button data-toc="${id}">${esc(n.replace(/[`*]/g, ""))}</button>`).join("")}</nav></div>`;
 }
 
 /* Board: every ticket by where it stands. Click one for its log and actions. */
@@ -580,7 +604,7 @@ function renderDrawer() {
   const head = `<div class="dhead">${face(p.name, e.status)}<div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
   if (S.drawer.edit) {
     d.innerHTML = `${head}<form class="dbody" id="emp-form">
-      ${personFields({ name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio })}
+      ${personFields(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio })}
       <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`;
     return;
   }
@@ -620,14 +644,29 @@ function candidates(role) {
   const usable = tiers.map(t => (have.includes(t.runtime) ? t : { ...t, runtime: have.find(r => r !== "fake") || "fake", model: "" }));
   return usable.map((t, i) => ({ ...t, name: pool[(start + i) % pool.length] || "New hire " + (i + 1) }));
 }
+// The agents someone can work on, and the models each offers. Default means the agent's own choice.
+const AGENTS = {
+  claude: { name: "Claude Code", by: "Anthropic", color: "#d97757", models: [["", "Default"], ["opus", "Opus"], ["sonnet", "Sonnet"], ["haiku", "Haiku"]] },
+  codex: { name: "Codex", by: "OpenAI", color: "#3a9b7a", models: [["", "Default"], ["gpt-5-codex", "GPT-5 Codex"], ["gpt-5", "GPT-5"]] },
+  fake: { name: "Stand-in", by: "Free, no AI", color: "#8a90a0", models: [["", "No model"]] },
+};
+function agentPicker(f) {
+  const have = S.runtimes || Object.keys(AGENTS), a = AGENTS[f.runtime] || AGENTS.claude;
+  const models = a.models.some(([v]) => v === (f.model || "")) ? a.models : [...a.models, [f.model, f.model]];
+  return `<div class="field"><span class="flabel">Works on</span><div class="agents">${Object.entries(AGENTS).map(([k, x]) => {
+      const ok = have.includes(k) || k === f.runtime;
+      return `<button type="button" class="agent" data-agent="${k}" aria-pressed="${k === f.runtime}" ${ok ? "" : 'disabled title="Not installed on this Mac. Settings shows how to install it"'}>
+        <span class="glyph" style="--c:${x.color}">${x.name[0]}</span><span><b>${x.name}</b><small>${ok ? x.by : "Not installed"}</small></span></button>`;
+    }).join("")}</div><input type="hidden" id="pf-rt" value="${esc(f.runtime)}"></div>
+    <div class="field"><span class="flabel">Model</span><div class="models">${models.map(([v, n]) => `<button type="button" class="mchip" data-model="${esc(v)}" aria-pressed="${v === (f.model || "")}">${esc(n)}</button>`).join("")}</div><input type="hidden" id="pf-m" value="${esc(f.model || "")}"></div>`;
+}
 // The fields for a person, shared by hiring and editing, so both look and behave the same.
 function personFields(f) {
   // Their current runtime is always listed, so saving never switches it by accident.
   const runtimes = [...new Set([...(S.runtimes || ["claude", "codex", "fake"]), ...(f.runtime ? [f.runtime] : [])])];
   return `<div class="field"><label for="pf-n">Name</label><input id="pf-n" value="${esc(f.name)}" placeholder="Noor Haddad" autocomplete="off"></div>
     <div class="field"><label for="pf-r">Role</label><input id="pf-r" value="${esc(f.role)}" placeholder="Engineer, Designer, Writer…" autocomplete="off"></div>
-    <div class="row2"><div class="field"><label for="pf-rt">Works on</label><select id="pf-rt">${runtimes.map(r => `<option value="${r}" ${r === f.runtime ? "selected" : ""}>${RUNTIME_NAMES[r] || r}</option>`).join("")}</select></div>
-      <div class="field"><label for="pf-m">Model <span class="muted">(optional)</span></label><input id="pf-m" value="${esc(f.model || "")}" placeholder="Their runtime's default" autocomplete="off"></div></div>
+    ${agentPicker({ ...f, runtime: runtimes.includes(f.runtime) ? f.runtime : runtimes[0] })}
     <div class="field"><label for="pf-b">How they work <span class="muted">(optional)</span></label><textarea id="pf-b" rows="3" placeholder="Left empty, it's written from their role.">${esc(f.bio || "")}</textarea></div>`;
 }
 const readPerson = () => ({ name: $("#pf-n").value.trim(), role: $("#pf-r").value.trim() || "Engineer", runtime: $("#pf-rt").value, model: $("#pf-m").value.trim() || null, bio: $("#pf-b").value.trim() });
@@ -712,6 +751,7 @@ async function startSetup() {
   try {
     const [info, repoInfo] = await Promise.all([invoke("setup_info"), invoke("new_repo_info").catch(() => ({ parent: "", owners: [] }))]);
     const real = info.runtimes.filter(r => r !== "fake");
+    invoke("readiness").then(r => { if (S.setup) { S.setup.ready = r; render(); } }).catch(() => {});
     S.setup = { step: 0, mode: "existing", path: "", repo: null, name: "", mission: "", runtime: real[0] || "fake", info, repoInfo,
       folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [] };
     setTemplate(real.length ? "small" : "demo");
@@ -776,6 +816,11 @@ function viewSetup() {
   const nav = (label, disabled) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
   const picker = window.__TAURI__?.dialog;
   let body = "";
+  // Your Mac first: what works, what's missing and the one command that fixes it.
+  const mark = { ok: "✓", warn: "!", fail: "×" };
+  const ready = s.step !== 0 ? "" : !s.ready ? `<div class="ready"><span class="label">Your Mac</span><p class="muted">Checking what's installed…</p></div>`
+    : `<div class="ready"><span class="label">Your Mac</span><ul>${s.ready.map(h => `<li class="lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b>${h.level === "ok" ? "" : ` <span>${esc(h.detail)}</span>${h.fix ? `<div class="fix"><code>${esc(h.fix)}</code><button class="link-btn" type="button" data-copy="${esc(h.fix.split(", then")[0])}">Copy</button></div>` : ""}`}</div></li>`).join("")}</ul>
+      ${s.ready.some(h => h.level !== "ok") ? `<p class="fine">Run the command in Terminal, then <button class="link-btn" type="button" data-recheck="1">check again</button>. Claude Code and Codex ask you to sign in the first time you run them.</p>` : ""}</div>`;
   if (s.step === 0) {
     const tabs = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-su="mode-existing" aria-selected="${s.mode === "existing"}">Use an existing repo</button>
       <button type="button" role="tab" data-su="mode-new" aria-selected="${s.mode === "new"}">Start a new one</button></div>`;
@@ -832,11 +877,12 @@ function viewSetup() {
       <dl class="kv su-sum"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
         <dt>Mission</dt><dd>${esc(s.mission || "None yet")}</dd>
         <dt>Ships</dt><dd>${s.repo.forge && s.repo.signed_in ? `As ${esc(s.repo.pr_word)}s on ${esc(s.repo.forge)}` : "By merging on your Mac"}</dd>
+        <dt>Handbook</dt><dd>Starts with what OneCorp reads in the repo: stack, commands, layout</dd>
         ${s.brief && s.people.length ? `<dt>First plan</dt><dd>Planning starts as soon as it's created</dd>` : ""}
         <dt>Team</dt><dd>${s.people.length ? s.people.map(p => `${esc(p.name)} <span class="muted">${esc(p.role)}${p.dept ? ", " + esc(p.dept) : ""}</span>`).join("<br>") : "Nobody yet"}</dd></dl>
       ${nav("Create the company")}`;
   }
-  return `<div class="focus-wrap">${focusTop(S.companies.length)}<form class="setup ${s.step === 2 ? "wide" : ""}" id="setup">${dots}${body}</form></div>`;
+  return `<div class="focus-wrap">${focusTop(S.companies.length)}<form class="setup ${s.step === 2 ? "wide" : ""}" id="setup">${dots}${body}${ready}</form></div>`;
 }
 
 /* Rendering and polling */
@@ -914,7 +960,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -945,12 +991,20 @@ document.addEventListener("click", async e => {
     await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});
     return;
   }
+  if (d.agent) { Object.assign(S.drawer.form ||= {}, readPerson(), { runtime: d.agent, model: null }); return renderDrawer(); }
+  if ("model" in d && el.classList.contains("mchip")) {
+    $("#pf-m").value = d.model;
+    el.parentElement.querySelectorAll(".mchip").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
+    return;
+  }
+  if (d.copy) { navigator.clipboard?.writeText(d.copy).then(() => toast("Copied. Paste it in Terminal")).catch(() => toast(d.copy)); return; }
+  if (d.recheck) { S.setup.ready = null; render(); S.setup.ready = await invoke("readiness").catch(() => []); return render(); }
   if (d.pickFill) {
     const keep = readPerson(), c = candidates(keep.role)[Number(d.pickFill)];
     S.drawer.form = { ...keep, name: c.name, runtime: c.runtime, model: c.model };
     renderDrawer(); return $("#pf-n")?.focus();
   }
-  if ("editPerson" in d) { S.drawer.edit = !!d.editPerson; S.confirm = null; renderDrawer(); return $("#pf-n")?.focus(); }
+  if ("editPerson" in d) { S.drawer.edit = !!d.editPerson; S.drawer.form = null; S.confirm = null; renderDrawer(); return $("#pf-n")?.focus(); }
   if (d.makeLead) { await call("make_lead", { company: S.company, id: d.makeLead }, "They lead the department now").catch(() => {}); return openPerson(d.makeLead); }
   if (d.fire) {
     el.disabled = true;
@@ -1045,13 +1099,8 @@ document.addEventListener("click", async e => {
     await call("retry", { company: S.company, key: d.retry }, `${d.retry} is running again`).catch(() => (el.disabled = false));
     return;
   }
-  if (d.hbDel) {
-    const [i, k] = d.hbDel.split(":").map(Number), book = parseHandbook(S.handbook);
-    const gone = book.sections[i].items.splice(k, 1)[0];
-    await call("save_handbook", { company: S.company, text: writeHandbook(book) }, `Removed: ${gone}`).catch(() => {});
-    return;
-  }
-  if (d.hbRaw) { S.hbRaw = d.hbRaw === "1"; return render(); }
+  if (d.hbEdit) { S.hbEdit = d.hbEdit === "1"; render(); return $("#hb-text")?.focus(); }
+  if (d.learn) { await call("learn_repo", { company: S.company }, "Codebase updated from the repo").catch(() => {}); return; }
   if (d.diff) {
     S.diffs[d.diff] = "loading"; render();
     try { S.diffs[d.diff] = await invoke("review", { company: S.company, key: d.diff }); }
@@ -1060,7 +1109,7 @@ document.addEventListener("click", async e => {
   }
   if (d.hideDiff) { delete S.diffs[d.hideDiff]; return render(); }
   if (d.co) { S.switching = false; S.setup = null; S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
-  else if (d.view) { S.view = d.view; S.hbRaw = false; if (d.close) S.drawer = null; render(); if (d.view === "handbook") refresh(true); }
+  else if (d.view) { S.view = d.view; S.hbEdit = false; if (d.close) S.drawer = null; render(); if (d.view === "handbook") refresh(true); }
   else if (d.person) openPerson(d.person);
   else if (d.hire) { openHire(Number(d.hire)); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
@@ -1146,19 +1195,8 @@ document.addEventListener("submit", async e => {
     if (!name) return $("#dept-name").focus();
     const id = await call("add_department", { company: S.company, name }, `${name} is set up. Hire its first person.`).catch(() => null);
     if (id !== null) { S.addingDept = false; render(); openHire(id); }
-  } else if (f.dataset.hbAdd) {
-    const input = f.querySelector("input"), text = input.value.trim();
-    if (!text) return input.focus();
-    await call("add_to_handbook", { company: S.company, section: f.dataset.hbAdd, text }, `Added to ${f.dataset.hbAdd}. Everyone sees it from their next ticket.`).catch(() => {});
-  } else if (f.id === "hb-section") {
-    const name = $("#hb-new").value.trim();
-    if (!name) return $("#hb-new").focus();
-    const book = parseHandbook(S.handbook);
-    if (book.sections.some(s => s.name.toLowerCase() === name.toLowerCase())) return toast(`There's already a ${name} section`, true);
-    book.sections.push({ name, text: [], items: [] });
-    await call("save_handbook", { company: S.company, text: writeHandbook(book) }, `Added the ${name} section`).catch(() => {});
   } else if (f.id === "hb-raw") {
-    await call("save_handbook", { company: S.company, text: $("#hb-text").value }, "Handbook saved").then(() => { S.hbRaw = false; render(); }).catch(() => {});
+    await call("save_handbook", { company: S.company, text: $("#hb-text").value }, "Saved. Everyone reads it from their next ticket").then(() => { S.hbEdit = false; render(); }).catch(() => {});
   } else if (f.id === "hire-form" || f.id === "emp-form") {
     const p = readPerson();
     if (!p.name) { toast("Give them a name", true); return $("#pf-n").focus(); }
@@ -1185,6 +1223,7 @@ document.addEventListener("submit", async e => {
 });
 // The drawn face follows your name as you type it.
 document.addEventListener("input", e => {
+  if (e.target.id === "hb-text") $("#hb-preview").innerHTML = md(e.target.value).html;
   if (e.target.id === "pf-n" && S.drawer?.type === "hire") $(".hire-face").innerHTML = face(e.target.value || "New hire", "neutral");
   if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) $(".welcome .pf-pic").innerHTML = face(e.target.value || "You", "neutral");
 });
@@ -1224,6 +1263,7 @@ async function previewScreen() {
   if (screen === "plan") { S.view = "board"; S.drawer = { type: "plan" }; render(); }
   if (screen === "rail") toggleRail(true);
   if (screen === "start") { S.snap.tickets = []; S.snap.projects = []; S.snap.kickoff.brief = ""; render(); }
+  if (screen === "wiki-edit") { S.view = "handbook"; S.hbEdit = true; await refresh(true); render(); }
   if (screen === "paused") { S.snap.paused = true; render(); }
   if (screen === "hire") openHire(1);
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
@@ -1286,6 +1326,8 @@ function preview(cmd) {
     ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
     new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
+    readiness: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4", fix: null },
+      { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex" }, { level: "warn", what: "GitHub CLI", detail: "installed but not signed in", fix: "gh auth login" }],
     settings: { name: "snowztech", repo: "/Users/you/dev/snowztech", data: "/Users/you/.onecorp/companies/snowztech", home: "/Users/you/.onecorp", ship: "github", forge: "github", forge_name: "GitHub", origin: "git@github.com:snowztech/notes.git", tickets: 22, people: 6, version: "0.1.0" },
     health: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4 (Claude Code)", fix: null },
       { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex, then run codex once to sign in" },

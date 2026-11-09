@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The Handbook is a wiki page: it reads as formatted Markdown with a table of contents, and Edit opens the Markdown beside a live preview.
+- A new company's Handbook starts with a Codebase section read from the repo: the stack, build and test commands, the layout and what the README says. Free and local. Update it anytime from the Handbook.
+- Pick how someone works instead of typing it: Claude Code, Codex or the free stand-in as cards, and their models as chips. Agents that aren't installed say so.
+- Creating a company checks your Mac first (git, Claude Code, Codex, GitHub CLI), with the command that fixes anything missing, a Copy button, and Check again.
 - Getting started: five steps on the Company page from an empty company to your first merged work (hire, say what you're building, plan, approve, merge), each checked off by doing it for real, with the next one a click away.
 - Know when your team needs you, even with the app in the background: the dock icon shows how much waits on you, and each new question, plan or review sends a macOS notification.
 - Pause a company: your off switch for spending. Running work finishes, nothing new starts, leads don't consult and nobody replies in chat. A bar on every page says so, with Resume. From the Live section, or `onecorp pause` and `onecorp resume`.

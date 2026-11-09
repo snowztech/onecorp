@@ -37,9 +37,10 @@ pub fn installed_runtimes() -> Vec<&'static str> {
     found
 }
 
-pub fn run() -> Vec<Check> {
+/// What this Mac needs, before any company exists: git, an agent CLI, and optionally the GitHub
+/// CLI for pull requests. Shown while creating a company, so problems surface before they bite.
+pub fn machine() -> Vec<Check> {
     let mut checks = vec![];
-
     checks.push(match version("git") {
         Some(v) => check(Level::Ok, "git", v, None),
         None => check(Level::Fail, "git", "not found", Some("Install git: xcode-select --install")),
@@ -56,6 +57,22 @@ pub fn run() -> Vec<Check> {
             None => check(Level::Warn, name, "not installed. Employees can't run on it", Some(how)),
         });
     }
+    checks.push(match version("gh") {
+        None => check(Level::Warn, "GitHub CLI", "not installed. Work merges on your Mac instead of opening pull requests", Some("brew install gh, then gh auth login")),
+        Some(v) => match crate::forge::Forge::GitHub.signed_in(&std::env::temp_dir()) {
+            Ok(who) => check(Level::Ok, "GitHub CLI", format!("{v}, {who}"), None),
+            Err(_) => check(Level::Warn, "GitHub CLI", "installed but not signed in", Some("gh auth login")),
+        },
+    });
+    if found.len() == 1 {
+        checks.push(check(Level::Warn, "agents", "no Claude Code or Codex yet. You can try OneCorp with the free stand-in, then rehire on a real one", None));
+    }
+    checks
+}
+
+pub fn run() -> Vec<Check> {
+    let mut checks = machine();
+    let found = installed_runtimes();
 
     let home = store::home();
     let writable = std::fs::create_dir_all(&home).is_ok() && std::fs::metadata(&home).is_ok_and(|m| !m.permissions().readonly());

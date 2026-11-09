@@ -15,6 +15,9 @@ pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], br
     templates::check(people)?;
     let c = Company::create(name, repo, mission)?;
     c.set_ship_mode(ship::default_mode(&c.repo()?))?;
+    if let Some(notes) = repo_notes(&c.repo()?) {
+        c.set_handbook_section("Codebase", &notes)?;
+    }
     let hired = templates::hire(&c, people)?;
     crate::store::set_current(&c.name)?;
     if !brief.trim().is_empty() {
@@ -67,6 +70,74 @@ pub fn delete_company(name: &str) -> Result<()> {
     Ok(())
 }
 
+/// What a newcomer would want to know about a repo, read from its files: the stack, how to build
+/// and test it, how it's laid out, and what its README says. Free and local, no AI. None for a
+/// repo with nothing to say yet, like a brand new one.
+pub fn repo_notes(repo: &Path) -> Option<String> {
+    let has = |f: &str| repo.join(f).exists();
+    let read = |f: &str| std::fs::read_to_string(repo.join(f)).unwrap_or_default();
+    let mut stack = vec![];
+    for (file, name) in [("Cargo.toml", "Rust"), ("go.mod", "Go"), ("pyproject.toml", "Python"), ("requirements.txt", "Python"), ("Gemfile", "Ruby"),
+        ("pom.xml", "Java"), ("build.gradle", "Java or Kotlin"), ("build.gradle.kts", "Kotlin"), ("Package.swift", "Swift"), ("composer.json", "PHP"), ("mix.exs", "Elixir"), ("deno.json", "Deno")] {
+        if has(file) && !stack.contains(&name) {
+            stack.push(name);
+        }
+    }
+    if has("package.json") {
+        stack.push(if has("tsconfig.json") { "TypeScript" } else { "JavaScript" });
+    }
+
+    let mut commands: Vec<String> = vec![];
+    for line in read("Makefile").lines() {
+        let Some((target, _)) = line.split_once(':') else { continue };
+        if !target.is_empty() && !target.starts_with(['.', '\t', ' ', '#']) && target.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') && !line.contains(":=") {
+            commands.push(format!("make {target}"));
+        }
+    }
+    if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&read("package.json"))
+        && let Some(scripts) = pkg["scripts"].as_object()
+    {
+        let npm = if has("pnpm-lock.yaml") { "pnpm" } else if has("yarn.lock") { "yarn" } else if has("bun.lockb") { "bun" } else { "npm run" };
+        commands.extend(scripts.keys().map(|k| format!("{npm} {k}")));
+    }
+    if has("Cargo.toml") && commands.is_empty() {
+        commands.extend(["cargo build".to_string(), "cargo test".to_string()]);
+    }
+    commands.truncate(10);
+
+    let mut folders: Vec<String> = std::fs::read_dir(repo)
+        .map(|d| d.flatten().filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| !n.starts_with('.') && !["node_modules", "target", "dist", "build", "vendor"].contains(&n.as_str())).collect())
+        .unwrap_or_default();
+    folders.sort();
+    folders.truncate(12);
+
+    let readme = ["README.md", "readme.md", "README"].iter().map(|f| read(f)).find(|t| !t.is_empty()).unwrap_or_default();
+    let about: String = readme
+        .split("\n\n")
+        .map(str::trim)
+        .find(|p| !p.is_empty() && !p.starts_with(['#', '!', '[', '<', '`', '|', '-']))
+        .unwrap_or("")
+        .replace('\n', " ")
+        .chars()
+        .take(400)
+        .collect();
+
+    let mut out = vec![];
+    if !stack.is_empty() {
+        out.push(format!("- Stack: {}", stack.join(", ")));
+    }
+    if !commands.is_empty() {
+        out.push(format!("- Build and test with: {}", commands.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ")));
+    }
+    if !folders.is_empty() {
+        out.push(format!("- Layout: {}", folders.iter().map(|f| format!("`{f}/`")).collect::<Vec<_>>().join(", ")));
+    }
+    if !about.is_empty() {
+        out.push(format!("- The README says: {about}"));
+    }
+    (!out.is_empty()).then(|| out.join("\n"))
+}
+
 /// Where new repos go by default: ~/dev when it exists, otherwise your home folder.
 pub fn default_parent() -> PathBuf {
     let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
@@ -105,4 +176,31 @@ pub fn create_repo(path: &Path, title: &str, mission: &str, remote: Option<Remot
         Forge::GitHub.create_repo(path, r.full_name, r.private)?;
     }
     Ok(path.canonicalize()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_a_repo_like_a_newcomer() {
+        let dir = std::env::temp_dir().join(format!("onecorp-notes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::create_dir_all(dir.join("node_modules")).unwrap();
+        std::fs::write(dir.join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+        std::fs::write(dir.join("Makefile"), ".PHONY: test\nVERSION := 1\ntest:\n\tcargo test\nrelease-build: test\n").unwrap();
+        std::fs::write(dir.join("README.md"), "# X\n\n![badge](b.svg)\n\nA tiny tool that\nsyncs notes.\n\n## More\n").unwrap();
+
+        let notes = repo_notes(&dir).unwrap();
+        assert!(notes.contains("Stack: Rust"));
+        assert!(notes.contains("`make test`, `make release-build`") && !notes.contains("VERSION") && !notes.contains("PHONY"));
+        assert!(notes.contains("`src/`") && !notes.contains("node_modules"));
+        assert!(notes.contains("The README says: A tiny tool that syncs notes."));
+
+        let empty = dir.join("empty");
+        std::fs::create_dir_all(&empty).unwrap();
+        assert!(repo_notes(&empty).is_none(), "a new repo has nothing to say yet");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

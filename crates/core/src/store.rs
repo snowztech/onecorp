@@ -511,6 +511,29 @@ impl Company {
         Ok(())
     }
 
+    /// Puts a section in the handbook, replacing one with the same name. Used for notes OneCorp
+    /// writes itself, like what it learned from the repo.
+    pub fn set_handbook_section(&self, name: &str, body: &str) -> Result<()> {
+        let doc = self.handbook()?;
+        let mut out = String::new();
+        let (mut skipping, mut heading) = (false, name.to_string());
+        for line in doc.lines() {
+            if let Some(h) = line.strip_prefix("## ") {
+                skipping = h.trim().eq_ignore_ascii_case(name);
+                if skipping {
+                    heading = h.trim().to_string();
+                    continue;
+                }
+            }
+            if !skipping {
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
+        let out = format!("{}\n\n## {heading}\n\n{}\n", out.trim_end(), body.trim());
+        self.write_handbook(&out)
+    }
+
     pub fn brief_path(&self) -> PathBuf {
         self.dir.join("brief.md")
     }

@@ -152,15 +152,25 @@ fn set_ship(company: String, mode: String) -> Res<()> {
     onecorp::ship::set_mode(&open(&company)?, &mode).map_err(err)
 }
 
-/// The same checks as `onecorp doctor`.
-#[tauri::command(async)]
-fn health() -> Res<Value> {
+fn checks(list: Vec<onecorp::doctor::Check>) -> Value {
     let level = |l: &onecorp::doctor::Level| match l {
         onecorp::doctor::Level::Ok => "ok",
         onecorp::doctor::Level::Warn => "warn",
         onecorp::doctor::Level::Fail => "fail",
     };
-    Ok(json!(onecorp::doctor::run().iter().map(|c| json!({"level": level(&c.level), "what": c.what, "detail": c.detail, "fix": c.fix})).collect::<Vec<_>>()))
+    json!(list.iter().map(|c| json!({"level": level(&c.level), "what": c.what, "detail": c.detail, "fix": c.fix})).collect::<Vec<_>>())
+}
+
+/// The same checks as `onecorp doctor`.
+#[tauri::command(async)]
+fn health() -> Res<Value> {
+    Ok(checks(onecorp::doctor::run()))
+}
+
+/// What this Mac needs before a company can work: git, an agent CLI, the GitHub CLI.
+#[tauri::command(async)]
+fn readiness() -> Res<Value> {
+    Ok(checks(onecorp::doctor::machine()))
 }
 
 #[tauri::command(async)]
@@ -417,6 +427,14 @@ fn update_employee(company: String, id: String, name: String, role: String, runt
     c.update_employee(&store::Employee { name, role, runtime, model: model.filter(|m| !m.trim().is_empty()), bio, ..e }).map_err(err)
 }
 
+/// Rewrites the handbook's Codebase section from what's in the repo now.
+#[tauri::command(async)]
+fn learn_repo(company: String) -> Res<()> {
+    let c = open(&company)?;
+    let notes = onecorp::setup::repo_notes(&c.repo().map_err(err)?).ok_or("The repo has nothing to read yet: no README, build files or folders.")?;
+    c.set_handbook_section("Codebase", &notes).map_err(err)
+}
+
 #[tauri::command(async)]
 fn set_paused(company: String, paused: bool) -> Res<()> {
     open(&company)?.set_paused(paused).map_err(err)
@@ -471,6 +489,7 @@ fn main() {
             settings,
             set_ship,
             health,
+            readiness,
             delete_company,
             forget_founder,
             snapshot,
@@ -486,6 +505,7 @@ fn main() {
             update_employee,
             fire,
             set_paused,
+            learn_repo,
             make_lead,
             save_brief,
             dismiss_plan,

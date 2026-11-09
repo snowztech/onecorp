@@ -40,6 +40,7 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 | `work.rs` | The ticket lifecycle: start, resume, answer, request changes, approve. Builds the prompts. |
 | `serve.rs` | Runs queued jobs in parallel. |
 | `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. `fake.rs` is a stand-in with no AI, for tests and trying things out. |
+| `setup.rs` › `repo_notes` | Reads a repo like a newcomer would (stack, commands, layout, README) for the handbook's Codebase section. No AI. |
 | `chat.rs` | Team chat: #general plus a channel per department. Resolves channel names, finds @mentions, runs a mentioned employee's reply (read-only, no company tools), and builds the recent chat that goes into each ticket prompt. |
 | `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the handbook, remember, mark blocked. |
 | `ship.rs` | How approved work lands: a local merge, or a pull request on GitHub or GitLab. Publishing, approving, and noticing PRs merged or closed on the forge. |

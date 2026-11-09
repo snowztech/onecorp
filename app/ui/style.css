@@ -748,3 +748,59 @@ button.live:hover { background: var(--surface-2); color: var(--fg); }
 .start li.next .st { border-color: var(--accent); color: var(--accent); }
 .start li.done .st { border: 0; background: var(--good-soft); color: var(--good); }
 .st .ic { width: 12px; height: 12px; }
+
+/* Your Mac, at the start of a new company */
+.ready { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ready ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ready li { display: flex; align-items: baseline; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+.ready li i { width: 16px; height: 16px; flex: none; display: inline-grid; place-items: center; border-radius: 99px; font: 700 10px var(--body); font-style: normal; background: var(--good-soft); color: var(--good); transform: translateY(2px); }
+.ready li.lvl-warn i { background: var(--surface-2); color: var(--muted); }
+.ready li.lvl-fail i { background: var(--signal-soft); color: var(--signal); }
+.ready li span { color: var(--muted); }
+.ready code { font: 12px var(--mono); color: var(--fg); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+
+/* The handbook as a wiki page */
+.wiki-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.wiki h1 { margin: 6px 0 4px; font: 700 32px/1.15 var(--display); letter-spacing: -.025em; }
+.wiki h2 { margin: 30px 0 8px; font: 700 20px var(--display); letter-spacing: -.015em; scroll-margin-top: 16px; }
+.wiki h3 { margin: 20px 0 6px; font: 700 16px var(--display); }
+.wiki p, .wiki li, .wiki blockquote { font-size: 15px; line-height: 1.65; }
+.wiki p { margin: 0 0 10px; }
+.wiki ul, .wiki ol { margin: 0 0 12px; padding-left: 22px; }
+.wiki li { margin: 3px 0; }
+.wiki li::marker { color: var(--muted); }
+.wiki code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+.wiki pre { background: var(--term-bg); color: var(--term-fg); padding: 12px 14px; border-radius: var(--r-md); overflow: auto; }
+.wiki pre code { background: none; padding: 0; color: inherit; }
+.wiki blockquote { margin: 0 0 12px; padding: 2px 14px; border-left: 3px solid var(--line); color: var(--muted); }
+.brief-sec { padding-top: 18px; }
+.wiki-edit { height: 100%; display: flex; flex-direction: column; gap: 12px; }
+.wiki-edit header { display: flex; align-items: center; gap: 12px; }
+.wiki-edit header > div:first-child { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.wiki-edit header .muted { font-size: 12px; }
+.wiki-split { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.wiki-split textarea { min-height: 60vh; resize: none; border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 16px; background: var(--surface); font: 13px/1.6 var(--mono); }
+.wiki-split textarea:focus { outline: none; border-color: var(--accent); }
+.wiki-split .doc { overflow: auto; padding: 4px 8px; }
+
+/* Picking an agent and a model */
+.flabel { font-size: 12px; font-weight: 600; color: var(--muted); }
+.agents { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.agent { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); text-align: left; }
+.agent:hover:not(:disabled) { border-color: var(--muted); }
+.agent[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.agent:disabled { opacity: .45; cursor: not-allowed; }
+.agent span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.agent b { font-size: 13px; }
+.agent small { font-size: 11px; color: var(--muted); }
+.glyph { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 8px; font: 700 13px var(--display); color: #fff; background: var(--c); }
+.models { display: flex; flex-wrap: wrap; gap: 6px; }
+.mchip { padding: 5px 12px; border: 1px solid var(--line); border-radius: 99px; background: none; font-size: 13px; color: var(--muted); }
+.mchip:hover { color: var(--fg); border-color: var(--muted); }
+.mchip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.ready li code { margin-left: 2px; }
+.ready li .link-btn { margin: 0; font-size: 12px; }
+
+.ready li { align-items: flex-start; }
+.ready li > div { flex: 1; min-width: 0; }
+.ready .fix { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
