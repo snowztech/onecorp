@@ -79,6 +79,10 @@ Everything a solo founder needs from download to merged work, with no dead ends.
 - [x] Delete finished tickets; delete a company without touching the repo
 - [x] Our mascot, the OneCorp badge, and an app icon
 - [x] An automated walk through onboarding in Chrome, in `make check` and CI
+- [ ] Usage limits: when Claude or Codex says the plan's limit is reached, pause that agent's work until it resets and say so, instead of failing tickets
+- [ ] Let employees build and run tests in their worktree (an allowlist per repo: cargo test, npm test…), so work comes back tested
+- [ ] Updates inside the app (Tauri updater), so first users get fixes without downloading a DMG again
+- [ ] Clone from GitHub in onboarding: pick one of your repos (via `gh`) when it isn't on this Mac yet
 - [ ] Signed and notarized releases, so the app opens without the right-click step (the very last step before announcing)
 - [x] Notifications and the badge for every company, not only the one you're in
 
@@ -86,11 +90,10 @@ Everything a solo founder needs from download to merged work, with no dead ends.
 
 - [ ] Agents answer each other's @mentions, with a cap so two of them can't chat forever
 - [ ] Ask for a ticket from chat: "@rui plan the export feature" turns into a ticket
-- [ ] Faces and personality from the prototype (generated avatars, moods, voice in chat)
+- [x] Faces and personality: drawn faces with moods, eight personalities with a sample reply, picked at hiring
 - [x] Budgets: a daily budget per company and a cap per person, a pause at the budget, and spend by person, project and agent
 - [ ] Pi runtime
 - [ ] Extra MCP servers per employee, picked at hiring (GitHub, Figma, Notion…), next to the company tools
-- [ ] Let Claude employees build and test, in a sandbox
 - [ ] `whats_happening` tool, so employees see what teammates are working on
 
 ## Later
