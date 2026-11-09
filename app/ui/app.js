@@ -148,12 +148,7 @@ function viewCompany() {
   const depts = s.departments.filter(d => d.id !== null).length;
   const facts = [`${s.employees.length} ${s.employees.length === 1 ? "person" : "people"}`, `${depts} ${depts === 1 ? "department" : "departments"}`,
     s.ship?.forge ? `ships to ${s.ship.forge}` : "merges locally", ...(s.spend.cost > 0 || s.spend.tokens > 0 ? [`${s.spend.label} spent`] : []), ...(working ? [`<span class="ok">${working} working now</span>`] : [])];
-  const items = [
-    ...s.reviews.filter(r => r.kind === "plan").map(r => ({ to: r.key, name: r.name, text: `planned ${r.title}. Review the plan` })),
-    ...s.inbox.filter(q => q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.question })),
-    ...(s.failed || []).map(t => ({ to: t.key, name: t.name, text: `${t.key} stopped. Retry it?` })),
-    ...s.reviews.filter(r => r.kind !== "plan").map(r => ({ to: r.key, name: r.name, text: `${r.title} is ready for review` })),
-    ...s.inbox.filter(q => !q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "handbook" ? `proposes: ${q.question}` : q.question }))];
+  const items = needItems(s);
   const needs = items.slice(0, 3).map(i => `<button class="need" data-goto="${esc(i.to)}">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   const needsCard = `<section class="side-sec needs-sec"><h3 class="label">Needs you ${items.length ? `<span class="badge">${items.length}</span>` : ""}</h3>
     ${items.length ? `<div class="needs">${needs}</div><button class="link-btn more-in" data-view="inbox">Open Inbox →</button>` : `<p class="all-clear">${icon("check")}All clear, nothing waiting on you</p>`}</section>`;
@@ -212,6 +207,38 @@ async function openSettings(tab = "company") {
   try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); }
   renderSheet();
   if (S.health === null || tab === "health") { S.health = null; S.health = await invoke("health").catch(() => []); renderSheet(); }
+}
+
+/* Everything waiting on you, most urgent first. The Company page, the dock badge and notifications all use it. */
+function needItems(s) {
+  return [
+    ...s.reviews.filter(r => r.kind === "plan").map(r => ({ to: r.key, name: r.name, text: `planned ${r.title}. Review the plan` })),
+    ...s.inbox.filter(q => q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.question })),
+    ...(s.failed || []).map(t => ({ to: t.key, name: t.name, text: `${t.key} stopped. Retry it?` })),
+    ...s.reviews.filter(r => r.kind !== "plan").map(r => ({ to: r.key, name: r.name, text: `${r.title} is ready for review` })),
+    ...s.inbox.filter(q => !q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "handbook" ? `proposes: ${q.question}` : q.question }))];
+}
+// Your team works while you're elsewhere, so the dock shows how much waits on you, and anything new
+// gets a notification when the app isn't in front. What was already waiting at launch stays quiet.
+const notified = {};
+function alertNew(snap) {
+  const T = window.__TAURI__;
+  if (!T) return;
+  const items = needItems(snap);
+  T.window?.getCurrentWindow?.().setBadgeCount(items.length || undefined).catch(() => {});
+  const seen = notified[snap.company];
+  notified[snap.company] = new Set(items.map(i => i.to));
+  if (!seen || document.hasFocus()) return;
+  for (const i of items.filter(i => !seen.has(i.to)).slice(0, 3)) notify(`${first(i.name)} · ${snap.company}`, i.text);
+}
+async function notify(title, body) {
+  const n = window.__TAURI__?.notification;
+  if (!n) return;
+  try {
+    let ok = await n.isPermissionGranted();
+    if (!ok) ok = (await n.requestPermission()) === "granted";
+    if (ok) n.sendNotification({ title, body });
+  } catch {}
 }
 
 /* Kickoff: from what you're building to a plan of tickets */
@@ -848,6 +875,7 @@ async function refresh(force) {
     const json = JSON.stringify(snap) + (book ?? "") + (S.view === "chat" ? JSON.stringify(S.chat) : "");
     if (!force && (json === S.last || typing())) return;
     S.snap = snap; S.last = json; S.handbook = book;
+    alertNew(snap);
     // Channels count as read the first time they're seen, so opening the app doesn't light up every dot.
     for (const ch of snap.channels || []) if (!(ch.name in S.seen)) S.seen[ch.name] = ch.last || 0;
     if (S.drawer?.type === "person") S.person = await invoke("person", { company: S.company, id: S.drawer.id }).catch(() => S.person);
