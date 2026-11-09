@@ -39,7 +39,7 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 | `store.rs` | The company database: employees, departments, tickets, events, inbox, chat, jobs. Also the handbook and memory files. |
 | `work.rs` | The ticket lifecycle: start, resume, answer, request changes, approve. Builds the prompts. |
 | `serve.rs` | Runs queued jobs in parallel. |
-| `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. |
+| `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. `fake.rs` is a stand-in with no AI, for tests and trying things out. |
 | `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the handbook, remember, mark blocked. |
 | `git.rs` | Worktrees, commits under an employee's name, diffs, merges and conflicts. |
 | `view.rs` | What the screens show: who's doing what, the feed, the inbox, a review's diff, one person's details. |
@@ -92,7 +92,9 @@ What employees know comes from four places, all assembled in `work::start`:
 
 `onecorp serve` is a loop. Every second it rewrites the heartbeat file, drops finished workers, and claims queued jobs from every company until `--max` are running (default 3). Each job runs on its own thread with its own database connection. The claim query only takes a job when its ticket isn't already running **and its employee is free**, so a person works one ticket at a time. Git commands inside OneCorp go through one lock, so parallel tickets don't trip over git's lock files.
 
-If serve stops mid-ticket, the next start marks those jobs and tickets failed instead of leaving them stuck. The desktop app runs serve on a background thread while it's open.
+Every run is a row in `jobs` with the process id running it, inline runs included. `recover_interrupted` checks whether that process still exists, and when it's gone (Ctrl-C, a crash, the app closed mid-ticket) marks the job and its ticket failed. It runs in serve's loop, in `onecorp status` and on every app refresh, and never touches a run that's still alive. `work::retry` then picks the same session back up if there is one, or starts over in a clean worktree.
+
+The desktop app runs serve on a background thread while it's open.
 
 ## The desktop app
 
@@ -112,7 +114,9 @@ Each test covers the risky logic in one module:
 - the job queue claim rules and recovery after a crash
 - departments, handbook section editing and the screen snapshot
 
-Run them with `cargo test`. Everything that calls a real agent is tested by hand on a throwaway repo, with `ONECORP_HOME` pointing somewhere temporary.
+On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, and a retry. It takes under a second.
+
+Run everything with `cargo test`. Real agents are tested by hand on a throwaway repo, with `ONECORP_HOME` pointing somewhere temporary.
 
 ## Where to add things
 

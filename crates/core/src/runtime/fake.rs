@@ -3,7 +3,8 @@
 //! app can be tried for free (`onecorp hire Demo --runtime fake`).
 //!
 //! A test steers it through the prompt: a ticket containing `[fail]` fails, and a conflict
-//! prompt makes it resolve the markers by keeping both sides.
+//! prompt makes it resolve the markers by keeping both sides. `[fail once]` fails the first run
+//! in a worktree and succeeds after, to test retries.
 
 use super::{Event, Opts};
 use anyhow::Result;
@@ -13,6 +14,12 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
     let session = o.resume.map(str::to_string).unwrap_or_else(|| format!("fake-{}", std::process::id()));
     on("", Event::Init { session, model: "no AI".into() })?;
 
+    let first_try = o.cwd.join(".fake-tried");
+    if prompt.contains("[fail once]") && !first_try.exists() {
+        fs::write(&first_try, "")?;
+        on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: "Failed on purpose, this once.".into() })?;
+        return Ok(());
+    }
     if prompt.contains("[fail]") {
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: "Failed on purpose.".into() })?;
         return Ok(());

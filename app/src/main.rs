@@ -32,7 +32,9 @@ fn use_company(name: String) -> Res<()> {
 
 #[tauri::command(async)]
 fn snapshot(company: String) -> Res<Value> {
-    onecorp::view::snapshot(&open(&company)?).map_err(err)
+    let c = open(&company)?;
+    c.recover_interrupted().map_err(err)?;
+    onecorp::view::snapshot(&c).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -84,6 +86,13 @@ fn add_to_handbook(company: String, section: String, text: String) -> Res<()> {
         return Err("Write the rule first.".into());
     }
     open(&company)?.add_to_handbook(section.trim(), text.trim()).map_err(err)
+}
+
+#[tauri::command(async)]
+fn retry(company: String, key: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    work::retry(&c, &t).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -156,6 +165,7 @@ fn main() {
             snapshot,
             person,
             review,
+            retry,
             handbook,
             save_handbook,
             add_to_handbook,

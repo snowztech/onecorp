@@ -156,6 +156,14 @@ pub fn patch(repo: &Path, base: &str, branch: &str, max: usize) -> Result<(Strin
     Ok((out, true))
 }
 
+/// Throws away a ticket's worktree and branch, whatever state they're in. For retrying from scratch.
+pub fn discard(repo: &Path, wt: &Path, branch: &str) {
+    let _ = run(repo, &["worktree", "remove", "--force", &wt.to_string_lossy()], &[]);
+    let _ = std::fs::remove_dir_all(wt);
+    let _ = run(repo, &["worktree", "prune"], &[]);
+    let _ = run(repo, &["branch", "-D", branch], &[]);
+}
+
 /// Removes a finished ticket's worktree and branch.
 pub fn clean_up(repo: &Path, wt: &Path, branch: &str) -> Result<()> {
     git(repo, &["worktree", "remove", &wt.to_string_lossy()], &[])?;

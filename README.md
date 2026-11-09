@@ -31,6 +31,7 @@ onecorp new snowztech --repo ~/dev/some-repo --mission "Open source tools for AI
 onecorp hire                                  # asks name, job, how they work, model
 onecorp hire "Maya Okafor" --as engineer --model sonnet
 onecorp hire "Tomás Reis" --as engineer --runtime codex
+onecorp hire Demo --runtime fake              # a stand-in with no AI, free, for trying things out
 onecorp team
 onecorp run "add a --version flag" --to maya  # --to is optional with one employee
 onecorp status
@@ -38,6 +39,7 @@ onecorp logs SNO-1
 onecorp diff SNO-1                            # what the ticket changed
 onecorp changes SNO-1 "use a match instead"   # send it back, same session picks it up
 onecorp approve SNO-1                         # merge into the branch it started from
+onecorp retry SNO-4                           # try a ticket that stopped or failed again
 onecorp inbox                                 # questions your team is waiting on
 onecorp answer 1 "go with 15 minutes"
 onecorp chat eng                              # what the team posted

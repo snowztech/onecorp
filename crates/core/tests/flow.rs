@@ -84,5 +84,13 @@ fn a_ticket_goes_from_start_to_merged() {
     work::dispatch(&c, f, Job::Start).unwrap();
     assert_eq!(status(f), "failed");
 
+    // Retrying picks the same work back up and finishes it.
+    let r = c.add_ticket("flaky one [fail once]", "maya").unwrap();
+    work::dispatch(&c, r, Job::Start).unwrap();
+    assert_eq!(status(r), "failed");
+    work::retry(&c, &c.ticket(r).unwrap().unwrap()).unwrap();
+    assert_eq!(status(r), "review");
+    assert!(work::retry(&c, &c.ticket(r).unwrap().unwrap()).is_err(), "only failed tickets can be retried");
+
     let _ = std::fs::remove_dir_all(&root);
 }

@@ -33,7 +33,7 @@ pub fn serve(max: usize) -> Result<()> {
     for name in &companies {
         let c = Company::open(name)?;
         for key in c.recover_interrupted()? {
-            println!("{key} was interrupted when serve last stopped. It's marked failed: onecorp logs {key}");
+            println!("{key} was interrupted when serve last stopped. It's marked failed: onecorp retry {key}");
         }
     }
     println!(
@@ -50,6 +50,9 @@ pub fn serve(max: usize) -> Result<()> {
         // New companies show up without a restart.
         'claim: for name in store::list()? {
             let c = Company::open(&name)?;
+            for key in c.recover_interrupted()? {
+                println!("{key} stopped before it finished. It's marked failed: onecorp retry {key}");
+            }
             while workers.len() < max {
                 let Some(job) = c.claim_job()? else { continue 'claim };
                 let key = c.key(job.ticket);

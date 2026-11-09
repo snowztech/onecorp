@@ -69,6 +69,18 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         })
         .collect();
 
+    // Tickets that stopped or failed, with the last thing that went wrong, so they can be retried.
+    let failed: Vec<Value> = tickets
+        .iter()
+        .filter(|t| t.status == "failed")
+        .map(|t| {
+            let who = t.assignee.clone().unwrap_or_default();
+            let events = c.events(t.id).unwrap_or_default();
+            let why = events.iter().rev().find(|(_, k, _)| k == "error" || k == "done").map(|(_, _, s)| s.clone()).unwrap_or_default();
+            json!({"key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who), "why": why})
+        })
+        .collect();
+
     let feed: Vec<Value> = c
         .recent_events(40)?
         .into_iter()
@@ -104,6 +116,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         })).collect::<Vec<_>>(),
         "inbox": inbox,
         "reviews": reviews,
+        "failed": failed,
         "feed": feed,
         "spend": { "cost": cost, "tokens": tokens, "label": spend(cost, tokens) },
     }))

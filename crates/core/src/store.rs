@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   started_at TEXT,
   finished_at TEXT,
-  error TEXT
+  error TEXT,
+  pid INTEGER
 );
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY,
@@ -363,6 +364,15 @@ impl Company {
         Ok(())
     }
 
+    /// Back to a fresh ticket: no branch, worktree or session.
+    pub fn reset_ticket(&self, id: i64) -> Result<()> {
+        self.db.execute(
+            "UPDATE tickets SET status = 'todo', branch = NULL, base = NULL, worktree = NULL, session_id = NULL WHERE id = ?1",
+            [id],
+        )?;
+        Ok(())
+    }
+
     pub fn set_status(&self, id: i64, status: &str) -> Result<()> {
         self.db.execute("UPDATE tickets SET status = ?2 WHERE id = ?1", params![id, status])?;
         Ok(())
@@ -403,9 +413,17 @@ impl Company {
             )
             .optional()?;
         if let Some(j) = &next {
-            self.db.execute("UPDATE jobs SET started_at = datetime('now') WHERE id = ?1", [j.id])?;
+            self.db.execute("UPDATE jobs SET started_at = datetime('now'), pid = ?2 WHERE id = ?1", params![j.id, std::process::id()])?;
         }
         Ok(next)
+    }
+
+    /// Records a job that this process runs right away, so it can be recovered if the process dies.
+    pub fn run_now(&self, ticket: i64, job: &Job) -> Result<i64> {
+        self.enqueue(ticket, job)?;
+        let id = self.db.last_insert_rowid();
+        self.db.execute("UPDATE jobs SET started_at = datetime('now'), pid = ?2 WHERE id = ?1", params![id, std::process::id()])?;
+        Ok(id)
     }
 
     pub fn finish_job(&self, id: i64, error: Option<&str>) -> Result<()> {
@@ -413,17 +431,23 @@ impl Company {
         Ok(())
     }
 
-    /// Jobs that were running when serve stopped can't be trusted to resume cleanly.
-    /// Marks them and their tickets failed, and returns the ticket keys.
+    /// Jobs whose process is gone (Ctrl-C, a crash, the app closed mid-ticket) would otherwise
+    /// stay "doing" forever. Marks them and their tickets failed and returns the ticket keys.
+    /// Safe to call anytime: a job whose process is still alive is left alone.
     pub fn recover_interrupted(&self) -> Result<Vec<String>> {
-        let mut st = self.db.prepare("SELECT id, ticket_id FROM jobs WHERE started_at IS NOT NULL AND finished_at IS NULL")?;
-        let stuck: Vec<(i64, i64)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?;
-        for (job, ticket) in &stuck {
-            self.finish_job(*job, Some("interrupted"))?;
-            self.set_status(*ticket, "failed")?;
-            self.add_event(*ticket, "error", "interrupted when onecorp serve stopped", "")?;
+        let mut st = self.db.prepare("SELECT id, ticket_id, pid FROM jobs WHERE started_at IS NOT NULL AND finished_at IS NULL")?;
+        let running: Vec<(i64, i64, Option<u32>)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<_, _>>()?;
+        let mut keys = vec![];
+        for (job, ticket, pid) in running {
+            if pid.is_some_and(alive) {
+                continue;
+            }
+            self.finish_job(job, Some("interrupted"))?;
+            self.set_status(ticket, "failed")?;
+            self.add_event(ticket, "error", "stopped before it finished. Retry it: onecorp retry", "")?;
+            keys.push(self.key(ticket));
         }
-        Ok(stuck.iter().map(|(_, t)| self.key(*t)).collect())
+        Ok(keys)
     }
 
     pub fn memory_path(&self, employee: &str) -> PathBuf {
@@ -609,6 +633,12 @@ fn row_to_question(r: &rusqlite::Row) -> rusqlite::Result<Question> {
     })
 }
 
+/// Whether a process is still running. `kill -0` sends nothing, it only checks.
+fn alive(pid: u32) -> bool {
+    pid == std::process::id()
+        || std::process::Command::new("kill").args(["-0", &pid.to_string()]).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success())
+}
+
 /// Columns added after the first release. CREATE TABLE IF NOT EXISTS skips tables that already
 /// exist, so older company files get these added here instead.
 fn migrate(db: &Connection) -> Result<()> {
@@ -618,6 +648,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("tickets", "tokens", "INTEGER NOT NULL DEFAULT 0"),
         ("tickets", "base", "TEXT"),
         ("inbox", "kind", "TEXT NOT NULL DEFAULT 'question'"),
+        ("jobs", "pid", "INTEGER"),
     ];
     for (table, column, decl) in ADDED {
         let has: bool = db.query_row(
@@ -701,7 +732,10 @@ mod tests {
         c.set_department("maya", eng.id).unwrap();
         assert_eq!(c.department("ENGINEERING").unwrap().unwrap().lead.as_deref(), Some("tomas"));
 
+        // While their process is alive, running jobs are left alone.
+        assert!(c.recover_interrupted().unwrap().is_empty());
         // Serve died with t1 and m2 running: both come back failed instead of stuck.
+        c.db.execute("UPDATE jobs SET pid = 999999 WHERE finished_at IS NULL", []).unwrap();
         assert_eq!(c.recover_interrupted().unwrap(), vec![c.key(m2), c.key(t1)]);
         assert_eq!(c.ticket(t1).unwrap().unwrap().status, "failed");
         let _ = std::fs::remove_dir_all(&dir);

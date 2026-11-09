@@ -155,6 +155,8 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .ask .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; color: var(--muted); }
 .ask.blocking .kind { color: var(--signal); }
 .ask.review .kind { color: var(--accent); }
+.ask.stopped { border-color: var(--signal); }
+.ask.stopped .kind { color: var(--signal); }
 .ask h4 { margin: 2px 0 4px; font-size: 15px; }
 .ask p { margin: 0 0 10px; color: var(--muted); white-space: pre-wrap; }
 .acts { display: flex; gap: 8px; flex-wrap: wrap; }

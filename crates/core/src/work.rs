@@ -38,7 +38,11 @@ pub enum Job {
 /// Queues the job when `onecorp serve` is running, otherwise runs it right here.
 pub fn dispatch(c: &Company, ticket: i64, job: Job) -> Result<()> {
     if !serve::running() {
-        return execute(c, ticket, &job);
+        // Recorded as a job too, so a Ctrl-C mid-run gets noticed instead of leaving the ticket "doing".
+        let id = c.run_now(ticket, &job)?;
+        let result = execute(c, ticket, &job);
+        c.finish_job(id, result.as_ref().err().map(|e| format!("{e:#}")).as_deref())?;
+        return result;
     }
     let key = c.key(ticket);
     c.enqueue(ticket, &job)?;
@@ -224,6 +228,30 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
         c.remember(who, &format!("On {key} the founder asked for changes: {feedback}"))?;
     }
     dispatch(c, t.id, Job::Resume { why: "with your feedback".into(), prompt, label: "changes from review".into() })
+}
+
+/// Tries a failed ticket again. With a session and a worktree to go back to, the same session picks
+/// up where it stopped, so finished work isn't redone. Without them, it starts over cleanly.
+pub fn retry(c: &Company, t: &Ticket) -> Result<()> {
+    let key = c.key(t.id);
+    if t.status != "failed" {
+        bail!("{key} is {}. Only tickets that stopped or failed can be retried", t.status);
+    }
+    c.add_event(t.id, "retry", "the founder asked to try again", "")?;
+    let resumable = t.session_id.is_some() && t.worktree.as_deref().is_some_and(|w| Path::new(w).exists());
+    if resumable {
+        let prompt = format!(
+            "Your last run on {key} stopped before it finished. Check what's already in your worktree, then carry on \
+             and finish the ticket: {}\n\nSame rules as before: don't commit, and end with two or three sentences on what changed.",
+            t.title
+        );
+        return dispatch(c, t.id, Job::Resume { why: "where it stopped".into(), prompt, label: "finish after retry".into() });
+    }
+    if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
+        git::discard(&c.repo()?, Path::new(wt), branch);
+    }
+    c.reset_ticket(t.id)?;
+    dispatch(c, t.id, Job::Start)
 }
 
 /// Sends a ticket back to its employee: same session, same worktree, new instructions.

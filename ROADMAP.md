@@ -30,6 +30,8 @@ The whole company loop works in the CLI, tested end to end on throwaway repos.
 - [x] Personal memory per employee, learned from your reviews (`memory`)
 - [x] `serve` runs queued tickets in parallel, one ticket per employee at a time
 - [x] Departments with leads (`dept`, `hire --dept`)
+- [x] Fake runtime with no AI, and an end-to-end test of the whole ticket loop
+- [x] Stuck tickets get noticed and marked failed, and `retry` picks them back up
 - [x] Workspace layout: `crates/core` holds the logic, `crates/cli` and `app` are thin shells
 
 ## Now: the desktop app

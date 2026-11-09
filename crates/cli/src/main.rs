@@ -135,6 +135,12 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// Try a ticket that stopped or failed again
+    Retry {
+        ticket: String,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Send a ticket back with feedback. The same session picks it up
     Changes {
         ticket: String,
@@ -354,6 +360,9 @@ fn run(cmd: Cmd) -> Result<()> {
         }
         Cmd::Status { company } => {
             let c = open(company)?;
+            for key in c.recover_interrupted()? {
+                println!("{key} stopped before it finished, so it's marked failed. Retry it: onecorp retry {key}");
+            }
             let tickets = c.tickets()?;
             if tickets.is_empty() {
                 println!("No tickets yet. Start one with: onecorp run \"<task>\"");
@@ -474,6 +483,10 @@ fn run(cmd: Cmd) -> Result<()> {
         Cmd::Approve { ticket, company } => {
             let c = open(company)?;
             work::approve(&c, &find_ticket(&c, &ticket)?)?;
+        }
+        Cmd::Retry { ticket, company } => {
+            let c = open(company)?;
+            work::retry(&c, &find_ticket(&c, &ticket)?)?;
         }
         Cmd::Changes { ticket, feedback, company } => {
             let c = open(company)?;

@@ -61,7 +61,7 @@ function chip(e) {
   return `<span class="chip"><i style="background:${color}"></i>${esc(label)}${e.model ? " · " + esc(e.model) : ""}</span>`;
 }
 const byId = id => (S.snap?.employees || []).find(e => e.id === id);
-const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length : 0);
+const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S.snap.failed || []).length : 0);
 
 /* Sidebar and top bar */
 function renderSide() {
@@ -113,7 +113,7 @@ function viewCompany() {
     ? `<li><form class="room-new" id="dept-form"><label for="dept-name"><b>Name the department</b></label><div class="row"><input id="dept-name" placeholder="Engineering, Design, Growth…" autocomplete="off"><button class="btn primary">Add</button></div></form></li>`
     : `<li><button class="room-new" data-add-dept="1"><b>+ New department</b><span>Engineering, Design, Growth. Hire into it right after.</span></button></li>`;
   const working = s.employees.filter(e => e.status === "working").length;
-  const items = [...s.reviews.map(r => ({ who: r.employee, name: r.name, text: `${r.key} is ready for review` })), ...s.inbox.map(q => ({ who: q.employee, name: q.name, text: q.kind === "handbook" ? "Handbook proposal" : q.question }))];
+  const items = [...(s.failed || []).map(t => ({ who: t.employee, name: t.name, text: `${t.key} stopped. Retry it?` })), ...s.reviews.map(r => ({ who: r.employee, name: r.name, text: `${r.key} is ready for review` })), ...s.inbox.map(q => ({ who: q.employee, name: q.name, text: q.kind === "handbook" ? "Handbook proposal" : q.question }))];
   const needs = items.slice(0, 4).map(i => `<button class="need" data-view="inbox">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   return `<div class="hq"><div>
       <div class="founder"><span class="me">Y</span><div><b>You</b><span>Founder · ${s.employees.length} people · ${working} working now</span></div><button class="btn" data-add-dept="1">+ Department</button></div>
@@ -132,9 +132,15 @@ function feed(items) {
 function viewInbox() {
   const s = S.snap;
   const blocking = s.inbox.filter(q => q.kind !== "handbook" && q.blocking), other = s.inbox.filter(q => q.kind !== "handbook" && !q.blocking), books = s.inbox.filter(q => q.kind === "handbook");
-  const cards = [...blocking.map(question), ...s.reviews.map(review), ...other.map(question), ...books.map(handbook)];
+  const cards = [...(s.failed || []).map(stopped), ...blocking.map(question), ...s.reviews.map(review), ...other.map(question), ...books.map(handbook)];
   if (!cards.length) return `<div class="empty-state"><b>Inbox zero</b>Your team puts questions, reviews and handbook ideas here when they need you.</div>`;
   return `<div class="inbox">${cards.join("")}</div>`;
+}
+function stopped(t) {
+  return `<article class="ask stopped">${face(t.name, "blocked")}<div>
+    <span class="kind">Stopped · ${esc(t.key)}</span><h4>${esc(t.title)}</h4>
+    <p>${esc(first(t.name))}'s run didn't finish${t.why ? `: ${esc(t.why)}` : "."}</p>
+    <div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button></div></div></article>`;
 }
 function question(q) {
   const opts = q.options.map(o => `<button class="btn primary" data-answer="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join("");
@@ -322,9 +328,14 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.retry) {
+    el.disabled = true;
+    await call("retry", { company: S.company, key: d.retry }, `${d.retry} is running again`).catch(() => (el.disabled = false));
+    return;
+  }
   if (d.hbDel) {
     const [i, k] = d.hbDel.split(":").map(Number), book = parseHandbook(S.handbook);
     const gone = book.sections[i].items.splice(k, 1)[0];
@@ -422,6 +433,7 @@ function preview(cmd) {
       departments: [{ id: 1, name: "Engineering", lead: "odile", members: ["odile", "maya", "tomas"] }, { id: 2, name: "Product", lead: "rui", members: ["rui", "lina"] }, { id: 3, name: "Growth", lead: "sam", members: ["sam"] }],
       inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true },
         { id: 3, kind: "handbook", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
+      failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished. Retry it: onecorp retry" }],
       reviews: [{ key: "SNO-11", title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "tool", summary: "Bash cargo test billing" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
