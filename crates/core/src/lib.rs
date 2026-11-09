@@ -4,5 +4,6 @@ pub mod mcp;
 pub mod runtime;
 pub mod serve;
 pub mod store;
+pub mod templates;
 pub mod view;
 pub mod work;

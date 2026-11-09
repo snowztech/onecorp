@@ -70,6 +70,61 @@ fn request_changes(company: String, key: String, feedback: String) -> Res<()> {
     work::request_changes(&c, &t, &feedback).map_err(err)
 }
 
+/// What the new company flow needs: the starting teams, and which runtimes are installed here.
+#[tauri::command(async)]
+fn setup_info() -> Res<Value> {
+    let runtimes = onecorp::doctor::installed_runtimes();
+    let teams: Vec<Value> = onecorp::templates::TEMPLATES
+        .iter()
+        .map(|t| {
+            json!({
+                "key": t.key, "name": t.name, "description": t.description, "runtime": t.runtime,
+                "hires": t.hires.iter().map(|h| {
+                    let p = onecorp::templates::preset(h.preset);
+                    json!({"name": h.name, "role": h.role.or(p.map(|p| p.role)), "dept": h.dept})
+                }).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    Ok(json!({ "templates": teams, "runtimes": runtimes }))
+}
+
+/// Checks a folder before it becomes a company's repo, and suggests a name from it.
+#[tauri::command(async)]
+fn check_repo(path: String) -> Res<Value> {
+    let path = std::path::PathBuf::from(path.trim());
+    let problem = |p: &str| Ok(json!({ "ok": false, "problem": p }));
+    let Ok(full) = path.canonicalize() else { return problem("That folder doesn't exist.") };
+    if !full.join(".git").exists() {
+        return problem("That folder isn't a git repo. Run git init in it first, or pick its top folder.");
+    }
+    let branch = match onecorp::git::current_branch(&full) {
+        Ok(b) => b,
+        Err(_) => return problem("The repo is on a detached HEAD. Check out a branch, like main, then try again."),
+    };
+    let folder = full.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let used_by: Vec<String> = store::list()
+        .map_err(err)?
+        .into_iter()
+        .filter(|c| Company::open(c).ok().and_then(|c| c.repo().ok()).is_some_and(|r| r == full))
+        .collect();
+    Ok(json!({
+        "ok": true, "path": full, "branch": branch, "suggested": onecorp::templates::suggest_name(&folder), "used_by": used_by,
+    }))
+}
+
+#[tauri::command(async)]
+fn create_company(name: String, repo: String, mission: String, template: String, runtime: String) -> Res<String> {
+    let t = onecorp::templates::template(&template).ok_or_else(|| format!("No starting team called {template}."))?;
+    if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
+        return Err(format!("{runtime} isn't supported yet."));
+    }
+    let c = Company::create(name.trim(), std::path::Path::new(repo.trim()), &mission).map_err(err)?;
+    onecorp::templates::apply(&c, t, &runtime).map_err(err)?;
+    store::set_current(&c.name).map_err(err)?;
+    Ok(c.name)
+}
+
 #[tauri::command(async)]
 fn handbook(company: String) -> Res<String> {
     open(&company)?.handbook().map_err(err)
@@ -159,6 +214,7 @@ fn main() {
     });
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             companies,
             use_company,
@@ -169,6 +225,9 @@ fn main() {
             handbook,
             save_handbook,
             add_to_handbook,
+            setup_info,
+            check_repo,
+            create_company,
             new_ticket,
             answer,
             approve,

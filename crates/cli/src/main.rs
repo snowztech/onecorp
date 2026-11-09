@@ -20,6 +20,12 @@ enum Cmd {
         name: String,
         #[arg(long)]
         repo: PathBuf,
+        /// Start with a team: solo, small, demo (no AI, free) or empty
+        #[arg(long)]
+        team: Option<String>,
+        /// Runtime for the starting team, like claude or codex
+        #[arg(long, default_value = "claude")]
+        runtime: String,
         /// What the company is for. Goes at the top of the handbook
         #[arg(long)]
         mission: Option<String>,
@@ -200,34 +206,6 @@ enum HandbookCmd {
     Edit,
 }
 
-struct Preset {
-    key: &'static str,
-    role: &'static str,
-    bio: &'static str,
-}
-
-const PRESETS: &[Preset] = &[
-    Preset {
-        key: "engineer",
-        role: "Engineer",
-        bio: "Reads the code around a change before touching it. Makes the smallest diff that does the job and says what to check.",
-    },
-    Preset {
-        key: "reviewer",
-        role: "Reviewer",
-        bio: "Reads diffs carefully. Flags risks, missing tests and new dependencies that don't earn their place.",
-    },
-    Preset {
-        key: "designer",
-        role: "Product designer",
-        bio: "Designs in code. Keeps screens simple and copy short, and follows the styles already in the repo.",
-    },
-    Preset {
-        key: "writer",
-        role: "Writer",
-        bio: "Writes docs, changelogs and posts. Short sentences, plain words, no hype.",
-    },
-];
 
 
 fn main() {
@@ -246,12 +224,32 @@ fn open(company: Option<String>) -> Result<store::Company> {
 
 fn run(cmd: Cmd) -> Result<()> {
     match cmd {
-        Cmd::New { name, repo, mission } => {
+        Cmd::New { name, repo, mission, team, runtime } => {
+            let template = match team.as_deref() {
+                Some(key) => Some(onecorp::templates::template(key).ok_or_else(|| {
+                    let keys: Vec<_> = onecorp::templates::TEMPLATES.iter().map(|t| t.key).collect();
+                    anyhow::anyhow!("no starting team called {key}. Pick one of: {}", keys.join(", "))
+                })?),
+                None => None,
+            };
+            if !RUNTIMES.contains(&runtime.as_str()) {
+                bail!("{runtime} isn't supported yet. Available: {}", RUNTIMES.join(", "));
+            }
             let c = store::Company::create(&name, &repo, mission.as_deref().unwrap_or(""))?;
             store::set_current(&name)?;
             println!("Created {} around {}. It's now your current company.", c.name, c.repo()?.display());
+            let mut hired = vec![];
+            if let Some(t) = template {
+                hired = onecorp::templates::apply(&c, t, &runtime)?;
+                for e in &hired {
+                    println!("  hired {} as {} ({})", e.name, e.role, e.runtime);
+                }
+            }
             println!("Its handbook is at {}. Everyone reads it before each ticket.", c.handbook_path().display());
-            println!("Next, hire someone: onecorp hire");
+            match hired.first() {
+                Some(e) => println!("Next, give someone a ticket: onecorp run \"<task>\" --to {}", e.id),
+                None => println!("Next, hire someone: onecorp hire"),
+            }
         }
         Cmd::Use { name } => {
             store::Company::open(&name)?;
@@ -575,7 +573,7 @@ fn hire_form(
         bail!("a name needs at least one letter or digit");
     }
 
-    let keys: Vec<_> = PRESETS.iter().map(|p| p.key).collect();
+    let keys: Vec<_> = onecorp::templates::PRESETS.iter().map(|p| p.key).collect();
     let preset = match preset {
         Some(p) => Some(p),
         None if interactive => Some(ask(&format!("Job ({})", keys.join(", ")), "engineer")?),
@@ -583,7 +581,7 @@ fn hire_form(
     };
     let preset = match preset {
         Some(p) => Some(
-            PRESETS
+            onecorp::templates::PRESETS
                 .iter()
                 .find(|x| x.key == p.to_lowercase())
                 .ok_or_else(|| anyhow::anyhow!("no preset called {p}. Pick one of: {}", keys.join(", ")))?,
@@ -592,7 +590,7 @@ fn hire_form(
     };
 
     let role = role.or(preset.map(|p| p.role.to_string())).unwrap_or_else(|| "Engineer".into());
-    let default_bio = preset.map(|p| p.bio).unwrap_or(PRESETS[0].bio);
+    let default_bio = preset.map(|p| p.bio).unwrap_or(onecorp::templates::PRESETS[0].bio);
     let bio = match bio {
         Some(b) => b,
         None if interactive => ask("How do they work?", default_bio)?,

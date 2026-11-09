@@ -20,3 +20,5 @@ jobs:
       # library and the CLI. The end-to-end test uses the fake runtime: no AI account needed.
       - run: cargo clippy -p onecorp -p onecorp-cli --all-targets -- -D warnings
       - run: cargo test -p onecorp -p onecorp-cli
+      # Renders every screen of the app's UI with sample data, to catch runtime errors.
+      - run: node app/tests/ui-smoke.js

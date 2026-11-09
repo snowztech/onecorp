@@ -30,6 +30,13 @@ fn version(program: &str) -> Option<String> {
     out.status.success().then(|| String::from_utf8_lossy(&out.stdout).lines().next().unwrap_or("").trim().to_string())
 }
 
+/// The runtimes that are installed here, in the order to suggest them. The stand-in is always there.
+pub fn installed_runtimes() -> Vec<&'static str> {
+    let mut found: Vec<&'static str> = ["claude", "codex"].into_iter().filter(|r| version(r).is_some()).collect();
+    found.push("fake");
+    found
+}
+
 pub fn run() -> Vec<Check> {
     let mut checks = vec![];
 

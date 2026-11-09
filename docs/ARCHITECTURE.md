@@ -42,6 +42,7 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 | `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. `fake.rs` is a stand-in with no AI, for tests and trying things out. |
 | `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the handbook, remember, mark blocked. |
 | `git.rs` | Worktrees, commits under an employee's name, diffs, merges and conflicts. |
+| `templates.rs` | Role presets (engineer, reviewer, designer, writer) and starting teams for new companies. |
 | `doctor.rs` | The checks behind `onecorp doctor`: git, agent CLIs, home folder, each company's repo and team. |
 | `view.rs` | What the screens show: who's doing what, the feed, the inbox, a review's diff, one person's details. |
 
@@ -130,7 +131,9 @@ Each test covers the risky logic in one module:
 
 On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, a retry, and questions answered by a lead, passed up by a lead, and unblocking a ticket. It takes under a second.
 
-Run everything with `cargo test`. Real agents are tested by hand on a throwaway repo, with `ONECORP_HOME` pointing somewhere temporary.
+`app/tests/ui-smoke.js` runs the app's UI in Node with a stand-in DOM and its sample data, and renders every screen, including each step of the new company flow.
+
+Run everything with `cargo test` and `node app/tests/ui-smoke.js`. Real agents are tested by hand on a throwaway repo, with `ONECORP_HOME` pointing somewhere temporary.
 
 ## Where to add things
 

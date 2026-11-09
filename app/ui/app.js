@@ -7,7 +7,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, diffs: {}, handbook: null, hbRaw: false };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, diffs: {}, handbook: null, hbRaw: false, setup: null };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -67,7 +67,8 @@ const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S
 function renderSide() {
   const n = waiting(), pages = { company: "Company", inbox: "Inbox", handbook: "Handbook" };
   $("#side").innerHTML = `
-    <div class="cos">${S.companies.map(c => `<button class="cobtn" data-co="${esc(c)}" aria-current="${c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span></button>`).join("")}</div>
+    <div class="cos">${S.companies.map(c => `<button class="cobtn" data-co="${esc(c)}" aria-current="${!S.setup && c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span></button>`).join("")}
+      <button class="cobtn add" data-new-co="1" aria-current="${!!S.setup}"><span class="logo">+</span><span class="coname">New company</span></button></div>
     ${S.company ? `<h6>${esc(S.company)}</h6>${Object.entries(pages).map(([k, v]) =>
       `<button class="navbtn" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${v}${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}</button>`).join("")}` : ""}
     ${S.snap ? `<div class="serve ${S.snap.serve ? "" : "off"}"><i></i>${S.snap.serve ? "Your team is working" : "Nobody is running work"}</div>` : ""}
@@ -75,7 +76,7 @@ function renderSide() {
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = { inbox: "Inbox", handbook: "Handbook" }[S.view] || S.company || "OneCorp";
+  $("#title").textContent = S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook" }[S.view] || S.company || "OneCorp";
   const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
   $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}` : "";
   $("#spend").innerHTML = s ? `Spent <b>${esc(s.spend.label)}</b>` : "";
@@ -83,7 +84,8 @@ function renderTop() {
   sel.innerHTML = (s?.employees || []).map(e => `<option value="${esc(e.id)}">${esc(first(e.name))}${e.status === "idle" ? " (free)" : ""}</option>`).join("");
   if (keep && s?.employees.some(e => e.id === keep)) sel.value = keep;
   else { const free = s?.employees.find(e => e.status === "idle"); if (free) sel.value = free.id; }
-  $("#give").hidden = !s || !s.employees.length;
+  $("#give").hidden = !!S.setup || !s || !s.employees.length;
+  if (S.setup) { $("#sub").textContent = ""; $("#spend").innerHTML = ""; }
 }
 
 /* Company page: you on top, departments beneath as rooms of desks */
@@ -293,12 +295,84 @@ async function openPerson(id) {
   renderDrawer();
 }
 
+/* New company: repo, name, starting team, review. Four short steps, nothing needs the terminal. */
+async function startSetup() {
+  try {
+    const info = await invoke("setup_info");
+    const real = info.runtimes.filter(r => r !== "fake");
+    S.setup = { step: 0, path: "", repo: null, name: "", mission: "", template: real.length ? "small" : "demo", runtime: real[0] || "fake", info };
+  } catch (e) { return toast(String(e), true); }
+  S.drawer = null;
+  render();
+}
+function readSetup() {
+  const s = S.setup, val = id => document.getElementById(id)?.value;
+  if (val("su-path") !== undefined) s.path = val("su-path").trim();
+  if (val("su-name") !== undefined) s.name = val("su-name").trim();
+  if (val("su-mission") !== undefined) s.mission = val("su-mission").trim();
+  if (val("su-runtime") !== undefined) s.runtime = val("su-runtime");
+}
+async function checkRepo(path) {
+  const s = S.setup;
+  s.path = path; s.checked = path; s.repo = null; render();
+  if (!path) return;
+  try { s.repo = await invoke("check_repo", { path }); } catch (e) { s.repo = { ok: false, problem: String(e) }; }
+  if (s.repo.ok && !s.name) s.name = s.repo.suggested;
+  render();
+}
+const RUNTIME_NAMES = { claude: "Claude Code", codex: "Codex", fake: "Stand-in, no AI" };
+function viewSetup() {
+  const s = S.setup, steps = ["Repo", "Name", "Team", "Review"];
+  const dots = `<ol class="su-steps">${steps.map((n, i) => `<li class="${i === s.step ? "on" : i < s.step ? "done" : ""}">${n}</li>`).join("")}</ol>`;
+  const back = s.step ? `<button class="btn" type="button" data-su="back">Back</button>` : S.companies.length ? `<button class="btn" type="button" data-su="cancel">Cancel</button>` : "<span></span>";
+  const nav = (label, disabled) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
+  let body = "";
+  if (s.step === 0) {
+    const r = s.repo, picker = window.__TAURI__?.dialog ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : "";
+    const result = !r ? "" : r.ok
+      ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>. Tickets branch off it and merge back into it.</p>${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
+      : `<p class="su-bad">${esc(r.problem)}</p>`;
+    body = `<h2>Which repo does this company work on?</h2><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>
+      <div class="su-row">${picker}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="check">Check</button></div>
+      ${result}${nav("Continue", !(r && r.ok))}`;
+  } else if (s.step === 1) {
+    body = `<h2>Name your company</h2><p class="muted">Tickets are numbered from its first letters, like ${esc((s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM")}-1.</p>
+      <div class="field"><label for="su-name">Name</label><input id="su-name" value="${esc(s.name)}" placeholder="snowztech" autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the handbook)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
+      ${nav("Continue")}`;
+  } else if (s.step === 2) {
+    const real = s.info.runtimes.filter(x => x !== "fake");
+    const t = s.info.templates.find(x => x.key === s.template);
+    const runtimes = real.length ? `<div class="field"><label for="su-runtime">They work on</label><select id="su-runtime">${real.map(x => `<option value="${x}" ${x === s.runtime ? "selected" : ""}>${RUNTIME_NAMES[x] || x}</option>`).join("")}</select></div>`
+      : `<p class="su-warn">Neither Claude Code nor Codex is installed here, so only the free stand-in is available. Install one later and hire on it.</p>`;
+    body = `<h2>Who's on the team to start?</h2><p class="muted">You can hire, move and add departments anytime.</p>
+      <div class="tpls">${s.info.templates.map(x => {
+        const off = !real.length && !x.runtime && x.hires.length;
+        return `<button type="button" class="tpl" data-tpl="${x.key}" aria-pressed="${x.key === s.template}" ${off ? "disabled" : ""}><b>${esc(x.name)}</b><span>${esc(x.description)}</span>
+          ${x.hires.length ? `<span class="faces">${x.hires.map(h => face(h.name, "neutral")).join("")}</span><small>${x.hires.map(h => `${esc(first(h.name))}, ${esc(h.role)}${h.dept ? " in " + esc(h.dept) : ""}`).join(" · ")}</small>` : ""}</button>`;
+      }).join("")}</div>
+      ${t && !t.runtime && t.hires.length ? runtimes : ""}${nav("Continue")}`;
+  } else {
+    const t = s.info.templates.find(x => x.key === s.template), rt = t.runtime || s.runtime;
+    body = `<h2>Ready to open ${esc(s.name)}</h2>
+      <dl class="kv su-sum"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
+        <dt>Mission</dt><dd>${esc(s.mission || "None yet")}</dd>
+        <dt>Team</dt><dd>${t.hires.length ? t.hires.map(h => esc(h.name)).join(", ") + ` <span class="muted">on ${RUNTIME_NAMES[rt] || rt}</span>` : "Nobody yet"}</dd></dl>
+      ${nav("Create the company")}`;
+  }
+  return `<form class="setup" id="setup">${dots}${body}</form>`;
+}
+
 /* Rendering and polling */
 function render() {
+  // Background refreshes re-render too, so keep whatever is typed in the new company flow.
+  if (S.setup && $("#setup")) readSetup();
   renderSide(); renderTop();
   const v = $("#view");
-  if (!S.company) {
-    v.innerHTML = `<div class="empty-state"><b>No company yet</b>Create one from a terminal for now:<br><br><code>onecorp new snowztech --repo ~/dev/your-repo</code><br><br>It shows up here right away.</div>`;
+  if (S.setup) {
+    v.innerHTML = viewSetup();
+  } else if (!S.company) {
+    v.innerHTML = `<div class="empty-state"><b>No company yet</b>Opening the new company flow…</div>`;
   } else if (!S.snap) {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
@@ -315,7 +389,11 @@ async function refresh(force) {
     const c = await invoke("companies");
     S.companies = c.list;
     if (!S.company || !c.list.includes(S.company)) S.company = c.current;
-    if (!S.company) { S.snap = null; return render(); }
+    if (!S.company) {
+      S.snap = null;
+      if (!S.setup) return startSetup(); // A first launch goes straight to creating a company.
+      return;
+    }
     const snap = await invoke("snapshot", { company: S.company });
     // The handbook is a small file and can change outside the app, so it's read with every refresh.
     const book = S.view === "handbook" ? await invoke("handbook", { company: S.company }) : S.handbook;
@@ -332,9 +410,23 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.newCo) return startSetup();
+  if (d.tpl) { readSetup(); S.setup.template = d.tpl; return render(); }
+  if (d.su) {
+    readSetup();
+    const s = S.setup;
+    if (d.su === "cancel") { S.setup = null; S.view = "company"; return refresh(true); }
+    if (d.su === "back") { s.step--; return render(); }
+    if (d.su === "check") return checkRepo(s.path);
+    if (d.su === "pick") {
+      const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Pick the company's repo" }).catch(() => null);
+      if (path) checkRepo(String(path));
+      return;
+    }
+  }
   if (d.retry) {
     el.disabled = true;
     await call("retry", { company: S.company, key: d.retry }, `${d.retry} is running again`).catch(() => (el.disabled = false));
@@ -354,7 +446,7 @@ document.addEventListener("click", async e => {
     return render();
   }
   if (d.hideDiff) { delete S.diffs[d.hideDiff]; return render(); }
-  if (d.co) { S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
+  if (d.co) { S.setup = null; S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
   else if (d.view) { S.view = d.view; S.hbRaw = false; render(); if (d.view === "handbook") refresh(true); }
   else if (d.person) openPerson(d.person);
   else if (d.hire) { const dept = S.snap.departments.find(x => String(x.id) === d.hire); S.drawer = { type: "hire", dept: dept.id, role: /eng/i.test(dept.name) ? "Engineer" : dept.name + " specialist" }; renderDrawer(); }
@@ -375,6 +467,30 @@ document.addEventListener("click", async e => {
 document.addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
+  if (f.id === "setup") {
+    readSetup();
+    const s = S.setup;
+    if (s.step === 0) {
+      if (!s.repo || s.checked !== s.path) await checkRepo(s.path);
+      if (s.repo?.ok) { s.step = 1; render(); $("#su-name")?.focus(); }
+      return;
+    }
+    if (s.step === 1) {
+      if (!/^[A-Za-z0-9_-]+$/.test(s.name)) return toast("A company name can use letters, digits, - and _, like snowztech or my-notes", true);
+      if (S.companies.includes(s.name)) return toast(`There's already a company called ${s.name}`, true);
+      s.step = 2; return render();
+    }
+    if (s.step === 2) { s.step = 3; return render(); }
+    const btn = f.querySelector(".btn.primary");
+    btn.disabled = true; btn.textContent = "Creating…";
+    try {
+      const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, template: s.template, runtime: s.runtime });
+      S.setup = null; S.company = name; S.view = "company"; S.snap = null; S.last = "";
+      toast(`${name} is open. Give someone a ticket up top.`);
+      await refresh(true);
+    } catch (e) { toast(String(e), true); btn.disabled = false; btn.textContent = "Create the company"; }
+    return;
+  }
   if (f.id === "give") {
     const title = $("#give-task").value.trim(), employee = $("#give-to").value;
     if (!title) return $("#give-task").focus();
@@ -444,6 +560,12 @@ function preview(cmd) {
       spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
     },
     handbook: "# snowztech handbook\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
+    setup_info: { runtimes: ["claude", "fake"], templates: [
+      { key: "solo", name: "Just me and one engineer", description: "One engineer to start. Hire the rest when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
+      { key: "small", name: "Small product team", description: "A CTO who leads Engineering and reviews, an engineer, and a designer in Product.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Lina Park", role: "Product designer", dept: "Product" }] },
+      { key: "demo", name: "Try it for free", description: "The small team on a stand-in with no AI.", runtime: "fake", hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }] },
+      { key: "empty", name: "Start empty", description: "No one yet.", runtime: null, hires: [] }] },
+    check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [] },
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
       activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }],
       memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing"] },
