@@ -12,13 +12,8 @@
     <main>
       <header class="topbar">
         <div class="titles"><h1 id="title">OneCorp</h1><span class="sub" id="sub"></span></div>
-        <form class="give" id="give" autocomplete="off">
-          <input id="give-task" placeholder="What needs doing?" aria-label="New ticket">
-          <select id="give-to" aria-label="Who does it"></select>
-          <button class="btn primary">Give it</button>
-          <button class="btn" type="button" data-give-later="1" title="Save it to the backlog">Later</button>
-        </form>
         <div class="spend" id="spend"></div>
+        <button class="btn primary new-ticket" id="new-ticket" data-new-ticket="1">New ticket <kbd>⌘K</kbd></button>
       </header>
       <div class="view" id="view"></div>
     </main>

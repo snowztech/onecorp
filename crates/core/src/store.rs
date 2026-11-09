@@ -626,7 +626,7 @@ impl Company {
             }
             self.finish_job(job, Some("interrupted"))?;
             self.set_status(ticket, "failed")?;
-            self.add_event(ticket, "error", "stopped before it finished. Retry it: onecorp retry", "")?;
+            self.add_event(ticket, "error", "stopped before it finished", "")?;
             keys.push(self.key(ticket));
         }
         Ok(keys)

@@ -7,7 +7,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -93,24 +93,21 @@ function renderTop() {
   const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
   const ships = s?.ship?.forge ? ` · ships to ${s.ship.forge}` : s ? " · merges locally" : "";
   $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}${ships}` : "";
-  $("#spend").innerHTML = s ? `Spent <b>${esc(s.spend.label)}</b>` : "";
-  const sel = $("#give-to"), keep = sel.value;
-  sel.innerHTML = (s?.employees || []).map(e => `<option value="${esc(e.id)}">${esc(first(e.name))}${e.status === "idle" ? " (free)" : ""}</option>`).join("");
-  if (keep && s?.employees.some(e => e.id === keep)) sel.value = keep;
-  else { const free = s?.employees.find(e => e.status === "idle"); if (free) sel.value = free.id; }
-  $("#give").hidden = !!S.setup || !!S.profile || !s || !s.employees.length;
-  if (S.setup || S.profile) { $("#sub").textContent = ""; $("#spend").innerHTML = ""; }
+  const off = !!S.setup || !!S.profile || !s;
+  $("#spend").textContent = !off && (s.spend.cost > 0 || s.spend.tokens > 0) ? `${s.spend.label} spent` : "";
+  $("#new-ticket").hidden = off;
+  if (off) $("#sub").textContent = "";
 }
 
 /* Company page: you on top, departments beneath as rooms of desks */
 function desk(e, lead) {
   const show = e.bubble ? "show" : "";
-  return `<button class="desk ${e.status}" data-person="${esc(e.id)}">
+  const works = (RUNTIME[e.runtime]?.[0] || e.runtime) + (e.model ? ` · ${e.model}` : "");
+  return `<button class="desk ${e.status}" data-person="${esc(e.id)}" title="${esc(e.name)} works on ${esc(works)}">
     <span class="bubble ${show}">${esc(e.bubble)}</span>
     <span class="station"><span class="seat">${face(e.name, e.status)}</span><span class="monitor"><i></i><i></i><i></i><i></i></span></span>
     <span class="table"></span>${e.status === "idle" ? '<span class="zz">z</span>' : ""}
-    <span class="plate"><b>${esc(first(e.name))}${lead ? '<em class="leadtag">Lead</em>' : ""}</b><span>${esc(e.role)}</span></span>
-    <span class="mini">${chip(e)}</span></button>`;
+    <span class="plate"><b>${esc(first(e.name))}${lead ? '<em class="leadtag">Lead</em>' : ""}</b><span>${esc(e.role)}</span></span></button>`;
 }
 function viewCompany() {
   const s = S.snap;
@@ -120,9 +117,8 @@ function viewCompany() {
     const meta = [lead ? "Led by " + esc(first(lead.name)) : d.id === null ? "Move them into a department from their desk" : "No lead yet", ms.length + (ms.length === 1 ? " person" : " people")];
     if (busy) meta.push(`<span class="ok">${busy} working</span>`);
     if (stuck) meta.push(`<span class="warn">${stuck} waiting on you</span>`);
-    const hire = d.id === null ? "" : `<button class="btn" data-hire="${d.id}">+ Hire</button>`;
     const empty = d.id === null ? "" : `<button class="desk empty" data-hire="${d.id}"><span class="station"><span class="seat ghost"></span></span><span class="table"></span><span class="plate"><b>Empty desk</b><span>Hire into ${esc(d.name)}</span></span></button>`;
-    return `<li><section class="room"><header class="room-h"><div><h3>${esc(d.name)}</h3><p>${meta.join(" · ")}</p></div>${hire}</header>
+    return `<li><section class="room"><header class="room-h"><div><h3>${esc(d.name)}</h3><p>${meta.join(" · ")}</p></div></header>
       <div class="room-floor">${ms.map(e => desk(e, d.lead === e.id)).join("")}${empty}</div></section></li>`;
   }).join("");
   const add = S.addingDept
@@ -133,7 +129,7 @@ function viewCompany() {
   const needs = items.slice(0, 4).map(i => `<button class="need" data-view="inbox">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   return `<div class="hq"><div>
       ${kickoffCard()}
-      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${s.employees.length} people · ${working} working now</span></div><button class="btn" data-add-dept="1">+ Department</button></div>
+      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder${working ? ` · ${working} working now` : ""}</span></div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
       ${items.length ? `<section class="panel"><h3>Needs you <span class="badge">${items.length}</span></h3><div class="needs">${needs}</div></section>` : ""}
@@ -158,7 +154,7 @@ function kickoffCard() {
 }
 
 function feed(items) {
-  if (!items.length) return `<li><span></span><span class="muted">Nothing yet. Give someone a ticket up top.</span></li>`;
+  if (!items.length) return `<li><span></span><span class="muted">Nothing yet. Start a ticket and it shows up here.</span></li>`;
   return items.map(f => `<li>${face(f.name, "neutral")}<div><b>${esc(first(f.name))}</b> <span class="key">${esc(f.key)}</span> ${esc(f.summary)}<time>${esc(String(f.at).slice(11, 16))}</time></div></li>`).join("");
 }
 
@@ -176,7 +172,7 @@ function viewInbox() {
 function stopped(t) {
   return `<article class="ask stopped">${face(t.name, "blocked")}<div>
     <span class="kind">Stopped · ${esc(t.key)}</span><h4>${esc(t.title)}</h4>
-    <p>${esc(first(t.name))}'s run didn't finish${t.why ? `: ${esc(t.why)}` : "."}</p>
+    <p>${esc(first(t.name))}'s run ${t.why && !/^stopped before/.test(t.why) ? `failed: ${esc(t.why)}` : "stopped before it finished."}</p>
     <div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button></div></div></article>`;
 }
 function question(q, withLead) {
@@ -188,7 +184,11 @@ function question(q, withLead) {
     <span class="kind">${kind} · ${esc(q.key || "")}</span><h4>${esc(q.question)}</h4>${via}
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
     <div class="acts">${opts}${def}</div>
-    <form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Or write your own answer…"><button class="btn">Send</button></form></div></article>`;
+    ${more(`ans-${q.id}`, "Write your own answer", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Your answer"><button class="btn">Send</button></form>`)}</div></article>`;
+}
+// Free text stays folded until asked for, so each card leads with its one-click answers.
+function more(id, label, form) {
+  return S.open[id] ? form : `<button class="link-btn" type="button" data-more="${esc(id)}">${label}</button>`;
 }
 function planReview(r) {
   const people = S.snap.employees;
@@ -202,20 +202,20 @@ function planReview(r) {
     ${r.summary ? `<p>${esc(r.summary)}</p>` : ""}
     <ol class="plan-list">${rows || `<li class="muted">No tickets left. Plan again, or dismiss it.</li>`}</ol>
     <div class="acts"><button class="btn good" data-approve="${esc(r.key)}" ${r.tickets.length ? "" : "disabled"}>Start the plan</button><button class="btn" data-dismiss="${esc(r.key)}">Dismiss</button></div>
-    <form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="Or plan again: what should change?"><button class="btn">Plan again</button></form></div></article>`;
+    ${more(`chg-${r.key}`, "Plan it again…", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Plan again</button></form>`)}</div></article>`;
 }
 function review(r) {
   return `<article class="ask review">${face(r.name, "done")}<div>
-    <span class="kind">Review · ${esc(r.key)} · ${esc(r.spend)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}<p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>
+    <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}<p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>
     <div class="acts"><button class="btn good" data-approve="${esc(r.key)}">${mergeLabel()}</button>${S.diffs[r.key] ? "" : `<button class="btn" data-diff="${esc(r.key)}">Show changes</button>`}</div>
     ${changes(r.key)}
-    <form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="Or ask for changes…"><button class="btn">Send back</button></form></div></article>`;
+    ${more(`chg-${r.key}`, "Ask for changes", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>`)}</div></article>`;
 }
 function handbook(q) {
   return `<article class="ask">${face(q.name, "neutral")}<div>
     <span class="kind">Handbook · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the handbook</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
-    <form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Or add it in your own words…"><button class="btn">Add</button></form></div></article>`;
+    ${more(`ans-${q.id}`, "Add it in your own words", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="The rule, as you'd put it"><button class="btn">Add</button></form>`)}</div></article>`;
 }
 
 /* Handbook: the file every employee reads before each ticket, shown as sections you can edit in place */
@@ -266,23 +266,22 @@ function viewHandbook() {
 }
 
 /* Board: every ticket by where it stands. Click one for its log and actions. */
-const COLUMNS = [
-  ["Backlog", ["backlog"]], ["Up next", ["todo", "queued", "waiting"]], ["Working", ["doing"]], ["Waiting on you", ["blocked"]],
-  ["Review", ["review"]], ["Stopped", ["failed"]], ["Done", ["done"]],
-];
+const COLUMNS = [["Backlog", ["backlog"]], ["Up next", ["todo", "queued", "waiting"]], ["Working", ["doing"]], ["Needs you", ["blocked", "review", "failed"]], ["Done", ["done"]]];
+const PILL = { blocked: ["Question", "warn"], review: ["Review", "info"], failed: ["Stopped", ""], waiting: ["Waiting", ""] };
+const spent = t => t.spend && !/^(\$0\.00|0 tok)$/.test(t.spend);
 function viewBoard() {
   const s = S.snap;
-  if (!s.tickets.length) return `<div class="empty-state"><b>No tickets yet</b>Say what needs doing in the box up top, or plan ahead: <button class="btn" data-new-ticket="1">+ New ticket</button></div>`;
+  if (!s.tickets.length) return `<div class="empty-state"><b>No tickets yet</b>Plan the first version from the Company page, or add one with New ticket.</div>`;
   const nameOf = id => byId(id)?.name || id || "";
   const cols = COLUMNS.map(([title, statuses]) => {
     let ts = s.tickets.filter(t => statuses.includes(t.status));
     if (title === "Done") ts = ts.slice(-12);
     return `<section class="col"><h4>${title}<span>${ts.length}</span></h4>${ts.slice().reverse().map(t => `
-      <button class="tk ${t.status} ${t.kind === "plan" ? "is-plan" : ""}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}${t.kind === "plan" ? " · plan" : ""}</span><span class="t">${esc(t.title)}</span>
+      <button class="tk ${t.status} ${t.kind === "plan" ? "is-plan" : ""}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}${t.kind === "plan" ? " · plan" : ""}${PILL[t.status] ? `<span class="pill ${PILL[t.status][1]}">${PILL[t.status][0]}</span>` : ""}</span><span class="t">${esc(t.title)}</span>
         ${t.after && t.status !== "done" ? `<span class="after">after ${esc(t.after)}</span>` : ""}
-        <span class="row">${t.assignee ? `${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span>` : `<span class="muted">Nobody yet</span>`}<span class="chip">${esc(t.spend)}</span></span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
+        <span class="row">${t.assignee ? `${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span>` : `<span class="muted">Nobody yet</span>`}${spent(t) ? `<span class="cost">${esc(t.spend)}</span>` : ""}</span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
   }).join("");
-  return `<div class="board-top"><button class="btn primary" data-new-ticket="1">+ New ticket</button></div><div class="board">${cols}</div>`;
+  return `<div class="board">${cols}</div>`;
 }
 const STATUS = { backlog: "In the backlog", waiting: "Waiting for another ticket", todo: "Up next", queued: "Up next", doing: "Working", blocked: "Waiting on you", review: "Ready for review", failed: "Stopped", done: "Merged" };
 function drawerTicket() {
@@ -314,12 +313,13 @@ function drawerTicket() {
 }
 /* New ticket: details, who, what it waits for, and start now or later */
 function drawerNewTicket() {
-  const open = (S.snap?.tickets || []).filter(t => t.status !== "done");
+  const open = (S.snap?.tickets || []).filter(t => t.status !== "done"), team = S.snap?.employees || [];
+  const pick = (team.find(e => e.status === "idle") || team[0])?.id;
   return `<div class="dhead"><div><h2>New ticket</h2><span class="muted">Plan it now, start it now or later.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <form class="dbody" id="nt">
       <div class="field"><label for="nt-title">What needs doing</label><input id="nt-title" placeholder="Add magic link login" autocomplete="off"></div>
-      <div class="field"><label for="nt-desc">Details <span class="muted">(what done looks like, links, constraints)</span></label><textarea id="nt-desc" rows="6"></textarea></div>
-      <div class="field"><label for="nt-who">Who</label><select id="nt-who"><option value="">Nobody yet</option>${(S.snap?.employees || []).map(e => `<option value="${esc(e.id)}">${esc(e.name)}, ${esc(e.role)}</option>`).join("")}</select></div>
+      <div class="field"><label for="nt-who">Who</label><select id="nt-who"><option value="">Nobody yet</option>${team.map(e => `<option value="${esc(e.id)}" ${e.id === pick ? "selected" : ""}>${esc(e.name)}, ${esc(e.role)}${e.status === "idle" ? " (free)" : ""}</option>`).join("")}</select></div>
+      <div class="field"><label for="nt-desc">Details <span class="muted">(optional)</span></label><textarea id="nt-desc" rows="5" placeholder="What done looks like, links, constraints"></textarea></div>
       <div class="field"><label for="nt-after">After</label><select id="nt-after"><option value="">Nothing, it can start right away</option>${open.map(t => `<option value="${esc(t.key)}">${esc(t.key)} ${esc(t.title)}</option>`).join("")}</select></div>
       <div class="acts"><button class="btn primary" data-nt="now">Start now</button><button class="btn" data-nt="later">Save for later</button></div>
     </form>`;
@@ -379,7 +379,7 @@ function renderDrawer() {
       ${p.bio ? `<p style="margin:0">${esc(p.bio)}</p>` : ""}
       <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></dd>
         <dt>Works on</dt><dd>${chip(p)}</dd></dl>
-      <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free. Give ${esc(first(p.name))} a ticket from the top bar.</p>`}</div>
+      <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free. Give ${esc(first(p.name))} a ticket with New ticket.</p>`}</div>
       <div><h5>What ${esc(first(p.name))} has learned</h5>${p.memory.length ? `<ul class="notes">${p.memory.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="muted" style="margin:0">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>
       <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(STATUS[t.status] || t.status)}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
     </div>`;
@@ -630,7 +630,7 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-give-later],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -648,12 +648,7 @@ document.addEventListener("click", async e => {
     await call("start_ticket", { company: S.company, key: d.start }, `${d.start} is starting`).catch(() => (el.disabled = false));
     return;
   }
-  if (d.giveLater) {
-    const title = $("#give-task").value.trim();
-    if (!title) return $("#give-task").focus();
-    await call("new_ticket", { company: S.company, title, employee: $("#give-to").value || null, description: null, after: null, later: true }, "Saved to the backlog").then(() => ($("#give-task").value = "")).catch(() => {});
-    return;
-  }
+  if (d.more) { S.open[d.more] = true; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) { S.profile = { name: myName() === "You" ? "" : myName() }; S.drawer = null; return render(); }
   if (d.pf) {
     if (d.pf === "cancel") { S.profile = null; return render(); }
@@ -731,7 +726,7 @@ document.addEventListener("click", async e => {
     const bio = BIOS.find(([re]) => re.test(role))[1];
     el.disabled = true;
     try {
-      await call("hire", { company: S.company, name: c.name, role, bio, runtime: c.runtime, model: c.model || null, department: S.drawer.dept }, `${c.name} joined. Give them a ticket up top.`);
+      await call("hire", { company: S.company, name: c.name, role, bio, runtime: c.runtime, model: c.model || null, department: S.drawer.dept }, `${c.name} joined. Give them a ticket with New ticket.`);
       S.drawer = null; renderDrawer();
     } catch { el.disabled = false; }
   }
@@ -785,16 +780,12 @@ document.addEventListener("submit", async e => {
       const people = s.people.filter(p => p.name.trim());
       const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, people, brief: s.brief || null });
       S.setup = null; S.company = name; S.view = "company"; S.snap = null; S.last = "";
-      toast(`${name} is open. Give someone a ticket up top.`);
+      toast(`${name} is open. Give someone a ticket with New ticket.`);
       await refresh(true);
     } catch (e) { toast(String(e), true); btn.disabled = false; btn.textContent = "Create the company"; }
     return;
   }
-  if (f.id === "give") {
-    const title = $("#give-task").value.trim(), employee = $("#give-to").value;
-    if (!title) return $("#give-task").focus();
-    await call("new_ticket", { company: S.company, title, employee, description: null, after: null, later: false }, `Given to ${first(byId(employee)?.name)}`).then(() => ($("#give-task").value = "")).catch(() => {});
-  } else if (f.id === "dept-form") {
+  if (f.id === "dept-form") {
     const name = $("#dept-name").value.trim();
     if (!name) return $("#dept-name").focus();
     const id = await call("add_department", { company: S.company, name }, `${name} is set up. Hire its first person.`).catch(() => null);
@@ -842,10 +833,23 @@ document.addEventListener("change", async e => {
 });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") { if (S.drawer) { S.drawer = null; renderDrawer(); } else if (S.addingDept) { S.addingDept = false; render(); } }
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#give-task").focus(); }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && S.snap && !S.setup && !S.profile) { e.preventDefault(); S.drawer = { type: "new-ticket" }; renderDrawer(); $("#nt-title")?.focus(); }
 });
 
-refresh(true);
+// In a plain browser, #board, #inbox, #handbook, #ticket, #person, #new-ticket, #setup or #profile opens
+// straight onto that screen, so each one can be looked at and screenshotted. Never used in the app.
+async function previewScreen() {
+  const screen = location.hash.slice(1);
+  await refresh(true);
+  if (["board", "inbox", "handbook"].includes(screen)) { S.view = screen; render(); }
+  if (screen === "ticket") openTicket("SNO-11");
+  if (screen === "person") openPerson("tomas");
+  if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
+  if (screen === "setup") await startSetup();
+  if (screen.startsWith("setup-")) { await startSetup(); await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
+  if (screen === "profile") { S.profile = { name: "Lucas" }; render(); }
+}
+if (window.__TAURI__) refresh(true); else previewScreen();
 setInterval(() => refresh(false), 1500);
 
 /* Sample data for opening ui/index.html in a browser. Never used inside the app. */
@@ -871,7 +875,7 @@ function preview(cmd) {
       with_leads: [{ id: 5, kind: "question", key: "SNO-15", employee: "tomas", name: "Tomás Reis", lead_name: "Odile Martin", question: "Retry webhooks 3 or 5 times?", section: "", options: ["3", "5"], default: "3", blocking: false }],
       inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
         { id: 3, kind: "handbook", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
-      failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished. Retry it: onecorp retry" }],
+      failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished" }],
       reviews: [{ key: "SNO-20", title: "Plan the first version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",
           tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
             { key: "SNO-22", title: "Magic link login", description: "Email a one-time link, 15 minute expiry.", assignee: "tomas", name: "Tomás Reis", after: "SNO-21", status: "backlog" }] },

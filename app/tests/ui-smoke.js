@@ -5,6 +5,7 @@ const el = () => new Proxy({ classList: { toggle() {}, add() {}, remove() {} }, 
 });
 const els = {};
 global.window = {};
+global.location = { hash: "" };
 global.document = { addEventListener() {}, querySelector: s => (els[s] ||= el()), getElementById: () => null, activeElement: null };
 global.setInterval = () => {};
 const src = require("fs").readFileSync(require("path").join(__dirname, "../ui/app.js"), "utf8");

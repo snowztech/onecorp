@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A calmer app. One New ticket button (⌘K) replaces the busy top bar form. The Board has five columns, with everything that needs you in one, and only shows cost once something was spent. Inbox cards lead with their one-click answers and fold free text away. Desks drop their runtime chips and hire buttons, since the empty desk already does that.
 - Start from just an idea: the new company flow can create the repo, with git, a README and a first commit, and also create it on GitHub under you or one of your orgs (`onecorp new --init --github`). Starting teams are editable before you create the company: names, roles, departments and runtimes.
 - Kickoff from an idea: write a brief (in the app, `onecorp brief`, or when creating a company), and your product manager plans it into small tickets with owners and an order. Review the plan in the Inbox, change owners or remove tickets, then start it. Plan again with feedback, or dismiss it. The small and demo teams now include a product manager.
 - Real tickets: details, a backlog (`--later`, `start`, `assign`), tickets that wait for another one to be merged and then start by themselves, and a `create_ticket` tool so leads and PMs can plan work. The app's Board has a Backlog column and a New ticket drawer.
