@@ -288,6 +288,47 @@ impl Company {
         Ok(self.db.query_row("SELECT value FROM meta WHERE key = 'ship'", [], |r| r.get(0)).optional()?.unwrap_or_else(|| "local".into()))
     }
 
+    /// The company's look: a badge color, and a logo image if you added one.
+    pub fn look(&self) -> Result<(String, Option<PathBuf>)> {
+        let color = self.db.query_row("SELECT value FROM meta WHERE key = 'color'", [], |r| r.get(0)).optional()?.unwrap_or_else(|| "#2b55c9".to_string());
+        let logo = fs::read_dir(&self.dir).ok().and_then(|d| d.flatten().map(|e| e.path()).find(|p| p.file_stem().is_some_and(|s| s == "logo")));
+        Ok((color, logo))
+    }
+
+    /// Sets the badge color, and with `logo` a new image (copied in, so the original can move) or
+    /// None to go back to the letter badge. `keep_logo` leaves the logo as it is.
+    pub fn set_look(&self, color: &str, logo: Option<&Path>, keep_logo: bool) -> Result<()> {
+        if !(color.len() == 7 && color.starts_with('#') && color[1..].chars().all(|c| c.is_ascii_hexdigit())) {
+            bail!("a color looks like #2b55c9");
+        }
+        if !keep_logo {
+            let new = match logo {
+                Some(src) => {
+                    let ext = src.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+                    if !["png", "jpg", "jpeg", "webp", "svg", "gif"].contains(&ext.as_str()) {
+                        bail!("use an image for the logo: png, jpg, webp, svg or gif");
+                    }
+                    if fs::metadata(src).with_context(|| format!("couldn't read {}", src.display()))?.len() > 4 * 1024 * 1024 {
+                        bail!("that logo is over 4 MB. Pick a smaller one");
+                    }
+                    let tmp = self.dir.join(format!("logo-new.{ext}"));
+                    fs::copy(src, &tmp)?;
+                    Some((tmp, self.dir.join(format!("logo.{ext}"))))
+                }
+                None => None,
+            };
+            // The old logo goes only once the new one is safely copied.
+            if let (_, Some(old)) = self.look()? {
+                fs::remove_file(old)?;
+            }
+            if let Some((tmp, dest)) = new {
+                fs::rename(tmp, dest)?;
+            }
+        }
+        self.db.execute("INSERT INTO meta (key, value) VALUES ('color', ?1) ON CONFLICT (key) DO UPDATE SET value = ?1", [color])?;
+        Ok(())
+    }
+
     /// A paused company starts nothing new: no tickets, no lead consults, no chat replies. Work
     /// already running finishes. Your off switch for spending.
     pub fn paused(&self) -> Result<bool> {

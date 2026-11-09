@@ -106,8 +106,8 @@ function renderSide() {
   const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
-    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `<span class="logo">${esc(S.company[0].toUpperCase())}</span><span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}<span class="chev">${icon("chevrons")}</span></button>
-      ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : ""}</button>`).join("")}
+    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `${badge(S.company, S.looks?.[S.company])}<span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}<span class="chev">${icon("chevrons")}</span></button>
+      ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}">${badge(c, S.looks?.[c])}<span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : ""}</button>`).join("")}
         <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
     ${S.company ? `${Object.entries(pages).map(([k, v]) =>
       `<button class="navbtn" data-view="${k}" title="${v}" ${S.view === k ? 'aria-current="page"' : ""}>${icon(k)}<span>${v}</span>${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
@@ -704,6 +704,7 @@ function focusTop(cancel) {
 function viewProfile() {
   return `<div class="focus-wrap">${focusTop(false)}
     <form class="welcome" id="profile">
+      ${journey("You")}
       <span class="pf-pic big">${pfPic(S.profile.name)}</span>
       <h1>Who's running the company?</h1>
       <p class="muted">Your team works for you and knows you by name. Everything stays on this Mac. There's no account.</p>
@@ -753,7 +754,7 @@ async function startSetup() {
     const real = info.runtimes.filter(r => r !== "fake");
     invoke("readiness").then(r => { if (S.setup) { S.setup.ready = r; render(); } }).catch(() => {});
     S.setup = { step: 0, mode: "existing", path: "", repo: null, name: "", mission: "", runtime: real[0] || "fake", info, repoInfo,
-      folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [] };
+      folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [], color: PALETTE[S.companies.length % PALETTE.length], logo: null, logoUrl: null };
     setTemplate(real.length ? "small" : "demo");
   } catch (e) { return toast(String(e), true); }
   S.drawer = null;
@@ -789,6 +790,7 @@ async function checkRepo(path) {
   if (!path) return;
   try { s.repo = await invoke("check_repo", { path }); } catch (e) { s.repo = { ok: false, problem: String(e) }; }
   if (s.repo.ok && !s.name) s.name = s.repo.suggested;
+  if (s.repo.ok && !s.folder) s.folder = s.name;
   render();
 }
 async function makeRepo() {
@@ -809,19 +811,40 @@ function shipNote(r) {
   const cli = r.forge === "GitHub" ? "gh" : "glab";
   return `<p class="su-warn">This repo is on ${esc(r.forge)}, but ${cli} isn't signed in, so work merges locally for now. Run <code>${cli} auth login</code>, then <code>onecorp ship ${r.forge.toLowerCase()}</code>.</p>`;
 }
+// A company's badge: its logo if it has one, otherwise its first letter on its color.
+const PALETTE = ["#2b55c9", "#d97757", "#3a9b7a", "#8b5cf6", "#d4a019", "#e05d8a", "#2f9fc6", "#5f6573"];
+function badge(name, look, cls = "") {
+  if (look?.logo) return `<span class="logo ${cls} img"><img src="${esc(look.logo)}" alt=""></span>`;
+  return `<span class="logo ${cls}" style="background:${esc(look?.color || "var(--fg)")};color:#fff">${esc((name || "?")[0].toUpperCase())}</span>`;
+}
+// The whole journey, shown on every step. A first launch also counts you.
+function journey(at) {
+  const steps = [...(S.companies.length ? [] : ["You"]), "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
+  return `<ol class="su-steps">${steps.map((n, k) => `<li class="${k === i ? "on" : k < i ? "done" : ""}">${n}</li>`).join("")}</ol>`;
+}
 function viewSetup() {
-  const s = S.setup, steps = ["Repo", "Name", "Team", "Review"];
-  const dots = `<ol class="su-steps">${steps.map((n, i) => `<li class="${i === s.step ? "on" : i < s.step ? "done" : ""}">${n}</li>`).join("")}</ol>`;
+  const s = S.setup, names = ["Company", "Repo", "Team", "Launch"];
   const back = s.step ? `<button class="btn" type="button" data-su="back">Back</button>` : "<span></span>";
   const nav = (label, disabled) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
   const picker = window.__TAURI__?.dialog;
   let body = "";
-  // Your Mac first: what works, what's missing and the one command that fixes it.
+  // Your Mac, on the repo step: what works, what's missing and the one command that fixes it.
   const mark = { ok: "✓", warn: "!", fail: "×" };
-  const ready = s.step !== 0 ? "" : !s.ready ? `<div class="ready"><span class="label">Your Mac</span><p class="muted">Checking what's installed…</p></div>`
+  const ready = s.step !== 1 ? "" : !s.ready ? `<div class="ready"><span class="label">Your Mac</span><p class="muted">Checking what's installed…</p></div>`
     : `<div class="ready"><span class="label">Your Mac</span><ul>${s.ready.map(h => `<li class="lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b>${h.level === "ok" ? "" : ` <span>${esc(h.detail)}</span>${h.fix ? `<div class="fix"><code>${esc(h.fix)}</code><button class="link-btn" type="button" data-copy="${esc(h.fix.split(", then")[0])}">Copy</button></div>` : ""}`}</div></li>`).join("")}</ul>
       ${s.ready.some(h => h.level !== "ok") ? `<p class="fine">Run the command in Terminal, then <button class="link-btn" type="button" data-recheck="1">check again</button>. Claude Code and Codex ask you to sign in the first time you run them.</p>` : ""}</div>`;
+  const look = { color: s.color, logo: s.logoUrl };
   if (s.step === 0) {
+    const prefix = (s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM";
+    body = `<h2>Found your company</h2><p class="muted">Its name, its look, and what it's for. Your team sees all of it.</p>
+      <div class="co-card">${badge(s.name || "?", look, "xl")}<div class="field grow"><label for="su-name">Name</label><input id="su-name" class="big" value="${esc(s.name)}" placeholder="snowztech" autocomplete="off" spellcheck="false">
+        <span class="fine">Letters, digits, - and _. Tickets are numbered from it, like ${esc(prefix)}-1.</span></div></div>
+      <div class="field"><span class="flabel">Logo</span><div class="look-row"><div class="swatches">${PALETTE.map(c => `<button type="button" class="swatch" data-su="color-${c}" aria-pressed="${c === s.color && !s.logoUrl}" style="--c:${c}" aria-label="Color ${c}"></button>`).join("")}</div>
+        ${picker ? `<button class="btn" type="button" data-su="logo">${s.logoUrl ? "Change logo…" : "Upload a logo…"}</button>` : ""}${s.logoUrl ? `<button class="link-btn" type="button" data-su="logo-remove">Use the letter</button>` : ""}</div></div>
+      <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the handbook)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
+      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, your team plans it once you launch)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
+      ${nav("Continue")}`;
+  } else if (s.step === 1) {
     const tabs = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-su="mode-existing" aria-selected="${s.mode === "existing"}">Use an existing repo</button>
       <button type="button" role="tab" data-su="mode-new" aria-selected="${s.mode === "new"}">Start a new one</button></div>`;
     if (s.mode === "new") {
@@ -832,7 +855,7 @@ function viewSetup() {
              <span class="mono muted">/${esc((s.folder || "your-repo").toLowerCase())}</span>
              <label class="su-check" for="su-private"><input type="checkbox" id="su-private" ${s.private ? "checked" : ""}> Private</label></div>` : ""}`
         : `<p class="su-warn">Sign in to GitHub with <code>gh auth login</code> to also create the repo there. You can add a remote later too.</p>`;
-      body = `<h2>Start from just an idea</h2><p class="muted">A new folder with git, a README and a first commit, ready for your team.</p>${tabs}
+      body = `<h2>Start ${esc(s.name)} from scratch</h2><p class="muted">A new folder with git, a README and a first commit, ready for your team.</p>${tabs}
         <div class="field"><label for="su-folder">Folder name</label><input id="su-folder" value="${esc(s.folder)}" placeholder="notes-app" autocomplete="off" spellcheck="false"></div>
         <div class="field"><label for="su-parent">Inside</label><div class="su-row">${picker ? `<button class="btn" type="button" data-su="parent">Choose…</button>` : ""}<input id="su-parent" value="${esc(s.parent)}" autocomplete="off" spellcheck="false"></div></div>
         ${github}
@@ -842,16 +865,10 @@ function viewSetup() {
       const result = !r ? "" : r.ok
         ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>.</p>${shipNote(r)}${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
         : `<p class="su-bad">${esc(r.problem)}</p>`;
-      body = `<h2>Which repo does this company work on?</h2><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>${tabs}
+      body = `<h2>Where does ${esc(s.name)} work?</h2><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>${tabs}
         <div class="su-row">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="check">Check</button></div>
         ${result}${nav("Continue", !(r && r.ok))}`;
     }
-  } else if (s.step === 1) {
-    body = `<h2>Name your company</h2><p class="muted">Tickets are numbered from its first letters, like ${esc((s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM")}-1.</p>
-      <div class="field"><label for="su-name">Name</label><input id="su-name" value="${esc(s.name)}" placeholder="snowztech" autocomplete="off" spellcheck="false"></div>
-      <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the handbook)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
-      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional. Your team plans it as soon as the company exists)</span></label><textarea id="su-brief" rows="4" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
-      ${nav("Continue")}`;
   } else if (s.step === 2) {
     const real = s.info.runtimes.filter(x => x !== "fake");
     const rows = s.people.map((p, i) => `<li class="person-row">${face(p.name || "?", "neutral")}
@@ -862,9 +879,11 @@ function viewSetup() {
       <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
     const depts = [...new Set(s.people.map(p => p.dept).filter(Boolean).concat(["Engineering", "Product", "Design", "Growth"]))];
     body = `<h2>Who's on the team to start?</h2><p class="muted">Start from a template, then change anything: names, roles, departments. The first person in a department leads it.</p>
-      <div class="tpl-chips">${s.info.templates.map(x => {
+      <div class="tpl-cards">${s.info.templates.map(x => {
         const off = !real.length && !x.runtime && x.hires.length;
-        return `<button type="button" class="chip-btn" data-tpl="${x.key}" aria-pressed="${x.key === s.template}" ${off ? "disabled" : ""} title="${esc(x.description)}">${esc(x.name)}</button>`;
+        const faces = x.hires.length ? x.hires.slice(0, 4).map(h => face(h.name, "neutral")).join("") : `<span class="seat ghost"></span>`;
+        return `<button type="button" class="tpl-card" data-tpl="${x.key}" aria-pressed="${x.key === s.template}" ${off ? "disabled" : ""}>
+          <span class="tpl-faces">${faces}</span><b>${esc(x.name)}</b><span>${esc(x.description)}</span></button>`;
       }).join("")}</div>
       ${!real.length ? `<p class="su-warn">Neither Claude Code nor Codex is installed here, so only the free stand-in works. Install one later and rehire on it.</p>` : ""}
       <ul class="people">${rows || `<li class="muted">Nobody yet. Add someone, or start empty and hire later.</li>`}</ul>
@@ -872,16 +891,19 @@ function viewSetup() {
       <button class="btn" type="button" data-su="add-person">+ Add someone</button>
       ${nav("Continue")}`;
   } else {
-    body = `<h2>Ready to open ${esc(s.name)}</h2>
-      <dl class="kv su-sum"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
-        <dt>Mission</dt><dd>${esc(s.mission || "None yet")}</dd>
-        <dt>Ships</dt><dd>${s.repo.forge && s.repo.signed_in ? `As ${esc(s.repo.pr_word)}s on ${esc(s.repo.forge)}` : "By merging on your Mac"}</dd>
-        <dt>Handbook</dt><dd>Starts with what OneCorp reads in the repo: stack, commands, layout</dd>
-        ${s.brief && s.people.length ? `<dt>First plan</dt><dd>Planning starts as soon as it's created</dd>` : ""}
-        <dt>Team</dt><dd>${s.people.length ? s.people.map(p => `${esc(p.name)} <span class="muted">${esc(p.role)}${p.dept ? ", " + esc(p.dept) : ""}</span>`).join("<br>") : "Nobody yet"}</dd></dl>
-      ${nav("Create the company")}`;
+    const ships = s.repo.forge && s.repo.signed_in ? `As ${esc(s.repo.pr_word)}s on ${esc(s.repo.forge)}` : "By merging on your Mac";
+    body = `<h2>Ready to launch</h2><p class="muted">Everything can change later. This is just where you start.</p>
+      <div class="launch">
+        <header>${badge(s.name, look, "xl")}<div><b>${esc(s.name)}</b><span>${esc(s.mission || "No mission yet")}</span></div></header>
+        <dl class="kv"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
+          <dt>Ships</dt><dd>${ships}</dd>
+          <dt>Handbook</dt><dd>Starts with what OneCorp reads in the repo</dd>
+          ${s.brief && s.people.length ? `<dt>First plan</dt><dd>Your planner starts right after launch</dd>` : ""}
+          <dt>Team</dt><dd>${s.people.length ? `<span class="launch-team">${s.people.map(p => `<span title="${esc(p.name)}, ${esc(p.role)}">${face(p.name, "happy")}</span>`).join("")}</span> ${s.people.length} ${s.people.length === 1 ? "person" : "people"}` : "Nobody yet, hire after launch"}</dd></dl>
+      </div>
+      ${nav(`Launch ${esc(s.name)}`)}`;
   }
-  return `<div class="focus-wrap">${focusTop(S.companies.length)}<form class="setup ${s.step === 2 ? "wide" : ""}" id="setup">${dots}${body}${ready}</form></div>`;
+  return `<div class="focus-wrap">${focusTop(S.companies.length)}<form class="setup ${s.step === 2 ? "wide" : ""}" id="setup">${journey(names[s.step])}${body}${ready}</form></div>`;
 }
 
 /* Rendering and polling */
@@ -928,7 +950,7 @@ async function refresh(force) {
     // A first launch says hello before anything else: who you are, then your first company.
     if (S.founder === null && !S.profile && !S.setup) S.profile = { name: "" };
     const c = await invoke("companies");
-    S.companies = c.list;
+    S.companies = c.list; S.looks = c.looks || {};
     if (!S.company || !c.list.includes(S.company)) S.company = c.current;
     if (!S.company) {
       S.snap = null;
@@ -1078,6 +1100,14 @@ document.addEventListener("click", async e => {
     if (d.su === "cancel") { S.setup = null; S.view = "company"; return refresh(true); }
     if (d.su === "back") { s.step--; return render(); }
     if (d.su === "check") return checkRepo(s.path);
+    if (d.su.startsWith("color-")) { s.color = d.su.slice(6); s.logo = s.logoUrl = null; return render(); }
+    if (d.su === "logo-remove") { s.logo = s.logoUrl = null; return render(); }
+    if (d.su === "logo") {
+      const path = await window.__TAURI__.dialog.open({ multiple: false, title: "Pick a logo", filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "svg", "gif"] }] }).catch(() => null);
+      if (!path) return;
+      try { s.logoUrl = await invoke("image_preview", { path: String(path) }); s.logo = String(path); } catch (e) { toast(String(e), true); }
+      return render();
+    }
     if (d.su === "mode-existing" || d.su === "mode-new") { s.mode = d.su.slice(5); return render(); }
     if (d.su === "create-repo") return makeRepo();
     if (d.su === "toggle-gh") { s.owner = s.owner ? "" : (s.repoInfo.owners[0] || ""); return render(); }
@@ -1147,14 +1177,15 @@ document.addEventListener("submit", async e => {
     readSetup();
     const s = S.setup;
     if (s.step === 0) {
-      if (!s.repo || s.checked !== s.path) await checkRepo(s.path);
-      if (s.repo?.ok) { s.step = 1; render(); $("#su-name")?.focus(); }
-      return;
+      if (!/^[A-Za-z0-9_-]+$/.test(s.name)) { toast("A company name can use letters, digits, - and _, like snowztech or my-notes", true); return $("#su-name")?.focus(); }
+      if (S.companies.includes(s.name)) return toast(`There's already a company called ${s.name}`, true);
+      if (!s.folder) s.folder = s.name.toLowerCase();
+      s.step = 1; render(); return $("#su-path")?.focus();
     }
     if (s.step === 1) {
-      if (!/^[A-Za-z0-9_-]+$/.test(s.name)) return toast("A company name can use letters, digits, - and _, like snowztech or my-notes", true);
-      if (S.companies.includes(s.name)) return toast(`There's already a company called ${s.name}`, true);
-      s.step = 2; return render();
+      if (!s.repo || s.checked !== s.path) await checkRepo(s.path);
+      if (s.repo?.ok) { s.step = 2; render(); }
+      return;
     }
     if (s.step === 2) {
       // The same check the core makes, early, so you fix it here and not after a failed create.
@@ -1164,14 +1195,14 @@ document.addEventListener("submit", async e => {
       s.step = 3; return render();
     }
     const btn = f.querySelector(".btn.primary");
-    btn.disabled = true; btn.textContent = "Creating…";
+    btn.disabled = true; btn.textContent = "Launching…";
     try {
       const people = s.people.filter(p => p.name.trim());
-      const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, people, brief: s.brief || null });
+      const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo });
       S.setup = null; S.company = name; S.view = "company"; S.snap = null; S.last = "";
-      toast(`${name} is open. Give someone a ticket with New ticket.`);
+      toast(`${name} is open. Welcome to your company`);
       await refresh(true);
-    } catch (e) { toast(String(e), true); btn.disabled = false; btn.textContent = "Create the company"; }
+    } catch (e) { toast(String(e), true); btn.disabled = false; btn.textContent = `Launch ${s.name}`; }
     return;
   }
   if (f.id === "del-co") {
@@ -1223,6 +1254,7 @@ document.addEventListener("submit", async e => {
 });
 // The drawn face follows your name as you type it.
 document.addEventListener("input", e => {
+  if (e.target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (e.target.value.trim() || "?")[0].toUpperCase(); }
   if (e.target.id === "hb-text") $("#hb-preview").innerHTML = md(e.target.value).html;
   if (e.target.id === "pf-n" && S.drawer?.type === "hire") $(".hire-face").innerHTML = face(e.target.value || "New hire", "neutral");
   if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) $(".welcome .pf-pic").innerHTML = face(e.target.value || "You", "neutral");
@@ -1274,7 +1306,7 @@ async function previewScreen() {
   if (screen === "person") openPerson("tomas");
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
   if (screen === "setup") await startSetup();
-  if (screen.startsWith("setup-")) { await startSetup(); await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
+  if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.profile = { name: "" }; render(); }
   if (screen === "popover") { S.pop = "profile"; renderPop(); }
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
@@ -1292,7 +1324,7 @@ function preview(cmd) {
     ["lina", "Lina Park", "Product designer", "claude", "sonnet", "queued", "Up next: SNO-14", 2], ["sam", "Sam Duarte", "Writer", "claude", "haiku", "idle", "", 3],
   ].map(([id, name, role, runtime, model, status, bubble, department]) => ({ id, name, role, runtime, model, status, bubble, department, spend: "$0.40", ticket: null }));
   const data = {
-    companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech" },
+    companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech", looks: { snowztech: { color: "#2b55c9" }, tvcask: { color: "#d97757" }, autoremind: { color: "#3a9b7a" }, pingbuddy: { color: "#8b5cf6" } } },
     snapshot: {
       company: "snowztech", serve: true, kickoff: { brief: "A notes app for writers.", planner: "rui", planned: true, planning: [] }, ship: { mode: "github", forge: "GitHub", pr_word: "pull request" }, employees: team, tickets: [
         { key: "SNO-9", plan: "SNO-20", title: "Rate limit the public API", assignee: "tomas", status: "failed", spend: "40k tok" },

@@ -30,5 +30,19 @@ fn a_bad_photo_never_loses_the_one_you_had() {
     remove().unwrap();
     assert!(load().is_none() && !dir.join("home/founder-photo.png").exists(), "removing you takes the photo too");
     remove().unwrap();
+
+    // A company's look: a color, and a logo that replaces the last one.
+    let repo = dir.join("repo");
+    fs::create_dir_all(&repo).unwrap();
+    std::process::Command::new("git").arg("-C").arg(&repo).args(["init", "-q"]).status().unwrap();
+    let c = onecorp::store::Company::create("acme", &repo, "").unwrap();
+    assert_eq!(c.look().unwrap(), ("#2b55c9".to_string(), None));
+    c.set_look("#d97757", Some(&good), false).unwrap();
+    assert!(c.look().unwrap().1.unwrap().ends_with("logo.png"));
+    assert!(c.set_look("orange", None, true).is_err());
+    assert!(c.set_look("#d97757", Some(&bad), false).is_err());
+    assert!(c.look().unwrap().1.is_some(), "a bad file keeps the logo you had");
+    c.set_look("#3a9b7a", None, false).unwrap();
+    assert_eq!(c.look().unwrap(), ("#3a9b7a".to_string(), None));
     let _ = fs::remove_dir_all(&dir);
 }

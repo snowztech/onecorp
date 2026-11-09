@@ -21,7 +21,44 @@ fn open(company: &str) -> Res<Company> {
 fn companies() -> Res<Value> {
     let list = store::list().map_err(err)?;
     let current = store::current().ok().filter(|c| list.contains(c)).or_else(|| list.first().cloned());
-    Ok(json!({ "list": list, "current": current }))
+    // Each company's badge: its color, and its logo inlined so the webview can show it.
+    let looks: serde_json::Map<String, Value> = list
+        .iter()
+        .filter_map(|n| {
+            let (color, logo) = Company::open(n).ok()?.look().ok()?;
+            Some((n.clone(), json!({ "color": color, "logo": logo.as_deref().and_then(data_url) })))
+        })
+        .collect();
+    Ok(json!({ "list": list, "current": current, "looks": looks }))
+}
+
+/// An image file as a data URL, so the webview can show it without file access.
+fn data_url(p: &std::path::Path) -> Option<String> {
+    let bytes = std::fs::read(p).ok()?;
+    let mime = match p.extension()?.to_string_lossy().to_lowercase().as_str() {
+        "jpg" | "jpeg" => "image/jpeg".to_string(),
+        "svg" => "image/svg+xml".to_string(),
+        other => format!("image/{other}"),
+    };
+    Some(format!("data:{mime};base64,{}", base64(&bytes)))
+}
+
+/// A preview of an image you just picked, before anything is saved.
+#[tauri::command(async)]
+fn image_preview(path: String) -> Res<String> {
+    let p = std::path::Path::new(&path);
+    let ok = p.extension().is_some_and(|e| ["png", "jpg", "jpeg", "webp", "svg", "gif"].contains(&e.to_string_lossy().to_lowercase().as_str()));
+    if !ok || std::fs::metadata(p).map_err(|e| e.to_string())?.len() > 4 * 1024 * 1024 {
+        return Err("Pick an image under 4 MB: png, jpg, webp, svg or gif.".into());
+    }
+    data_url(p).ok_or_else(|| "Couldn't read that image.".into())
+}
+
+/// A company's color, and its logo: a new file, removed, or kept as it is.
+#[tauri::command(async)]
+fn set_look(company: String, color: String, logo: Option<String>, remove_logo: bool) -> Res<()> {
+    let path = logo.filter(|l| !l.is_empty()).map(std::path::PathBuf::from);
+    open(&company)?.set_look(&color, path.as_deref(), path.is_none() && !remove_logo).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -92,16 +129,7 @@ fn request_changes(company: String, key: String, feedback: String) -> Res<()> {
 #[tauri::command(async)]
 fn founder() -> Res<Value> {
     let Some(f) = onecorp::founder::load() else { return Ok(Value::Null) };
-    let photo = f.photo.as_deref().and_then(|p| {
-        let bytes = std::fs::read(p).ok()?;
-        let ext = p.extension()?.to_string_lossy().to_lowercase();
-        let mime = match ext.as_str() {
-            "jpg" | "jpeg" => "image/jpeg",
-            "heic" => "image/heic",
-            other => return Some(format!("data:image/{other};base64,{}", base64(&bytes))),
-        };
-        Some(format!("data:{mime};base64,{}", base64(&bytes)))
-    });
+    let photo = f.photo.as_deref().and_then(data_url);
     Ok(json!({ "name": f.name, "photo": photo }))
 }
 
@@ -229,7 +257,7 @@ fn check_repo(path: String) -> Res<Value> {
 
 /// `people` is the team as you edited it: name, role, runtime, department.
 #[tauri::command(async)]
-fn create_company(name: String, repo: String, mission: String, people: Vec<Value>, brief: Option<String>) -> Res<String> {
+fn create_company(name: String, repo: String, mission: String, people: Vec<Value>, brief: Option<String>, color: Option<String>, logo: Option<String>) -> Res<String> {
     let s = |v: &Value, k: &str| v[k].as_str().unwrap_or("").trim().to_string();
     let people: Vec<onecorp::templates::Person> = people
         .iter()
@@ -243,6 +271,9 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
         })
         .collect();
     let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, &people, brief.as_deref().unwrap_or("")).map_err(err)?;
+    // The look is a nicety: the company exists either way, so a bad logo file shouldn't undo it.
+    let logo = logo.filter(|l| !l.is_empty()).map(std::path::PathBuf::from);
+    let _ = c.set_look(color.as_deref().unwrap_or("#2b55c9"), logo.as_deref(), logo.is_none());
     Ok(c.name)
 }
 
@@ -506,6 +537,8 @@ fn main() {
             fire,
             set_paused,
             learn_repo,
+            image_preview,
+            set_look,
             make_lead,
             save_brief,
             dismiss_plan,

@@ -808,3 +808,35 @@ button.live:hover { background: var(--surface-2); color: var(--fg); }
 .mini-agents { display: inline-flex; gap: 4px; }
 .mini-agent { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: 700 12px var(--display); }
 .mini-agent[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: #fff; }
+
+/* Founding a company */
+.co-card { display: flex; align-items: center; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.field.grow { flex: 1; }
+.logo.xl { width: 64px; height: 64px; border-radius: 18px; font-size: 28px; box-shadow: 0 10px 24px -12px rgb(0 0 0 / .6); transition: background-color .2s; }
+.logo.img { background: var(--surface-2); overflow: hidden; }
+.logo.img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+input.big { font-size: 18px; padding: 10px 12px; }
+.look-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.swatches { display: flex; gap: 6px; }
+.swatch { width: 24px; height: 24px; border-radius: 99px; border: 2px solid var(--bg); background: var(--c); box-shadow: 0 0 0 1px var(--line); padding: 0; }
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--c); }
+.look-row .link-btn { margin: 0; }
+.tpl-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tpl-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); text-align: left; }
+.tpl-card:hover:not(:disabled) { border-color: var(--muted); }
+.tpl-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tpl-card:disabled { opacity: .45; cursor: not-allowed; }
+.tpl-card b { font-size: 13px; }
+.tpl-card > span:last-child { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.tpl-faces { display: flex; height: 28px; margin-bottom: 2px; }
+.tpl-faces .av { width: 28px; height: 28px; margin-right: -6px; box-shadow: 0 0 0 2px var(--surface); }
+.tpl-faces .seat.ghost { width: 28px; height: 28px; }
+.launch { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.launch header { display: flex; align-items: center; gap: 14px; }
+.launch header div { display: flex; flex-direction: column; }
+.launch header b { font: 700 20px var(--display); letter-spacing: -.015em; }
+.launch header span { color: var(--muted); font-size: 13px; }
+.launch .kv { grid-template-columns: 90px 1fr; }
+.launch-team { display: inline-flex; margin-right: 8px; vertical-align: middle; }
+.launch-team .av { width: 26px; height: 26px; margin-right: -6px; box-shadow: 0 0 0 2px var(--surface); }
+.welcome .su-steps { width: 100%; margin-bottom: 18px; }
