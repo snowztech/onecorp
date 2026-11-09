@@ -86,12 +86,16 @@ fn channels_posts_and_replies() {
     assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, from the README.");
 
     // Everyone has a personality, kept until you change it, and it reaches their prompts.
-    let voice = onecorp::voice::of(&c, "maya").unwrap();
-    assert_eq!(onecorp::voice::of(&c, "maya").unwrap(), voice);
-    onecorp::voice::set(&c, "maya", "terse").unwrap();
     let maya = c.employee("maya").unwrap().unwrap();
+    let voice = onecorp::voice::of(&c, &maya).unwrap();
+    assert_eq!(onecorp::voice::of(&c, &maya).unwrap(), voice);
+    onecorp::voice::set(&c, "maya", "thorough").unwrap();
+    assert_eq!(onecorp::voice::of(&c, &maya).unwrap(), "thorough");
+    onecorp::voice::set(&c, "maya", "terse").unwrap();
     assert!(onecorp::voice::intro(&c, &maya).unwrap().contains("You are terse"));
     assert!(onecorp::voice::set(&c, "maya", "rude").is_err());
+    let cto = onecorp::store::Employee { role: "CTO".into(), id: "odile".into(), ..maya.clone() };
+    assert_eq!(onecorp::voice::of(&c, &cto).unwrap(), "calm", "a lead starts calm");
 
     // You can take back a message.
     let id = c.post("general", "founder", "oops", None).unwrap();

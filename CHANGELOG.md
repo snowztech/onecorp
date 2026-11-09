@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Personalities: each employee writes in their own way, terse, warm, thorough, dry, blunt, curious, upbeat or calm, in chat, comments and summaries. Change it from their drawer.
+- Personalities: each employee writes in their own way, terse, warm, thorough, dry, blunt, curious, upbeat or calm, in chat, comments and summaries. Everyone starts with one that fits their role, so a starting team already has its characters. Change it from their drawer.
 - Delete a chat message: hover it and click the bin, then Delete? to confirm.
 - In a channel, a message that mentions no one says so before you send: no one will reply unless you @ someone.
 - Faces with ink outlines, each on one of eight muted colours: soft in light, deep in dark, so the team has colour that sits with the UI.
