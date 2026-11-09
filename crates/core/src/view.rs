@@ -344,7 +344,7 @@ pub fn person(c: &Company, id: &str) -> Result<Value> {
     Ok(json!({
         "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "bio": e.bio, "department": e.department,
         "voice": crate::voice::of(c, &e)?,
-        "voices": crate::voice::VOICES.iter().map(|(k, label, _)| json!({"key": k, "label": label})).collect::<Vec<_>>(),
+        "voices": crate::voice::list(),
         "current": current.map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status})),
         "activity": activity,
         "tickets": mine.iter().rev().map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status, "spend": spend(t.cost_usd, t.tokens)})).collect::<Vec<_>>(),

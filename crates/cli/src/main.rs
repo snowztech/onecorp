@@ -66,6 +66,10 @@ enum Cmd {
         /// Model for the runtime, like sonnet or opus. Defaults to the runtime's own default
         #[arg(long)]
         model: Option<String>,
+        /// How they write: terse, warm, thorough, dry, blunt, curious, upbeat or calm.
+        /// Left out, it fits their role
+        #[arg(long)]
+        personality: Option<String>,
         /// Department to join, like Engineering. Created if it doesn't exist yet
         #[arg(long)]
         dept: Option<String>,
@@ -404,7 +408,7 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{} {name}", if name == current { "*" } else { " " });
             }
         }
-        Cmd::Hire { name, preset, role, bio, runtime, model, dept, company } => {
+        Cmd::Hire { name, preset, role, bio, runtime, model, personality, dept, company } => {
             let c = open(company)?;
             let mut e = hire_form(name, preset, role, bio, runtime, model)?;
             if let Some(d) = dept {
@@ -418,7 +422,10 @@ fn run(cmd: Cmd) -> Result<()> {
                 });
             }
             c.hire(&e)?;
-            println!("Hired {} as {} at {}.", e.name, e.role, c.name);
+            if let Some(p) = personality {
+                onecorp::voice::set(&c, &e.id, &p.to_lowercase())?;
+            }
+            println!("Hired {} as {} at {}, {}.", e.name, e.role, c.name, onecorp::voice::of(&c, &e)?);
             println!("Give them a ticket: onecorp run \"<task>\" --to {}", e.id);
         }
         Cmd::Dept { action, company } => {

@@ -299,7 +299,7 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .chip-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .chip-btn:disabled { opacity: .45; cursor: not-allowed; }
 .people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.person-row { display: grid; grid-template-columns: 30px 1.1fr 1.1fr 1fr auto auto; gap: 6px; align-items: center; }
+.person-row { display: grid; grid-template-columns: 30px 1.1fr 1.1fr 1fr 96px auto auto; gap: 6px; align-items: center; }
 .person-row .av { width: 30px; height: 30px; }
 .person-row input, .person-row select { min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: var(--surface-2); font-size: 13px; }
 .person-row .x { border: 0; background: transparent; color: var(--muted); font-size: 17px; padding: 2px 6px; border-radius: 6px; }
@@ -1082,3 +1082,5 @@ table.sp .who .av { width: 20px; height: 20px; }
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 @media (max-width: 640px) { .settings-sheet { flex-direction: column; } .set-nav { width: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); } .set-nav h2 { display: none; } }
+.vsample { margin: 8px 0 0; padding: 8px 10px; border-left: 2px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.45; min-height: 38px; }
+.mini-voice { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); padding: 6px 6px; font-size: 12px; color: var(--muted); }

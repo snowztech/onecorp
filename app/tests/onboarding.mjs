@@ -110,6 +110,7 @@ try {
   const names = () => js(`[...document.querySelectorAll(".person-row input[id$='-name']")].map(i => i.value).join(", ")`);
   assert.equal(await names(), "Odile Martin, Maya Okafor, Tomás Reis, Rui Alves, Lina Park, Sam Duarte");
   assert.equal(await js(`document.querySelectorAll(".person-row .agent-badge").length`), 6, "everyone shows their agent");
+  assert.equal(await js(`document.querySelector("#su-p0-voice").value`), "calm", "a template comes with its personalities");
   await click('[data-su="del-1"]');
   assert.equal(await names(), "Odile Martin, Tomás Reis, Rui Alves, Lina Park, Sam Duarte", "the row you remove is the one that goes");
   await cont();

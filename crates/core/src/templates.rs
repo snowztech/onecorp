@@ -165,6 +165,8 @@ pub struct Person {
     pub runtime: String,
     pub model: Option<String>,
     pub department: Option<String>,
+    /// A personality key. None means the one their role starts with.
+    pub voice: Option<String>,
 }
 
 impl Template {
@@ -183,6 +185,7 @@ impl Template {
                     runtime: runtime.into(),
                     model: None,
                     department: h.dept.map(String::from),
+                    voice: None,
                 }
             })
             .collect()
@@ -249,6 +252,9 @@ pub fn hire(c: &Company, people: &[Person]) -> Result<Vec<Employee>> {
             department,
         };
         c.hire(&e)?;
+        if let Some(v) = p.voice.as_deref().filter(|v| !v.is_empty()) {
+            crate::voice::set(c, &e.id, v)?;
+        }
         hired.push(e);
     }
     Ok(hired)

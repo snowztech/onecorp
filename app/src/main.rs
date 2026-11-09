@@ -263,11 +263,11 @@ fn setup_info() -> Res<Value> {
         .map(|t| {
             json!({
                 "key": t.key, "name": t.name, "description": t.description, "runtime": t.runtime,
-                "hires": t.people("claude").iter().map(|p| json!({"name": p.name, "role": p.role, "dept": p.department})).collect::<Vec<_>>(),
+                "hires": t.people("claude").iter().map(|p| json!({"name": p.name, "role": p.role, "dept": p.department, "voice": onecorp::voice::for_role(&p.role, &store::slug(&p.name))})).collect::<Vec<_>>(),
             })
         })
         .collect();
-    Ok(json!({ "templates": teams, "runtimes": runtimes }))
+    Ok(json!({ "templates": teams, "runtimes": runtimes, "voices": onecorp::voice::list() }))
 }
 
 /// Checks a folder before it becomes a company's repo, and suggests a name from it.
@@ -312,6 +312,7 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
             runtime: s(p, "runtime"),
             model: None,
             department: Some(s(p, "dept")).filter(|d| !d.is_empty()),
+            voice: Some(s(p, "voice")).filter(|v| !v.is_empty()),
         })
         .collect();
     let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, &people, brief.as_deref().unwrap_or("")).map_err(err)?;
@@ -401,6 +402,11 @@ fn chat(company: String, channel: String) -> Res<Value> {
     onecorp::view::chat(&open(&company)?, &channel).map_err(err)
 }
 
+#[tauri::command]
+fn voices() -> Value {
+    onecorp::voice::list()
+}
+
 #[tauri::command(async)]
 fn set_voice(company: String, id: String, voice: String) -> Res<()> {
     onecorp::voice::set(&open(&company)?, &id, &voice).map_err(err)
@@ -485,7 +491,7 @@ fn move_to_department(company: String, employee: String, department: i64) -> Res
 /// Hires from the app's candidate cards. Returns the new employee's id.
 #[tauri::command(async)]
 #[allow(clippy::too_many_arguments)]
-fn hire(company: String, name: String, role: String, bio: String, runtime: String, model: Option<String>, department: Option<i64>) -> Res<String> {
+fn hire(company: String, name: String, role: String, bio: String, runtime: String, model: Option<String>, department: Option<i64>, voice: Option<String>) -> Res<String> {
     let c = open(&company)?;
     let id = store::slug(&name);
     if id.is_empty() {
@@ -498,17 +504,25 @@ fn hire(company: String, name: String, role: String, bio: String, runtime: Strin
     // An empty bio gets one that fits the role, like the CLI and templates do.
     let bio = if bio.trim().is_empty() { onecorp::templates::bio_for(&role).to_string() } else { bio };
     c.hire(&store::Employee { id: id.clone(), name, role, runtime, model, bio, department }).map_err(err)?;
+    if let Some(v) = voice.filter(|v| !v.is_empty()) {
+        onecorp::voice::set(&c, &id, &v).map_err(err)?;
+    }
     Ok(id)
 }
 
+// Tauri maps each named field from the app to an argument, so the list is the form.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
-fn update_employee(company: String, id: String, name: String, role: String, runtime: String, model: Option<String>, bio: String) -> Res<()> {
+fn update_employee(company: String, id: String, name: String, role: String, runtime: String, model: Option<String>, bio: String, voice: Option<String>) -> Res<()> {
     let c = open(&company)?;
     let e = c.employee(&id).map_err(err)?.ok_or_else(|| format!("Nobody called {id} works here."))?;
     if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
         return Err(format!("{runtime} isn't supported yet."));
     }
     let bio = if bio.trim().is_empty() { onecorp::templates::bio_for(&role).to_string() } else { bio };
+    if let Some(v) = voice.filter(|v| !v.is_empty()) {
+        onecorp::voice::set(&c, &id, &v).map_err(err)?;
+    }
     c.update_employee(&store::Employee { name, role, runtime, model: model.filter(|m| !m.trim().is_empty()), bio, ..e }).map_err(err)
 }
 
@@ -591,6 +605,7 @@ fn main() {
             chat,
             delete_message,
             set_voice,
+            voices,
             say,
             settings,
             set_ship,
