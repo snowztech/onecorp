@@ -69,6 +69,24 @@ fn request_changes(company: String, key: String, feedback: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
+fn handbook(company: String) -> Res<String> {
+    open(&company)?.handbook().map_err(err)
+}
+
+#[tauri::command(async)]
+fn save_handbook(company: String, text: String) -> Res<()> {
+    open(&company)?.write_handbook(&text).map_err(err)
+}
+
+#[tauri::command(async)]
+fn add_to_handbook(company: String, section: String, text: String) -> Res<()> {
+    if text.trim().is_empty() {
+        return Err("Write the rule first.".into());
+    }
+    open(&company)?.add_to_handbook(section.trim(), text.trim()).map_err(err)
+}
+
+#[tauri::command(async)]
 fn review(company: String, key: String) -> Res<Value> {
     let c = open(&company)?;
     let t = ticket(&c, &key)?;
@@ -138,6 +156,9 @@ fn main() {
             snapshot,
             person,
             review,
+            handbook,
+            save_handbook,
+            add_to_handbook,
             new_ticket,
             answer,
             approve,

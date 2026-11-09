@@ -46,7 +46,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Company switcher in the sidebar
 - [ ] Board and Chat pages
 - [x] Reviews in the Inbox show the real changes: commits, files, diff
-- [ ] Handbook page: read, edit and accept proposals in the app
+- [x] Handbook page: read, edit and accept proposals in the app
 - [ ] New company flow in the app (today it's `onecorp new`)
 - [ ] Questions go to the department lead before they reach you
 - [ ] ⌘K command bar for everything

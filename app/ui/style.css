@@ -164,6 +164,29 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .empty-state b { display: block; font: 700 18px var(--display); color: var(--fg); margin-bottom: 6px; }
 .empty-state code { font: 12px var(--mono); background: var(--surface-2); padding: 2px 6px; border-radius: 4px; }
 
+/* Handbook */
+.book { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 62ch; }
+.hb h3 small { margin-left: auto; font-weight: 400; }
+.hb-text { margin: 0; padding: 12px 14px 0; font-size: 15px; }
+.rules { list-style: none; margin: 0; padding: 6px 6px 0; }
+.rules li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 8px; border-radius: 8px; font-size: 14px; }
+.rules li:hover { background: var(--surface-2); }
+.rules li::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 8px; }
+.rules li span { flex: 1; }
+.rules .x { border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 6px; opacity: 0; }
+.rules li:hover .x, .rules .x:focus-visible { opacity: 1; }
+.rules .x:hover { background: var(--line); color: var(--fg); }
+.hb .reply { padding: 8px 14px 14px; margin: 0; }
+.props { display: flex; flex-direction: column; }
+.prop { display: flex; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line); }
+.prop:first-child { border-top: 0; }
+.prop .av { width: 30px; height: 30px; }
+.prop p { margin: 2px 0 8px; }
+.raw { display: flex; flex-direction: column; }
+.raw textarea { margin: 12px 14px; min-height: 360px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font: 13px/1.6 var(--mono); background: var(--surface-2); resize: vertical; }
+.raw .acts { padding: 0 14px 14px; }
+
 /* Changes behind a review */
 .changes { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .diffsum { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }

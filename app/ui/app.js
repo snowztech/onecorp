@@ -7,7 +7,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, diffs: {} };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, diffs: {}, handbook: null, hbRaw: false };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -65,7 +65,7 @@ const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length : 0)
 
 /* Sidebar and top bar */
 function renderSide() {
-  const n = waiting(), pages = { company: "Company", inbox: "Inbox" };
+  const n = waiting(), pages = { company: "Company", inbox: "Inbox", handbook: "Handbook" };
   $("#side").innerHTML = `
     <div class="cos">${S.companies.map(c => `<button class="cobtn" data-co="${esc(c)}" aria-current="${c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span></button>`).join("")}</div>
     ${S.company ? `<h6>${esc(S.company)}</h6>${Object.entries(pages).map(([k, v]) =>
@@ -75,7 +75,7 @@ function renderSide() {
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.view === "inbox" ? "Inbox" : S.company || "OneCorp";
+  $("#title").textContent = { inbox: "Inbox", handbook: "Handbook" }[S.view] || S.company || "OneCorp";
   const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
   $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}` : "";
   $("#spend").innerHTML = s ? `Spent <b>${esc(s.spend.label)}</b>` : "";
@@ -157,6 +157,49 @@ function handbook(q) {
     <span class="kind">Handbook · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the handbook</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
     <form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Or add it in your own words…"><button class="btn">Add</button></form></div></article>`;
+}
+
+/* Handbook: the file every employee reads before each ticket, shown as sections you can edit in place */
+function parseHandbook(doc) {
+  const book = { title: "", sections: [] };
+  let cur = null;
+  for (const line of String(doc || "").split("\n")) {
+    if (line.startsWith("# ")) book.title = line.slice(2).trim();
+    else if (line.startsWith("## ")) book.sections.push((cur = { name: line.slice(3).trim(), text: [], items: [] }));
+    else if (cur && /^\s*[-*] /.test(line)) cur.items.push(line.replace(/^\s*[-*] /, ""));
+    else if (cur && line.trim()) cur.text.push(line);
+  }
+  return book;
+}
+function writeHandbook(book) {
+  const parts = book.sections.map(s => {
+    const lines = [...s.text, ...s.items.map(i => "- " + i)];
+    return `## ${s.name}\n` + (lines.length ? "\n" + lines.join("\n") + "\n" : "");
+  });
+  return `# ${book.title || S.company + " handbook"}\n\n` + parts.join("\n");
+}
+function viewHandbook() {
+  if (S.handbook === null) return `<p class="muted">Opening the handbook…</p>`;
+  const proposals = S.snap.inbox.filter(q => q.kind === "handbook");
+  const props = proposals.length ? `<section class="panel"><h3>Proposed by your team <span class="badge">${proposals.length}</span></h3><div class="props">${proposals.map(q => `
+      <div class="prop">${face(q.name, "neutral")}<div><b>${esc(first(q.name))}</b> <span class="muted">for ${esc(q.section)}</span><p>${esc(q.question)}</p>
+        <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div></div></div>`).join("")}</div></section>` : "";
+  if (S.hbRaw) {
+    return `<div class="book">${props}<form class="panel raw" id="hb-raw"><h3>Edit as text <small class="muted">Markdown. Sections start with ##</small></h3>
+      <textarea id="hb-text" spellcheck="false">${esc(S.handbook)}</textarea>
+      <div class="acts"><button class="btn primary">Save</button><button class="btn" type="button" data-hb-raw="0">Cancel</button></div></form></div>`;
+  }
+  const book = parseHandbook(S.handbook);
+  const sections = book.sections.map((s, i) => `<section class="panel hb">
+      <h3>${esc(s.name)}<small class="muted">${s.items.length ? s.items.length + (s.items.length === 1 ? " rule" : " rules") : ""}</small></h3>
+      ${s.text.length ? `<p class="hb-text">${s.text.map(esc).join("<br>")}</p>` : ""}
+      ${s.items.length ? `<ul class="rules">${s.items.map((it, k) => `<li><span>${esc(it)}</span><button class="x" data-hb-del="${i}:${k}" aria-label="Remove">×</button></li>`).join("")}</ul>` : ""}
+      <form class="reply" data-hb-add="${esc(s.name)}"><input id="hb-add-${i}" placeholder="Add to ${esc(s.name)}…"><button class="btn">Add</button></form></section>`).join("");
+  return `<div class="book">
+    <p class="lede">Everyone reads this before every ticket. Decide something once, write it here, and the whole team follows it.</p>
+    ${props}${sections || `<div class="empty-state"><b>Empty handbook</b>Add a section below, like Decisions or Conventions.</div>`}
+    <form class="room-new" id="hb-section"><label for="hb-new"><b>+ New section</b></label><div class="row"><input id="hb-new" placeholder="Glossary, Tone of voice, Security…" autocomplete="off"><button class="btn">Add section</button></div></form>
+    <div class="acts"><button class="btn" data-hb-raw="1">Edit as text</button></div></div>`;
 }
 
 /* The changes behind a review: commits, files, then the diff file by file. Loaded on click. */
@@ -249,7 +292,7 @@ function render() {
   } else if (!S.snap) {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
-    v.innerHTML = S.view === "inbox" ? viewInbox() : viewCompany();
+    v.innerHTML = S.view === "inbox" ? viewInbox() : S.view === "handbook" ? viewHandbook() : viewCompany();
   }
   renderDrawer();
 }
@@ -264,9 +307,11 @@ async function refresh(force) {
     if (!S.company || !c.list.includes(S.company)) S.company = c.current;
     if (!S.company) { S.snap = null; return render(); }
     const snap = await invoke("snapshot", { company: S.company });
-    const json = JSON.stringify(snap);
+    // The handbook is a small file and can change outside the app, so it's read with every refresh.
+    const book = S.view === "handbook" ? await invoke("handbook", { company: S.company }) : S.handbook;
+    const json = JSON.stringify(snap) + (book ?? "");
     if (!force && (json === S.last || typing())) return;
-    S.snap = snap; S.last = json;
+    S.snap = snap; S.last = json; S.handbook = book;
     if (S.drawer?.type === "person") S.person = await invoke("person", { company: S.company, id: S.drawer.id }).catch(() => S.person);
     render();
   } catch (e) {
@@ -277,9 +322,16 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.hbDel) {
+    const [i, k] = d.hbDel.split(":").map(Number), book = parseHandbook(S.handbook);
+    const gone = book.sections[i].items.splice(k, 1)[0];
+    await call("save_handbook", { company: S.company, text: writeHandbook(book) }, `Removed: ${gone}`).catch(() => {});
+    return;
+  }
+  if (d.hbRaw) { S.hbRaw = d.hbRaw === "1"; return render(); }
   if (d.diff) {
     S.diffs[d.diff] = "loading"; render();
     try { S.diffs[d.diff] = await invoke("review", { company: S.company, key: d.diff }); }
@@ -288,7 +340,7 @@ document.addEventListener("click", async e => {
   }
   if (d.hideDiff) { delete S.diffs[d.hideDiff]; return render(); }
   if (d.co) { S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
-  else if (d.view) { S.view = d.view; render(); }
+  else if (d.view) { S.view = d.view; S.hbRaw = false; render(); if (d.view === "handbook") refresh(true); }
   else if (d.person) openPerson(d.person);
   else if (d.hire) { const dept = S.snap.departments.find(x => String(x.id) === d.hire); S.drawer = { type: "hire", dept: dept.id, role: /eng/i.test(dept.name) ? "Engineer" : dept.name + " specialist" }; renderDrawer(); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
@@ -317,6 +369,19 @@ document.addEventListener("submit", async e => {
     if (!name) return $("#dept-name").focus();
     const id = await call("add_department", { company: S.company, name }, `${name} is set up. Hire its first person.`).catch(() => null);
     if (id !== null) { S.addingDept = false; S.drawer = { type: "hire", dept: id, role: /eng/i.test(name) ? "Engineer" : name + " specialist" }; render(); }
+  } else if (f.dataset.hbAdd) {
+    const input = f.querySelector("input"), text = input.value.trim();
+    if (!text) return input.focus();
+    await call("add_to_handbook", { company: S.company, section: f.dataset.hbAdd, text }, `Added to ${f.dataset.hbAdd}. Everyone sees it from their next ticket.`).catch(() => {});
+  } else if (f.id === "hb-section") {
+    const name = $("#hb-new").value.trim();
+    if (!name) return $("#hb-new").focus();
+    const book = parseHandbook(S.handbook);
+    if (book.sections.some(s => s.name.toLowerCase() === name.toLowerCase())) return toast(`There's already a ${name} section`, true);
+    book.sections.push({ name, text: [], items: [] });
+    await call("save_handbook", { company: S.company, text: writeHandbook(book) }, `Added the ${name} section`).catch(() => {});
+  } else if (f.id === "hb-raw") {
+    await call("save_handbook", { company: S.company, text: $("#hb-text").value }, "Handbook saved").then(() => { S.hbRaw = false; render(); }).catch(() => {});
   } else if (f.id === "role-form") {
     S.drawer.role = $("#role").value.trim() || S.drawer.role; renderDrawer();
   } else if (f.dataset.reply) {
@@ -361,6 +426,7 @@ function preview(cmd) {
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "tool", summary: "Bash cargo test billing" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
     },
+    handbook: "# snowztech handbook\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
       activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }],
       memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing"] },

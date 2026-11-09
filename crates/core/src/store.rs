@@ -466,6 +466,13 @@ impl Company {
         }
     }
 
+    /// Replaces the whole handbook, for editing it as text.
+    pub fn write_handbook(&self, text: &str) -> Result<()> {
+        let text = text.trim_end();
+        fs::write(self.handbook_path(), format!("{text}\n"))?;
+        Ok(())
+    }
+
     pub fn add_to_handbook(&self, section: &str, text: &str) -> Result<()> {
         let doc = self.handbook()?;
         let doc = if doc.is_empty() { format!("# {} handbook\n", self.name) } else { doc };
