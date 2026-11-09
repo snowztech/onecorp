@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A design pass after onboarding: pages always fill the window (Chat no longer stops halfway), one primary button style everywhere (merge and start no longer turn green), activity logs in drawers render cleanly, and the Inbox sits centered like the Handbook.
 - The Dock badge and notifications cover all your companies, and the company switcher shows which ones need you.
 - Onboarding is tested end to end: `make check` and CI walk through it in Chrome like a first user, typing and clicking Continue from the welcome to the company page.
 - Starting teams that fit how founders work: Solo builder, Product team, Startup, Open source project, or Start empty. The stand-in team with no AI is gone from the app, since an employee without AI can't do any work. Connect AI asks for Claude Code or Codex before going on.
