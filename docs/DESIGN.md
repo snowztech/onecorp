@@ -8,7 +8,7 @@ Quiet and calm. You run a company, the app shouldn't shout. The team's faces and
 
 ## Brand
 
-Our mascot is the OneCorp badge: an employee ID badge on a lanyard clip, with a face like the team's. It has moods like they do: happy, asleep, wink. It's the app icon (`docs/brand/icon.html`, rendered to `app/icons`), the mark next to the name, and the face of empty states. One source: `app/ui/mascot.js`. Use it where a moment deserves warmth, never as decoration on busy screens.
+Our mascot is the OneCorp badge: an employee ID badge on its lanyard loop, with a face cut out of it. One color (`currentColor`), geometric, no gradients, so it sits in the monochrome UI like it belongs. It has moods like the team: happy, asleep, wink. It's the app icon (`docs/brand/icon.html`, rendered to `app/icons`), the mark next to the name, and the face of empty states. One source: `app/ui/mascot.js`. Use it where a moment deserves warmth, never as decoration on busy screens.
 
 ## System
 

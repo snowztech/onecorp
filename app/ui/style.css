@@ -415,7 +415,7 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .app.focus main { grid-template-rows: minmax(0, 1fr); }
 .app.focus .view { padding: 0; }
 .focus-wrap { min-height: 100%; display: flex; flex-direction: column; align-items: center; gap: 28px; padding: 18px 24px 56px;
-  background: radial-gradient(900px 420px at 50% -8%, var(--accent-soft), transparent 70%); }
+  background: radial-gradient(900px 420px at 50% -8%, color-mix(in srgb, var(--fg) 7%, transparent), transparent 70%); }
 .focus-top { width: 100%; max-width: 980px; display: flex; align-items: center; justify-content: space-between; min-height: 36px; }
 .native .focus-top { padding-left: 64px; }
 .brand { display: flex; align-items: center; gap: 8px; font: 700 15px var(--display); letter-spacing: -.01em; }
@@ -423,12 +423,12 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .welcome { margin: auto 0; width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
 .welcome h1 { margin: 6px 0 0; font: 700 30px/1.15 var(--display); letter-spacing: -.025em; text-wrap: balance; }
 .welcome > p { margin: 0; text-wrap: pretty; }
-.pf-pic.big .av { width: 104px; height: 104px; box-shadow: 0 0 0 6px var(--surface), 0 12px 32px rgb(0 0 0 / .18); }
-.big-input { width: 100%; margin-top: 10px; font-size: 18px; padding: 12px 14px; text-align: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.pf-pic.big .av { width: 88px; height: 88px; box-shadow: 0 0 0 6px var(--surface), 0 12px 32px rgb(0 0 0 / .18); }
+.big-input { width: 100%; margin-top: 10px; font-size: 15px; padding: 9px 12px; text-align: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .big-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
 .photo-acts { display: flex; gap: 14px; justify-content: center; font-size: 13px; min-height: 20px; }
 .photo-acts .link-btn { margin: 0; }
-.btn.lg { width: 100%; padding: 11px 18px; font-size: 15px; border-radius: 11px; margin-top: 6px; }
+.btn.lg { width: 100%; padding: 8px 16px; font-size: 14px; border-radius: var(--r-sm); margin-top: 4px; }
 .fine { margin: 0; font-size: 12px; color: var(--muted); }
 
 /* The new company flow inside a focus screen: no card, just the steps */
@@ -815,7 +815,7 @@ button.live:hover { background: var(--surface-2); color: var(--fg); }
 .logo.xl { width: 64px; height: 64px; border-radius: 18px; font-size: 28px; box-shadow: 0 10px 24px -12px rgb(0 0 0 / .6); transition: background-color .2s; }
 .logo.img { background: var(--surface-2); overflow: hidden; }
 .logo.img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-input.big { font-size: 18px; padding: 10px 12px; }
+input.big { font-size: 15px; padding: 8px 11px; }
 .look-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .swatches { display: flex; gap: 6px; }
 .swatch { width: 24px; height: 24px; border-radius: 99px; border: 2px solid var(--bg); background: var(--c); box-shadow: 0 0 0 1px var(--line); padding: 0; }
@@ -842,6 +842,10 @@ input.big { font-size: 18px; padding: 10px 12px; }
 .welcome .su-steps { width: 100%; margin-bottom: 18px; }
 
 /* The OneCorp badge, our mascot */
-.mascot { display: block; width: 100%; height: 100%; }
-.brand .mascot { width: 26px; height: 26px; }
-.empty-mascot { display: block; width: 72px; height: 72px; margin: 0 auto 14px; animation: float 3.2s ease-in-out infinite; }
+.mascot { display: block; width: 100%; height: 100%; color: var(--fg); }
+.brand .mascot { width: 22px; height: 22px; }
+.empty-mascot { display: block; width: 56px; height: 56px; margin: 0 auto 14px; opacity: .9; animation: float 3.2s ease-in-out infinite; }
+
+.field-err { margin: -4px 0 0; font-size: 12px; color: var(--signal); }
+.shake { animation: shake .32s var(--ease); border-color: var(--signal) !important; }
+@keyframes shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }

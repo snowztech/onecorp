@@ -704,14 +704,15 @@ function focusTop(cancel) {
 function viewProfile() {
   return `<div class="focus-wrap">${focusTop(false)}
     <form class="welcome" id="profile">
-      ${journey("You")}
+      ${S.companies.length ? "" : journey("You")}
       <span class="pf-pic big">${pfPic(S.profile.name)}</span>
       <h1>Who's running the company?</h1>
       <p class="muted">Your team works for you and knows you by name. Everything stays on this Mac. There's no account.</p>
       <input class="big-input" id="pf-name" value="${esc(S.profile.name)}" placeholder="Your name" autocomplete="off" aria-label="Your name">
+      <p class="field-err" id="pf-err" hidden>Say what your team should call you.</p>
       <div class="photo-acts">${photoActs() || `<span class="muted">This face is drawn from your name.</span>`}</div>
       <button class="btn primary lg">Continue</button>
-      <p class="fine">Next: your first company.</p>
+      <p class="fine">${S.companies.length ? `Next: back to ${esc(S.companies[0])}.` : "Next: your first company."}</p>
     </form></div>`;
 }
 function renderPop() {
@@ -739,7 +740,12 @@ function renderPop() {
 }
 async function saveProfile(photo, removePhoto) {
   const name = ($("#pf-name")?.value ?? S.profile.name).trim();
-  if (!name) { toast("Say what to call you first", true); $("#pf-name")?.focus(); return false; }
+  if (!name) {
+    // Said right where you're looking, not in a toast at the bottom.
+    const err = $("#pf-err"), input = $("#pf-name");
+    if (err) { err.hidden = false; input.classList.remove("shake"); void input.offsetWidth; input.classList.add("shake"); } else toast("Say what to call you first", true);
+    input?.focus(); return false;
+  }
   try {
     await invoke("save_founder", { name, photo: photo || null, removePhoto: !!removePhoto });
     S.founder = await invoke("founder");
