@@ -42,6 +42,14 @@ Everything runs locally. There's no account and no server. Your agents use the C
 <td width="50%"><b>Team chat.</b> Channels per department, direct messages, and @mentions that get a reply.<br><br><img src="docs/screenshots/chat.png" alt="Team chat in #general, the founder asking Tomás a question while he types"></td>
 </tr>
 <tr>
+<td width="50%"><b>Projects, planned for you.</b> Describe a feature, your planner breaks it into tickets with owners.<br><br><img src="docs/screenshots/project.png" alt="New project: Stripe billing, with a goal and a planner, next to the Board"></td>
+<td width="50%"><b>A wiki everyone reads.</b> Decisions and conventions, proposed by the team, approved by you.<br><br><img src="docs/screenshots/wiki.png" alt="The company wiki with a convention proposed by Lina waiting for approval"></td>
+</tr>
+<tr>
+<td width="50%"><b>Employees who learn.</b> Their personality, their current run, what they've learned and their tickets.<br><br><img src="docs/screenshots/profile.png" alt="Tomás's profile: personality, the live run, notes he saved, and his tickets"></td>
+<td width="50%"><b>Spending you can see.</b> Today against a daily budget, two weeks of history, and who spent what.<br><br><img src="docs/screenshots/spending.png" alt="Spending settings: today's spend, the daily budget, a two-week chart and spend per person"></td>
+</tr>
+<tr>
 <td width="50%"><b>A team in a minute.</b> Start from a template, each person with a role, an agent and a personality.<br><br><img src="docs/screenshots/team.png" alt="Onboarding: picking a starting team, each person with a role, department, personality and agent"></td>
 <td width="50%"><b>Light or dark.</b> It follows your Mac, or pick one in Settings.<br><br><img src="docs/screenshots/company-light.png" alt="The Company page in light mode"></td>
 </tr>
