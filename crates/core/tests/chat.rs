@@ -85,5 +85,10 @@ fn channels_posts_and_replies() {
     work::write_wiki(&c, None).unwrap();
     assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, from the README.");
 
+    // You can take back a message.
+    let id = c.post("general", "founder", "oops", None).unwrap();
+    c.delete_message(id).unwrap();
+    assert!(c.message(id).unwrap().is_none());
+
     let _ = std::fs::remove_dir_all(&root);
 }

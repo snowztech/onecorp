@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Delete a chat message: hover it and click the bin, then Delete? to confirm.
+- In a channel, a message that mentions no one says so before you send: no one will reply unless you @ someone.
 - Faces with ink outlines, each on one of eight muted colours: soft in light, deep in dark, so the team has colour that sits with the UI.
 - Pick Light, Dark or System in Settings, under You. The title bar follows.
 - Thin scrollbars that match the app, instead of the wide grey track.

@@ -115,6 +115,7 @@ const ICON = {
   chevrons: '<path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4"/>',
   pause: '<path d="M9 5v14M15 5v14"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/>',
 };
 const icon = k => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
@@ -520,7 +521,8 @@ function viewChat() {
     const who = m.founder ? me() : face(m.name, m.pending ? "working" : "neutral");
     const body = m.pending ? `<p class="typing">writing<span><i></i><i></i><i></i></span></p>` : `<p>${chatText(m.text)}</p>`;
     const meta = `<header><b>${esc(m.founder ? m.name : first(m.name))}</b>${m.founder ? '<span class="you">you</span>' : ""}<time>${hhmm(m.at)}</time>${m.key ? `<a class="tkey" data-ticket="${esc(m.key)}">${esc(m.key)}</a>` : ""}</header>`;
-    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}</div></li>`;
+    const del = m.pending ? "" : `<button class="msg-del ${S.msgDel === m.id ? "sure" : ""}" data-msg-del="${m.id}" title="Delete message" aria-label="Delete message">${S.msgDel === m.id ? "Delete?" : icon("trash")}</button>`;
+    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}</div>${del}</li>`;
   }).join("");
   const empty = person
     ? `<li class="chat-empty"><b>Message ${esc(first(person.name))}</b>Just between you two. ${esc(first(person.name))} replies to every message and reads this before their next ticket.</li>`
@@ -582,7 +584,9 @@ function updateMentions(input) {
   // Who'll reply, before you send. Each one is a paid AI reply, so the count is said out loud.
   const who = calledBy(input.value);
   const names = who.length > 3 ? `${who.length} people` : who.map(e => esc(first(e.name))).join(who.length === 2 ? " and " : ", ");
-  calls.innerHTML = who.length ? `<span class="calls-faces">${who.slice(0, 4).map(e => face(e.name, "neutral")).join("")}</span><span>${names} will reply here</span>` : "";
+  const quiet = !who.length && input.value.trim() && !String(S.channel).startsWith("dm:");
+  calls.innerHTML = who.length ? `<span class="calls-faces">${who.slice(0, 4).map(e => face(e.name, "neutral")).join("")}</span><span>${names} will reply here</span>`
+    : quiet ? `<span class="muted">No one is mentioned, so no one will reply. Add @ to ask someone.</span>` : "";
 }
 function pickMention(k) {
   const input = $("#say-text"), o = S.mention?.opts[k];
@@ -1247,7 +1251,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1368,6 +1372,14 @@ document.addEventListener("click", async e => {
     const path = await window.__TAURI__?.dialog?.open({ multiple: false, title: "Pick a photo of you", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }] }).catch(() => null);
     if (path && await saveProfile(String(path))) { saved(); render(); renderSheet(); }
     return;
+  }
+  if (d.msgDel) {
+    const id = Number(d.msgDel);
+    // First click asks, second deletes. Nothing else to confirm in chat, so no dialog.
+    if (S.msgDel !== id) { S.msgDel = id; return render(); }
+    S.msgDel = null;
+    await invoke("delete_message", { company: S.company, id }).catch(err => toast(String(err), true));
+    return refresh(true);
   }
   if (d.themePick) { setTheme(d.themePick); return renderSheet(); }
   if (d.youNophoto) { if (await saveProfile(null, true)) { saved(); render(); renderSheet(); } return; }

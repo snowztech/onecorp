@@ -401,6 +401,11 @@ fn chat(company: String, channel: String) -> Res<Value> {
     onecorp::view::chat(&open(&company)?, &channel).map_err(err)
 }
 
+#[tauri::command(async)]
+fn delete_message(company: String, id: i64) -> Res<()> {
+    open(&company)?.delete_message(id).map_err(err)
+}
+
 /// Posts as the founder. Each @mentioned person replies on their own thread, so a slow reply
 /// never holds up the app. The UI shows them typing until it lands.
 #[tauri::command(async)]
@@ -579,6 +584,7 @@ fn main() {
             companies,
             use_company,
             chat,
+            delete_message,
             say,
             settings,
             set_ship,

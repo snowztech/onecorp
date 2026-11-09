@@ -1080,6 +1080,12 @@ impl Company {
         Ok(())
     }
 
+    /// Removes a message. Its cost stays in the spend ledger, since the run already happened.
+    pub fn delete_message(&self, id: i64) -> Result<()> {
+        self.db.execute("DELETE FROM messages WHERE id = ?1", [id])?;
+        Ok(())
+    }
+
     /// Messages in a channel, or every channel when None. Oldest first.
     pub fn messages(&self, channel: Option<&str>) -> Result<Vec<Message>> {
         let mut st = self.db.prepare(
