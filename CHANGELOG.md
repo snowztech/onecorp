@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Settings → Appearance: the theme, and the face set for your team. OneCorp's own faces stay the default; Lorelei (by Lisa Wischofsky) and Notionists (by Zoish) are the other two, both CC0, bundled so they work offline.
 - From GitHub, in onboarding: search your repos and your orgs' repos, pick one, and OneCorp clones it into your dev folder (or uses it if it's already there).
 - Employees build and test their work. OneCorp reads your repo (cargo, npm, pnpm, bun, yarn, go, pytest, make) and lets Claude Code run those commands in its worktree, and the prompt asks for a green build before finishing. See or change the list in Settings, under Company.
 - Plan usage limits: when Claude Code or Codex says your plan's limit is reached, that work waits in the queue instead of failing, a bar says when it's back, and it starts again by itself at the reset. Chat replies say so too.

@@ -53,7 +53,17 @@ function loadPhoto(e) {
   invoke("employee_photo", { company: S.company, id: e.id }).then(url => { photos[key] = url; if (!typing()) render(); }).catch(() => {});
   return null;
 }
-function drawFace(name, status) {
+// Other face sets, drawn once per person and kept. Ours is the default. Their ink is dark,
+// so they always sit on a light tile, like portrait cards.
+const FACE_SETS = [["ours", "OneCorp", "Drawn here, with moods that follow their work."], ["lorelei", "Lorelei", "Fine-line portraits by Lisa Wischofsky."], ["notionists", "Notionists", "Ink sketches by Zoish."]];
+const faceSet = () => { try { const f = localStorage.getItem("onecorp.faces"); return FACE_SETS.some(([k]) => k === f) ? f : "ours"; } catch { return "ours"; } };
+const drawn = {};
+function drawFace(name, status, set = faceSet()) {
+  if (set !== "ours" && window.Faces) {
+    const key = set + "|" + name;
+    drawn[key] ||= window.Faces(set, String(name));
+    return `<span class="av set-${set}" style="background:hsl(${HUES[(hash(name) >>> 12) % 8]} 55% 88%)">${drawn[key]}</span>`;
+  }
   const h = hash(name), L = { skin: h % 5, hair: (h >>> 3) % 6, style: (h >>> 6) % 5, acc: (h >>> 9) % 4 }, hue = HUES[(h >>> 12) % 8];
   const mood = { working: "working", blocked: "blocked", idle: "sleep", queued: "neutral", done: "happy" }[status] || "neutral";
   const sk = SKIN[L.skin], hr = HAIR[L.hair], ink = "#18181b";
@@ -109,6 +119,7 @@ const ICON = {
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>',
   coin: '<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6v2M12 16v2"/>',
   spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
@@ -206,13 +217,13 @@ function viewCompany() {
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
    OneCorp needs is in place. Your own profile lives in your menu. */
 /* Settings: sections on the left, the section on the right, and changes save as you make them. */
-const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["agents", "Agents", "spark"], ["you", "You", "user"]];
+const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["agents", "Agents", "spark"], ["appearance", "Appearance", "eye"], ["you", "You", "user"]];
 function renderSheet() {
   const el = $("#sheet");
   el.hidden = !S.sheet;
   if (!S.sheet) return (el.innerHTML = "");
   const tab = SECTIONS.some(([k]) => k === S.sheet) ? S.sheet : "company";
-  const body = { company: companySection, spend: spendTab, agents: agentsSection, you: youSection }[tab]();
+  const body = { company: companySection, spend: spendTab, agents: agentsSection, appearance: appearanceSection, you: youSection }[tab]();
   el.innerHTML = `<div class="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
     <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}</nav>
     <div class="set-main"><header class="set-h"><h3>${SECTIONS.find(([k]) => k === tab)[1]}</h3><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
@@ -266,6 +277,16 @@ function agentsSection() {
     <div class="row-set"><div><b>Everything else</b><span>Git, your repo and each company.</span></div><button class="link-btn" data-health="1">${S.health ? "Check again" : "Check"}</button></div>
     ${others.length ? `<ul class="health">${others.map(h => `<li class="hc lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("")}</ul>` : ""}`;
 }
+function appearanceSection() {
+  const team = (S.snap?.employees || []).slice(0, 5).map(e => e.face || e.name);
+  const people = team.length ? team : ["Odile Martin", "Maya Okafor", "Tomás Reis", "Rui Alves", "Lina Park"];
+  const cur = faceSet();
+  return `<div class="row-set"><div><b>Theme</b><span>Follows your Mac unless you pick one.</span></div>
+      <div class="seg">${[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([k, n]) => `<button data-theme-pick="${k}" aria-pressed="${k === theme()}">${n}</button>`).join("")}</div></div>
+    <div class="row-set stack"><div><b>Faces</b><span>How your team looks everywhere. Photos you picked stay.</span></div>
+      <div class="face-sets">${FACE_SETS.map(([k, n, d]) => `<button type="button" class="face-set" data-face-set="${k}" aria-pressed="${k === cur}">
+        <span class="fs-faces">${people.map(p => drawFace(p, "neutral", k)).join("")}</span><b>${n}</b><span>${d}</span></button>`).join("")}</div></div>`;
+}
 function youSection() {
   const f = S.founder;
   const forget = S.confirm === "forget"
@@ -274,8 +295,6 @@ function youSection() {
   const pic = window.__TAURI__?.dialog ? `<button type="button" class="pf-pic pick-pic" data-you-photo="1" title="Change photo">${me()}</button>` : `<span class="pf-pic">${me()}</span>`;
   return `<form id="you-form" class="row-set you-form"><div class="who-row">${pic}<div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(f?.name || "")}" autocomplete="off"><span class="fine">Your team knows you by this name.</span></div></div>
       ${f?.photo ? `<button class="link-btn" type="button" data-you-nophoto="1">Remove photo</button>` : ""}</form>
-    <div class="row-set"><div><b>Theme</b><span>Follows your Mac unless you pick one.</span></div>
-      <div class="seg">${[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([k, n]) => `<button data-theme-pick="${k}" aria-pressed="${k === theme()}">${n}</button>`).join("")}</div></div>
     <h3 class="label danger-label">Danger zone</h3>${forget}`;
 }
 async function openSettings(tab = "company") {
@@ -1281,7 +1300,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1420,6 +1439,10 @@ document.addEventListener("click", async e => {
   if (d.commandsReset) {
     S.settings.commands = await invoke("set_commands", { company: S.company, text: null }).catch(() => S.settings.commands);
     S.settings.commands_custom = false; saved(); return renderSheet();
+  }
+  if (d.faceSet) {
+    try { localStorage.setItem("onecorp.faces", d.faceSet); } catch {}
+    render(); return renderSheet();
   }
   if (d.themePick) { setTheme(d.themePick); return renderSheet(); }
   if (d.youNophoto) { if (await saveProfile(null, true)) { saved(); render(); renderSheet(); } return; }
@@ -1744,8 +1767,9 @@ async function previewScreen() {
   if (screen === "github") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; render(); }
   if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.profile = { name: "" }; render(); }
-  if (["popover", "you", "agents"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
+  if (["popover", "you", "agents", "appearance"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
+  if (screen.startsWith("faces-")) { try { localStorage.setItem("onecorp.faces", screen.slice(6)); } catch {} render(); }
   if (screen === "limit") { S.snap.limits = [{ runtime: "claude", back: "15:00" }]; render(); }
   if (screen === "health") await openSettings("health");
 }

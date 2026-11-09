@@ -1100,3 +1100,12 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .gh-list b { font: 500 13px var(--mono); }
 .gh-list span:not(.pill-state) { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gh-list em { font-style: normal; color: var(--accent); font-size: 12px; }
+.face-sets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.face-set { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: none; text-align: left; }
+.face-set:hover { background: var(--surface-2); }
+.face-set[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.face-set b { font-size: 13px; margin-top: 4px; }
+.face-set > span:last-child { font-size: 12px; color: var(--muted); }
+.fs-faces { display: flex; }
+.fs-faces .av { width: 30px; height: 30px; margin-right: -7px; box-shadow: 0 0 0 2px var(--surface); }
+.av[class*="set-"] svg { width: 100%; height: 100%; display: block; }

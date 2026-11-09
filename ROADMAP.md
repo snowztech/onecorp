@@ -98,7 +98,7 @@ Everything a solo founder needs from download to merged work, with no dead ends.
 
 ## Later
 
-- [ ] Appearance: pick a face set for your team (ours, or a CC0 set like Lorelei or Notionists)
+- [x] Appearance: pick a face set for your team (ours, Lorelei or Notionists)
 - [ ] Real accounts per employee (GitHub bot, Slack or Discord)
 - [ ] Replay a day, weekly report card, daily standup
 - [ ] Shareable company templates
