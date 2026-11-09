@@ -242,6 +242,8 @@ function companySection() {
     <div class="row-set"><div><b>Repo</b><span class="mono">${esc(st.repo)}</span></div>${reveal(st.repo)}</div>
     <div class="row-set"><div><b>Finished work</b><span>${st.ship === "local" ? "Merged on this Mac" : "Opened as pull requests"}</span></div>
       <div class="seg">${modes.map(([m, n]) => `<button data-ship="${m}" aria-pressed="${m === st.ship}">${n}</button>`).join("")}</div></div>
+    <div class="row-set stack"><div><b>Build and test</b><span>Commands your team may run, so work comes back tested. ${st.commands_custom ? `<button class="link-btn" type="button" data-commands-reset="1">Use what the repo suggests</button>` : "Suggested from your repo."}</span></div>
+      <input id="commands-in" class="mono" value="${esc((st.commands || []).join(", "))}" placeholder="cargo test, npm test" autocomplete="off" spellcheck="false" aria-label="Build and test commands"></div>
     <div class="row-set"><div><b>Data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div>
     <h3 class="label danger-label">Danger zone</h3>${del}`;
 }
@@ -1269,7 +1271,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1404,6 +1406,10 @@ document.addEventListener("click", async e => {
     S.msgDel = null;
     await invoke("delete_message", { company: S.company, id }).catch(err => toast(String(err), true));
     return refresh(true);
+  }
+  if (d.commandsReset) {
+    S.settings.commands = await invoke("set_commands", { company: S.company, text: null }).catch(() => S.settings.commands);
+    S.settings.commands_custom = false; saved(); return renderSheet();
   }
   if (d.themePick) { setTheme(d.themePick); return renderSheet(); }
   if (d.youNophoto) { if (await saveProfile(null, true)) { saved(); render(); renderSheet(); } return; }
@@ -1638,6 +1644,10 @@ document.addEventListener("input", e => {
   if (e.target.id === "pf-name" && S.profile && !hasPhoto()) { const m = $(".welcome .mono-av"); if (m) m.innerHTML = e.target.value.trim() ? esc(initials(e.target.value)) : icon("user"); }
 });
 document.addEventListener("change", async e => {
+  if (e.target.id === "commands-in") {
+    try { S.settings.commands = await invoke("set_commands", { company: S.company, text: e.target.value }); S.settings.commands_custom = true; saved(); } catch (err) { toast(String(err), true); }
+    return renderSheet();
+  }
   if (e.target.dataset?.price) {
     await invoke("set_price", { company: S.company, runtime: e.target.dataset.price, perMillion: Math.max(0, Number(e.target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
     return loadSpend();
@@ -1763,7 +1773,7 @@ function preview(cmd, args) {
     new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
     readiness: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4", fix: null },
       { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex" }, { level: "warn", what: "GitHub CLI", detail: "installed but not signed in", fix: "gh auth login" }],
-    settings: { name: "snowztech", repo: "/Users/you/dev/snowztech", data: "/Users/you/.onecorp/companies/snowztech", home: "/Users/you/.onecorp", ship: "github", forge: "github", forge_name: "GitHub", origin: "git@github.com:snowztech/notes.git", tickets: 22, people: 6, version: "0.1.0" },
+    settings: { commands: ["cargo build", "cargo test", "cargo check", "cargo clippy", "cargo fmt"], commands_custom: false, name: "snowztech", repo: "/Users/you/dev/snowztech", data: "/Users/you/.onecorp/companies/snowztech", home: "/Users/you/.onecorp", ship: "github", forge: "github", forge_name: "GitHub", origin: "git@github.com:snowztech/notes.git", tickets: 22, people: 6, version: "0.1.0" },
     health: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4 (Claude Code)", fix: null },
       { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex, then run codex once to sign in" },
       { level: "ok", what: "company snowztech", detail: "opens pull requests on git@github.com:snowztech/notes.git (Logged in to github.com account you)", fix: null }],

@@ -5,8 +5,9 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::process::Command;
 
-// Edits are auto-accepted inside the worktree. Bash is limited to read-only git, and OneCorp
-// commits the work when the agent finishes. The company tools are always allowed.
+// Edits are auto-accepted inside the worktree. Bash is limited to read-only git plus the
+// company's build and test commands, and OneCorp commits the work when the agent finishes.
+// The company tools are always allowed.
 const ALLOWED: &str = "Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__onecorp";
 
 pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
@@ -16,7 +17,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode])
         // Only the company server loads, if any. The user's own MCP servers stay out.
         .arg("--strict-mcp-config")
-        .args(["--allowedTools", ALLOWED])
+        .args(["--allowedTools", &allowed(o.commands)])
         .current_dir(o.cwd)
         .envs(o.env.iter().map(|(k, v)| (k, v)));
     if let Some(m) = o.mcp {
@@ -32,6 +33,14 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     }
     // The prompt goes on stdin: --allowedTools takes a list and would swallow a trailing argument.
     stream(cmd, prompt, parse, o.on_spawn, on)
+}
+
+fn allowed(commands: &[String]) -> String {
+    let mut out = ALLOWED.to_string();
+    for c in commands {
+        out.push_str(&format!(",Bash({c}:*)"));
+    }
+    out
 }
 
 pub fn parse(line: &str) -> Vec<Event> {

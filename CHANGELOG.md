@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Employees build and test their work. OneCorp reads your repo (cargo, npm, pnpm, bun, yarn, go, pytest, make) and lets Claude Code run those commands in its worktree, and the prompt asks for a green build before finishing. See or change the list in Settings, under Company.
 - Plan usage limits: when Claude Code or Codex says your plan's limit is reached, that work waits in the queue instead of failing, a bar says when it's back, and it starts again by itself at the reset. Chat replies say so too.
 - Personalities: each employee writes in their own way, terse, warm, thorough, dry, blunt, curious, upbeat or calm, in chat, comments and summaries. Everyone starts with one that fits their role, so a starting team already has its characters. Pick it with the rest of the person, in onboarding, when hiring or editing, and hear a sample reply in that voice before you choose. `onecorp hire --personality`. "How they work" says it holds instructions.
 - Delete a chat message: hover it and click the bin, then Delete? to confirm.

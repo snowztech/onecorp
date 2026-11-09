@@ -174,7 +174,20 @@ fn settings(company: String) -> Res<Value> {
         "origin": onecorp::git::remote_url(&repo, "origin"),
         "tickets": c.tickets().map_err(err)?.len(), "people": c.employees().map_err(err)?.len(),
         "version": env!("CARGO_PKG_VERSION"),
+        "commands": onecorp::commands::list(&c).map_err(err)?, "commands_custom": c.setting("commands").map_err(err)?.is_some(),
     }))
+}
+
+/// Build and test commands employees may run. Empty text goes back to what the repo suggests.
+#[tauri::command(async)]
+fn set_commands(company: String, text: Option<String>) -> Res<Vec<String>> {
+    let c = open(&company)?;
+    match text {
+        Some(t) => onecorp::commands::set(&c, &t),
+        None => onecorp::commands::reset(&c),
+    }
+    .map_err(err)?;
+    onecorp::commands::list(&c).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -605,6 +618,7 @@ fn main() {
             chat,
             delete_message,
             set_voice,
+            set_commands,
             voices,
             say,
             settings,

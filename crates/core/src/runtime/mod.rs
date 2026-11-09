@@ -47,6 +47,8 @@ pub struct Opts<'a> {
     pub read_only: bool,
     /// Called with the agent's process id once it starts, so the run can be stopped.
     pub on_spawn: Option<&'a dyn Fn(u32)>,
+    /// Build and test commands Claude Code may run, like "cargo test". Codex has its own sandbox.
+    pub commands: &'a [String],
 }
 
 pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
@@ -59,11 +61,12 @@ pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) ->
 }
 
 /// One sentence for the prompt about what the agent can run, since each runtime's sandbox differs.
-pub fn abilities(runtime: &str) -> &'static str {
+pub fn abilities(runtime: &str, commands: &[String]) -> String {
     match runtime {
-        "codex" => "You can run commands, like builds and tests, in a sandbox without network access.",
-        "fake" => "You are a stand-in with no AI.",
-        _ => "You can only run read-only git commands, so don't try to build or test.",
+        "codex" => "You can run commands, like builds and tests, in a sandbox without network access. Run the tests before you finish.".into(),
+        "fake" => "You are a stand-in with no AI.".into(),
+        _ if commands.is_empty() => "You can only run read-only git commands, so don't try to build or test.".into(),
+        _ => format!("You can run read-only git commands and these: {}. Run the build and tests before you finish, and fix what breaks.", commands.join(", ")),
     }
 }
 

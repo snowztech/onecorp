@@ -1,4 +1,5 @@
 pub mod chat;
+pub mod commands;
 pub mod doctor;
 pub mod forge;
 pub mod founder;

@@ -373,6 +373,11 @@ impl Company {
         Ok(self.db.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0)).optional()?)
     }
 
+    pub fn delete_setting(&self, key: &str) -> Result<()> {
+        self.db.execute("DELETE FROM meta WHERE key = ?1", [key])?;
+        Ok(())
+    }
+
     pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
         self.db.execute("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = ?2", [key, value])?;
         Ok(())

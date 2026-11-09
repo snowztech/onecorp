@@ -162,7 +162,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
 
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
-    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None };
+    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[] };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -268,7 +268,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         role = e.role,
         company = c.name,
         bio = crate::voice::intro(c, &e)?,
-        abilities = runtime::abilities(&e.runtime),
+        abilities = runtime::abilities(&e.runtime, &crate::commands::list(c)?),
         details = ticket_details(c, t)?,
         knowledge = company_knowledge(c)?,
         notes = own_notes(c, &e.id)?,
@@ -785,7 +785,8 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     };
     // A plan only reads the repo and creates tickets. It must never change your checkout.
     let planning = c.ticket(id)?.is_some_and(|t| t.kind == "plan" || t.kind == "wiki");
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid) };
+    let commands = if planning { vec![] } else { crate::commands::list(c)? };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;

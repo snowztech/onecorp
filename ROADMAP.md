@@ -80,7 +80,7 @@ Everything a solo founder needs from download to merged work, with no dead ends.
 - [x] Our mascot, the OneCorp badge, and an app icon
 - [x] An automated walk through onboarding in Chrome, in `make check` and CI
 - [x] Usage limits: when Claude or Codex says the plan's limit is reached, pause that agent's work until it resets and say so, instead of failing tickets
-- [ ] Let employees build and run tests in their worktree (an allowlist per repo: cargo test, npm test…), so work comes back tested
+- [x] Let employees build and run tests in their worktree (an allowlist per repo: cargo test, npm test…), so work comes back tested
 - [ ] Updates inside the app (Tauri updater), so first users get fixes without downloading a DMG again
 - [ ] Clone from GitHub in onboarding: pick one of your repos (via `gh`) when it isn't on this Mac yet
 - [ ] Signed and notarized releases, so the app opens without the right-click step (the very last step before announcing)
