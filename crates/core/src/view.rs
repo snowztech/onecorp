@@ -102,8 +102,10 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     let feed: Vec<Value> = c
         .recent_events(40)?
         .into_iter()
-        .map(|(at, ticket, who, kind, summary)| {
-            json!({"at": at, "key": c.key(ticket), "employee": who, "name": name_of(&who), "kind": kind, "summary": summary})
+        .map(|(at, ticket, who, kind, summary, title)| {
+            // "claude (opus), started" reads as just "started" in the feed.
+            let summary = if kind == "start" { summary.rsplit(", ").next().unwrap_or("started").to_string() } else { summary };
+            json!({"at": at, "key": c.key(ticket), "employee": who, "name": name_of(&who), "kind": kind, "summary": summary, "title": title})
         })
         .collect();
 
@@ -270,6 +272,7 @@ mod tests {
         }
         let m = c.add_ticket("magic links", "maya").unwrap();
         c.set_status(m, "doing").unwrap();
+        c.add_event(m, "start", "claude (opus), started", "").unwrap();
         c.add_event(m, "tool", "Edit src/auth.rs", "").unwrap();
         let t = c.add_ticket("pricing", "tomas").unwrap();
         c.set_status(t, "blocked").unwrap();
@@ -280,7 +283,8 @@ mod tests {
         assert_eq!(by("tomas")["status"], "blocked");
         assert_eq!(by("tomas")["bubble"], "Need you on SNO-2");
         assert_eq!(by("lina")["status"], "idle");
-        assert_eq!(v["feed"][0]["name"], "Maya Okafor");
+        assert_eq!((v["feed"][0]["name"].as_str(), v["feed"][0]["summary"].as_str()), (Some("Maya Okafor"), Some("started")));
+        assert_eq!(v["feed"].as_array().unwrap().len(), 1, "tool calls stay out of the feed");
         // Nobody is in a department yet, so they show up together until you place them.
         assert_eq!(v["departments"][0]["name"], "No department yet");
         let eng = c.add_department("Engineering").unwrap();

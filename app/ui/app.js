@@ -134,8 +134,8 @@ function viewCompany() {
       <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder${working ? ` · ${working} working now` : ""}</span></div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
-      ${items.length ? `<section class="panel"><h3>Needs you <span class="badge">${items.length}</span></h3><div class="needs">${needs}</div></section>` : ""}
-      <section class="panel"><h3>Live <small class="muted">${s.serve ? "streaming" : "paused"}</small></h3><ul class="feed">${feed(s.feed)}</ul></section>
+      ${items.length ? `<section class="side-sec"><h3 class="label">Needs you <span class="badge">${items.length}</span></h3><div class="needs">${needs}</div></section>` : ""}
+      <section class="side-sec"><h3 class="label">Live <span class="live ${s.serve ? "" : "off"}">${s.serve ? "On" : "Paused"}</span></h3><ul class="feed">${feed(s.feed)}</ul></section>
     </aside></div>`;
 }
 /* Kickoff: from what you're building to a plan of tickets */
@@ -147,7 +147,11 @@ function kickoffCard() {
       <span class="muted">Reading your brief and the repo. The plan shows up in your Inbox to review.</span></div>
       <button class="btn" data-ticket="${esc(p.key)}">Follow along</button></section>`;
   }
-  if (k.planned || !team.length) return "";
+  if (!team.length) return "";
+  if (k.planned) {
+    const line = (k.brief || "").split(/(?<=[.!?])\s|\n/)[0];
+    return line ? `<button class="building" data-view="handbook"><span class="label">Building</span><span class="what">${esc(line)}</span><span class="muted">Edit brief</span></button>` : "";
+  }
   return `<form class="kick" id="kick"><div class="kick-body"><b>What are you building?</b>
       <span class="muted">The product, who it's for, what the first version needs. Your team plans it into tickets, and you start them when you're happy.</span>
       <textarea id="ko-brief" rows="4" placeholder="A notes app for writers. Magic link login, notes that sync, and export to Markdown. Free to start, $6 a month for more.">${esc(k.brief)}</textarea>
@@ -156,8 +160,8 @@ function kickoffCard() {
 }
 
 function feed(items) {
-  if (!items.length) return `<li><span></span><span class="muted">Nothing yet. Start a ticket and it shows up here.</span></li>`;
-  return items.map(f => `<li>${face(f.name, "neutral")}<div><b>${esc(first(f.name))}</b> <span class="key">${esc(f.key)}</span> ${esc(f.summary)}<time>${hhmm(f.at)}</time></div></li>`).join("");
+  if (!items.length) return `<li class="none">Nothing yet. Start a ticket and it shows up here.</li>`;
+  return items.map(f => `<li><button class="fl" data-ticket="${esc(f.key)}">${face(f.name, "neutral")}<div><p><b>${esc(first(f.name))}</b> ${esc(f.summary)}</p><p class="ft"><span class="key">${esc(f.key)}</span> ${esc(f.title || "")}</p></div><time>${hhmm(f.at)}</time></button></li>`).join("");
 }
 
 /* Inbox: everything that needs you, answerable in one click */
@@ -295,9 +299,9 @@ function viewHandbook() {
       <h3>${esc(s.name)}<small class="muted">${s.items.length ? s.items.length + (s.items.length === 1 ? " rule" : " rules") : ""}</small></h3>
       ${s.text.length ? `<p class="hb-text">${s.text.map(esc).join("<br>")}</p>` : ""}
       ${s.items.length ? `<ul class="rules">${s.items.map((it, k) => `<li><span>${esc(it)}</span><button class="x" data-hb-del="${i}:${k}" aria-label="Remove">×</button></li>`).join("")}</ul>` : ""}
-      <form class="reply" data-hb-add="${esc(s.name)}"><input id="hb-add-${i}" placeholder="Add to ${esc(s.name)}…"><button class="btn">Add</button></form></section>`).join("");
+      ${more(`hb-add-${i}`, `+ Add to ${esc(s.name)}`, `<form class="reply" data-hb-add="${esc(s.name)}"><input id="hb-add-${i}" placeholder="Add to ${esc(s.name)}…"><button class="btn">Add</button></form>`)}</section>`).join("");
   const brief = `<form class="panel hb" id="brief-form"><h3>What we're building<small class="muted">Everyone reads it. Planning starts from it.</small></h3>
-      <textarea id="brief-text" class="brief-text" rows="5" placeholder="The product, who it's for, what the first version needs.">${esc(S.snap.kickoff.brief)}</textarea>
+      <textarea id="brief-text" class="brief-text" rows="3" placeholder="The product, who it's for, what the first version needs.">${esc(S.snap.kickoff.brief)}</textarea>
       <div class="acts brief-acts"><button class="btn">Save</button><button class="btn" type="button" data-replan="1">Save and plan it</button></div></form>`;
   return `<div class="book">
     ${brief}
@@ -967,7 +971,7 @@ function preview(cmd) {
           tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
             { key: "SNO-22", title: "Magic link login", description: "Email a one-time link, 15 minute expiry.", assignee: "tomas", name: "Tomás Reis", after: "SNO-21", status: "backlog" }] },
         { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
-      feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "tool", summary: "Bash cargo test billing" }],
+      feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31", title: "Pricing page" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "start", summary: "started", title: "Retry failed Stripe webhooks" }, { at: "2026-11-09 10:31:00", key: "SNO-12", employee: "maya", name: "Maya Okafor", kind: "block", summary: "asked you about magic link expiry", title: "Magic link login" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },

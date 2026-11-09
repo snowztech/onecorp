@@ -154,8 +154,8 @@ pub struct Department {
     pub lead: Option<String>,
 }
 
-/// (time, ticket, employee, kind, summary)
-pub type FeedEvent = (String, i64, String, String, String);
+/// (time, ticket, employee, kind, summary, ticket title)
+pub type FeedEvent = (String, i64, String, String, String, String);
 
 /// A chat message. `author` is an employee id, or "founder".
 #[derive(Clone, Debug)]
@@ -863,12 +863,15 @@ impl Company {
     }
 
     /// The company's latest events across all tickets, newest first: (time, ticket, employee, kind, summary).
+    /// The moments worth seeing in the Live feed, newest first. Tool calls, agent chatter and
+    /// commits stay in each ticket's own log.
     pub fn recent_events(&self, limit: i64) -> Result<Vec<FeedEvent>> {
         let mut st = self.db.prepare(
-            "SELECT e.at, e.ticket_id, coalesce(t.assignee, ''), e.kind, e.summary
-             FROM events e JOIN tickets t ON t.id = e.ticket_id ORDER BY e.id DESC LIMIT ?1",
+            "SELECT e.at, e.ticket_id, coalesce(t.assignee, ''), e.kind, e.summary, t.title
+             FROM events e JOIN tickets t ON t.id = e.ticket_id
+             WHERE e.kind NOT IN ('tool', 'say', 'error', 'commit') ORDER BY e.id DESC LIMIT ?1",
         )?;
-        let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
+        let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
