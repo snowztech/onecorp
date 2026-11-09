@@ -79,6 +79,36 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// Questions your team is waiting on
+    Inbox {
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Answer a question from the inbox
+    Answer {
+        /// Question number, like 3 or #3
+        question: String,
+        answer: Vec<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Read team chat
+    Chat {
+        /// Channel, like eng or #eng. All channels when left out
+        channel: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// The company MCP server. Started by the agent, not by you
+    #[command(hide = true)]
+    Mcp {
+        #[arg(long)]
+        company: String,
+        #[arg(long)]
+        ticket: i64,
+        #[arg(long)]
+        employee: String,
+    },
 }
 
 struct Preset {
@@ -214,6 +244,55 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{at}  {kind:<6} {summary}");
             }
         }
+        Cmd::Inbox { company } => {
+            let c = open(company)?;
+            let qs = c.inbox()?;
+            if qs.is_empty() {
+                println!("Inbox zero. Nobody is waiting on you.");
+            }
+            for q in qs {
+                let ticket = q.ticket_id.map(|t| c.key(t)).unwrap_or_default();
+                let tag = if q.blocking { "  [blocking]" } else { "" };
+                println!("#{:<3} {ticket:<7} {}{tag}\n     {}", q.id, q.employee, q.question);
+                let mut extra = vec![];
+                if !q.options.is_empty() {
+                    extra.push(format!("options: {}", q.options));
+                }
+                if !q.default_answer.is_empty() {
+                    extra.push(format!("default: {}", q.default_answer));
+                }
+                if !extra.is_empty() {
+                    println!("     {}", extra.join("   "));
+                }
+                println!();
+            }
+        }
+        Cmd::Answer { question, answer, company } => {
+            let c = open(company)?;
+            let id: i64 = question.trim_start_matches('#').parse().map_err(|_| anyhow::anyhow!("not a question number: {question}"))?;
+            let text = answer.join(" ");
+            if text.trim().is_empty() {
+                bail!("what's the answer? For example: onecorp answer {id} \"go with 15 minutes\"");
+            }
+            c.answer(id, text.trim())?;
+            println!("Answered #{id}.");
+        }
+        Cmd::Chat { channel, company } => {
+            let c = open(company)?;
+            let channel = channel.map(|ch| ch.trim_start_matches('#').to_string());
+            let msgs = c.messages(channel.as_deref())?;
+            if msgs.is_empty() {
+                println!("Nothing posted yet.");
+            }
+            for (at, ch, author, text, ticket) in msgs {
+                let ticket = ticket.map(|t| format!("  ({})", c.key(t))).unwrap_or_default();
+                println!("{} #{ch:<8} {author}: {text}{ticket}", at.get(11..16).unwrap_or(&at));
+            }
+        }
+        Cmd::Mcp { company, ticket, employee } => {
+            let c = store::Company::open(&company)?;
+            onecorp::mcp::serve(&c, &onecorp::mcp::Ctx { ticket, employee })?;
+        }
     }
     Ok(())
 }
@@ -329,23 +408,37 @@ fn work(c: &store::Company, e: &Employee, title: &str) -> Result<()> {
          Your ticket is {key}: {title}\n\n\
          You are in a git worktree on branch {branch}. Do the work, then commit it with a clear one-line message. \
          You can't run commands other than git, so don't try to build or test. \
-         End with two or three sentences: what you changed and anything the reviewer should check.",
+         End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
+         You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
+         or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
+         If something outside your control stops you, use update_ticket to mark the ticket blocked.",
         name = e.name,
         role = e.role,
         company = c.name,
         bio = e.bio,
     );
 
+    // Claude Code starts this same binary as the company's MCP server, scoped to this ticket.
+    let mcp = serde_json::json!({"mcpServers": {"onecorp": {
+        "command": std::env::current_exe()?.to_string_lossy(),
+        "args": ["mcp", "--company", c.name, "--ticket", id.to_string(), "--employee", e.id],
+        "env": {"ONECORP_HOME": store::home().to_string_lossy()},
+    }}})
+    .to_string();
+
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
-    claude::run(&wt, e.model.as_deref(), &prompt, |raw, ev| {
+    claude::run(&wt, e.model.as_deref(), &mcp, &prompt, |raw, ev| {
         let (kind, summary) = match &ev {
             Event::Init { session, model } => {
                 c.set_session(id, session)?;
                 ("start", format!("Claude Code ({model})"))
             }
             Event::Say(text) => ("say", first_line(text)),
-            Event::Tool { name, detail } => ("tool", first_line(&format!("{name} {}", detail.replace(&wt_prefix, ""))).trim_end().to_string()),
+            Event::Tool { name, detail } => {
+                let name = name.strip_prefix("mcp__onecorp__").unwrap_or(name);
+                ("tool", first_line(&format!("{name} {}", detail.replace(&wt_prefix, ""))).trim_end().to_string())
+            }
             Event::ToolResult { error: true, text } => ("error", text.clone()),
             Event::ToolResult { .. } => return Ok(()),
             Event::Done { ok, cost, turns, text } => {
@@ -363,6 +456,17 @@ fn work(c: &store::Company, e: &Employee, title: &str) -> Result<()> {
 
     let (ok, cost, text) = outcome.unwrap_or_default();
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost)?;
-    println!("\n{text}\n\n{key} is {}. Branch {branch}, cost ${cost:.2}.", if ok { "ready for review" } else { "failed" });
+    let status = c.ticket(id)?.map(|t| t.status).unwrap_or_default();
+    let what = match status.as_str() {
+        "review" => "ready for review".to_string(),
+        "blocked" => "blocked. See what they need: onecorp inbox".to_string(),
+        s => s.to_string(),
+    };
+    println!("\n{text}\n\n{key} is {what}\nBranch {branch}, cost ${cost:.2}.");
+    let waiting = c.inbox()?.len();
+    if waiting > 0 && status != "blocked" {
+        let q = if waiting == 1 { "question" } else { "questions" };
+        println!("{waiting} {q} in your inbox: onecorp inbox");
+    }
     Ok(())
 }

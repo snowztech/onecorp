@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS employees (
   runtime TEXT NOT NULL,
   model TEXT,
   bio TEXT NOT NULL DEFAULT '',
-  hired_at TEXT NOT NULL DEFAULT (datetime('now'))
+  hired_at TEXT NOT NULL DEFAULT (datetime('now')),
+  fired_at TEXT
 );
 CREATE TABLE IF NOT EXISTS tickets (
   id INTEGER PRIMARY KEY,
@@ -32,6 +33,26 @@ CREATE TABLE IF NOT EXISTS events (
   kind TEXT NOT NULL,
   summary TEXT NOT NULL,
   raw TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS inbox (
+  id INTEGER PRIMARY KEY,
+  ticket_id INTEGER REFERENCES tickets(id),
+  employee TEXT NOT NULL,
+  question TEXT NOT NULL,
+  options TEXT NOT NULL DEFAULT '',
+  default_answer TEXT NOT NULL DEFAULT '',
+  blocking INTEGER NOT NULL DEFAULT 0,
+  answer TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  answered_at TEXT
+);
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY,
+  channel TEXT NOT NULL,
+  author TEXT NOT NULL,
+  text TEXT NOT NULL,
+  ticket_id INTEGER REFERENCES tickets(id),
+  at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ";
 
@@ -69,6 +90,21 @@ pub struct Employee {
     pub runtime: String,
     pub model: Option<String>,
     pub bio: String,
+}
+
+/// (time, channel, author, text, ticket)
+pub type Message = (String, String, String, String, Option<i64>);
+
+pub struct Question {
+    pub id: i64,
+    pub ticket_id: Option<i64>,
+    pub employee: String,
+    pub question: String,
+    /// Comma separated, empty when the question is open-ended.
+    pub options: String,
+    pub default_answer: String,
+    pub blocking: bool,
+    pub answer: Option<String>,
 }
 
 pub struct Ticket {
@@ -113,8 +149,12 @@ impl Company {
         Self::open_dir(name, dir)
     }
 
-    fn open_dir(name: &str, dir: PathBuf) -> Result<Company> {
+    pub(crate) fn open_dir(name: &str, dir: PathBuf) -> Result<Company> {
         let db = Connection::open(dir.join("company.db"))?;
+        // The CLI and the agent's MCP server write at the same time. WAL plus a busy timeout
+        // lets them take turns instead of failing with "database is locked".
+        db.busy_timeout(std::time::Duration::from_secs(5))?;
+        db.execute_batch("PRAGMA journal_mode = WAL;")?;
         db.execute_batch(SCHEMA)?;
         Ok(Company { name: name.to_string(), dir, db })
     }
@@ -136,25 +176,29 @@ impl Company {
         num.parse().with_context(|| format!("not a ticket: {key}"))
     }
 
+    /// Hiring someone who was fired before brings their record back with the new details.
     pub fn hire(&self, e: &Employee) -> Result<()> {
         if self.employee(&e.id)?.is_some() {
             bail!("{} already works at {}", e.id, self.name);
         }
         self.db.execute(
-            "INSERT INTO employees (id, name, role, runtime, model, bio) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO employees (id, name, role, runtime, model, bio) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT (id) DO UPDATE SET name = ?2, role = ?3, runtime = ?4, model = ?5, bio = ?6,
+               fired_at = NULL, hired_at = datetime('now')",
             params![e.id, e.name, e.role, e.runtime, e.model, e.bio],
         )?;
         Ok(())
     }
 
+    /// Fired employees keep their row, so old tickets still say who did them.
     pub fn fire(&self, id: &str) -> Result<()> {
         let busy: i64 =
             self.db.query_row("SELECT count(*) FROM tickets WHERE assignee = ?1 AND status = 'doing'", [id], |r| r.get(0))?;
         if busy > 0 {
             bail!("{id} is working on a ticket right now. Wait for it to finish first");
         }
-        // Their past tickets stay, so the history of who did what survives.
-        if self.db.execute("DELETE FROM employees WHERE id = ?1", [id])? == 0 {
+        let n = self.db.execute("UPDATE employees SET fired_at = datetime('now') WHERE id = ?1 AND fired_at IS NULL", [id])?;
+        if n == 0 {
             bail!("nobody called {id} works at {}", self.name);
         }
         Ok(())
@@ -163,12 +207,18 @@ impl Company {
     pub fn employee(&self, id: &str) -> Result<Option<Employee>> {
         Ok(self
             .db
-            .query_row("SELECT id, name, role, runtime, model, bio FROM employees WHERE id = ?1", [id], row_to_employee)
+            .query_row(
+                "SELECT id, name, role, runtime, model, bio FROM employees WHERE id = ?1 AND fired_at IS NULL",
+                [id],
+                row_to_employee,
+            )
             .optional()?)
     }
 
     pub fn employees(&self) -> Result<Vec<Employee>> {
-        let mut st = self.db.prepare("SELECT id, name, role, runtime, model, bio FROM employees ORDER BY hired_at")?;
+        let mut st = self
+            .db
+            .prepare("SELECT id, name, role, runtime, model, bio FROM employees WHERE fired_at IS NULL ORDER BY hired_at")?;
         let rows = st.query_map([], row_to_employee)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -191,12 +241,79 @@ impl Company {
         Ok(())
     }
 
+    /// A ticket the agent marked blocked stays blocked when the run ends cleanly.
     pub fn finish_ticket(&self, id: i64, status: &str, cost: f64) -> Result<()> {
         self.db.execute(
-            "UPDATE tickets SET status = ?2, cost_usd = cost_usd + ?3 WHERE id = ?1",
+            "UPDATE tickets SET cost_usd = cost_usd + ?3,
+               status = CASE WHEN status = 'blocked' AND ?2 = 'review' THEN 'blocked' ELSE ?2 END
+             WHERE id = ?1",
             params![id, status, cost],
         )?;
         Ok(())
+    }
+
+    pub fn set_status(&self, id: i64, status: &str) -> Result<()> {
+        self.db.execute("UPDATE tickets SET status = ?2 WHERE id = ?1", params![id, status])?;
+        Ok(())
+    }
+
+    pub fn ask(&self, q: &Question) -> Result<i64> {
+        self.db.execute(
+            "INSERT INTO inbox (ticket_id, employee, question, options, default_answer, blocking)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![q.ticket_id, q.employee, q.question, q.options, q.default_answer, q.blocking],
+        )?;
+        Ok(self.db.last_insert_rowid())
+    }
+
+    /// Open questions, oldest first.
+    pub fn inbox(&self) -> Result<Vec<Question>> {
+        let mut st = self.db.prepare(
+            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer
+             FROM inbox WHERE answer IS NULL ORDER BY id",
+        )?;
+        let rows = st.query_map([], |r| {
+            Ok(Question {
+                id: r.get(0)?,
+                ticket_id: r.get(1)?,
+                employee: r.get(2)?,
+                question: r.get(3)?,
+                options: r.get(4)?,
+                default_answer: r.get(5)?,
+                blocking: r.get(6)?,
+                answer: r.get(7)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn answer(&self, id: i64, answer: &str) -> Result<()> {
+        let n = self.db.execute(
+            "UPDATE inbox SET answer = ?2, answered_at = datetime('now') WHERE id = ?1 AND answer IS NULL",
+            params![id, answer],
+        )?;
+        if n == 0 {
+            bail!("no open question #{id}. See: onecorp inbox");
+        }
+        Ok(())
+    }
+
+    pub fn post(&self, channel: &str, author: &str, text: &str, ticket: Option<i64>) -> Result<()> {
+        self.db.execute(
+            "INSERT INTO messages (channel, author, text, ticket_id) VALUES (?1, ?2, ?3, ?4)",
+            params![channel, author, text, ticket],
+        )?;
+        Ok(())
+    }
+
+    /// Messages in a channel, or every channel when None. Oldest first.
+    pub fn messages(&self, channel: Option<&str>) -> Result<Vec<Message>> {
+        let mut st = self.db.prepare(
+            "SELECT at, channel, author, text, ticket_id FROM messages
+             WHERE ?1 IS NULL OR channel = ?1 ORDER BY id",
+        )?;
+        let rows = st.query_map([channel], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     pub fn add_event(&self, ticket: i64, kind: &str, summary: &str, raw: &str) -> Result<()> {

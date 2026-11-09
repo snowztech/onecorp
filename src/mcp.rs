@@ -1,0 +1,210 @@
+//! The company's MCP server. Claude Code starts it over stdio for each ticket, so the agent can
+//! talk back to the company: ask the founder something, post to a channel, mark itself blocked.
+//!
+//! MCP over stdio is newline-delimited JSON-RPC 2.0. We only need four methods, so it's done by hand.
+
+use crate::store::{Company, Question};
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::io::{BufRead, Write};
+
+pub struct Ctx {
+    pub ticket: i64,
+    pub employee: String,
+}
+
+pub fn serve(c: &Company, ctx: &Ctx) -> Result<()> {
+    let stdout = std::io::stdout();
+    for line in std::io::stdin().lock().lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let reply = match serde_json::from_str::<Value>(&line) {
+            Ok(msg) => handle(c, ctx, &msg),
+            Err(e) => Some(json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": e.to_string()}})),
+        };
+        if let Some(reply) = reply {
+            let mut out = stdout.lock();
+            writeln!(out, "{reply}")?;
+            out.flush()?;
+        }
+    }
+    Ok(())
+}
+
+/// Returns None for notifications, which get no reply.
+pub fn handle(c: &Company, ctx: &Ctx, msg: &Value) -> Option<Value> {
+    let id = msg.get("id")?.clone();
+    let result = match msg["method"].as_str().unwrap_or("") {
+        "initialize" => Ok(json!({
+            "protocolVersion": msg["params"]["protocolVersion"].as_str().unwrap_or("2025-06-18"),
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "onecorp", "version": env!("CARGO_PKG_VERSION")},
+        })),
+        "ping" => Ok(json!({})),
+        "tools/list" => Ok(json!({"tools": tools()})),
+        "tools/call" => Ok(match call(c, ctx, &msg["params"]["name"], &msg["params"]["arguments"]) {
+            Ok(text) => json!({"content": [{"type": "text", "text": text}]}),
+            Err(e) => json!({"content": [{"type": "text", "text": format!("{e:#}")}], "isError": true}),
+        }),
+        m => Err(json!({"code": -32601, "message": format!("unknown method {m}")})),
+    };
+    Some(match result {
+        Ok(r) => json!({"jsonrpc": "2.0", "id": id, "result": r}),
+        Err(e) => json!({"jsonrpc": "2.0", "id": id, "error": e}),
+    })
+}
+
+fn tools() -> Value {
+    json!([
+        {
+            "name": "ask_human",
+            "description": "Ask the founder a question. It lands in their inbox. Use blocking=true only when you can't continue \
+                            without the answer, then stop working. Otherwise give a default, carry on with it, and say so.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string"},
+                    "options": {"type": "array", "items": {"type": "string"}, "description": "Possible answers, if it's a choice"},
+                    "default": {"type": "string", "description": "What you'll go with if nobody answers"},
+                    "blocking": {"type": "boolean", "description": "True if you are stopping until this is answered"}
+                },
+                "required": ["question"]
+            }
+        },
+        {
+            "name": "post_message",
+            "description": "Post a short message to a team channel, like #eng or #general. Use it for things teammates should know, not for progress logs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Channel name without #. Defaults to general"},
+                    "text": {"type": "string"}
+                },
+                "required": ["text"]
+            }
+        },
+        {
+            "name": "update_ticket",
+            "description": "Mark your ticket blocked, with the reason. The founder sees it on the board.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "enum": ["blocked"]},
+                    "note": {"type": "string", "description": "Why, in one sentence"}
+                },
+                "required": ["status", "note"]
+            }
+        }
+    ])
+}
+
+fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
+    let s = |k: &str| args[k].as_str().unwrap_or("").trim().to_string();
+    match name.as_str().unwrap_or("") {
+        "ask_human" => {
+            let question = s("question");
+            anyhow::ensure!(!question.is_empty(), "question is required");
+            let options = args["options"]
+                .as_array()
+                .map(|o| o.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
+                .unwrap_or_default();
+            let blocking = args["blocking"] == true;
+            let n = c.ask(&Question {
+                id: 0,
+                ticket_id: Some(ctx.ticket),
+                employee: ctx.employee.clone(),
+                question,
+                options,
+                default_answer: s("default"),
+                blocking,
+                answer: None,
+            })?;
+            if blocking {
+                c.set_status(ctx.ticket, "blocked")?;
+                Ok(format!("Question #{n} is in the founder's inbox and the ticket is marked blocked. Stop here and summarize where you are."))
+            } else {
+                Ok(format!("Question #{n} is in the founder's inbox. Carry on with your default and mention it in your summary."))
+            }
+        }
+        "post_message" => {
+            let text = s("text");
+            anyhow::ensure!(!text.is_empty(), "text is required");
+            let channel = s("channel");
+            let channel = channel.trim_start_matches('#');
+            let channel = if channel.is_empty() { "general" } else { channel };
+            c.post(channel, &ctx.employee, &text, Some(ctx.ticket))?;
+            Ok(format!("Posted in #{channel}."))
+        }
+        "update_ticket" => {
+            anyhow::ensure!(s("status") == "blocked", "the only status you can set is blocked");
+            let note = s("note");
+            c.set_status(ctx.ticket, "blocked")?;
+            c.add_event(ctx.ticket, "block", &note, &args.to_string())?;
+            Ok("Ticket marked blocked. Stop here and summarize where you are.".into())
+        }
+        other => anyhow::bail!("no tool called {other}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::Employee;
+
+    #[test]
+    fn speaks_enough_mcp_and_writes_to_the_company() {
+        let dir = std::env::temp_dir().join(format!("onecorp-mcp-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let c = Company::open_dir("snowztech", dir.clone()).unwrap();
+        let maya = Employee {
+            id: "maya".into(),
+            name: "Maya".into(),
+            role: "Engineer".into(),
+            runtime: "claude".into(),
+            model: None,
+            bio: String::new(),
+        };
+        c.hire(&maya).unwrap();
+        let t = c.add_ticket("magic links", "maya").unwrap();
+        let ctx = Ctx { ticket: t, employee: "maya".into() };
+        let req = |id: i64, method: &str, params: Value| json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
+
+        let init = handle(&c, &ctx, &req(1, "initialize", json!({"protocolVersion": "2025-06-18"}))).unwrap();
+        assert_eq!(init["result"]["serverInfo"]["name"], "onecorp");
+        assert!(handle(&c, &ctx, &json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).is_none());
+
+        let list = handle(&c, &ctx, &req(2, "tools/list", json!({}))).unwrap();
+        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 3);
+
+        let args = json!({"question": "15 or 60 minutes?", "options": ["15", "60"], "default": "15", "blocking": true});
+        let ask = handle(&c, &ctx, &req(3, "tools/call", json!({"name": "ask_human", "arguments": args}))).unwrap();
+        assert!(ask["result"]["isError"].is_null());
+        let inbox = c.inbox().unwrap();
+        assert_eq!((inbox[0].options.as_str(), inbox[0].blocking), ("15, 60", true));
+        assert_eq!(c.ticket(t).unwrap().unwrap().status, "blocked");
+
+        // A clean finish must not unblock a ticket the agent marked blocked.
+        c.finish_ticket(t, "review", 0.1).unwrap();
+        assert_eq!(c.ticket(t).unwrap().unwrap().status, "blocked");
+
+        let post = json!({"name": "post_message", "arguments": {"channel": "#eng", "text": "hashing tokens at rest"}});
+        handle(&c, &ctx, &req(4, "tools/call", post)).unwrap();
+        assert_eq!(c.messages(Some("eng")).unwrap()[0].3, "hashing tokens at rest");
+
+        let bad = handle(&c, &ctx, &req(5, "tools/call", json!({"name": "nope", "arguments": {}}))).unwrap();
+        assert_eq!(bad["result"]["isError"], true);
+        assert_eq!(handle(&c, &ctx, &req(6, "nope", json!({}))).unwrap()["error"]["code"], -32601);
+
+        // Firing someone with tickets keeps their history, and rehiring brings them back.
+        c.fire("maya").unwrap();
+        assert!(c.employee("maya").unwrap().is_none());
+        assert_eq!(c.ticket(t).unwrap().unwrap().assignee.as_deref(), Some("maya"));
+        c.hire(&maya).unwrap();
+        assert!(c.employee("maya").unwrap().is_some());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

@@ -16,12 +16,20 @@ pub enum Event {
 }
 
 // Edits are auto-accepted inside the worktree. Bash is denied except for git basics,
-// so the agent can commit but can't run arbitrary commands yet.
-const ALLOWED: &str = "Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)";
+// so the agent can commit but can't run arbitrary commands yet. The company tools are always allowed.
+const ALLOWED: &str = "Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__onecorp";
 
-pub fn run(cwd: &Path, model: Option<&str>, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
+/// `mcp_config` is the JSON for --mcp-config. Only that server loads: the user's own MCP servers stay out.
+pub fn run(
+    cwd: &Path,
+    model: Option<&str>,
+    mcp_config: &str,
+    prompt: &str,
+    mut on: impl FnMut(&str, Event) -> Result<()>,
+) -> Result<()> {
     let mut cmd = Command::new("claude");
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"])
+        .args(["--mcp-config", mcp_config, "--strict-mcp-config"])
         .args(["--allowedTools", ALLOWED]);
     if let Some(m) = model {
         cmd.args(["--model", m]);
@@ -99,6 +107,9 @@ fn tool_detail(name: &str, input: &Value) -> String {
         "Read" | "Edit" | "Write" | "MultiEdit" | "NotebookEdit" => "file_path",
         "Grep" | "Glob" => "pattern",
         "WebFetch" => "url",
+        "mcp__onecorp__ask_human" => "question",
+        "mcp__onecorp__post_message" => "text",
+        "mcp__onecorp__update_ticket" => "note",
         _ => return String::new(),
     };
     // Not truncated: the caller strips the worktree path first, and absolute paths are long.
