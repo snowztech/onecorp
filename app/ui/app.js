@@ -105,6 +105,8 @@ const ICON = {
   chat: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 20 12z"/>',
   wiki: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19M9 7h6"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>',
+  coin: '<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6v2M12 16v2"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
@@ -200,47 +202,81 @@ function viewCompany() {
 }
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
    OneCorp needs is in place. Your own profile lives in your menu. */
+/* Settings: sections on the left, the section on the right, and changes save as you make them. */
+const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["agents", "Agents", "spark"], ["you", "You", "user"]];
 function renderSheet() {
   const el = $("#sheet");
   el.hidden = !S.sheet;
   if (!S.sheet) return (el.innerHTML = "");
-  const st = S.settings, tab = S.sheet;
-  let body = `<p class="muted">Opening settings…</p>`;
-  if (st && tab === "company") {
-    const modes = [["local", "On this Mac"], ["github", "GitHub"], ["gitlab", "GitLab"]].filter(([m]) => m === "local" || m === st.forge || m === st.ship);
-    const reveal = path => window.__TAURI__?.opener ? `<button class="link-btn" data-reveal="${esc(path)}">Show in Finder</button>` : "";
-    const del = S.confirm === "delete"
-      ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, wiki and memory. Running work stops. Your repo and its branches stay as they are.</p>
-          <div class="su-row"><input id="del-name" placeholder="Type ${esc(st.name)} to confirm" autocomplete="off" spellcheck="false"><button class="btn danger">Delete</button><button class="btn ghost" type="button" data-confirm="">Cancel</button></div></form>`
-      : `<div class="row-set"><div><b>Delete ${esc(st.name)}</b><span>Removes the company from OneCorp. Your repo is never touched.</span></div><button class="btn danger-ghost" data-confirm="delete">Delete…</button></div>`;
-    body = `<div class="row-set"><div><b>Repo</b><span class="mono">${esc(st.repo)}</span></div>${reveal(st.repo)}</div>
-      <div class="row-set"><div><b>Finished work</b><span>${st.ship === "local" ? "Merges into the repo on this Mac" : `Opens pull requests on ${esc(st.origin || "")}`}</span></div>
-        <div class="seg">${modes.map(([m, n]) => `<button data-ship="${m}" aria-pressed="${m === st.ship}">${n}</button>`).join("")}</div></div>
-      <div class="row-set"><div><b>OneCorp's data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div>
-      <h3 class="label danger-label">Danger zone</h3>${del}`;
-  }
-  if (tab === "health") {
-    const mark = { ok: "✓", warn: "!", fail: "×" };
-    body = S.health === null ? `<p class="muted">Checking your setup…</p>`
-      : `<ul class="health">${(S.health || []).map(h => `<li class="hc lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("")}</ul>
-        <button class="link-btn" data-health="1">Check again</button>`;
-  }
-  if (tab === "spend") body = spendTab();
-  const tabs = [["company", "Company"], ["spend", "Spend"], ["health", "Setup check"]];
-  el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Settings">
-    <header class="sheet-h"><div><h2>Settings</h2><span class="muted">${esc(S.company || "")}${st ? ` · OneCorp ${esc(st.version)}` : ""}</span></div><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
-    <nav class="seg tabs">${tabs.map(([k, n]) => `<button data-sheet="${k}" aria-pressed="${k === tab}">${n}</button>`).join("")}</nav>
-    <div class="sheet-body">${body}</div></div>`;
+  const tab = SECTIONS.some(([k]) => k === S.sheet) ? S.sheet : "company";
+  const body = { company: companySection, spend: spendTab, agents: agentsSection, you: youSection }[tab]();
+  el.innerHTML = `<div class="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}</nav>
+    <div class="set-main"><header class="set-h"><h3>${SECTIONS.find(([k]) => k === tab)[1]}</h3><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
+      <div class="sheet-body">${body}</div></div></div>`;
+}
+const saved = () => toast("Saved");
+function companySection() {
+  const st = S.settings;
+  if (!st) return `<p class="muted">Opening…</p>`;
+  const look = S.looks?.[S.company] || {};
+  const modes = [["local", "On this Mac"], ["github", "GitHub"], ["gitlab", "GitLab"]].filter(([m]) => m === "local" || m === st.forge || m === st.ship);
+  const reveal = path => window.__TAURI__?.opener ? `<button class="link-btn" data-reveal="${esc(path)}">Show in Finder</button>` : "";
+  const del = S.confirm === "delete"
+    ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, wiki and memory. Your repo and its branches stay as they are.</p>
+        <div class="su-row"><input id="del-name" placeholder="Type ${esc(st.name)} to confirm" autocomplete="off" spellcheck="false"><button class="btn danger">Delete</button><button class="btn ghost" type="button" data-confirm="">Cancel</button></div></form>`
+    : `<div class="row-set"><div><b>Delete ${esc(st.name)}</b><span>Your repo is never touched.</span></div><button class="btn danger-ghost" data-confirm="delete">Delete…</button></div>`;
+  return `<div class="row-set"><div class="who-row">${badge(st.name, look, "lg")}<div><b>Logo</b><span>A color, or your own image.</span></div></div>
+      <div class="look-row">${PALETTE.map(c => `<button type="button" class="swatch" data-look-color="${c}" aria-pressed="${!look.logo && c === look.color}" style="--c:${c}" aria-label="Color ${c}"></button>`).join("")}
+        ${window.__TAURI__?.dialog ? `<button class="link-btn" data-look-logo="1">${look.logo ? "Change image" : "Image…"}</button>` : ""}</div></div>
+    <div class="row-set"><div><b>Repo</b><span class="mono">${esc(st.repo)}</span></div>${reveal(st.repo)}</div>
+    <div class="row-set"><div><b>Finished work</b><span>${st.ship === "local" ? "Merged on this Mac" : "Opened as pull requests"}</span></div>
+      <div class="seg">${modes.map(([m, n]) => `<button data-ship="${m}" aria-pressed="${m === st.ship}">${n}</button>`).join("")}</div></div>
+    <div class="row-set"><div><b>Data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div>
+    <h3 class="label danger-label">Danger zone</h3>${del}`;
+}
+function agentsSection() {
+  const r = S.ready, find = w => (r || []).find(h => h.what === w);
+  const tools = [["Claude Code", "claude"], ["Codex", "codex"], ["GitHub CLI", "gh"]];
+  const card = ([what, key]) => {
+    const h = find(what), state = !r ? "checking" : !h ? "missing" : h.level === "ok" ? "ok" : /not signed in/.test(h.detail) ? "signin" : "missing";
+    const pill = { checking: "Checking…", ok: "Connected", signin: "Not signed in", missing: "Not installed" }[state];
+    return `<div class="tool t-${state}"><span class="tool-ic" style="--c:${AGENTS[key]?.color || "#18181b"}">${agentMark(key)}</span>
+      <div class="tool-main"><b>${esc(what)}</b>${h?.fix && state !== "ok" ? `<div class="fix"><code>${esc(h.fix)}</code><button class="link-btn" type="button" data-copy="${esc(h.fix)}">Copy</button></div>` : `<span>${esc(h?.detail || "")}</span>`}</div>
+      <span class="pill-state">${pill}</span></div>`;
+  };
+  const codex = S.spend?.prices?.find(p => p.runtime === "codex")?.price ?? 5;
+  const mark = { ok: "✓", warn: "!", fail: "×" };
+  const others = (S.health || []).filter(h => !tools.some(([w]) => w === h.what));
+  return `<div class="tools">${tools.map(card).join("")}</div>
+    <div class="row-set"><div><b>Codex cost</b><span>Codex doesn't report a cost, so OneCorp estimates it from tokens.</span></div>
+      <label class="money-in inline"><span>$</span><input data-price="codex" type="number" min="0" step="0.5" value="${codex}" aria-label="Dollars per million Codex tokens"><span class="unit">/ 1M tokens</span></label></div>
+    <div class="row-set"><div><b>Everything else</b><span>Git, your repo and each company.</span></div><button class="link-btn" data-health="1">${S.health ? "Check again" : "Check"}</button></div>
+    ${others.length ? `<ul class="health">${others.map(h => `<li class="hc lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("")}</ul>` : ""}`;
+}
+function youSection() {
+  const f = S.founder;
+  const forget = S.confirm === "forget"
+    ? `<div class="confirm"><p>OneCorp forgets your name and photo and asks again. Your companies stay.</p><div class="acts"><button class="btn danger" data-forget="1">Forget me</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
+    : `<div class="row-set"><div><b>Forget your profile</b><span>Your companies stay.</span></div><button class="btn danger-ghost" data-confirm="forget">Forget…</button></div>`;
+  const pic = window.__TAURI__?.dialog ? `<button type="button" class="pf-pic pick-pic" data-you-photo="1" title="Change photo">${me()}</button>` : `<span class="pf-pic">${me()}</span>`;
+  return `<form id="you-form" class="row-set you-form"><div class="who-row">${pic}<div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(f?.name || "")}" autocomplete="off"></div></div>
+      ${f?.photo ? `<button class="link-btn" type="button" data-you-nophoto="1">Remove photo</button>` : ""}</form>
+    <p class="fine">Your team knows you by this name. It stays on this Mac.</p>
+    <h3 class="label danger-label">Danger zone</h3>${forget}`;
 }
 async function openSettings(tab = "company") {
   const opening = !S.sheet;
-  S.sheet = tab; S.confirm = null; S.pop = false; renderPop(); renderSheet();
+  S.sheet = tab === "health" ? "agents" : tab; S.confirm = null; S.customBudget = false; S.pop = false; renderPop(); renderSheet();
   // The entrance plays once, when the sheet opens, not each time its content changes.
   if (opening) { const el = $("#sheet"); el.classList.add("opening"); setTimeout(() => el.classList.remove("opening"), 300); }
-  try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); }
+  await loadSection(S.sheet);
+}
+async function loadSection(tab) {
+  if (!S.settings) { try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); } }
+  if (tab === "spend" || tab === "agents") await loadSpend();
+  if (tab === "agents" && !S.ready) S.ready = await invoke("readiness").catch(() => []);
   renderSheet();
-  if (tab === "spend") await loadSpend();
-  if (S.health === null || tab === "health") { S.health = null; S.health = await invoke("health").catch(() => []); renderSheet(); }
 }
 async function loadSpend() {
   try { S.spend = await invoke("spend_report", { company: S.company }); } catch (e) { toast(String(e), true); }
@@ -251,25 +287,22 @@ function spendTab() {
   const r = S.spend;
   if (!r) return `<p class="muted">Adding it up…</p>`;
   const t = r.totals, b = r.budget, pct = b > 0 ? Math.min(100, (t.today.cost / b) * 100) : 0;
-  const top = Math.max(...r.days.map(d => d.cost), b || 0, 0.01);
+  const any = r.days.some(d => d.cost > 0), top = Math.max(...r.days.map(d => d.cost), b || 0, 0.01);
   const today = r.days[r.days.length - 1]?.day;
+  const presets = [0, 5, 10, 25, 50], custom = b > 0 && !presets.includes(b);
   const row = (lead, w, extra = "") => `<tr><td>${lead}</td><td class="num">${money(w.today.cost)}</td><td class="num">${money(w.week.cost)}</td><td class="num">${money(w.all.cost)}</td>${extra}</tr>`;
-  const head = (first, extra = "") => `<thead><tr><th>${first}</th><th class="num">Today</th><th class="num">7 days</th><th class="num">All time</th>${extra}</tr></thead>`;
+  const head = (extra = "") => `<thead><tr><th></th><th class="num">Today</th><th class="num">7 days</th><th class="num">All time</th>${extra}</tr></thead>`;
   const people = r.people.filter(p => p.all.cost > 0 || p.cap > 0);
-  return `<div class="spend-top">
-      <div class="spend-now"><span class="label">Today</span><b>${money(t.today.cost)}</b><span class="muted">${b > 0 ? `of a ${money(b)} budget` : "No daily budget"} · ${tokensText(t.today.tokens)}</span>
-        ${b > 0 ? `<span class="meter big ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}"><i style="width:${pct}%"></i></span>` : ""}</div>
-      <form class="budget" id="budget-form"><label for="budget-in" class="flabel">Daily budget</label>
-        <div class="money-in"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b > 0 ? b : ""}" placeholder="None"><button class="btn">Save</button></div>
-        <span class="fine">A heads-up at 80%. At 100% the company pauses until tomorrow.</span></form></div>
-    <div class="chart" role="img" aria-label="Spend over the last 14 days">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}"><i style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%"></i></div>`).join("")}${b > 0 ? `<span class="budget-line" style="bottom:${(b / top) * 100}%" title="Daily budget ${money(b)}"></span>` : ""}</div>
-    <div class="chart-axis"><span>${esc(r.days[0]?.day.slice(5) || "")}</span><span>Today</span></div>
-    ${people.length ? `<h3 class="label sp-h">People</h3><table class="sp">${head("", '<th class="num">Daily cap</th>')}<tbody>${people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(p.name)}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")}</tbody></table>` : `<p class="muted sp-empty">Nothing spent yet. It adds up here as your team works.</p>`}
-    ${r.projects.some(p => p.all.cost > 0) ? `<h3 class="label sp-h">Projects</h3><table class="sp">${head("")}<tbody>${r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("")}</tbody></table>` : ""}
-    ${r.agents.length ? `<h3 class="label sp-h">Agents</h3><table class="sp">${head("")}<tbody>${r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ' <span class="est">est.</span>' : ""}</span>`, a)).join("")}</tbody></table>` : ""}
-    <form class="rates" id="rates-form"><span class="flabel">Estimating from tokens</span>
-      <p class="fine">Claude Code reports what each run costs. Codex reports only tokens, so OneCorp estimates at this rate. On a subscription, these are what the same work would cost on the API.</p>
-      ${r.prices.filter(p => p.runtime === "codex").map(p => `<div class="money-in"><span>$</span><input id="price-${p.runtime}" data-runtime="${p.runtime}" type="number" min="0" step="0.5" value="${p.price}"><span class="unit">per million tokens, Codex</span><button class="btn">Save</button></div>`).join("")}</form>`;
+  return `<div class="spend-now"><span class="label">Today</span><b>${money(t.today.cost)}</b>
+      ${b > 0 ? `<span class="meter big ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}"><i style="width:${pct}%"></i></span><span class="muted">${Math.round(pct)}% of ${money(b)}</span>` : ""}</div>
+    <div class="row-set"><div><b>Daily budget</b><span>The company pauses there until tomorrow.</span></div>
+      <div class="seg">${presets.map(p => `<button data-budget="${p}" aria-pressed="${p === b && !S.customBudget}">${p ? `$${p}` : "None"}</button>`).join("")}<button data-budget-custom="1" aria-pressed="${custom || !!S.customBudget}">${custom ? money(b) : "Other"}</button></div></div>
+    ${S.customBudget ? `<form id="budget-form" class="row-set"><div><b>Your budget</b><span>Press Enter to save.</span></div><label class="money-in inline"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b || ""}" placeholder="12"><span class="unit">a day</span></label></form>` : ""}
+    ${any ? `<div class="chart" role="img" aria-label="Spend over the last 14 days">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}"><i style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%"></i></div>`).join("")}${b > 0 && b < top ? `<span class="budget-line" style="bottom:${(b / top) * 100}%"></span>` : ""}</div>
+      <div class="chart-axis"><span>2 weeks ago</span><span>Today</span></div>` : `<p class="muted sp-empty">Nothing spent yet. Your team's runs add up here.</p>`}
+    ${people.length ? `<h3 class="label sp-h">People</h3><table class="sp">${head('<th class="num">Cap</th>')}<tbody>${people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(first(p.name))}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")}</tbody></table>` : ""}
+    ${r.projects.some(p => p.all.cost > 0) ? `<h3 class="label sp-h">Projects</h3><table class="sp">${head()}<tbody>${r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("")}</tbody></table>` : ""}
+    ${any && r.agents.length ? `<h3 class="label sp-h">Agents</h3><table class="sp">${head()}<tbody>${r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ' <span class="est" title="Estimated from tokens">est.</span>' : ""}</span>`, a)).join("")}</tbody></table>` : ""}`;
 }
 
 /* Everything waiting on you, most urgent first. The Company page, the dock badge and notifications all use it. */
@@ -899,7 +932,7 @@ function renderPop() {
   if (S.pop === "menu") {
     p.innerHTML = `<div class="pop-menu"><div class="pm-head">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div></div>
       ${S.spendAll !== undefined && S.companies.length > 1 ? `<div class="pm-note">${money(S.spendAll)} spent today across your ${S.companies.length} companies</div>` : ""}
-      <button class="pm-item" data-pop="profile">${icon("user")}Edit profile</button>
+      <button class="pm-item" data-settings-tab="you">${icon("user")}Edit profile</button>
       ${S.company ? `<button class="pm-item" data-settings="1">${icon("settings")}Settings<kbd>⌘,</kbd></button>` : ""}
       <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button></div>`;
     return;
@@ -909,11 +942,6 @@ function renderPop() {
       <div class="acts end"><button class="btn" data-pop="menu">Cancel</button><button class="btn danger" data-forget="1">Forget me</button></div></div>`;
     return;
   }
-  p.innerHTML = `<form id="profile" class="pop-form">
-    <div class="pop-head"><span class="pf-pic">${pfPic(myName())}</span><div class="acts">${photoActs()}</div></div>
-    <div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(S.founder?.name || "")}" autocomplete="off"></div>
-    <p class="fine">Your team knows you by this name. It stays on this Mac.</p>
-    <div class="acts end"><button class="btn" type="button" data-pf="cancel">Cancel</button><button class="btn primary">Save</button></div></form>`;
 }
 async function saveProfile(photo, removePhoto) {
   const name = ($("#pf-name")?.value ?? S.profile.name).trim();
@@ -1209,7 +1237,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1296,7 +1324,7 @@ document.addEventListener("click", async e => {
     renderSheet(); return refresh(true);
   }
   if (d.reveal) return window.__TAURI__.opener.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
-  if (d.health) { S.health = null; renderSheet(); S.health = await invoke("health").catch(() => []); return renderSheet(); }
+  if (d.health) { S.health = null; renderSheet(); S.ready = await invoke("readiness").catch(() => S.ready); S.health = await invoke("health").catch(() => []); return renderSheet(); }
   if ("confirm" in d) { S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); renderSheet(); return $("#del-name")?.focus(); }
   if (d.remove) {
     el.disabled = true;
@@ -1310,10 +1338,28 @@ document.addEventListener("click", async e => {
     S.founder = null; S.confirm = null; S.pop = false; S.profile = { name: "" }; renderPop(); return render();
   }
   if (d.more) { S.open[d.more] = true; render(); return document.getElementById(d.more)?.focus(); }
-  if (d.profile) { S.pop = "profile"; renderPop(); return $("#pf-name")?.focus(); }
+  if (d.profile) return openSettings("you");
   if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop; renderPop(); return $("#pf-name")?.focus(); }
   if (d.settings) return openSettings();
-  if (d.sheet) { S.sheet = d.sheet; S.confirm = null; renderSheet(); if (d.sheet === "spend") await loadSpend(); return; }
+  if (d.sheet) { S.sheet = d.sheet; S.confirm = null; S.customBudget = false; renderSheet(); return loadSection(d.sheet); }
+  if (d.budget !== undefined) { S.customBudget = false; await invoke("set_budget", { company: S.company, dollars: Number(d.budget) }).then(saved).catch(err => toast(String(err), true)); await loadSpend(); return refresh(true); }
+  if (d.budgetCustom) { S.customBudget = true; renderSheet(); return $("#budget-in")?.focus(); }
+  if (d.lookColor) {
+    await invoke("set_look", { company: S.company, color: d.lookColor, logo: null, removeLogo: true }).then(saved).catch(err => toast(String(err), true));
+    await refresh(true); return renderSheet();
+  }
+  if (d.lookLogo) {
+    const path = await window.__TAURI__?.dialog?.open({ multiple: false, title: "Pick a logo", filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "svg", "gif"] }] }).catch(() => null);
+    if (!path) return;
+    await invoke("set_look", { company: S.company, color: S.looks?.[S.company]?.color || PALETTE[0], logo: String(path), removeLogo: false }).then(saved).catch(err => toast(String(err), true));
+    await refresh(true); return renderSheet();
+  }
+  if (d.youPhoto) {
+    const path = await window.__TAURI__?.dialog?.open({ multiple: false, title: "Pick a photo of you", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }] }).catch(() => null);
+    if (path && await saveProfile(String(path))) { saved(); render(); renderSheet(); }
+    return;
+  }
+  if (d.youNophoto) { if (await saveProfile(null, true)) { saved(); render(); renderSheet(); } return; }
   if (d.settingsTab) return openSettings(d.settingsTab);
   if (d.keepGoing) { await call("keep_going_today", { company: S.company }, "Going on for today. The budget applies again tomorrow").catch(() => {}); return; }
   if (d.sheetClose) { S.sheet = null; return renderSheet(); }
@@ -1477,13 +1523,11 @@ document.addEventListener("submit", async e => {
   }
   if (f.id === "budget-form") {
     const v = Number($("#budget-in").value || 0);
-    await call("set_budget", { company: S.company, dollars: v }, v > 0 ? `Daily budget set to ${money(v)}` : "No daily budget").catch(() => {});
+    S.customBudget = false;
+    await call("set_budget", { company: S.company, dollars: v }, "Saved").catch(() => {});
     return loadSpend();
   }
-  if (f.id === "rates-form") {
-    for (const i of f.querySelectorAll("input[data-runtime]")) await call("set_price", { company: S.company, runtime: i.dataset.runtime, perMillion: Number(i.value || 0) }, "Rate saved. New runs use it").catch(() => {});
-    return loadSpend();
-  }
+  if (f.id === "you-form") { $("#pf-name").blur(); return; }
   if (f.id === "del-co") {
     const name = S.settings.name;
     if ($("#del-name").value.trim() !== name) { toast(`Type ${name} to confirm`, true); return $("#del-name").focus(); }
@@ -1547,6 +1591,14 @@ document.addEventListener("input", e => {
   if (e.target.id === "pf-name" && S.profile && !hasPhoto()) { const m = $(".welcome .mono-av"); if (m) m.innerHTML = e.target.value.trim() ? esc(initials(e.target.value)) : icon("user"); }
 });
 document.addEventListener("change", async e => {
+  if (e.target.dataset?.price) {
+    await invoke("set_price", { company: S.company, runtime: e.target.dataset.price, perMillion: Math.max(0, Number(e.target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
+    return loadSpend();
+  }
+  if (e.target.id === "pf-name" && e.target.closest("#you-form")) {
+    if (e.target.value.trim() && e.target.value.trim() !== S.founder?.name && await saveProfile()) { saved(); render(); }
+    return;
+  }
   if (e.target.dataset?.planAssign) {
     const employee = e.target.value;
     if (employee) await call("assign", { company: S.company, key: e.target.dataset.planAssign, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
@@ -1606,7 +1658,7 @@ async function previewScreen() {
   if (screen === "setup") await startSetup();
   if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.profile = { name: "" }; render(); }
-  if (screen === "popover") { S.pop = "profile"; renderPop(); }
+  if (["popover", "you", "agents"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
   if (screen === "health") await openSettings("health");
 }

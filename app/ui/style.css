@@ -995,12 +995,10 @@ h1, h2, h3, .titles h1 { letter-spacing: -.02em; }
 .meter i { display: block; height: 100%; background: var(--good); border-radius: 99px; transition: width .4s var(--ease); }
 .near .meter i, .meter.near i { background: var(--signal); }
 .over .meter i, .meter.over i { background: #d4483e; }
-.spend-top { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; padding: 4px 0 16px; }
 .spend-now { display: flex; flex-direction: column; gap: 4px; }
 .spend-now b { font: 600 32px/1.1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .spend-now .muted { font-size: 12px; }
 .meter.big { width: 100%; height: 6px; margin-top: 6px; }
-.budget { display: flex; flex-direction: column; gap: 6px; }
 .money-in { display: flex; align-items: center; gap: 6px; }
 .money-in > span:first-child { font: 13px var(--mono); color: var(--muted); }
 .money-in input { width: 96px; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 8px; background: var(--surface-2); font: 13px var(--mono); }
@@ -1023,11 +1021,8 @@ table.sp .who .av { width: 20px; height: 20px; }
 .tool-ic.sm { width: 20px; height: 20px; border-radius: 6px; }
 .est { font: 500 10px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 0 5px; }
 .sp-empty { margin: 18px 0 0; font-size: 13px; }
-.rates { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
-.rates .fine { margin: 0 0 4px; }
 .pm-note { padding: 2px 10px 8px; font-size: 12px; color: var(--muted); }
 .paused-bar .btn + .btn { margin-left: -4px; }
-.sheet { width: min(680px, 100%); }
 
 /* Spend in the top bar: a glance, not a sentence */
 .top-spend { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--r-sm); background: none; font: 500 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -1038,3 +1033,26 @@ table.sp .who .av { width: 20px; height: 20px; }
 .top-spend .of { opacity: .7; }
 .top-spend.near { color: var(--signal); } .top-spend.near .meter i { background: var(--signal); }
 .top-spend.over { color: #d4483e; } .top-spend.over .meter i { background: #d4483e; }
+/* Settings: section list on the left, the section on the right. */
+.settings-sheet { width: min(820px, 100%); height: min(600px, 86vh); flex-direction: row; }
+.set-nav { width: 184px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 18px 10px; background: var(--surface-2); border-right: 1px solid var(--line); }
+.set-nav h2 { margin: 0 8px 12px; font: 600 15px var(--display); }
+.set-nav button { display: flex; align-items: center; gap: 9px; border: 0; background: none; padding: 7px 8px; border-radius: var(--r-sm); font-size: 13px; color: var(--muted); text-align: left; }
+.set-nav button:hover { color: var(--fg); background: color-mix(in srgb, var(--fg) 5%, transparent); }
+.set-nav button[aria-current="true"] { color: var(--fg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.set-nav .ic { width: 15px; height: 15px; }
+.set-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.set-h { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px 4px; }
+.set-h h3 { margin: 0; font: 600 18px var(--display); letter-spacing: -.01em; }
+.set-main .sheet-body { flex: 1; padding: 8px 24px 24px; }
+.set-main .spend-now { padding: 8px 0 14px; border-bottom: 1px solid var(--line); }
+.set-main .tools { margin: 10px 0 6px; }
+.set-main .chart { margin-top: 22px; }
+.money-in.inline input { width: 72px; }
+.you-form .field { display: flex; flex-direction: column; gap: 4px; }
+.you-form .field input { width: 240px; }
+.you-form .pf-pic .av { width: 44px; height: 44px; }
+.set-main .fine { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+@media (max-width: 640px) { .settings-sheet { flex-direction: column; } .set-nav { width: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); } .set-nav h2 { display: none; } }

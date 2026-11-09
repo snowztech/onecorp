@@ -60,7 +60,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Wiki page: read, edit and accept proposals in the app
 - [x] New company flow in the app: pick the repo, name it, pick a starting team
 - [x] Questions go to the department lead before they reach you, and you can step in anytime
-- [x] Settings: ship mode, health checks, delete a company, forget your profile
+- [x] Settings in sections (Company, Spending, Agents, You) with instant saves: look, ship mode, budget, agent health, delete a company, your profile
 - [x] Wiki as a readable company doc
 - [x] Projects: plan a feature or goal into tickets from the Board, with progress per project
 - [ ] ⌘K command bar for everything

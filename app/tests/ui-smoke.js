@@ -32,8 +32,8 @@ window.__TAURI__ = { core: { invoke: (cmd, args) => { requests++; return command
   S.drawer = null;
   S.profile = { name: "Lucas" }; render(); console.log("profile", document.querySelector("#view").innerHTML.length, "chars"); S.profile = null;
   assert.equal(intervals.size, 0, "welcome stops workspace polling");
-  S.pop = "menu"; renderPop(); console.log("menu", document.querySelector("#pop").innerHTML.length, "chars"); S.pop = "profile"; renderPop(); console.log("profile popover", document.querySelector("#pop").innerHTML.length, "chars"); S.pop = false;
-  await openSettings(); console.log("settings sheet", document.querySelector("#sheet").innerHTML.length, "chars"); S.sheet = "health"; renderSheet(); console.log("setup check", document.querySelector("#sheet").innerHTML.length, "chars"); S.sheet = null;
+  S.pop = "menu"; renderPop(); console.log("menu", document.querySelector("#pop").innerHTML.length, "chars"); S.pop = false;
+  await openSettings(); console.log("settings sheet", document.querySelector("#sheet").innerHTML.length, "chars"); for (const t of ["spend", "agents", "you"]) { S.sheet = t; renderSheet(); console.log(t, document.querySelector("#sheet").innerHTML.length, "chars"); } S.sheet = null;
   await startSetup();
   await checkRepo("/Users/you/dev/snowztech");
   for (let step = 0; step < 5; step++) { S.setup.step = step; render(); console.log("setup step", step, document.querySelector("#view").innerHTML.length, "chars"); }

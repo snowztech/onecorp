@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Settings in four sections: Company, Spending, Agents and You. Changes save as you make them. Pick a daily budget in one click ($5, $10, $25, $50 or your own). Agents shows what's connected, with the command to fix what isn't. Change the company's logo and your name and photo right there.
 - A lighter Company page: your line reads Founder, people, and who's working.
 - Budgets. Set a daily budget for a company: a heads-up at 80%, and at 100% it pauses until tomorrow, with Raise budget or Keep going today. Give anyone their own daily cap: they stop picking up work at it, and the rest of the team carries on.
 - Spend, in Settings: today against the budget, the last two weeks, and where it goes by person, project and agent. Claude Code reports its own cost; Codex is estimated from its tokens at a rate you can change. Your menu shows what all your companies spent today, and the top bar shows today's spend against the budget on every page, amber near it and red at it.
