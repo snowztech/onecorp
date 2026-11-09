@@ -111,6 +111,9 @@ pub fn slug(name: &str) -> String {
 }
 
 /// Everything lives under ~/.onecorp, or $ONECORP_HOME when set (handy for tests).
+/// The handbook section that says what the company is building.
+pub const BUILDING: &str = "What we're building";
+
 pub fn home() -> PathBuf {
     match std::env::var("ONECORP_HOME") {
         Ok(h) => PathBuf::from(h),
@@ -626,8 +629,17 @@ impl Company {
         self.dir.join("brief.md")
     }
 
-    /// What you're building, in your words. Empty until you write it.
+    /// What you're building: the handbook's "What we're building" section. Companies from before
+    /// it moved into the handbook still have it in brief.md, read until it's written again.
     pub fn brief(&self) -> Result<String> {
+        let doc = self.handbook()?;
+        let mut lines = doc.lines().skip_while(|l| !l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case(BUILDING)));
+        if lines.next().is_some() {
+            let text = lines.take_while(|l| !l.starts_with("## ")).collect::<Vec<_>>().join("\n");
+            if !text.trim().is_empty() {
+                return Ok(text.trim().to_string());
+            }
+        }
         match fs::read_to_string(self.brief_path()) {
             Ok(s) => Ok(s.trim().to_string()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
@@ -635,8 +647,33 @@ impl Company {
         }
     }
 
+    /// Writes what you're building into the handbook, right after the mission.
     pub fn write_brief(&self, text: &str) -> Result<()> {
-        fs::write(self.brief_path(), format!("{}\n", text.trim()))?;
+        let doc = self.handbook()?;
+        let mut out: Vec<String> = vec![];
+        let (mut skipping, mut placed) = (false, false);
+        for line in doc.lines() {
+            if let Some(h) = line.strip_prefix("## ") {
+                skipping = h.trim().eq_ignore_ascii_case(BUILDING);
+                if skipping {
+                    continue;
+                }
+                // Into the mission's place in line: just before the section that follows it.
+                if !placed && out.iter().any(|l| l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case("Mission"))) {
+                    out.push(format!("## {BUILDING}\n\n{}\n", text.trim()));
+                    placed = true;
+                }
+            }
+            if !skipping {
+                out.push(line.to_string());
+            }
+        }
+        let mut doc = out.join("\n");
+        if !placed {
+            doc = format!("{}\n\n## {BUILDING}\n\n{}\n", doc.trim_end(), text.trim());
+        }
+        self.write_handbook(&format!("{}\n", doc.trim_end()))?;
+        let _ = fs::remove_file(self.brief_path());
         Ok(())
     }
 

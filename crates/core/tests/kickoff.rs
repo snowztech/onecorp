@@ -32,6 +32,9 @@ fn an_idea_becomes_a_plan_becomes_work() {
     // No brief, no kickoff.
     assert!(work::kickoff(&c, None).unwrap_err().to_string().contains("brief"));
     c.write_brief("A notes app for writers, with magic link login.").unwrap();
+    let book = c.handbook().unwrap();
+    let (mission, building, decisions) = (book.find("## Mission").unwrap(), book.find("## What we're building").unwrap(), book.find("## Decisions").unwrap());
+    assert!(mission < building && building < decisions, "what we're building sits right after the mission");
 
     // The product manager plans it, read-only, and the plan comes back for review.
     let plan = work::kickoff(&c, None).unwrap();
@@ -73,7 +76,7 @@ fn an_idea_becomes_a_plan_becomes_work() {
     let t = c.ticket(hb).unwrap().unwrap();
     assert_eq!((t.kind.as_str(), t.status.as_str(), t.assignee.as_deref()), ("handbook", "done", Some("odile")), "the engineering lead writes it");
     assert!(c.handbook().unwrap().contains("## Codebase\n\n- A README"));
-    assert!(!c.handbook().unwrap().contains("What we're building"), "the brief lives on its own, not twice");
+    assert_eq!(c.handbook().unwrap().matches("## What we're building").count(), 1, "what we're building is one section of the handbook");
     assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, with magic link login.", "a brief you wrote is never replaced");
     assert!(git_status_clean(&repo), "writing the handbook never touches your checkout");
 

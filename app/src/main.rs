@@ -76,14 +76,16 @@ fn snapshot(company: String) -> Res<Value> {
 
 /// Creates a ticket. `later` saves it to the backlog, otherwise it starts now (or waits for `after`).
 #[tauri::command(async)]
-fn new_ticket(company: String, title: String, employee: Option<String>, description: Option<String>, after: Option<String>, later: bool) -> Res<String> {
+fn new_ticket(company: String, title: String, employee: Option<String>, description: Option<String>, after: Option<String>, project: Option<String>, later: bool) -> Res<String> {
     let c = open(&company)?;
     let employee = employee.filter(|e| !e.is_empty());
     if employee.is_none() && !later {
         return Err("Pick who does it, or save it for later.".into());
     }
     let after = after.filter(|a| !a.is_empty()).map(|k| ticket(&c, &k).map(|t| t.id)).transpose()?;
-    let new = store::NewTicket { title, description: description.unwrap_or_default(), assignee: employee, after, ..Default::default() };
+    // Part of a project: the ticket counts toward its progress and shows under it on the Board.
+    let plan = project.filter(|p| !p.is_empty()).map(|k| ticket(&c, &k)).transpose()?.filter(|t| t.kind == "plan").map(|t| t.id);
+    let new = store::NewTicket { title, description: description.unwrap_or_default(), assignee: employee, after, plan, ..Default::default() };
     let id = c.new_ticket(&new, "backlog").map_err(err)?;
     if !later {
         work::start(&c, &ticket(&c, &c.key(id))?).map_err(err)?;

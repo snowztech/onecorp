@@ -181,7 +181,7 @@ function viewCompany() {
   const busy = s.employees.some(e => ["working", "queued", "blocked"].includes(e.status)) || s.kickoff.planning.length;
   const free = s.employees.find(e => e.status === "idle");
   const idle = !busy && s.tickets.length && free
-    ? `<p class="idle">Your team is free · <button class="link-btn" data-plan-new="1">Plan a project</button> · <button class="link-btn" data-new-ticket="${esc(free.id)}">Give ${esc(first(free.name))} a ticket</button></p>` : "";
+    ? `<p class="idle">Your team is free · <button class="link-btn" data-plan-new="1">Start a project</button> · <button class="link-btn" data-new-ticket="${esc(free.id)}">Give ${esc(first(free.name))} a ticket</button></p>` : "";
   return `<div class="hq"><div>
       ${kickoffCard()}
       <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span>${idle}</div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
@@ -306,8 +306,9 @@ function gettingStarted() {
   const plan = (s.projects || [])[0];
   const steps = [
     { done: s.employees.length > 0, title: "Hire your team", sub: "Who works here, and on which AI.", act: firstDept ? `<button class="btn primary" data-hire="${firstDept.id}">Hire someone</button>` : `<button class="btn primary" data-add-dept="1">Add a department</button>` },
-    { done: !!s.kickoff.brief, title: "Say what you're building", sub: "Everyone reads it before every ticket.", act: `<button class="btn primary" data-brief="1">Write it</button>` },
-    { done: !!plan, title: "Plan your first project", sub: "Your planner breaks it into tickets with owners.", act: `<button class="btn primary" data-plan-new="1">Plan a project</button>` },
+    { done: !!s.kickoff.brief, title: "Read your handbook", sub: "What we're building, the codebase and its conventions, written from your repo. Fix anything that's off.",
+      act: s.tickets.some(t => t.kind === "handbook" && ["todo", "queued", "doing"].includes(t.status)) ? `<span class="muted">Being written…</span>` : `<button class="btn primary" data-view="handbook">Open the handbook</button>` },
+    { done: !!plan, title: "Start your first project", sub: "Say what you want. Your planner breaks it into tickets with owners.", act: `<button class="btn primary" data-plan-new="1">New project</button>` },
     { done: work.some(t => !["backlog"].includes(t.status)) || plan?.status === "done", title: "Approve the plan", sub: "Change owners, remove tickets, then start it.", act: plan?.status === "review" ? `<button class="btn primary" data-goto="${esc(plan.key)}">Review the plan</button>` : `<span class="muted">Waiting for the plan</span>` },
     { done: work.some(t => t.status === "done"), title: "Merge your first work", sub: "Read the changes in your Inbox and approve them.", act: `<button class="btn" data-view="inbox">Open Inbox</button>` },
   ];
@@ -326,7 +327,7 @@ function gettingStarted() {
 function drawerPlan() {
   const s = S.snap, team = s.employees, isFirst = !(s.projects || []).length, k = s.kickoff;
   const by = byId(k.planner) || team[0];
-  return `<div class="dhead"><div><h2>Plan a project</h2><span class="muted">A feature or a goal. Your planner breaks it into tickets with owners, and you approve the plan in your Inbox.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
+  return `<div class="dhead"><div><h2>New project</h2><span class="muted">A feature or a goal. Your planner breaks it into tickets with owners, and you approve the plan in your Inbox.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <form class="dbody" id="plan-form">
       <div class="field"><label for="pj-name">Project</label><input id="pj-name" value="${isFirst ? "First version" : ""}" placeholder="Stripe billing" autocomplete="off"></div>
       <div class="field"><label for="pj-goal">What should it do?${isFirst && k.brief ? ' <span class="muted">(optional, your brief is used)</span>' : ""}</label>
@@ -562,23 +563,17 @@ function viewHandbook() {
         <div class="acts"><button class="btn ghost" type="button" data-hb-edit="0">Cancel</button><button class="btn primary">Save</button></div></header>
       <div class="wiki-split"><textarea id="hb-text" spellcheck="false">${esc(S.handbook)}</textarea><article class="doc wiki" id="hb-preview">${md(S.handbook).html}</article></div></form>`;
   }
-  const brief = S.snap.kickoff.brief;
-  const briefBody = S.open.brief
-    ? `<form id="brief-form" class="doc-edit"><textarea id="brief-text" class="brief-text" rows="5" placeholder="The product, who it's for, what the first version needs.">${esc(brief)}</textarea>
-        <div class="acts"><button class="btn primary">Save</button><button class="btn" type="button" data-replan="1">Save and plan it</button><button class="btn ghost" type="button" data-close-open="brief">Cancel</button></div></form>`
-    : brief ? `<p>${esc(brief).replace(/\n/g, "<br>")}</p>` : `<p class="muted">Nothing yet. Say what you're building and your team can plan it.</p>`;
-  // The page's own # title leads, then what we're building, then the rest of the page.
+  // The page's own # title leads, then the page.
   const title = (S.handbook.match(/^#\s+(.*)$/m) || [])[1] || `${S.company} handbook`;
   const page = md(S.handbook.replace(/^#\s+.*$/m, ""));
   return `<div class="doc-wrap"><article class="doc">
       <div class="wiki-top"><span class="label">Handbook · everyone reads it before every ticket</span><button class="btn" data-hb-edit="1">Edit</button></div>
       <div class="wiki"><h1>${inline(title)}</h1></div>
       ${props}
-      <section id="hb-brief" class="doc-sec brief-sec"><h2>What we're building ${S.open.brief ? "" : `<button class="link-btn" data-more="brief">Edit</button>`}</h2>${briefBody}</section>
       <div class="wiki">${page.html || `<p class="muted">Empty for now. Edit it to write your mission, decisions and conventions.</p>`}</div>
       <footer class="doc-foot"><button class="link-btn" data-hb-edit="1">Edit this page</button><button class="link-btn" data-learn="1">Update Codebase from the repo</button></footer>
     </article>
-    <nav class="toc" aria-label="On this page"><span class="label">On this page</span><button data-toc="hb-brief">What we're building</button>${page.toc.map(([id, n]) => `<button data-toc="${id}">${esc(n.replace(/[`*]/g, ""))}</button>`).join("")}</nav></div>`;
+    <nav class="toc" aria-label="On this page"><span class="label">On this page</span>${page.toc.map(([id, n]) => `<button data-toc="${id}">${esc(n.replace(/[`*]/g, ""))}</button>`).join("")}</nav></div>`;
 }
 
 /* Board: every ticket by where it stands. Click one for its log and actions. */
@@ -587,7 +582,7 @@ const PILL = { blocked: ["Question", "warn"], review: ["Review", "info"], failed
 const spent = t => t.spend && !/^(\$0\.00|0 tok)$/.test(t.spend);
 function viewBoard() {
   const s = S.snap;
-  if (!s.tickets.length) return `<div class="empty-state"><span class="empty-ic">${icon("board")}</span><b>No tickets yet</b>Plan a project and your team breaks it into tickets, or add a single one with New ticket.<div class="acts center"><button class="btn primary" data-plan-new="1">Plan a project</button></div></div>`;
+  if (!s.tickets.length) return `<div class="empty-state"><span class="empty-ic">${icon("board")}</span><b>No tickets yet</b>A project is a goal your planner breaks into tickets. A ticket is one task.<div class="acts center"><button class="btn primary" data-plan-new="1">New project</button><button class="btn" data-new-ticket="1">New ticket</button></div></div>`;
   const nameOf = id => byId(id)?.name || id || "";
   const projects = s.projects || [], current = projects.find(p => p.key === S.project);
   if (S.project && !current) S.project = null;
@@ -598,7 +593,7 @@ function viewBoard() {
     return `<button class="pchip" data-project="${esc(p.key)}" aria-pressed="${S.project === p.key}">${esc(p.title)}<span class="prog"><i style="width:${pct}%"></i></span><span class="n">${state}</span></button>`;
   };
   const bar = `<div class="board-bar"><div class="pchips">${projects.length ? `<button class="pchip" data-project="" aria-pressed="${!S.project}">All work</button>${projects.map(chip).join("")}` : `<span class="muted">No projects yet. Plan one to group its tickets here.</span>`}</div>
-    <button class="btn" data-plan-new="1">Plan a project</button></div>
+    <button class="btn" data-plan-new="1">${icon("plus")}New project</button></div>
     ${current?.goal ? `<p class="pgoal">${esc(current.goal)}</p>` : ""}`;
   const cols = COLUMNS.map(([title, statuses]) => {
     let ts = s.tickets.filter(t => statuses.includes(t.status) && inView(t));
@@ -651,6 +646,7 @@ function drawerNewTicket() {
       <div class="field"><label for="nt-title">What needs doing</label><input id="nt-title" placeholder="Add magic link login" autocomplete="off"></div>
       <div class="field"><label for="nt-who">Who</label><select id="nt-who"><option value="">Nobody yet</option>${team.map(e => `<option value="${esc(e.id)}" ${e.id === pick ? "selected" : ""}>${esc(e.name)}, ${esc(e.role)}${e.status === "idle" ? " (free)" : ""}</option>`).join("")}</select></div>
       <div class="field"><label for="nt-desc">Details <span class="muted">(optional)</span></label><textarea id="nt-desc" rows="5" placeholder="What done looks like, links, constraints"></textarea></div>
+      ${(S.snap?.projects || []).length ? `<div class="field"><label for="nt-project">Project <span class="muted">(optional)</span></label><select id="nt-project"><option value="">None</option>${S.snap.projects.map(p => `<option value="${esc(p.key)}" ${p.key === S.project ? "selected" : ""}>${esc(p.title)}</option>`).join("")}</select></div>` : ""}
       <div class="field"><label for="nt-after">After</label><select id="nt-after"><option value="">Nothing, it can start right away</option>${open.map(t => `<option value="${esc(t.key)}">${esc(t.key)} ${esc(t.title)}</option>`).join("")}</select></div>
       <div class="acts"><button class="btn primary" data-nt="now">Start now</button><button class="btn" data-nt="later">Save for later</button></div>
     </form>`;
@@ -658,7 +654,7 @@ function drawerNewTicket() {
 async function saveNewTicket(later) {
   const title = $("#nt-title").value.trim();
   if (!title) return $("#nt-title").focus();
-  const args = { company: S.company, title, employee: $("#nt-who").value || null, description: $("#nt-desc").value, after: $("#nt-after").value || null, later };
+  const args = { company: S.company, title, employee: $("#nt-who").value || null, description: $("#nt-desc").value, after: $("#nt-after").value || null, project: $("#nt-project")?.value || null, later };
   const key = await call("new_ticket", args, later ? "Saved to the backlog" : "Started").catch(() => null);
   if (key) { S.view = "board"; openTicket(key); }
 }
@@ -997,7 +993,7 @@ function viewSetup() {
       <div class="field"><span class="flabel">Logo</span><div class="look-row"><div class="swatches">${PALETTE.map(c => `<button type="button" class="swatch" data-su="color-${c}" aria-pressed="${c === s.color && !s.logoUrl}" style="--c:${c}" aria-label="Color ${c}"></button>`).join("")}</div>
         ${picker ? `<button class="btn" type="button" data-su="logo">${s.logoUrl ? "Change logo…" : "Upload a logo…"}</button>` : ""}${s.logoUrl ? `<button class="link-btn" type="button" data-su="logo-remove">Use the letter</button>` : ""}</div></div>
       <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the handbook)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
-      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, your team plans it once you launch)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
+      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, it starts your handbook. Your lead fills in the rest from the repo)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
       ${nav("Continue")}`;
   } else if (s.step === 2) {
     const tabs = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-su="mode-existing" aria-selected="${s.mode === "existing"}">Use an existing repo</button>
