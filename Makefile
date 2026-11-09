@@ -2,10 +2,11 @@
 
 DEMO_HOME := /tmp/onecorp-demo
 
-.PHONY: help app demo demo-reset serve doctor test lint check install install-cli bundle
+.PHONY: help app fresh demo demo-reset serve doctor test lint check install install-cli bundle
 
 help:
 	@echo "make app          open the desktop app on your real companies (~/.onecorp)"
+	@echo "make fresh        open the app as a first user would: empty home, full onboarding"
 	@echo "make demo         open the app on a throwaway home, to try things safely"
 	@echo "make demo-reset   wipe the throwaway home, to see first-launch setup again"
 	@echo "make serve        run queued work in this terminal, without the app"
@@ -15,13 +16,18 @@ help:
 	@echo "make check        lint and test, what CI runs"
 	@echo "make install      install the onecorp command and OneCorp.app"
 	@echo "make install-cli  install only the onecorp command"
-	@echo "make bundle       build OneCorp.app without installing it"
+	@echo "make bundle       build OneCorp.app and a DMG without installing it"
 
 app:
 	cargo run -p onecorp-app
 
 demo:
 	ONECORP_HOME=$(DEMO_HOME) cargo run -p onecorp-app
+
+# The app on a brand-new, empty home: see onboarding exactly as a first user does. Your real
+# companies aren't touched. Run it again for another fresh start.
+fresh:
+	rm -rf $(CURDIR)/target/fresh-home && ONECORP_HOME=$(CURDIR)/target/fresh-home cargo run -p onecorp-app
 
 demo-reset:
 	rm -rf $(DEMO_HOME)

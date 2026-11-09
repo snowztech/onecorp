@@ -24,6 +24,6 @@ eval(src + `
   await openSettings(); console.log("settings sheet", document.querySelector("#sheet").innerHTML.length, "chars"); S.sheet = "health"; renderSheet(); console.log("setup check", document.querySelector("#sheet").innerHTML.length, "chars"); S.sheet = null;
   await startSetup();
   await checkRepo("/Users/you/dev/snowztech");
-  for (let step = 0; step < 4; step++) { S.setup.step = step; render(); console.log("setup step", step, document.querySelector("#view").innerHTML.length, "chars"); }
+  for (let step = 0; step < 5; step++) { S.setup.step = step; render(); console.log("setup step", step, document.querySelector("#view").innerHTML.length, "chars"); }
   console.log("name suggested:", S.setup.name, "| template:", S.setup.template, "| runtime:", S.setup.runtime);
 })().catch(e => { console.error("FAILED:", e); process.exit(1); });`);

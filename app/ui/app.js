@@ -702,18 +702,16 @@ function focusTop(cancel) {
   return `<div class="focus-top" data-tauri-drag-region><span class="brand">${mascot()}OneCorp</span>${cancel ? `<button class="btn ghost" type="button" data-su="cancel">Cancel</button>` : ""}</div>`;
 }
 function viewProfile() {
-  return `<div class="focus-wrap">${focusTop(false)}
-    <form class="welcome" id="profile">
-      ${S.companies.length ? "" : journey("You")}
-      <span class="pf-pic big">${pfPic(S.profile.name)}</span>
+  const next = S.companies.length ? `Next: back to ${esc(S.companies[0])}` : "Next: connect your AI";
+  return onboarding("You", false, `<form class="onb-main welcome" id="profile">
       <h1>Who's running the company?</h1>
       <p class="muted">Your team works for you and knows you by name. Everything stays on this Mac. There's no account.</p>
-      <input class="big-input" id="pf-name" value="${esc(S.profile.name)}" placeholder="Your name" autocomplete="off" aria-label="Your name">
-      <p class="field-err" id="pf-err" hidden>Say what your team should call you.</p>
-      <div class="photo-acts">${photoActs() || `<span class="muted">This face is drawn from your name.</span>`}</div>
-      <button class="btn primary lg">Continue</button>
-      <p class="fine">${S.companies.length ? `Next: back to ${esc(S.companies[0])}.` : "Next: your first company."}</p>
-    </form></div>`;
+      <div class="me-row"><span class="pf-pic">${pfPic(S.profile.name)}</span><div class="field grow"><label for="pf-name">Your name</label>
+        <input id="pf-name" value="${esc(S.profile.name)}" placeholder="Lucas" autocomplete="off">
+        <p class="field-err" id="pf-err" hidden>Say what your team should call you.</p></div></div>
+      <div class="photo-acts">${photoActs() || `<span class="fine">Your face is drawn from your name. Add a photo anytime.</span>`}</div>
+      <div class="su-nav"><span class="fine">${next}</span><button class="btn primary">Continue</button></div>
+    </form>`);
 }
 function renderPop() {
   const p = $("#pop");
@@ -825,24 +823,46 @@ function badge(name, look, cls = "") {
 }
 // The whole journey, shown on every step. A first launch also counts you.
 function journey(at) {
-  const steps = [...(S.companies.length ? [] : ["You"]), "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
-  return `<ol class="su-steps">${steps.map((n, k) => `<li class="${k === i ? "on" : k < i ? "done" : ""}">${n}</li>`).join("")}</ol>`;
+  const steps = [...(S.companies.length && at !== "You" ? [] : ["You"]), "Connect AI", "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
+  return `<ol class="onb-steps">${steps.map((n, k) => `<li class="${k === i ? "on" : k < i ? "done" : ""}"><span class="n">${k < i ? icon("check") : k + 1}</span>${n}</li>`).join("")}</ol>`;
+}
+// Setup screens: the steps on the left, the step itself on the right, over a faint grid.
+const onboarding = (at, cancel, form) => `<div class="focus-wrap">${focusTop(cancel)}<div class="onb"><aside>${journey(at)}</aside>${form}</div></div>`;
+function viewLaunching() {
+  const s = S.setup, l = s.launch;
+  return `<div class="focus-wrap"><div class="launching">
+      ${badge(s.name, { color: s.color, logo: s.logoUrl }, "xl")}
+      <h1>Setting up ${esc(s.name)}</h1>
+      <ol>${l.steps.map((t, i) => `<li class="${i < l.done ? "done" : i === l.done ? "now" : ""}"><span class="n">${i < l.done ? icon("check") : i === l.done ? '<i class="spin"></i>' : ""}</span>${esc(t)}</li>`).join("")}</ol>
+    </div></div>`;
 }
 function viewSetup() {
-  const s = S.setup, names = ["Company", "Repo", "Team", "Launch"];
+  if (S.setup.launch) return viewLaunching();
+  const s = S.setup, names = ["Connect AI", "Company", "Repo", "Team", "Launch"];
   const back = s.step ? `<button class="btn" type="button" data-su="back">Back</button>` : "<span></span>";
   const nav = (label, disabled) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
   const picker = window.__TAURI__?.dialog;
   let body = "";
-  // Your Mac, on the repo step: what works, what's missing and the one command that fixes it.
-  const mark = { ok: "✓", warn: "!", fail: "×" };
-  const ready = s.step !== 1 ? "" : !s.ready ? `<div class="ready"><span class="label">Your Mac</span><p class="muted">Checking what's installed…</p></div>`
-    : `<div class="ready"><span class="label">Your Mac</span><ul>${s.ready.map(h => `<li class="lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b>${h.level === "ok" ? "" : ` <span>${esc(h.detail)}</span>${h.fix ? `<div class="fix"><code>${esc(h.fix)}</code><button class="link-btn" type="button" data-copy="${esc(h.fix.split(", then")[0])}">Copy</button></div>` : ""}`}</div></li>`).join("")}</ul>
-      ${s.ready.some(h => h.level !== "ok") ? `<p class="fine">Run the command in Terminal, then <button class="link-btn" type="button" data-recheck="1">check again</button>. Claude Code and Codex ask you to sign in the first time you run them.</p>` : ""}</div>`;
   const look = { color: s.color, logo: s.logoUrl };
   if (s.step === 0) {
+    const r = s.ready, find = w => (r || []).find(h => h.what === w);
+    const tools = [["Claude Code", "Anthropic's coding agent", "claude"], ["Codex", "OpenAI's coding agent", "codex"], ["GitHub CLI", "Optional. Ships work as pull requests", "gh"]];
+    const card = ([what, about, key]) => {
+      const h = find(what), state = !r ? "checking" : !h ? "missing" : h.level === "ok" ? "ok" : /not signed in/.test(h.detail) ? "signin" : "missing";
+      const pill = { checking: "Checking…", ok: "Connected", signin: "Not signed in", missing: "Not installed" }[state];
+      return `<div class="tool t-${state}"><span class="tool-ic" style="--c:${AGENTS[key]?.color || "var(--fg)"};${AGENTS[key] ? "" : "color:var(--bg)"}">${esc(what[0])}</span>
+        <div class="tool-main"><b>${esc(what)}</b><span>${esc(about)}</span>${h?.fix && state !== "ok" ? `<div class="fix"><code>${esc(h.fix)}</code><button class="link-btn" type="button" data-copy="${esc(h.fix)}">Copy</button></div>` : ""}</div>
+        <span class="pill-state">${pill}</span></div>`;
+    };
+    const git = find("git"), agents = r && tools.slice(0, 2).some(([w]) => find(w)?.level === "ok");
+    body = `<h1>Connect your AI</h1><p class="muted">Your employees run on these agents, signed in as you. OneCorp never sees your keys.</p>
+      <div class="tools">${tools.map(card).join("")}</div>
+      ${git && git.level !== "ok" ? `<p class="su-bad">git isn't installed. Run <code>${esc(git.fix || "xcode-select --install")}</code></p>` : ""}
+      <p class="fine">Run a command in Terminal, then <button class="link-btn" type="button" data-recheck="1">check again</button>.${r && !agents ? " No agent yet? Continue and start with the free stand-in team." : ""}</p>
+      ${nav("Continue")}`;
+  } else if (s.step === 1) {
     const prefix = (s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM";
-    body = `<h2>Found your company</h2><p class="muted">Its name, its look, and what it's for. Your team sees all of it.</p>
+    body = `<h1>Found your company</h1><p class="muted">Its name, its look, and what it's for. Your team sees all of it.</p>
       <div class="co-card">${badge(s.name || "?", look, "xl")}<div class="field grow"><label for="su-name">Name</label><input id="su-name" class="big" value="${esc(s.name)}" placeholder="snowztech" autocomplete="off" spellcheck="false">
         <span class="fine">Letters, digits, - and _. Tickets are numbered from it, like ${esc(prefix)}-1.</span></div></div>
       <div class="field"><span class="flabel">Logo</span><div class="look-row"><div class="swatches">${PALETTE.map(c => `<button type="button" class="swatch" data-su="color-${c}" aria-pressed="${c === s.color && !s.logoUrl}" style="--c:${c}" aria-label="Color ${c}"></button>`).join("")}</div>
@@ -850,7 +870,7 @@ function viewSetup() {
       <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the handbook)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
       <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, your team plans it once you launch)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
       ${nav("Continue")}`;
-  } else if (s.step === 1) {
+  } else if (s.step === 2) {
     const tabs = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-su="mode-existing" aria-selected="${s.mode === "existing"}">Use an existing repo</button>
       <button type="button" role="tab" data-su="mode-new" aria-selected="${s.mode === "new"}">Start a new one</button></div>`;
     if (s.mode === "new") {
@@ -861,7 +881,7 @@ function viewSetup() {
              <span class="mono muted">/${esc((s.folder || "your-repo").toLowerCase())}</span>
              <label class="su-check" for="su-private"><input type="checkbox" id="su-private" ${s.private ? "checked" : ""}> Private</label></div>` : ""}`
         : `<p class="su-warn">Sign in to GitHub with <code>gh auth login</code> to also create the repo there. You can add a remote later too.</p>`;
-      body = `<h2>Start ${esc(s.name)} from scratch</h2><p class="muted">A new folder with git, a README and a first commit, ready for your team.</p>${tabs}
+      body = `<h1>Start ${esc(s.name)} from scratch</h1><p class="muted">A new folder with git, a README and a first commit, ready for your team.</p>${tabs}
         <div class="field"><label for="su-folder">Folder name</label><input id="su-folder" value="${esc(s.folder)}" placeholder="notes-app" autocomplete="off" spellcheck="false"></div>
         <div class="field"><label for="su-parent">Inside</label><div class="su-row">${picker ? `<button class="btn" type="button" data-su="parent">Choose…</button>` : ""}<input id="su-parent" value="${esc(s.parent)}" autocomplete="off" spellcheck="false"></div></div>
         ${github}
@@ -871,11 +891,11 @@ function viewSetup() {
       const result = !r ? "" : r.ok
         ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>.</p>${shipNote(r)}${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
         : `<p class="su-bad">${esc(r.problem)}</p>`;
-      body = `<h2>Where does ${esc(s.name)} work?</h2><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>${tabs}
+      body = `<h1>Where does ${esc(s.name)} work?</h1><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>${tabs}
         <div class="su-row">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="check">Check</button></div>
         ${result}${nav("Continue", !(r && r.ok))}`;
     }
-  } else if (s.step === 2) {
+  } else if (s.step === 3) {
     const real = s.info.runtimes.filter(x => x !== "fake");
     const rows = s.people.map((p, i) => `<li class="person-row">${face(p.name || "?", "neutral")}
       <input id="su-p${i}-name" value="${esc(p.name)}" placeholder="Name" aria-label="Name" autocomplete="off">
@@ -884,7 +904,7 @@ function viewSetup() {
       <span class="mini-agents" role="group" aria-label="Works on">${s.info.runtimes.map(k => `<button type="button" class="mini-agent" data-su-agent="${i}:${k}" aria-pressed="${k === p.runtime}" title="${esc(AGENTS[k]?.name || k)}" style="--c:${AGENTS[k]?.color || "#888"}">${esc((AGENTS[k]?.name || k)[0])}</button>`).join("")}<input type="hidden" id="su-p${i}-runtime" value="${esc(p.runtime)}"></span>
       <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
     const depts = [...new Set(s.people.map(p => p.dept).filter(Boolean).concat(["Engineering", "Product", "Design", "Growth"]))];
-    body = `<h2>Who's on the team to start?</h2><p class="muted">Start from a template, then change anything: names, roles, departments. The first person in a department leads it.</p>
+    body = `<h1>Who's on the team to start?</h1><p class="muted">Start from a template, then change anything: names, roles, departments. The first person in a department leads it.</p>
       <div class="tpl-cards">${s.info.templates.map(x => {
         const off = !real.length && !x.runtime && x.hires.length;
         const faces = x.hires.length ? x.hires.slice(0, 4).map(h => face(h.name, "neutral")).join("") : `<span class="seat ghost"></span>`;
@@ -898,7 +918,7 @@ function viewSetup() {
       ${nav("Continue")}`;
   } else {
     const ships = s.repo.forge && s.repo.signed_in ? `As ${esc(s.repo.pr_word)}s on ${esc(s.repo.forge)}` : "By merging on your Mac";
-    body = `<h2>Ready to launch</h2><p class="muted">Everything can change later. This is just where you start.</p>
+    body = `<h1>Ready to launch</h1><p class="muted">Everything can change later. This is just where you start.</p>
       <div class="launch">
         <header>${badge(s.name, look, "xl")}<div><b>${esc(s.name)}</b><span>${esc(s.mission || "No mission yet")}</span></div></header>
         <dl class="kv"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
@@ -909,7 +929,7 @@ function viewSetup() {
       </div>
       ${nav(`Launch ${esc(s.name)}`)}`;
   }
-  return `<div class="focus-wrap">${focusTop(S.companies.length)}<form class="setup ${s.step === 2 ? "wide" : ""}" id="setup">${journey(names[s.step])}${body}${ready}</form></div>`;
+  return onboarding(names[s.step], S.companies.length, `<form class="onb-main setup ${s.step === 3 ? "wide" : ""}" id="setup">${body}</form>`);
 }
 
 /* Rendering and polling */
@@ -1175,40 +1195,48 @@ document.addEventListener("submit", async e => {
     if (!(await saveProfile())) return;
     if (!firstTime) { S.pop = false; renderPop(); render(); return toast("Saved"); }
     S.profile = null;
-    toast(`Welcome, ${myName()}.`);
     if (!S.companies.length) return startSetup();
+    toast(`Welcome back, ${myName()}.`);
     return refresh(true);
   }
   if (f.id === "setup") {
     readSetup();
     const s = S.setup;
-    if (s.step === 0) {
+    if (s.step === 0) { s.step = 1; render(); return $("#su-name")?.focus(); }
+    if (s.step === 1) {
       if (!/^[A-Za-z0-9_-]+$/.test(s.name)) { toast("A company name can use letters, digits, - and _, like snowztech or my-notes", true); return $("#su-name")?.focus(); }
       if (S.companies.includes(s.name)) return toast(`There's already a company called ${s.name}`, true);
       if (!s.folder) s.folder = s.name.toLowerCase();
-      s.step = 1; render(); return $("#su-path")?.focus();
-    }
-    if (s.step === 1) {
-      if (!s.repo || s.checked !== s.path) await checkRepo(s.path);
-      if (s.repo?.ok) { s.step = 2; render(); }
-      return;
+      s.step = 2; render(); return $("#su-path")?.focus();
     }
     if (s.step === 2) {
+      if (!s.repo || s.checked !== s.path) await checkRepo(s.path);
+      if (s.repo?.ok) { s.step = 3; render(); }
+      return;
+    }
+    if (s.step === 3) {
       // The same check the core makes, early, so you fix it here and not after a failed create.
       const ids = s.people.filter(p => p.name.trim()).map(p => p.name.trim().split(/\s+/)[0].toLowerCase());
       const twice = ids.find((id, i) => ids.indexOf(id) !== i);
       if (twice) return toast(`Two people would both be ${twice}. Give one of them a different first name`, true);
-      s.step = 3; return render();
+      s.step = 4; return render();
     }
-    const btn = f.querySelector(".btn.primary");
-    btn.disabled = true; btn.textContent = "Launching…";
+    // Launching: the real steps tick by while the company is set up, at a pace you can read.
+    const people = s.people.filter(p => p.name.trim()), real = people.some(p => p.runtime !== "fake");
+    const lead = people.find(p => /eng/i.test(p.dept || "")) || people[0];
+    s.launch = { done: 0, steps: [`Founding ${s.name}`, people.length ? `Hiring ${people.length} ${people.length === 1 ? "person" : "people"}` : "Opening the office",
+      `Connecting ${s.repo.path.split("/").pop()}`, real && lead ? `${first(lead.name)} starts writing the handbook` : "Reading the repo",
+      ...(s.brief && people.length ? ["Planning the first version"] : [])] };
+    render();
+    const tick = setInterval(() => { if (s.launch.done < s.launch.steps.length - 1) { s.launch.done++; render(); } }, 420);
+    const pace = new Promise(r => setTimeout(r, 420 * s.launch.steps.length));
     try {
-      const people = s.people.filter(p => p.name.trim());
-      const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo });
+      const [name] = await Promise.all([invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo }), pace]);
+      clearInterval(tick); s.launch.done = s.launch.steps.length; render();
+      await new Promise(r => setTimeout(r, 450));
       S.setup = null; S.company = name; S.view = "company"; S.snap = null; S.last = "";
-      toast(`${name} is open. Welcome to your company`);
       await refresh(true);
-    } catch (e) { toast(String(e), true); btn.disabled = false; btn.textContent = `Launch ${s.name}`; }
+    } catch (e) { clearInterval(tick); s.launch = null; render(); toast(String(e), true); }
     return;
   }
   if (f.id === "del-co") {
@@ -1303,6 +1331,7 @@ async function previewScreen() {
   if (screen === "start") { S.snap.tickets = []; S.snap.projects = []; S.snap.kickoff.brief = ""; render(); }
   if (screen === "wiki-edit") { S.view = "handbook"; S.hbEdit = true; await refresh(true); render(); }
   if (screen === "inbox-zero") { S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; S.snap.with_leads = []; S.view = "inbox"; render(); }
+  if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the handbook"] }; render(); }
   if (screen === "paused") { S.snap.paused = true; render(); }
   if (screen === "hire") openHire(1);
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }

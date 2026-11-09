@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A dev-tool look: neutral zinc greys in both themes, one crisp blue, tighter type and mono labels.
+- Onboarding is a real setup flow, with the steps beside it: You, Connect AI (Claude Code, Codex and the GitHub CLI, each shown as Connected, Not signed in or Not installed, with the command to fix it), Company, Repo, Team, Launch. Launching shows the company being set up step by step. `make fresh` opens the app on an empty home to see it as a first user does.
 - Your team writes the handbook: at launch, your engineering lead reads the repo (read-only) and writes the mission, codebase, build and test commands and the conventions the code already follows. You land in a company that already knows its codebase. With the free stand-in, a quick local scan fills in the Codebase section instead.
 - Ready for first users: download a DMG (a draft release is built for every version tag), and a README that starts from the download.
 - Meet the OneCorp badge, our mascot: an employee ID badge with a face cut out of it, in one color so it matches the theme. It's the new monochrome app icon, the mark next to the name, and it winks when you're all caught up.

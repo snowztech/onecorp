@@ -30,6 +30,22 @@ fn version(program: &str) -> Option<String> {
     out.status.success().then(|| String::from_utf8_lossy(&out.stdout).lines().next().unwrap_or("").trim().to_string())
 }
 
+/// Whether an agent CLI is signed in, when it can tell us. None when it can't, so it isn't held against it.
+fn signed_in(program: &str) -> Option<bool> {
+    let args: &[&str] = match program {
+        "claude" => &["auth", "status"],
+        "codex" => &["login", "status"],
+        _ => return None,
+    };
+    let out = Command::new(program).args(args).env("PATH", runtime::path()).output().ok()?;
+    let text = String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
+    if program == "claude" {
+        let v: serde_json::Value = serde_json::from_str(text.trim()).ok()?;
+        return v["loggedIn"].as_bool();
+    }
+    Some(out.status.success() && text.to_lowercase().contains("logged in"))
+}
+
 /// The runtimes that are installed here, in the order to suggest them. The stand-in is always there.
 pub fn installed_runtimes() -> Vec<&'static str> {
     let mut found: Vec<&'static str> = ["claude", "codex"].into_iter().filter(|r| version(r).is_some()).collect();
@@ -46,15 +62,19 @@ pub fn machine() -> Vec<Check> {
         None => check(Level::Fail, "git", "not found", Some("Install git: xcode-select --install")),
     });
 
-    let installs = [("claude", "Claude Code", "npm install -g @anthropic-ai/claude-code, then run claude once to sign in"), ("codex", "Codex", "npm install -g @openai/codex, then run codex once to sign in")];
+    let installs = [("claude", "Claude Code", "npm install -g @anthropic-ai/claude-code"), ("codex", "Codex", "npm install -g @openai/codex")];
     let mut found = vec!["fake"];
     for (program, name, how) in installs {
-        checks.push(match version(program) {
-            Some(v) => {
+        checks.push(match (version(program), signed_in(program)) {
+            (Some(v), Some(true) | None) => {
                 found.push(program);
                 check(Level::Ok, name, v, None)
             }
-            None => check(Level::Warn, name, "not installed. Employees can't run on it", Some(how)),
+            (Some(_), Some(false)) => {
+                found.push(program);
+                check(Level::Warn, name, "installed but not signed in", Some(if program == "claude" { "claude" } else { "codex login" }))
+            }
+            (None, _) => check(Level::Warn, name, "not installed. Employees can't run on it", Some(how)),
         });
     }
     checks.push(match version("gh") {
