@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS inbox (
   options TEXT NOT NULL DEFAULT '',
   default_answer TEXT NOT NULL DEFAULT '',
   blocking INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL DEFAULT 'question',
   answer TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   answered_at TEXT
@@ -107,6 +108,8 @@ pub struct Question {
     pub default_answer: String,
     pub blocking: bool,
     pub answer: Option<String>,
+    /// "question", or "handbook" for a proposed handbook addition (then `options` holds the section).
+    pub kind: String,
 }
 
 pub struct Ticket {
@@ -130,7 +133,7 @@ pub struct Company {
 }
 
 impl Company {
-    pub fn create(name: &str, repo: &Path) -> Result<Company> {
+    pub fn create(name: &str, repo: &Path, mission: &str) -> Result<Company> {
         if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
             bail!("company name can only use letters, digits, - and _");
         }
@@ -145,6 +148,8 @@ impl Company {
         fs::create_dir_all(&dir)?;
         let c = Self::open_dir(name, dir)?;
         c.db.execute("INSERT INTO meta (key, value) VALUES ('repo', ?1)", [repo.to_string_lossy()])?;
+        let mission = if mission.trim().is_empty() { "What the company is for, in a sentence or two." } else { mission.trim() };
+        fs::write(c.handbook_path(), format!("# {name} handbook\n\n## Mission\n\n{mission}\n\n## Decisions\n\n## Conventions\n"))?;
         Ok(c)
     }
 
@@ -264,11 +269,31 @@ impl Company {
         Ok(())
     }
 
+    pub fn handbook_path(&self) -> PathBuf {
+        self.dir.join("handbook.md")
+    }
+
+    /// The handbook's text, or empty if there isn't one yet.
+    pub fn handbook(&self) -> Result<String> {
+        match fs::read_to_string(self.handbook_path()) {
+            Ok(s) => Ok(s),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn add_to_handbook(&self, section: &str, text: &str) -> Result<()> {
+        let doc = self.handbook()?;
+        let doc = if doc.is_empty() { format!("# {} handbook\n", self.name) } else { doc };
+        fs::write(self.handbook_path(), add_to_section(&doc, section, text))?;
+        Ok(())
+    }
+
     pub fn ask(&self, q: &Question) -> Result<i64> {
         self.db.execute(
-            "INSERT INTO inbox (ticket_id, employee, question, options, default_answer, blocking)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![q.ticket_id, q.employee, q.question, q.options, q.default_answer, q.blocking],
+            "INSERT INTO inbox (ticket_id, employee, question, options, default_answer, blocking, kind)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![q.ticket_id, q.employee, q.question, q.options, q.default_answer, q.blocking, q.kind],
         )?;
         Ok(self.db.last_insert_rowid())
     }
@@ -276,7 +301,7 @@ impl Company {
     /// Open questions, oldest first.
     pub fn inbox(&self) -> Result<Vec<Question>> {
         let mut st = self.db.prepare(
-            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer
+            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer, kind
              FROM inbox WHERE answer IS NULL ORDER BY id",
         )?;
         let rows = st.query_map([], row_to_question)?;
@@ -293,7 +318,7 @@ impl Company {
             bail!("no open question #{id}. See: onecorp inbox");
         }
         Ok(self.db.query_row(
-            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer FROM inbox WHERE id = ?1",
+            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer, kind FROM inbox WHERE id = ?1",
             [id],
             row_to_question,
         )?)
@@ -379,9 +404,48 @@ fn row_to_question(r: &rusqlite::Row) -> rusqlite::Result<Question> {
         default_answer: r.get(5)?,
         blocking: r.get(6)?,
         answer: r.get(7)?,
+        kind: r.get(8)?,
     })
 }
 
 fn row_to_employee(r: &rusqlite::Row) -> rusqlite::Result<Employee> {
     Ok(Employee { id: r.get(0)?, name: r.get(1)?, role: r.get(2)?, runtime: r.get(3)?, model: r.get(4)?, bio: r.get(5)? })
+}
+
+/// Adds `text` as a bullet at the end of the `## section`, creating the section if it's missing.
+pub fn add_to_section(doc: &str, section: &str, text: &str) -> String {
+    let bullet = format!("- {}", text.trim());
+    let heading = format!("## {section}");
+    let lines: Vec<&str> = doc.lines().collect();
+    let Some(start) = lines.iter().position(|l| l.trim().eq_ignore_ascii_case(&heading)) else {
+        return format!("{}\n\n{heading}\n\n{bullet}\n", doc.trim_end());
+    };
+    let end = lines[start + 1..].iter().position(|l| l.starts_with("## ")).map_or(lines.len(), |i| start + 1 + i);
+    // Insert after the section's last non-blank line, so the blank line before the next heading stays.
+    let at = (start + 1..end).rev().find(|&i| !lines[i].trim().is_empty()).map_or(start + 1, |i| i + 1);
+    let mut out: Vec<String> = lines[..at].iter().map(|l| l.to_string()).collect();
+    if at == start + 1 {
+        out.push(String::new());
+    }
+    out.push(bullet);
+    out.extend(lines[at..].iter().map(|l| l.to_string()));
+    out.join("\n") + "\n"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::add_to_section;
+
+    #[test]
+    fn adds_bullets_to_the_right_section() {
+        let doc = "# acme handbook\n\n## Mission\n\nNotes.\n\n## Decisions\n\n## Conventions\n";
+        let one = add_to_section(doc, "Decisions", "No ORMs");
+        assert_eq!(one, "# acme handbook\n\n## Mission\n\nNotes.\n\n## Decisions\n\n- No ORMs\n\n## Conventions\n");
+        let two = add_to_section(&one, "decisions", "Hash tokens at rest");
+        assert!(two.contains("- No ORMs\n- Hash tokens at rest\n\n## Conventions"));
+        let three = add_to_section(&two, "Conventions", "Small PRs");
+        assert!(three.ends_with("## Conventions\n\n- Small PRs\n"));
+        let four = add_to_section("# x\n", "Glossary", "TVL means total value locked");
+        assert_eq!(four, "# x\n\n## Glossary\n\n- TVL means total value locked\n");
+    }
 }

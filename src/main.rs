@@ -20,6 +20,9 @@ enum Cmd {
         name: String,
         #[arg(long)]
         repo: PathBuf,
+        /// What the company is for. Goes at the top of the handbook
+        #[arg(long)]
+        mission: Option<String>,
     },
     /// Switch the current company
     Use { name: String },
@@ -79,6 +82,13 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// The handbook every employee reads before each ticket
+    Handbook {
+        #[command(subcommand)]
+        action: Option<HandbookCmd>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Questions your team is waiting on
     Inbox {
         #[arg(short, long)]
@@ -134,6 +144,19 @@ enum Cmd {
     },
 }
 
+#[derive(Subcommand)]
+enum HandbookCmd {
+    /// Add a line, like "No ORMs" or "Tokens are hashed at rest"
+    Add {
+        text: String,
+        /// Which section it goes under
+        #[arg(long, default_value = "Decisions")]
+        section: String,
+    },
+    /// Open it in $EDITOR
+    Edit,
+}
+
 struct Preset {
     key: &'static str,
     role: &'static str,
@@ -180,10 +203,11 @@ fn open(company: Option<String>) -> Result<store::Company> {
 
 fn run(cmd: Cmd) -> Result<()> {
     match cmd {
-        Cmd::New { name, repo } => {
-            let c = store::Company::create(&name, &repo)?;
+        Cmd::New { name, repo, mission } => {
+            let c = store::Company::create(&name, &repo, mission.as_deref().unwrap_or(""))?;
             store::set_current(&name)?;
             println!("Created {} around {}. It's now your current company.", c.name, c.repo()?.display());
+            println!("Its handbook is at {}. Everyone reads it before each ticket.", c.handbook_path().display());
             println!("Next, hire someone: onecorp hire");
         }
         Cmd::Use { name } => {
@@ -268,6 +292,37 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{at}  {kind:<6} {summary}");
             }
         }
+        Cmd::Handbook { action, company } => {
+            let c = open(company)?;
+            match action {
+                None => {
+                    let doc = c.handbook()?;
+                    if doc.trim().is_empty() {
+                        println!("No handbook yet. Start one: onecorp handbook add \"<a decision everyone should know>\"");
+                    } else {
+                        print!("{doc}");
+                    }
+                }
+                Some(HandbookCmd::Add { text, section }) => {
+                    if text.trim().is_empty() {
+                        bail!("what should everyone know? For example: onecorp handbook add \"No new dependencies without asking\"");
+                    }
+                    c.add_to_handbook(section.trim(), &text)?;
+                    println!("Added to {}. Everyone sees it from their next ticket.", section.trim());
+                }
+                Some(HandbookCmd::Edit) => {
+                    let path = c.handbook_path();
+                    if !path.exists() {
+                        c.add_to_handbook("Decisions", "")?;
+                    }
+                    // $EDITOR can carry flags, like "code -w".
+                    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".into());
+                    let mut parts = editor.split_whitespace();
+                    let program = parts.next().unwrap_or("vi");
+                    std::process::Command::new(program).args(parts).arg(&path).status()?;
+                }
+            }
+        }
         Cmd::Inbox { company } => {
             let c = open(company)?;
             let qs = c.inbox()?;
@@ -276,6 +331,11 @@ fn run(cmd: Cmd) -> Result<()> {
             }
             for q in qs {
                 let ticket = q.ticket_id.map(|t| c.key(t)).unwrap_or_default();
+                if q.kind == "handbook" {
+                    println!("#{:<3} {ticket:<7} {}  [handbook]\n     Add to {}: {}", q.id, q.employee, q.options, q.question);
+                    println!("     onecorp answer {} yes   (or no, or your own wording)\n", q.id);
+                    continue;
+                }
                 let tag = if q.blocking { "  [blocking]" } else { "" };
                 println!("#{:<3} {ticket:<7} {}{tag}\n     {}", q.id, q.employee, q.question);
                 let mut extra = vec![];
@@ -300,6 +360,17 @@ fn run(cmd: Cmd) -> Result<()> {
             }
             let text = text.trim();
             let q = c.answer(id, text)?;
+            if q.kind == "handbook" {
+                match text.to_lowercase().as_str() {
+                    "no" | "n" => println!("Left out of the handbook."),
+                    yes => {
+                        let line = if matches!(yes, "yes" | "y") { q.question.as_str() } else { text };
+                        c.add_to_handbook(&q.options, line)?;
+                        println!("Added to {}: {line}", q.options);
+                    }
+                }
+                return Ok(());
+            }
             println!("Answered #{id}.");
             let Some(tid) = q.ticket_id else { return Ok(()) };
             let (key, status) = (c.key(tid), c.ticket(tid)?.map(|t| t.status).unwrap_or_default());
@@ -517,14 +588,36 @@ fn work(c: &store::Company, e: &Employee, title: &str) -> Result<()> {
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
          You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
          or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
-         If something outside your control stops you, use update_ticket to mark the ticket blocked.",
+         If something outside your control stops you, use update_ticket to mark the ticket blocked. \
+         If you learn or decide something every teammate should know from now on, propose it with propose_handbook.\n\n\
+         {knowledge}",
         name = e.name,
         role = e.role,
         company = c.name,
         bio = e.bio,
         abilities = agent::abilities(&e.runtime),
+        knowledge = company_knowledge(c)?,
     );
     drive(c, e, id, &wt, None, &prompt, title)
+}
+
+/// What every employee should know before starting: the handbook, and who does what.
+fn company_knowledge(c: &store::Company) -> Result<String> {
+    // Keeps a runaway handbook from eating the whole context window.
+    const MAX: usize = 12_000;
+    let mut doc = c.handbook()?.trim().to_string();
+    if doc.len() > MAX {
+        let cut = (0..=MAX).rev().find(|&i| doc.is_char_boundary(i)).unwrap_or(0);
+        doc.truncate(cut);
+        doc.push_str("\n\n(The handbook goes on. Ask the founder if you need more.)");
+    }
+    let team: Vec<String> = c.employees()?.iter().map(|e| format!("- {}, {} (works on {})", e.name, e.role, e.runtime)).collect();
+    let mut out = String::new();
+    if !doc.is_empty() {
+        out.push_str(&format!("The company handbook. Everyone reads it, so follow it:\n\n{doc}\n\n"));
+    }
+    out.push_str(&format!("Who works here:\n{}", team.join("\n")));
+    Ok(out)
 }
 
 fn find_ticket(c: &store::Company, key: &str) -> Result<store::Ticket> {
@@ -680,8 +773,8 @@ fn drive(c: &store::Company, e: &Employee, id: i64, wt: &std::path::Path, resume
     );
     let waiting = c.inbox()?.len();
     if waiting > 0 && t.status != "blocked" {
-        let q = if waiting == 1 { "question" } else { "questions" };
-        println!("{waiting} {q} in your inbox: onecorp inbox");
+        let item = if waiting == 1 { "item" } else { "items" };
+        println!("{waiting} {item} in your inbox: onecorp inbox");
     }
     Ok(())
 }
