@@ -54,8 +54,11 @@ pub struct Template {
     pub key: &'static str,
     pub name: &'static str,
     pub description: &'static str,
-    /// Set when the template only makes sense on one runtime, like the free demo.
+    /// Set when the template only makes sense on one runtime, like the stand-in demo.
     pub runtime: Option<&'static str>,
+    /// Kept out of the app: the stand-in demo is for tests and trying the CLI, since an employee
+    /// without AI can't do real work.
+    pub hidden: bool,
     pub hires: &'static [Hire],
 }
 
@@ -71,26 +74,56 @@ const SMALL_TEAM: &[Hire] = &[
 pub const TEMPLATES: &[Template] = &[
     Template {
         key: "solo",
-        name: "Just me and one engineer",
-        description: "One engineer to start. Hire the rest when you need them.",
+        name: "Solo builder",
+        description: "One engineer who ships. Hire more when you need them.",
         runtime: None,
+        hidden: false,
         hires: &[Hire { name: "Maya Okafor", preset: "engineer", role: None, dept: Some("Engineering") }],
     },
     Template {
         key: "small",
-        name: "Small product team",
-        description: "A CTO who leads Engineering and reviews, an engineer, and a product manager and a designer in Product.",
+        name: "Product team",
+        description: "A CTO who reviews, an engineer, a product manager who plans, and a designer.",
         runtime: None,
+        hidden: false,
         hires: SMALL_TEAM,
     },
     Template {
+        key: "startup",
+        name: "Startup",
+        description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.",
+        runtime: None,
+        hidden: false,
+        hires: &[
+            Hire { name: "Odile Martin", preset: "reviewer", role: Some("CTO"), dept: Some("Engineering") },
+            Hire { name: "Maya Okafor", preset: "engineer", role: Some("Frontend engineer"), dept: Some("Engineering") },
+            Hire { name: "Tomás Reis", preset: "engineer", role: Some("Backend engineer"), dept: Some("Engineering") },
+            Hire { name: "Rui Alves", preset: "pm", role: None, dept: Some("Product") },
+            Hire { name: "Lina Park", preset: "designer", role: None, dept: Some("Product") },
+            Hire { name: "Sam Duarte", preset: "writer", role: Some("Growth writer"), dept: Some("Growth") },
+        ],
+    },
+    Template {
+        key: "oss",
+        name: "Open source project",
+        description: "A maintainer who reviews every change, an engineer, and a writer for docs and changelogs.",
+        runtime: None,
+        hidden: false,
+        hires: &[
+            Hire { name: "Odile Martin", preset: "reviewer", role: Some("Maintainer"), dept: Some("Engineering") },
+            Hire { name: "Maya Okafor", preset: "engineer", role: None, dept: Some("Engineering") },
+            Hire { name: "Sam Duarte", preset: "writer", role: Some("Docs writer"), dept: Some("Docs") },
+        ],
+    },
+    Template { key: "empty", name: "Start empty", description: "No one yet. Add departments and hire them yourself.", runtime: None, hidden: false, hires: &[] },
+    Template {
         key: "demo",
-        name: "Try it for free",
-        description: "The small team on a stand-in with no AI. Nothing to install, nothing to pay. Rehire on a real runtime anytime.",
+        name: "Stand-in team",
+        description: "The product team on a stand-in with no AI, for tests and trying the CLI.",
         runtime: Some("fake"),
+        hidden: true,
         hires: SMALL_TEAM,
     },
-    Template { key: "empty", name: "Start empty", description: "No one yet. Add departments and hire yourself.", runtime: None, hires: &[] },
 ];
 
 pub fn template(key: &str) -> Option<&'static Template> {

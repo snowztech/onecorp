@@ -17,7 +17,7 @@ Your employees need one of these, signed in:
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code): `npm install -g @anthropic-ai/claude-code`, then run `claude` once.
 - [Codex](https://github.com/openai/codex): `npm install -g @openai/codex`, then run `codex` once.
 
-No AI yet? Pick **Try it for free** as your starting team. It runs on a stand-in that costs nothing, and you can rehire on a real agent anytime. For pull requests, install the [GitHub CLI](https://cli.github.com) and run `gh auth login`.
+OneCorp checks this during setup and won't start a team without one: an employee without an AI agent can't do any work. For pull requests, install the [GitHub CLI](https://cli.github.com) and run `gh auth login`.
 
 What it costs: your agent's usage, nothing else. OneCorp shows what each ticket spent, and **Pause** in the Live section stops new work anytime.
 

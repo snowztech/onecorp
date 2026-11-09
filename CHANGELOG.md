@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Starting teams that fit how founders work: Solo builder, Product team, Startup, Open source project, or Start empty. The stand-in team with no AI is gone from the app, since an employee without AI can't do any work. Connect AI asks for Claude Code or Codex before going on.
+- Every employee wears a small badge on their avatar for the agent they run on.
+- Onboarding fixes found by clicking through it end to end: Continue on the repo step checks the path itself, so typing or pasting one works without a separate Check; switching starting templates, removing someone or changing their agent no longer gets overwritten by what was on screen before.
 - Onboarding has no background polling timer, so fields keep focus while you type. Live updates start in the company workspace and stop whenever you enter setup again.
 - You're a photo or your initials, never a drawn face: those are for your AI team. On the welcome, your avatar is the photo button, so you can pick a photo before typing your name. It's saved when you continue.
 - Typing your name no longer makes the screen jump: the drawn face changes once you pause, with a soft fade, and background refreshes leave setup screens alone. Fields focus in place, with no gap around the ring.

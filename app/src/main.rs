@@ -216,6 +216,7 @@ fn setup_info() -> Res<Value> {
     let runtimes = onecorp::doctor::installed_runtimes();
     let teams: Vec<Value> = onecorp::templates::TEMPLATES
         .iter()
+        .filter(|t| !t.hidden)
         .map(|t| {
             json!({
                 "key": t.key, "name": t.name, "description": t.description, "runtime": t.runtime,

@@ -123,12 +123,17 @@ function renderTop() {
 }
 
 /* Company page: you on top, departments beneath as rooms of desks */
+// The agent someone runs on, as a small badge on their avatar.
+function agentBadge(runtime) {
+  const a = AGENTS[runtime];
+  return a ? `<span class="agent-badge" style="--c:${a.color}" title="Works on ${esc(a.name)}">${esc(a.name[0])}</span>` : "";
+}
 function desk(e, lead) {
   const show = e.bubble ? "show" : "";
   const works = (RUNTIME[e.runtime]?.[0] || e.runtime) + (e.model ? ` · ${e.model}` : "");
   return `<button class="desk ${e.status}" data-person="${esc(e.id)}" title="${esc(e.name)} works on ${esc(works)}">
     <span class="bubble ${show}">${esc(e.bubble)}</span>
-    <span class="station"><span class="seat">${face(e.name, e.status)}</span><span class="monitor"><i></i><i></i><i></i><i></i></span></span>
+    <span class="station"><span class="seat with-agent">${face(e.name, e.status)}${agentBadge(e.runtime)}</span><span class="monitor"><i></i><i></i><i></i><i></i></span></span>
     <span class="table"></span>${e.status === "idle" ? '<span class="zz">z</span>' : ""}
     <span class="plate"><b>${esc(first(e.name))}${lead ? '<em class="leadtag">Lead</em>' : ""}</b><span>${esc(e.role)}</span></span></button>`;
 }
@@ -604,7 +609,7 @@ function renderDrawer() {
   if (!p) return (d.innerHTML = `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
   const e = byId(p.id) || { status: "idle" };
   const depts = S.snap.departments.filter(x => x.id !== null), dept = depts.find(x => x.id === p.department);
-  const head = `<div class="dhead">${face(p.name, e.status)}<div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
+  const head = `<div class="dhead"><span class="with-agent">${face(p.name, e.status)}${agentBadge(p.runtime)}</span><div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
   if (S.drawer.edit) {
     d.innerHTML = `${head}<form class="dbody" id="emp-form">
       ${personFields(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio })}
@@ -656,7 +661,7 @@ const AGENTS = {
 function agentPicker(f) {
   const have = S.runtimes || Object.keys(AGENTS), a = AGENTS[f.runtime] || AGENTS.claude;
   const models = a.models.some(([v]) => v === (f.model || "")) ? a.models : [...a.models, [f.model, f.model]];
-  return `<div class="field"><span class="flabel">Works on</span><div class="agents">${Object.entries(AGENTS).map(([k, x]) => {
+  return `<div class="field"><span class="flabel">Works on</span><div class="agents">${Object.entries(AGENTS).filter(([k]) => k !== "fake" || f.runtime === "fake").map(([k, x]) => {
       const ok = have.includes(k) || k === f.runtime;
       return `<button type="button" class="agent" data-agent="${k}" aria-pressed="${k === f.runtime}" ${ok ? "" : 'disabled title="Not installed on this Mac. Settings shows how to install it"'}>
         <span class="glyph" style="--c:${x.color}">${x.name[0]}</span><span><b>${x.name}</b><small>${ok ? x.by : "Not installed"}</small></span></button>`;
@@ -676,7 +681,7 @@ const readPerson = () => ({ name: $("#pf-n").value.trim(), role: $("#pf-r").valu
 function drawerHire() {
   const dept = S.snap.departments.find(x => x.id === S.drawer.dept), f = S.drawer.form;
   const picks = candidates(f.role || "Engineer");
-  return `<div class="dhead"><span class="hire-face">${face(f.name || "New hire", "neutral")}</span><div><h2>Hire into ${esc(dept?.name || "the company")}</h2><span class="muted">Start from a suggestion or make your own. You can change anything later.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
+  return `<div class="dhead"><span class="with-agent"><span class="hire-face">${face(f.name || "New hire", "neutral")}</span>${agentBadge(f.runtime)}</span><div><h2>Hire into ${esc(dept?.name || "the company")}</h2><span class="muted">Start from a suggestion or make your own. You can change anything later.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <form class="dbody" id="hire-form">
       <div class="picks">${picks.map((c, i) => `<button type="button" class="pick" data-pick-fill="${i}">${face(c.name, "neutral")}<div><b>${esc(first(c.name))}</b><span>${esc(c.tier)}</span></div></button>`).join("")}</div>
       ${personFields(f)}
@@ -768,7 +773,7 @@ async function startSetup() {
     invoke("readiness").then(r => { if (S.setup) { S.setup.ready = r; render(); } }).catch(() => {});
     S.setup = { step: 0, mode: "existing", path: "", repo: null, name: "", mission: "", runtime: real[0] || "fake", info, repoInfo,
       folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [], color: PALETTE[S.companies.length % PALETTE.length], logo: null, logoUrl: null };
-    setTemplate(real.length ? "small" : "demo");
+    setTemplate("small");
   } catch (e) { return toast(String(e), true); }
   S.drawer = null;
   render();
@@ -867,8 +872,9 @@ function viewSetup() {
     body = `<h1>Connect your AI</h1><p class="muted">Your employees run on these agents, signed in as you. OneCorp never sees your keys.</p>
       <div class="tools">${tools.map(card).join("")}</div>
       ${git && git.level !== "ok" ? `<p class="su-bad">git isn't installed. Run <code>${esc(git.fix || "xcode-select --install")}</code></p>` : ""}
-      <p class="fine">Run a command in Terminal, then <button class="link-btn" type="button" data-recheck="1">check again</button>.${r && !agents ? " No agent yet? Continue and start with the free stand-in team." : ""}</p>
-      ${nav("Continue")}`;
+      ${r && !agents ? `<p class="su-warn">Your employees need Claude Code or Codex to work. Install one, sign in, then check again.</p>` : ""}
+      <p class="fine">Run a command in Terminal, then <button class="link-btn" type="button" data-recheck="1">check again</button>.</p>
+      ${nav("Continue", !r || !agents)}`;
   } else if (s.step === 1) {
     const prefix = (s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM";
     body = `<h1>Found your company</h1><p class="muted">Its name, its look, and what it's for. Your team sees all of it.</p>
@@ -901,26 +907,24 @@ function viewSetup() {
         ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>.</p>${shipNote(r)}${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
         : `<p class="su-bad">${esc(r.problem)}</p>`;
       body = `<h1>Where does ${esc(s.name)} work?</h1><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>${tabs}
-        <div class="su-row">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="check">Check</button></div>
-        ${result}${nav("Continue", !(r && r.ok))}`;
+        <div class="su-row">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"></div>
+        ${result}${nav("Continue")}`;
     }
   } else if (s.step === 3) {
     const real = s.info.runtimes.filter(x => x !== "fake");
-    const rows = s.people.map((p, i) => `<li class="person-row">${face(p.name || "?", "neutral")}
+    const rows = s.people.map((p, i) => `<li class="person-row"><span class="with-agent">${face(p.name || "?", "neutral")}${agentBadge(p.runtime)}</span>
       <input id="su-p${i}-name" value="${esc(p.name)}" placeholder="Name" aria-label="Name" autocomplete="off">
       <input id="su-p${i}-role" value="${esc(p.role)}" placeholder="Role" aria-label="Role" autocomplete="off">
       <input id="su-p${i}-dept" value="${esc(p.dept)}" placeholder="Department" aria-label="Department" list="su-depts" autocomplete="off">
-      <span class="mini-agents" role="group" aria-label="Works on">${s.info.runtimes.map(k => `<button type="button" class="mini-agent" data-su-agent="${i}:${k}" aria-pressed="${k === p.runtime}" title="${esc(AGENTS[k]?.name || k)}" style="--c:${AGENTS[k]?.color || "#888"}">${esc((AGENTS[k]?.name || k)[0])}</button>`).join("")}<input type="hidden" id="su-p${i}-runtime" value="${esc(p.runtime)}"></span>
+      <span class="mini-agents" role="group" aria-label="Works on">${real.map(k => `<button type="button" class="mini-agent" data-su-agent="${i}:${k}" aria-pressed="${k === p.runtime}" title="${esc(AGENTS[k]?.name || k)}" style="--c:${AGENTS[k]?.color || "#888"}">${esc((AGENTS[k]?.name || k)[0])}</button>`).join("")}<input type="hidden" id="su-p${i}-runtime" value="${esc(p.runtime)}"></span>
       <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
     const depts = [...new Set(s.people.map(p => p.dept).filter(Boolean).concat(["Engineering", "Product", "Design", "Growth"]))];
     body = `<h1>Who's on the team to start?</h1><p class="muted">Start from a template, then change anything: names, roles, departments. The first person in a department leads it.</p>
       <div class="tpl-cards">${s.info.templates.map(x => {
-        const off = !real.length && !x.runtime && x.hires.length;
-        const faces = x.hires.length ? x.hires.slice(0, 4).map(h => face(h.name, "neutral")).join("") : `<span class="seat ghost"></span>`;
-        return `<button type="button" class="tpl-card" data-tpl="${x.key}" aria-pressed="${x.key === s.template}" ${off ? "disabled" : ""}>
+        const faces = x.hires.length ? x.hires.slice(0, 5).map(h => face(h.name, "neutral")).join("") : `<span class="seat ghost"></span>`;
+        return `<button type="button" class="tpl-card" data-tpl="${x.key}" aria-pressed="${x.key === s.template}">
           <span class="tpl-faces">${faces}</span><b>${esc(x.name)}</b><span>${esc(x.description)}</span></button>`;
       }).join("")}</div>
-      ${!real.length ? `<p class="su-warn">Neither Claude Code nor Codex is installed here, so only the free stand-in works. Install one later and rehire on it.</p>` : ""}
       <ul class="people">${rows || `<li class="muted">Nobody yet. Add someone, or start empty and hire later.</li>`}</ul>
       <datalist id="su-depts">${depts.map(d => `<option value="${esc(d)}">`).join("")}</datalist>
       <button class="btn" type="button" data-su="add-person">+ Add someone</button>
@@ -954,8 +958,8 @@ function syncPolling() {
 }
 function render() {
   syncPolling();
-  // Keep drafts when an onboarding action redraws the form.
-  if (S.setup && $("#setup")) readSetup();
+  // Setup actions save the form themselves before changing it. Reading it again here would copy
+  // stale fields over the change: the old team over a new template, or a row over the one deleted.
   if (S.profile && $("#pf-name")) S.profile.name = $("#pf-name").value;
   renderSide(); renderTop();
   const v = $("#view");
@@ -1241,7 +1245,11 @@ document.addEventListener("submit", async e => {
   if (f.id === "setup") {
     readSetup();
     const s = S.setup;
-    if (s.step === 0) { s.step = 1; render(); return $("#su-name")?.focus(); }
+    if (s.step === 0) {
+      const ok = (s.ready || []).some(h => ["Claude Code", "Codex"].includes(h.what) && h.level === "ok");
+      if (!ok) return toast("Connect Claude Code or Codex first. Your employees need one to work", true);
+      s.step = 1; render(); return $("#su-name")?.focus();
+    }
     if (s.step === 1) {
       if (!/^[A-Za-z0-9_-]+$/.test(s.name)) { toast("A company name can use letters, digits, - and _, like snowztech or my-notes", true); return $("#su-name")?.focus(); }
       if (S.companies.includes(s.name)) return toast(`There's already a company called ${s.name}`, true);
@@ -1249,6 +1257,8 @@ document.addEventListener("submit", async e => {
       s.step = 2; render(); return $("#su-path")?.focus();
     }
     if (s.step === 2) {
+      // Continue checks the path itself: typing, pasting or picking a folder all work the same.
+      if (!s.path) { toast("Pick the repo's folder, or paste its path", true); return $("#su-path")?.focus(); }
       if (!s.repo || s.checked !== s.path) await checkRepo(s.path);
       if (s.repo?.ok) { s.step = 3; render(); }
       return;
@@ -1429,10 +1439,11 @@ function preview(cmd) {
     },
     handbook: "# snowztech handbook\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
     setup_info: { runtimes: ["claude", "fake"], templates: [
-      { key: "solo", name: "Just me and one engineer", description: "One engineer to start. Hire the rest when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
-      { key: "small", name: "Small product team", description: "A CTO who leads Engineering and reviews, an engineer, and a designer in Product.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Lina Park", role: "Product designer", dept: "Product" }] },
-      { key: "demo", name: "Try it for free", description: "The small team on a stand-in with no AI.", runtime: "fake", hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }] },
-      { key: "empty", name: "Start empty", description: "No one yet.", runtime: null, hires: [] }] },
+      { key: "solo", name: "Solo builder", description: "One engineer who ships. Hire more when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
+      { key: "small", name: "Product team", description: "A CTO who reviews, an engineer, a product manager who plans, and a designer.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Rui Alves", role: "Product manager", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }] },
+      { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", role: "Product manager", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth writer", dept: "Growth" }] },
+      { key: "oss", name: "Open source project", description: "A maintainer who reviews every change, an engineer, and a writer for docs and changelogs.", runtime: null, hires: [{ name: "Odile Martin", role: "Maintainer", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Sam Duarte", role: "Docs writer", dept: "Docs" }] },
+      { key: "empty", name: "Start empty", description: "No one yet. Add departments and hire them yourself.", runtime: null, hires: [] }] },
     ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
     new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
@@ -1445,6 +1456,7 @@ function preview(cmd) {
     check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [], forge: "GitHub", pr_word: "pull request", signed_in: true, account: "Logged in to github.com account you" },
     founder: { name: "Lucas", photo: null },
     save_founder: null,
+    create_company: "acme",
     chat: { channel: "general", messages: [
       { id: 1, at: "2026-11-09 09:12:00", author: "founder", name: "Lucas", founder: true, text: "Morning team. Goal this week: magic link login and the pricing page live.", key: null, pending: false },
       { id: 2, at: "2026-11-09 09:40:00", author: "rui", name: "Rui Alves", text: "Plan is in your inbox as SNO-20. Setup first, then login and sync in parallel.", key: "SNO-20", pending: false },
