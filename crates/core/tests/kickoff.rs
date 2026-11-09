@@ -68,6 +68,15 @@ fn an_idea_becomes_a_plan_becomes_work() {
     assert_eq!((status(second), c.plan_tickets(second).unwrap().len()), ("review".into(), 3));
     assert!(repo.join("README.md").exists());
 
+    // A later project plans from its own goal, and shows up with its progress.
+    let billing = work::plan_project(&c, "Stripe billing", "Pro plan at $6 a month, with a free tier", Some("rui")).unwrap();
+    let b = c.ticket(billing).unwrap().unwrap();
+    assert_eq!((b.title.as_str(), b.description.as_str(), b.status.as_str()), ("Stripe billing", "Pro plan at $6 a month, with a free tier", "review"));
+    assert!(work::plan_project(&c, "  ", "", None).is_err());
+    let snap = onecorp::view::snapshot(&c).unwrap();
+    let p = snap["projects"].as_array().unwrap().iter().find(|p| p["title"] == "Stripe billing").unwrap().clone();
+    assert_eq!((p["total"].as_u64(), p["done"].as_u64()), (Some(3), Some(0)));
+
     let _ = std::fs::remove_dir_all(&root);
 }
 

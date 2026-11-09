@@ -317,9 +317,19 @@ pub fn kickoff(c: &Company, by: Option<&str>) -> Result<i64> {
     if c.brief()?.is_empty() {
         bail!("write the brief first: what you're building and who it's for. onecorp brief --set \"...\"");
     }
+    plan_project(c, "First version", "", by)
+}
+
+/// Plans a project: a feature or a goal, like "Stripe billing". The planner breaks it into tickets
+/// you review. With no goal it plans the first version from the company brief.
+pub fn plan_project(c: &Company, name: &str, goal: &str, by: Option<&str>) -> Result<i64> {
+    let name = name.trim();
+    if name.is_empty() {
+        bail!("name the project, like Stripe billing");
+    }
     let planner = pick_planner(c, by)?;
-    let id = c.new_plan("Plan the first version", &planner.id)?;
-    out(&format!("{} plans it with {}, {}.", c.key(id), planner.name, planner.role));
+    let id = c.new_plan(name, goal.trim(), &planner.id)?;
+    out(&format!("{} plans {name} with {}, {}.", c.key(id), planner.name, planner.role));
     dispatch(c, id, Job::Start)?;
     Ok(id)
 }
@@ -331,9 +341,8 @@ fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
     out(&format!("{key}  {}\n      {} is on it ({}), reading the repo\n", t.title, e.name, e.runtime));
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
-         Your ticket is {key}: plan the first version of what the founder wants to build, using the brief below \
-         and the code in this repo. You're in the repo read-only: look around as much as you need, but don't change files.\n\n\
-         Break the first version into 5 to 12 tickets with create_ticket, in the order they should happen. Each ticket:\n\
+         Your ticket is {key}: {what} You're in the repo read-only: look around as much as you need, but don't change files.\n\n\
+         Break it into {size} tickets with create_ticket, in the order they should happen. Each ticket:\n\
          - is small enough to finish in a day, and has a clear title\n\
          - says in its description what done looks like, so whoever picks it up needs nothing else\n\
          - goes to the teammate who fits it best, by role, from the team list\n\
@@ -345,6 +354,12 @@ fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
         role = e.role,
         company = c.name,
         bio = e.bio,
+        what = if t.description.trim().is_empty() {
+            "plan the first version of what the founder wants to build, using the brief below and the code in this repo.".to_string()
+        } else {
+            format!("plan the project \"{}\". What the founder wants from it:\n\n{}\n\nThe brief below is the product it's part of.", t.title, t.description.trim())
+        },
+        size = if t.description.trim().is_empty() { "5 to 12" } else { "2 to 10" },
         knowledge = company_knowledge(c)?,
     );
     drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)

@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, project: null, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -88,6 +88,8 @@ const ICON = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  chevrons: '<path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/>',
 };
 const icon = k => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
@@ -97,7 +99,7 @@ function renderSide() {
   const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
-    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `<span class="logo">${esc(S.company[0].toUpperCase())}</span><span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}<span class="chev">⌄</span></button>
+    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `<span class="logo">${esc(S.company[0].toUpperCase())}</span><span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}<span class="chev">${icon("chevrons")}</span></button>
       ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : ""}</button>`).join("")}
         <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
     ${S.company ? `${Object.entries(pages).map(([k, v]) =>
@@ -196,25 +198,30 @@ async function openSettings(tab = "company") {
 /* Kickoff: from what you're building to a plan of tickets */
 function kickoffCard() {
   const k = S.snap.kickoff, team = S.snap.employees;
+  // Planning is live work worth seeing from the office. The rest of planning lives on the Board.
   if (k.planning.length) {
     const p = k.planning[0];
-    return `<section class="kick busy">${face(p.name, "working")}<div><b>${esc(first(p.name))} is planning the first version</b>
-      <span class="muted">Reading your brief and the repo. The plan shows up in your Inbox to review.</span></div>
+    return `<section class="kick busy">${face(p.name, "working")}<div><b>${esc(first(p.name))} is planning ${esc(p.title || "a project")}</b>
+      <span class="muted">Reading the repo and turning it into tickets. The plan shows up in your Inbox to review.</span></div>
       <button class="btn" data-ticket="${esc(p.key)}">Follow along</button></section>`;
   }
-  if (!team.length) return "";
-  if (k.planned) {
-    const line = (k.brief || "").split(/(?<=[.!?])\s|\n/)[0];
-    return line ? `<button class="building" data-view="handbook"><span class="label">Building</span><span class="what">${esc(line)}</span><span class="muted">Edit brief</span></button>` : "";
-  }
-  const planner = byId(k.planner) || team[0];
-  return `<form class="kick" id="kick">
-      <div class="kick-h"><span class="kick-step">1</span><div><b>Plan your first version</b>
-        <span class="muted">Describe the product once. Your team turns it into a plan of tickets for you to review. For a single task, use New ticket.</span></div></div>
-      <textarea id="ko-brief" rows="3" placeholder="A notes app for writers. Magic link login, notes that sync, and export to Markdown. Free to start, $6 a month for more.">${esc(k.brief)}</textarea>
-      <div class="kick-foot"><label class="planner">${face(planner.name, "neutral")}<span class="muted">Planned by</span>
-          <select id="ko-by" aria-label="Who plans it">${team.map(e => `<option value="${esc(e.id)}" ${e.id === planner.id ? "selected" : ""}>${esc(first(e.name))}, ${esc(e.role)}</option>`).join("")}</select></label>
-        <button class="btn primary">Plan it</button></div></form>`;
+  if (!team.length || S.snap.tickets.length) return "";
+  return `<button class="nudge" data-plan-new="1"><span class="kick-step">${icon("board")}</span><div><b>Your team is ready</b>
+    <span class="muted">Plan your first project and they get to work. You approve the plan before anything starts.</span></div><span class="nudge-go">Plan a project →</span></button>`;
+}
+
+/* Plan a project: like an epic, except your planner breaks it down and you approve it */
+function drawerPlan() {
+  const s = S.snap, team = s.employees, isFirst = !(s.projects || []).length, k = s.kickoff;
+  const by = byId(k.planner) || team[0];
+  return `<div class="dhead"><div><h2>Plan a project</h2><span class="muted">A feature or a goal. Your planner breaks it into tickets with owners, and you approve the plan in your Inbox.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
+    <form class="dbody" id="plan-form">
+      <div class="field"><label for="pj-name">Project</label><input id="pj-name" value="${isFirst ? "First version" : ""}" placeholder="Stripe billing" autocomplete="off"></div>
+      <div class="field"><label for="pj-goal">What should it do?${isFirst && k.brief ? ' <span class="muted">(optional, your brief is used)</span>' : ""}</label>
+        <textarea id="pj-goal" rows="6" placeholder="A Pro plan at $6 a month with a free tier. Checkout with Stripe, and a billing page to cancel."></textarea></div>
+      <div class="field"><label for="pj-by">Planned by</label><select id="pj-by">${team.map(e => `<option value="${esc(e.id)}" ${e.id === by?.id ? "selected" : ""}>${esc(e.name)}, ${esc(e.role)}</option>`).join("")}</select></div>
+      <div class="acts"><button class="btn primary">Plan it</button><span class="fine">For a single task, use New ticket.</span></div>
+    </form>`;
 }
 
 function feed(items) {
@@ -262,7 +269,7 @@ function planReview(r) {
     <select data-plan-assign="${esc(t.key)}" aria-label="Who does ${esc(t.key)}"><option value="">Nobody yet</option>${people.map(e => `<option value="${esc(e.id)}" ${e.id === t.assignee ? "selected" : ""}>${esc(first(e.name))}</option>`).join("")}</select>
     <button class="x" data-plan-del="${esc(t.key)}" title="Remove from the plan" aria-label="Remove ${esc(t.key)}">×</button></li>`).join("");
   return `<article class="ask plan">${face(r.name, "done")}<div>
-    <span class="kind">Plan · ${esc(r.key)} · by ${esc(first(r.name))}</span><h4>The first version, in ${r.tickets.length} tickets</h4>
+    <span class="kind">Project plan · ${esc(r.key)} · by ${esc(first(r.name))}</span><h4>${esc(r.title)}, in ${r.tickets.length} ${r.tickets.length === 1 ? "ticket" : "tickets"}</h4>
     ${r.summary ? `<p>${esc(r.summary)}</p>` : ""}
     <ol class="plan-list">${rows || `<li class="muted">No tickets left. Plan again, or dismiss it.</li>`}</ol>
     <div class="acts"><button class="btn good" data-approve="${esc(r.key)}" ${r.tickets.length ? "" : "disabled"}>Start the plan</button><button class="btn" data-dismiss="${esc(r.key)}">Dismiss</button></div>
@@ -384,17 +391,28 @@ const PILL = { blocked: ["Question", "warn"], review: ["Review", "info"], failed
 const spent = t => t.spend && !/^(\$0\.00|0 tok)$/.test(t.spend);
 function viewBoard() {
   const s = S.snap;
-  if (!s.tickets.length) return `<div class="empty-state"><span class="empty-ic">${icon("board")}</span><b>No tickets yet</b>Plan the first version from the Company page, or add one with New ticket.</div>`;
+  if (!s.tickets.length) return `<div class="empty-state"><span class="empty-ic">${icon("board")}</span><b>No tickets yet</b>Plan a project and your team breaks it into tickets, or add a single one with New ticket.<div class="acts center"><button class="btn primary" data-plan-new="1">Plan a project</button></div></div>`;
   const nameOf = id => byId(id)?.name || id || "";
+  const projects = s.projects || [], current = projects.find(p => p.key === S.project);
+  if (S.project && !current) S.project = null;
+  const inView = t => !S.project || t.plan === S.project || t.key === S.project;
+  const chip = p => {
+    const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+    const state = p.status === "review" ? "to review" : ["todo", "queued", "doing"].includes(p.status) ? "planning" : `${p.done}/${p.total}`;
+    return `<button class="pchip" data-project="${esc(p.key)}" aria-pressed="${S.project === p.key}">${esc(p.title)}<span class="prog"><i style="width:${pct}%"></i></span><span class="n">${state}</span></button>`;
+  };
+  const bar = `<div class="board-bar"><div class="pchips">${projects.length ? `<button class="pchip" data-project="" aria-pressed="${!S.project}">All work</button>${projects.map(chip).join("")}` : `<span class="muted">No projects yet. Plan one to group its tickets here.</span>`}</div>
+    <button class="btn" data-plan-new="1">Plan a project</button></div>
+    ${current?.goal ? `<p class="pgoal">${esc(current.goal)}</p>` : ""}`;
   const cols = COLUMNS.map(([title, statuses]) => {
-    let ts = s.tickets.filter(t => statuses.includes(t.status));
+    let ts = s.tickets.filter(t => statuses.includes(t.status) && inView(t));
     if (title === "Done") ts = ts.slice(-12);
     return `<section class="col"><h4>${title}<span>${ts.length}</span></h4>${ts.slice().reverse().map(t => `
       <button class="tk ${t.status} ${t.kind === "plan" ? "is-plan" : ""}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}${t.kind === "plan" ? " · plan" : ""}${PILL[t.status] ? `<span class="pill ${PILL[t.status][1]}">${PILL[t.status][0]}</span>` : ""}</span><span class="t">${esc(t.title)}</span>
         ${t.after && t.status !== "done" ? `<span class="after">after ${esc(t.after)}</span>` : ""}
         <span class="row">${t.assignee ? `${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span>` : `<span class="muted">Nobody yet</span>`}${spent(t) ? `<span class="cost">${esc(t.spend)}</span>` : ""}</span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
   }).join("");
-  return `<div class="board">${cols}</div>`;
+  return `${bar}<div class="board">${cols}</div>`;
 }
 const STATUS = { backlog: "In the backlog", waiting: "Waiting for another ticket", todo: "Up next", queued: "Up next", doing: "Working", blocked: "Waiting on you", review: "Ready for review", failed: "Stopped", done: "Merged" };
 function drawerTicket() {
@@ -481,6 +499,7 @@ function renderDrawer() {
   if (!open) return;
   if (S.drawer.type === "hire") return (d.innerHTML = drawerHire());
   if (S.drawer.type === "new-ticket") return (d.innerHTML = drawerNewTicket());
+  if (S.drawer.type === "plan") return (d.innerHTML = drawerPlan());
   if (S.drawer.type === "ticket") { d.innerHTML = drawerTicket(); const term = $("#term"); if (term) term.scrollTop = term.scrollHeight; return; }
   const p = S.person;
   if (!p) return (d.innerHTML = `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
@@ -789,7 +808,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -813,6 +832,8 @@ document.addEventListener("click", async e => {
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
   }
+  if (d.planNew) { S.drawer = { type: "plan" }; renderDrawer(); return $("#pj-name")?.select(); }
+  if ("project" in d) { S.project = d.project || null; return render(); }
   if (d.switch) { S.switching = !S.switching; return renderSide(); }
   if (d.toc) return document.getElementById(d.toc)?.scrollIntoView({ behavior: "smooth", block: "start" });
   if (d.closeOpen) { S.open[d.closeOpen] = false; return render(); }
@@ -919,13 +940,14 @@ document.addEventListener("click", async e => {
 document.addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
-  if (f.id === "kick") {
-    const brief = $("#ko-brief").value.trim();
-    if (!brief) { toast("Say what you're building first", true); return $("#ko-brief").focus(); }
-    const btn = f.querySelector(".btn.primary");
-    btn.disabled = true;
-    await call("kickoff", { company: S.company, brief, by: $("#ko-by").value || null }, "Planning started. The plan shows up in your Inbox").catch(() => (btn.disabled = false));
-    return;
+  if (f.id === "plan-form") {
+    const name = $("#pj-name").value.trim(), goal = $("#pj-goal").value.trim(), by = $("#pj-by").value || null;
+    if (!name) return $("#pj-name").focus();
+    if (!goal && !S.snap.kickoff.brief) { toast("Say what the project should do", true); return $("#pj-goal").focus(); }
+    const btn = f.querySelector(".btn.primary"); btn.disabled = true; btn.textContent = "Starting…";
+    const key = await call("plan_project", { company: S.company, name, goal, by }, `${first(byId(by)?.name || "Your planner")} is planning ${name}. The plan shows up in your Inbox`).catch(() => null);
+    if (!key) { btn.disabled = false; btn.textContent = "Plan it"; return; }
+    S.drawer = null; S.view = "board"; S.project = key; return render();
   }
   if (f.id === "brief-form") {
     await call("save_brief", { company: S.company, brief: $("#brief-text").value }, "Brief saved. Everyone reads it from their next ticket").then(() => { S.open.brief = false; render(); }).catch(() => {});
@@ -1022,7 +1044,6 @@ document.addEventListener("input", e => {
   if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) $(".welcome .pf-pic").innerHTML = face(e.target.value || "You", "neutral");
 });
 document.addEventListener("change", async e => {
-  if (e.target.id === "ko-by") { const p = byId(e.target.value); if (p) e.target.closest(".planner").querySelector(".av").outerHTML = face(p.name, "neutral"); return; }
   if (e.target.dataset?.planAssign) {
     const employee = e.target.value;
     if (employee) await call("assign", { company: S.company, key: e.target.dataset.planAssign, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
@@ -1054,7 +1075,8 @@ async function previewScreen() {
   await refresh(true);
   if (screen === "settings") await openSettings();
   if (screen === "switcher") { S.switching = true; renderSide(); }
-  if (screen === "kickoff") { S.snap.kickoff.planned = false; render(); }
+  if (screen === "plan") { S.view = "board"; S.drawer = { type: "plan" }; render(); }
+  if (screen === "project") { S.view = "board"; S.project = "SNO-20"; render(); }
   if (["board", "inbox", "handbook", "chat"].includes(screen)) { S.view = screen; render(); }
   if (screen === "ticket") openTicket("SNO-11");
   if (screen === "person") openPerson("tomas");
@@ -1080,20 +1102,21 @@ function preview(cmd) {
     companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech" },
     snapshot: {
       company: "snowztech", serve: true, kickoff: { brief: "A notes app for writers.", planner: "rui", planned: true, planning: [] }, ship: { mode: "github", forge: "GitHub", pr_word: "pull request" }, employees: team, tickets: [
-        { key: "SNO-9", title: "Rate limit the public API", assignee: "tomas", status: "failed", spend: "40k tok" },
-        { key: "SNO-11", title: "Pricing page", assignee: "odile", status: "review", spend: "$0.31" },
-        { key: "SNO-12", title: "Magic link login", assignee: "maya", status: "blocked", spend: "52k tok" },
-        { key: "SNO-14", title: "Empty state for the notes list", assignee: "lina", status: "queued", spend: "$0.00" },
-        { key: "SNO-15", title: "Retry failed Stripe webhooks", assignee: "tomas", status: "doing", spend: "75k tok" },
-        { key: "SNO-8", title: "CI pipeline", assignee: "tomas", status: "done", spend: "$0.22" },
+        { key: "SNO-9", plan: "SNO-20", title: "Rate limit the public API", assignee: "tomas", status: "failed", spend: "40k tok" },
+        { key: "SNO-11", plan: "SNO-20", title: "Pricing page", assignee: "odile", status: "review", spend: "$0.31" },
+        { key: "SNO-12", plan: "SNO-20", title: "Magic link login", assignee: "maya", status: "blocked", spend: "52k tok" },
+        { key: "SNO-14", plan: "SNO-20", title: "Empty state for the notes list", assignee: "lina", status: "queued", spend: "$0.00" },
+        { key: "SNO-15", plan: "SNO-20", title: "Retry failed Stripe webhooks", assignee: "tomas", status: "doing", spend: "75k tok" },
+        { key: "SNO-8", plan: "SNO-20", title: "CI pipeline", assignee: "tomas", status: "done", spend: "$0.22" },
         { key: "SNO-16", title: "Export notes as Markdown", assignee: null, status: "backlog", spend: "$0.00", created_by: "Rui Alves" },
         { key: "SNO-17", title: "Notes API pagination", assignee: "maya", status: "waiting", spend: "$0.00", after: "SNO-12" }],
+      projects: [{ key: "SNO-20", title: "First version", goal: "", status: "done", planner: "rui", planner_name: "Rui Alves", total: 8, done: 5 }, { key: "SNO-30", title: "Stripe billing", goal: "Pro plan at $6 a month with a free tier.", status: "review", planner: "rui", planner_name: "Rui Alves", total: 4, done: 0 }],
       departments: [{ id: 1, name: "Engineering", lead: "odile", members: ["odile", "maya", "tomas"] }, { id: 2, name: "Product", lead: "rui", members: ["rui", "lina"] }, { id: 3, name: "Growth", lead: "sam", members: ["sam"] }],
       with_leads: [{ id: 5, kind: "question", key: "SNO-15", employee: "tomas", name: "Tomás Reis", lead_name: "Odile Martin", question: "Retry webhooks 3 or 5 times?", section: "", options: ["3", "5"], default: "3", blocking: false }],
       inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
         { id: 3, kind: "handbook", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
       failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished" }],
-      reviews: [{ key: "SNO-20", title: "Plan the first version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",
+      reviews: [{ key: "SNO-20", title: "First version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",
           tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
             { key: "SNO-22", title: "Magic link login", description: "Email a one-time link, 15 minute expiry.", assignee: "tomas", name: "Tomás Reis", after: "SNO-21", status: "backlog" }] },
         { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],

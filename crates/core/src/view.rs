@@ -139,7 +139,20 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     let planning: Vec<Value> = tickets
         .iter()
         .filter(|t| t.kind == "plan" && ["todo", "queued", "doing"].contains(&t.status.as_str()))
-        .map(|t| json!({"key": c.key(t.id), "name": name_of(t.assignee.as_deref().unwrap_or(""))}))
+        .map(|t| json!({"key": c.key(t.id), "name": name_of(t.assignee.as_deref().unwrap_or("")), "title": t.title}))
+        .collect();
+    // Projects: each plan, with how far its tickets got.
+    let projects: Vec<Value> = tickets
+        .iter()
+        .filter(|t| t.kind == "plan" && t.status != "failed")
+        .map(|p| {
+            let mine: Vec<&Ticket> = tickets.iter().filter(|t| t.plan == Some(p.id)).collect();
+            json!({
+                "key": c.key(p.id), "title": p.title, "goal": p.description, "status": p.status,
+                "planner": p.assignee, "planner_name": name_of(p.assignee.as_deref().unwrap_or("")),
+                "total": mine.len(), "done": mine.iter().filter(|t| t.status == "done").count(),
+            })
+        })
         .collect();
     let kickoff = json!({
         "brief": c.brief()?,
@@ -149,6 +162,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     });
     Ok(json!({
         "kickoff": kickoff,
+        "projects": projects,
         "ship": {"mode": c.ship_mode()?, "forge": forge.map(|f| f.name()), "pr_word": forge.map(|f| f.pr_word())},
         "departments": departments,
         "company": c.name,
@@ -158,6 +172,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             "key": c.key(t.id), "title": t.title, "assignee": t.assignee, "status": t.status,
             "spend": spend(t.cost_usd, t.tokens), "after": t.after.map(|a| c.key(a)), "kind": t.kind,
             "created_by": (t.created_by != "founder").then(|| name_of(&t.created_by)),
+            "plan": t.plan.map(|p| c.key(p)),
         })).collect::<Vec<_>>(),
         "inbox": inbox,
         "with_leads": with_leads,

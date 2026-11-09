@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Projects, like epics that plan themselves. Plan a project from the Board (or `onecorp plan "Stripe billing" --goal "..."`): your planner breaks it into tickets with owners and order, and you approve it in the Inbox. The Board shows each project as a chip with its progress, and picking one shows only its tickets. The first version is simply your first project. The Company page is the office again: your team at their desks, with planning shown only while it happens.
+- A lighter top bar and a cleaner company switcher.
 - A polish pass so every screen feels like the same app. Settings left the sidebar: your face at the bottom opens your menu (Edit profile, Settings ⌘,, Forget my profile), and Settings is a sheet over the app with Company and Setup check tabs. The top bar only says where you are, with company facts and spend on the Company page. Pages have icons, empty states are friendly, and small animations make it feel alive: pages ease in, menus and sheets open smoothly, buttons press, all off with Reduce Motion.
 - Settings (⌘,): the company's repo and data folder, how finished work ships, your profile, and the same health checks as `onecorp doctor`, with the fix for each. A danger zone deletes a company (type its name to confirm) or forgets your profile. Deleting stops running work and removes OneCorp's worktrees, and never touches your repo or its branches. Also `onecorp delete <company>` and `onecorp founder --forget`.
 - The Handbook reads like a company doc: a title, a table of contents, your team's proposals at the top, and edit controls only when you reach for them.

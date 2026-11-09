@@ -16,6 +16,7 @@ Quiet and calm. You run a company, the app shouldn't shout. The team's faces and
 - **Buttons.** One primary button per view at most. Secondary actions are plain buttons. Free text and rare actions stay folded behind a small link until asked for.
 - **Icons.** One inline stroke set (`ICON` in app.js), 16px, 1.8 stroke. Add new ones in the same style, never mix icon families.
 - **Where things live.** The sidebar holds pages only. Anything about you or the app (profile, settings, forgetting your profile) is in your menu at the bottom. Settings is a sheet over the app, never a page. The top bar says where you are and holds New ticket, nothing else.
+- **What goes where.** The Company page is the office: your team, what needs you, what's happening. Planning and tickets live on the Board, decisions in the Inbox, knowledge in the Handbook.
 - **Empty states.** A soft icon, a short headline that feels good ("You're all caught up"), one line on what shows up here. No dashed placeholder boxes.
 - **Motion.** Quick and small, with one easing (`--ease`). Pages ease in when you switch to them, menus and popovers scale in, sheets rise, buttons press. Nothing animates on a background refresh, and everything turns off with Reduce Motion.
 - **Focus screens.** Setup and onboarding are full screen with nothing else around. No sidebar for things that don't exist yet.

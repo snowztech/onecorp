@@ -107,7 +107,7 @@ OneCorp has no account of its own. `gh` and `glab` use the login you already hav
 
 Each company has a brief in `brief.md`: what you're building, who it's for, what the first version needs. Everyone reads it at the start of every ticket, so the whole team knows the product.
 
-`work::kickoff` turns the brief into a plan. A plan is a ticket of kind `plan`, which keeps planning visible on the Board, costed and logged, and lets it be stopped, retried and sent back like any work. `work::pick_planner` picks who plans: the one you choose, or a product person, or a department lead.
+A **project** is a plan: a ticket of kind `plan` whose title names it ("Stripe billing") and whose description says what it should do. `work::plan_project` creates one; `work::kickoff` is the first project, planned from the brief alone. The Board groups tickets by project through `tickets.plan`. A plan is a ticket which keeps planning visible on the Board, costed and logged, and lets it be stopped, retried and sent back like any work. `work::pick_planner` picks who plans: the one you choose, or a product person, or a department lead.
 
 The planner runs **read-only on your repo itself** (no worktree, no commit, no pull request) and creates tickets with `create_ticket`. Tickets created while working on a plan ticket belong to it (`tickets.plan`). The plan then waits for you:
 

@@ -258,6 +258,14 @@ fn create_repo(parent: String, folder: String, mission: String, owner: Option<St
     Ok(made.to_string_lossy().into_owned())
 }
 
+/// Plans a project into tickets. Returns the plan ticket.
+#[tauri::command(async)]
+fn plan_project(company: String, name: String, goal: String, by: Option<String>) -> Res<String> {
+    let c = open(&company)?;
+    let id = work::plan_project(&c, &name, &goal, by.as_deref().filter(|b| !b.is_empty())).map_err(err)?;
+    Ok(c.key(id))
+}
+
 /// Saves the brief and has someone plan it. Returns the plan ticket.
 #[tauri::command(async)]
 fn kickoff(company: String, brief: String, by: Option<String>) -> Res<String> {
@@ -433,6 +441,7 @@ fn main() {
             ticket_detail,
             handbook,
             kickoff,
+            plan_project,
             save_brief,
             dismiss_plan,
             delete_ticket,

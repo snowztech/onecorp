@@ -435,8 +435,9 @@ impl Company {
     }
 
     /// A planning ticket: its work is reading the brief and the repo and creating tickets.
-    pub fn new_plan(&self, title: &str, planner: &str) -> Result<i64> {
-        self.db.execute("INSERT INTO tickets (title, assignee, kind, status) VALUES (?1, ?2, 'plan', 'todo')", params![title, planner])?;
+    /// A project: a plan ticket whose title names it and whose description says what it should do.
+    pub fn new_plan(&self, title: &str, goal: &str, planner: &str) -> Result<i64> {
+        self.db.execute("INSERT INTO tickets (title, description, assignee, kind, status) VALUES (?1, ?2, ?3, 'plan', 'todo')", params![title, goal, planner])?;
         Ok(self.db.last_insert_rowid())
     }
 

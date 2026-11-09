@@ -120,8 +120,13 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
-    /// Have someone turn the brief into a plan of tickets you review and start
+    /// Plan a project into tickets you review and start. With no name, plans the first version from the brief
     Plan {
+        /// The project, like "Stripe billing"
+        project: Option<String>,
+        /// What the project should do
+        #[arg(long)]
+        goal: Option<String>,
         /// Who plans it. By default a product person, then a lead
         #[arg(long)]
         by: Option<String>,
@@ -507,12 +512,15 @@ fn run(cmd: Cmd) -> Result<()> {
                 }
             }
         }
-        Cmd::Plan { by, brief, company } => {
+        Cmd::Plan { project, goal, by, brief, company } => {
             let c = open(company)?;
             if let Some(text) = brief {
                 c.write_brief(&text)?;
             }
-            let id = work::kickoff(&c, by.as_deref())?;
+            let id = match project {
+                Some(name) => work::plan_project(&c, &name, goal.as_deref().unwrap_or(""), by.as_deref())?,
+                None => work::kickoff(&c, by.as_deref())?,
+            };
             let key = c.key(id);
             if c.ticket(id)?.is_some_and(|t| t.status == "review") {
                 println!("\nThe plan is ready. See it: onecorp logs {key}, and its tickets: onecorp status");

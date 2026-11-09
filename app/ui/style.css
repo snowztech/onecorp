@@ -624,3 +624,43 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* A light top bar: where you are, and New ticket. It shares the page's background. */
+.topbar { background: var(--bg); padding: 10px 22px; min-height: 52px; border-bottom-color: color-mix(in srgb, var(--line) 60%, transparent); }
+.native .topbar { min-height: 52px; }
+.titles h1 { font: 600 15px var(--body); letter-spacing: 0; }
+.new-ticket { gap: 6px; padding: 5px 10px; color: var(--fg); }
+.new-ticket .ic { width: 14px; height: 14px; }
+.new-ticket kbd { margin-left: 4px; }
+
+/* Company switcher, refined */
+.co-switch { padding: 7px 8px; }
+.co-switch .chev { display: flex; color: var(--muted); }
+.co-switch .chev .ic { width: 14px; height: 14px; }
+.co-switch .logo { width: 24px; height: 24px; border-radius: 7px; font-size: 12px; }
+.menu { padding: 5px; }
+.menu .cobtn { padding: 6px 8px; }
+.menu .logo { width: 22px; height: 22px; border-radius: 6px; font-size: 11px; }
+
+/* The nudge on a company with no work yet */
+.nudge { width: 100%; display: flex; align-items: center; gap: 14px; margin-bottom: 22px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); text-align: left; }
+.nudge:hover { border-color: var(--muted); }
+.nudge:hover .nudge-go { transform: translateX(2px); }
+.nudge > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.nudge b { font: 700 15px var(--display); }
+.nudge .muted { font-size: 13px; }
+.nudge .kick-step .ic { width: 14px; height: 14px; }
+.nudge-go { font-size: 13px; font-weight: 600; color: var(--accent); white-space: nowrap; transition: transform .14s var(--ease); }
+
+/* Projects on the Board: chips with their progress */
+.board-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.pchips { flex: 1; min-width: 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; }
+.pchip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 99px; background: none; font-size: 13px; color: var(--muted); }
+.pchip:hover { color: var(--fg); border-color: var(--muted); }
+.pchip[aria-pressed="true"] { background: var(--surface); color: var(--fg); border-color: var(--muted); font-weight: 600; }
+.pchip .prog { width: 36px; height: 4px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.pchip .prog i { display: block; height: 100%; background: var(--good); border-radius: 99px; transition: width .4s var(--ease); }
+.pchip[data-project=""] .prog { display: none; }
+.pchip .n { font: 11px var(--mono); color: var(--muted); font-weight: 400; }
+.pgoal { margin: -4px 0 14px; font-size: 13px; color: var(--muted); max-width: 760px; }
+.acts.center { justify-content: center; margin-top: 16px; }
