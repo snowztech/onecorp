@@ -18,6 +18,9 @@ onecorp team
 onecorp run "add a --version flag" --to maya  # --to is optional with one employee
 onecorp status
 onecorp logs SNO-1
+onecorp diff SNO-1                            # what the ticket changed
+onecorp changes SNO-1 "use a match instead"   # send it back, same session picks it up
+onecorp approve SNO-1                         # merge into the branch it started from
 onecorp inbox                                 # questions your team is waiting on
 onecorp answer 1 "go with 15 minutes"
 onecorp chat eng                              # what the team posted
@@ -38,6 +41,8 @@ Answering picks the work back up on its own. `onecorp answer` resumes the agent'
 
 - the question was blocking and it was the ticket's last open one, or
 - the agent went ahead with a default and your answer is different.
+
+`approve` brings the base branch into the ticket first. If that conflicts, the ticket goes back to its employee with the list of files, they fix the markers, OneCorp finishes the merge, and you approve again. Then the base fast-forwards, so if it's checked out in your repo, git updates your files or refuses rather than overwrite local changes. The ticket's worktree and branch are removed once it's merged.
 
 Only this MCP server loads for agents. Your own Claude Code and Codex MCP servers and config stay out of it.
 

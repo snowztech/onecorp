@@ -94,6 +94,27 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// Show what a ticket changed
+    Diff {
+        ticket: String,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Merge a reviewed ticket into the branch it started from
+    Approve {
+        ticket: String,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Send a ticket back with feedback. The same session picks it up
+    Changes {
+        ticket: String,
+        /// What to change. Quote it if it has spaces
+        #[arg(allow_hyphen_values = true)]
+        feedback: String,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Read team chat
     Chat {
         /// Channel, like eng or #eng. All channels when left out
@@ -234,8 +255,8 @@ fn run(cmd: Cmd) -> Result<()> {
         }
         Cmd::Logs { ticket, company } => {
             let c = open(company)?;
-            let id = c.parse_key(&ticket)?;
-            let Some(t) = c.ticket(id)? else { bail!("no ticket {ticket} in {}", c.name) };
+            let t = find_ticket(&c, &ticket)?;
+            let id = t.id;
             println!("{}  {}  [{}]  ${:.2}", c.key(t.id), t.title, t.status, t.cost_usd);
             if let Some(who) = &t.assignee {
                 println!("assignee {who}");
@@ -295,6 +316,40 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{who} went with {went_with}, so {key} goes back to apply your answer.\n");
                 resume(&c, &q)?;
             }
+        }
+        Cmd::Diff { ticket, company } => {
+            let c = open(company)?;
+            let t = find_ticket(&c, &ticket)?;
+            let Some(branch) = &t.branch else { bail!("{} hasn't started, so there's nothing to show", c.key(t.id)) };
+            if t.status == "done" {
+                println!("{} is merged. See it in your repo's history.", c.key(t.id));
+                return Ok(());
+            }
+            let base = t.base.clone().unwrap_or_else(|| "HEAD".into());
+            // Inherit the terminal so git's colors and pager work as usual.
+            std::process::Command::new("git").arg("-C").arg(c.repo()?).args(["diff", &format!("{base}...{branch}")]).status()?;
+        }
+        Cmd::Approve { ticket, company } => {
+            let c = open(company)?;
+            approve(&c, &find_ticket(&c, &ticket)?)?;
+        }
+        Cmd::Changes { ticket, feedback, company } => {
+            let c = open(company)?;
+            let t = find_ticket(&c, &ticket)?;
+            let key = c.key(t.id);
+            if t.status != "review" {
+                bail!("{key} is {}. You can only ask for changes on a ticket in review", t.status);
+            }
+            if feedback.trim().is_empty() {
+                bail!("what should change? For example: onecorp changes {key} \"use a match instead of if/else\"");
+            }
+            let prompt = format!(
+                "The founder reviewed your work and asked for changes:\n\n{}\n\n\
+                 Make them. Same rules as before: don't commit, and end with two or three sentences on what changed.",
+                feedback.trim()
+            );
+            c.add_event(t.id, "review", &format!("changes requested: {}", first_line(&feedback)), "")?;
+            pick_up(&c, &t, "with your feedback", &prompt, "changes from review")?;
         }
         Cmd::Chat { channel, company } => {
             let c = open(company)?;
@@ -421,6 +476,15 @@ fn assignee(c: &store::Company, to: Option<String>) -> Result<Employee> {
     }
 }
 
+/// Cuts at a word boundary so commit subjects don't end mid-word.
+fn short(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let cut: String = s.chars().take(max - 3).collect();
+    format!("{}...", cut.rsplit_once(' ').map(|(a, _)| a).unwrap_or(&cut))
+}
+
 /// Dollars when the runtime reports them, tokens otherwise (Codex on a subscription has no bill per run).
 fn spend(cost: f64, tokens: i64) -> String {
     if cost > 0.0 || tokens == 0 { format!("${cost:.2}") } else { format!("{}k tok", (tokens + 500) / 1000) }
@@ -430,14 +494,19 @@ fn work(c: &store::Company, e: &Employee, title: &str) -> Result<()> {
     let id = c.add_ticket(title, &e.id)?;
     let key = c.key(id);
     let wt = c.dir.join("wt").join(key.to_lowercase());
-    let branch = match git::add_worktree(&c.repo()?, &wt, &format!("onecorp/{}/{}", c.name, key.to_lowercase())) {
+    let repo = c.repo()?;
+    let started = git::current_branch(&repo).and_then(|base| {
+        let branch = git::add_worktree(&repo, &wt, &format!("onecorp/{}/{}", c.name, key.to_lowercase()))?;
+        Ok((branch, base))
+    });
+    let (branch, base) = match started {
         Ok(b) => b,
         Err(err) => {
             c.finish_ticket(id, "failed", 0.0, 0)?;
             return Err(err);
         }
     };
-    c.start_ticket(id, &branch, &wt)?;
+    c.start_ticket(id, &branch, &base, &wt)?;
     println!("{key}  {title}\n      {} is on it ({}), in {}\n", e.name, e.runtime, wt.display());
 
     let prompt = format!(
@@ -455,21 +524,16 @@ fn work(c: &store::Company, e: &Employee, title: &str) -> Result<()> {
         bio = e.bio,
         abilities = agent::abilities(&e.runtime),
     );
-    drive(c, e, id, &wt, None, &prompt)
+    drive(c, e, id, &wt, None, &prompt, title)
 }
 
-/// Picks a ticket's session back up, in the same worktree, with the founder's answer.
+fn find_ticket(c: &store::Company, key: &str) -> Result<store::Ticket> {
+    c.ticket(c.parse_key(key)?)?.ok_or_else(|| anyhow::anyhow!("no ticket {key} in {}. See: onecorp status", c.name))
+}
+
+/// Picks a ticket's session back up with the founder's answer.
 fn resume(c: &store::Company, q: &store::Question) -> Result<()> {
     let Some(t) = q.ticket_id.map(|id| c.ticket(id)).transpose()?.flatten() else { return Ok(()) };
-    let key = c.key(t.id);
-    let (Some(wt), Some(session)) = (&t.worktree, &t.session_id) else {
-        bail!("{key} has no session to pick back up");
-    };
-    let Some(e) = c.employee(&q.employee)? else {
-        bail!("{} no longer works at {}, so {key} stays {}", q.employee, c.name, t.status);
-    };
-    c.set_status(t.id, "doing")?;
-    println!("{key}  {}\n      {} picks it back up with your answer\n", t.title, e.name);
     let prompt = format!(
         "The founder answered your question #{n}: \"{question}\"\n\nTheir answer: {answer}\n\n\
          Pick the ticket back up from where you left off and apply this answer. Same rules as before: \
@@ -478,11 +542,72 @@ fn resume(c: &store::Company, q: &store::Question) -> Result<()> {
         question = q.question,
         answer = q.answer.as_deref().unwrap_or(""),
     );
-    drive(c, &e, t.id, std::path::Path::new(wt), Some(session), &prompt)
+    pick_up(c, &t, "with your answer", &prompt, &format!("apply answer to #{}", q.id))
+}
+
+/// Sends a ticket back to its employee: same session, same worktree, new instructions.
+fn pick_up(c: &store::Company, t: &store::Ticket, why: &str, prompt: &str, label: &str) -> Result<()> {
+    let key = c.key(t.id);
+    let (Some(wt), Some(session)) = (&t.worktree, &t.session_id) else {
+        bail!("{key} has no session to pick back up");
+    };
+    let who = t.assignee.as_deref().unwrap_or("");
+    let Some(e) = c.employee(who)? else {
+        bail!("{who} no longer works at {}, so {key} stays {}", c.name, t.status);
+    };
+    c.set_status(t.id, "doing")?;
+    println!("{key}  {}\n      {} picks it back up {why}\n", t.title, e.name);
+    drive(c, &e, t.id, std::path::Path::new(wt), Some(session), prompt, label)
+}
+
+/// Merges a reviewed ticket into its base branch. A conflict goes back to the employee to fix.
+fn approve(c: &store::Company, t: &store::Ticket) -> Result<()> {
+    let key = c.key(t.id);
+    match t.status.as_str() {
+        "review" => {}
+        "done" => bail!("{key} is already merged"),
+        s => bail!("{key} is {s}. Only tickets in review can be approved"),
+    }
+    let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) else { bail!("{key} has no branch to merge") };
+    let (repo, wt) = (c.repo()?, std::path::Path::new(wt));
+    let base = match &t.base {
+        Some(b) => b.clone(),
+        None => git::current_branch(&repo)?,
+    };
+    let who = t.assignee.as_deref().and_then(|id| c.employee(id).ok().flatten());
+    let identity = who.as_ref().map(|e| git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name))).unwrap_or_default();
+
+    if let git::Merge::Conflicts(files) = git::merge_base_into(wt, &base, &identity)? {
+        let name = who.as_ref().map(|e| e.name.as_str()).unwrap_or("its owner");
+        println!("{base} moved since {key} started, and these files conflict: {}", files.join(", "));
+        println!("Sending it back to {name} to fix.\n");
+        c.add_event(t.id, "merge", &format!("conflicts with {base}: {}", files.join(", ")), "")?;
+        let prompt = format!(
+            "The founder wants to merge your work, but {base} moved since you started and git found conflicts in: {files}.\n\n\
+             The merge is in progress in your worktree. Open each file, resolve the conflict markers so both sides' intent is kept, \
+             and remove every marker. Don't run git merge, git add or git commit: OneCorp finishes the merge when you're done. \
+             End with two or three sentences on how you resolved each conflict.",
+            files = files.join(", "),
+        );
+        pick_up(c, t, "to fix the conflicts", &prompt, "resolve conflicts")?;
+        println!("Once you've checked it, approve again: onecorp approve {key}");
+        return Ok(());
+    }
+
+    git::fast_forward(&repo, &base, branch)?;
+    c.set_status(t.id, "done")?;
+    c.add_event(t.id, "merge", &format!("merged into {base}"), "")?;
+    // The work is safe on base now, so a failed cleanup is only worth a warning.
+    if let Err(e) = git::clean_up(&repo, wt, branch) {
+        eprintln!("warning: merged, but couldn't remove the worktree: {e:#}");
+    }
+    println!("Merged {key} into {base}. New tickets start from it.");
+    Ok(())
 }
 
 /// Runs one agent session on a ticket, logging every event, commits what it left, then reports where the ticket landed.
-fn drive(c: &store::Company, e: &Employee, id: i64, wt: &std::path::Path, resume: Option<&str>, prompt: &str) -> Result<()> {
+/// `label` names this run in the commit message, like the ticket title or "changes from review".
+fn drive(c: &store::Company, e: &Employee, id: i64, wt: &std::path::Path, resume: Option<&str>, prompt: &str, label: &str) -> Result<()> {
     let key = c.key(id);
     // The agent starts this same binary as the company's MCP server, scoped to this ticket.
     let mcp = agent::Mcp {
@@ -532,8 +657,7 @@ fn drive(c: &store::Company, e: &Employee, id: i64, wt: &std::path::Path, resume
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     let text = if text.is_empty() { last_say } else { text };
     if ok {
-        let t = c.ticket(id)?.ok_or_else(|| anyhow::anyhow!("{key} disappeared"))?;
-        let msg: String = format!("{key}: {}", t.title).chars().take(72).collect();
+        let msg = short(&format!("{key}: {label}"), 72);
         if let Some(hash) = git::commit_all(wt, &msg, &identity)? {
             c.add_event(id, "commit", &format!("{hash} {msg}"), "")?;
             println!("  commit {hash} as {}", e.name);
@@ -571,5 +695,11 @@ mod tests {
         assert_eq!(super::slug("JOÃO"), "joao");
         assert_eq!(super::slug("Maya-Okafor"), "mayaokafor");
         assert_eq!(super::slug("李"), "");
+    }
+
+    #[test]
+    fn short_cuts_at_a_word() {
+        assert_eq!(super::short("SNO-1: fix it", 72), "SNO-1: fix it");
+        assert_eq!(super::short("SNO-1: change the description line", 24), "SNO-1: change the...");
     }
 }

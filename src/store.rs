@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   assignee TEXT REFERENCES employees(id),
   status TEXT NOT NULL DEFAULT 'todo',
   branch TEXT,
+  base TEXT,
   worktree TEXT,
   session_id TEXT,
   cost_usd REAL NOT NULL DEFAULT 0,
@@ -118,6 +119,8 @@ pub struct Ticket {
     pub tokens: i64,
     pub worktree: Option<String>,
     pub session_id: Option<String>,
+    /// The branch the ticket started from, and where it lands when approved.
+    pub base: Option<String>,
 }
 
 pub struct Company {
@@ -232,10 +235,10 @@ impl Company {
         Ok(self.db.last_insert_rowid())
     }
 
-    pub fn start_ticket(&self, id: i64, branch: &str, worktree: &Path) -> Result<()> {
+    pub fn start_ticket(&self, id: i64, branch: &str, base: &str, worktree: &Path) -> Result<()> {
         self.db.execute(
-            "UPDATE tickets SET status = 'doing', branch = ?2, worktree = ?3 WHERE id = ?1",
-            params![id, branch, worktree.to_string_lossy()],
+            "UPDATE tickets SET status = 'doing', branch = ?2, base = ?3, worktree = ?4 WHERE id = ?1",
+            params![id, branch, base, worktree.to_string_lossy()],
         )?;
         Ok(())
     }
@@ -333,12 +336,12 @@ impl Company {
     pub fn ticket(&self, id: i64) -> Result<Option<Ticket>> {
         Ok(self
             .db
-            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens FROM tickets WHERE id = ?1", [id], row_to_ticket)
+            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base FROM tickets WHERE id = ?1", [id], row_to_ticket)
             .optional()?)
     }
 
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
-        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens FROM tickets ORDER BY id")?;
+        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -362,6 +365,7 @@ fn row_to_ticket(r: &rusqlite::Row) -> rusqlite::Result<Ticket> {
         worktree: r.get(6)?,
         session_id: r.get(7)?,
         tokens: r.get(8)?,
+        base: r.get(9)?,
     })
 }
 
