@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, pop: false, settings: null, health: null, confirm: null };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -77,29 +77,37 @@ const myName = () => S.founder?.name || "You";
 const byId = id => (S.snap?.employees || []).find(e => e.id === id);
 const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S.snap.failed || []).length : 0);
 
+/* Icons: one small stroke set, so every page speaks the same visual language */
+const ICON = {
+  company: '<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M8 8h3M8 12h3M8 16h3M3 21h18"/>',
+  board: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',
+  inbox: '<path d="M3 13h5l1.5 3h5l1.5-3h5"/><path d="M5.5 5h13l2.5 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5z"/>',
+  chat: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 20 12z"/>',
+  handbook: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19M9 7h6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/>',
+};
+const icon = k => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
+
 /* Sidebar and top bar */
 function renderSide() {
-  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook", settings: "Settings" };
+  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
     <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `<span class="logo">${esc(S.company[0].toUpperCase())}</span><span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}<span class="chev">⌄</span></button>
       ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : ""}</button>`).join("")}
         <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
     ${S.company ? `${Object.entries(pages).map(([k, v]) =>
-      `<button class="navbtn" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${v}${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
-    ${S.snap ? `<div class="serve ${S.snap.serve ? "" : "off"}"><i></i>${S.snap.serve ? "Your team is working" : "Nobody is running work"}</div>` : ""}
-    <button class="side-foot" data-profile="1" title="Edit your profile">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div></button>`;
+      `<button class="navbtn" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${icon(k)}<span>${v}</span>${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
+    <button class="side-foot" data-pop="menu" aria-expanded="${!!S.pop}" title="You and settings">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div><span class="foot-more">${icon("more")}</span></button>`;
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board", chat: "Chat", settings: "Settings" }[S.view] || S.company || "OneCorp";
-  const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
-  const ships = s?.ship?.forge ? ` · ships to ${s.ship.forge}` : s ? " · merges locally" : "";
-  $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}${ships}` : "";
-  const off = !!S.setup || !!S.profile || !s;
-  $("#spend").textContent = !off && (s.spend.cost > 0 || s.spend.tokens > 0) ? `${s.spend.label} spent` : "";
-  $("#new-ticket").hidden = off;
-  if (off) $("#sub").textContent = "";
+  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board", chat: "Chat" }[S.view] || S.company || "OneCorp";
+  $("#new-ticket").hidden = !!S.setup || !!S.profile || !s;
 }
 
 /* Company page: you on top, departments beneath as rooms of desks */
@@ -128,52 +136,61 @@ function viewCompany() {
     ? `<li><form class="room-new" id="dept-form"><label for="dept-name"><b>Name the department</b></label><div class="row"><input id="dept-name" placeholder="Engineering, Design, Growth…" autocomplete="off"><button class="btn primary">Add</button></div></form></li>`
     : `<li><button class="room-new" data-add-dept="1"><b>+ New department</b><span>Engineering, Design, Growth. Hire into it right after.</span></button></li>`;
   const working = s.employees.filter(e => e.status === "working").length;
+  const depts = s.departments.filter(d => d.id !== null).length;
+  const facts = [`${s.employees.length} ${s.employees.length === 1 ? "person" : "people"}`, `${depts} ${depts === 1 ? "department" : "departments"}`,
+    s.ship?.forge ? `ships to ${s.ship.forge}` : "merges locally", ...(s.spend.cost > 0 || s.spend.tokens > 0 ? [`${s.spend.label} spent`] : []), ...(working ? [`<span class="ok">${working} working now</span>`] : [])];
   const items = [...(s.failed || []).map(t => ({ who: t.employee, name: t.name, text: `${t.key} stopped. Retry it?` })), ...s.reviews.map(r => ({ who: r.employee, name: r.name, text: `${r.key} is ready for review` })), ...s.inbox.map(q => ({ who: q.employee, name: q.name, text: q.kind === "handbook" ? "Handbook proposal" : q.question }))];
   const needs = items.slice(0, 4).map(i => `<button class="need" data-view="inbox">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   return `<div class="hq"><div>
       ${kickoffCard()}
-      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder${working ? ` · ${working} working now` : ""}</span></div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
+      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span></div></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
       ${items.length ? `<section class="side-sec"><h3 class="label">Needs you <span class="badge">${items.length}</span></h3><div class="needs">${needs}</div></section>` : ""}
       <section class="side-sec"><h3 class="label">Live <span class="live ${s.serve ? "" : "off"}">${s.serve ? "On" : "Paused"}</span></h3><ul class="feed">${feed(s.feed)}</ul></section>
     </aside></div>`;
 }
-/* Settings: the company, you, whether everything OneCorp needs is in place, and the danger zone */
-function viewSettings() {
-  const st = S.settings;
-  if (!st || st.name !== S.company) return `<p class="muted">Opening settings…</p>`;
-  const modes = [["local", "On this Mac"], ["github", "GitHub pull requests"], ["gitlab", "GitLab merge requests"]].filter(([m]) => m === "local" || m === st.forge || m === st.ship);
-  const reveal = path => window.__TAURI__?.opener ? `<button class="link-btn" data-reveal="${esc(path)}">Show in Finder</button>` : "";
-  const icon = { ok: "✓", warn: "!", fail: "×" };
-  const health = S.health === null ? `<p class="muted">Checking…</p>` : (S.health || []).map(h => `<li class="hc lvl-${h.level}"><i>${icon[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("");
-  const del = S.confirm === "delete"
-    ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, handbook and memory. Running work stops. Your repo and its branches stay as they are.</p>
-        <div class="su-row"><input id="del-name" placeholder="Type ${esc(st.name)} to confirm" autocomplete="off" spellcheck="false"><button class="btn danger">Delete ${esc(st.name)}</button><button class="btn ghost" type="button" data-confirm="">Cancel</button></div></form>`
-    : `<div class="row-set"><div><b>Delete ${esc(st.name)}</b><span>Removes the company from OneCorp. Your repo is never touched.</span></div><button class="btn danger-ghost" data-confirm="delete">Delete…</button></div>`;
-  const forget = S.confirm === "forget"
-    ? `<div class="confirm"><p>OneCorp forgets your name and photo and asks again. Your companies stay.</p><div class="acts"><button class="btn danger" data-forget="1">Forget me</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
-    : `<div class="row-set"><div><b>Forget your profile</b><span>Your name and photo, on this Mac.</span></div><button class="btn danger-ghost" data-confirm="forget">Forget…</button></div>`;
-  return `<div class="doc-wrap"><article class="doc settings">
-    <span class="label">Settings</span><h1>${esc(st.name)}</h1>
-    <section class="doc-sec"><h2>Company</h2>
-      <div class="row-set"><div><b>Repo</b><span class="mono">${esc(st.repo)}</span></div>${reveal(st.repo)}</div>
-      <div class="row-set"><div><b>Finished work ships</b><span>${st.origin ? esc(st.origin) : "No remote yet. Add one to ship as pull requests."}</span></div>
+/* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
+   OneCorp needs is in place. Your own profile lives in your menu. */
+function renderSheet() {
+  const el = $("#sheet");
+  el.hidden = !S.sheet;
+  if (!S.sheet) return (el.innerHTML = "");
+  const st = S.settings, tab = S.sheet;
+  let body = `<p class="muted">Opening settings…</p>`;
+  if (st && tab === "company") {
+    const modes = [["local", "On this Mac"], ["github", "GitHub"], ["gitlab", "GitLab"]].filter(([m]) => m === "local" || m === st.forge || m === st.ship);
+    const reveal = path => window.__TAURI__?.opener ? `<button class="link-btn" data-reveal="${esc(path)}">Show in Finder</button>` : "";
+    const del = S.confirm === "delete"
+      ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, handbook and memory. Running work stops. Your repo and its branches stay as they are.</p>
+          <div class="su-row"><input id="del-name" placeholder="Type ${esc(st.name)} to confirm" autocomplete="off" spellcheck="false"><button class="btn danger">Delete</button><button class="btn ghost" type="button" data-confirm="">Cancel</button></div></form>`
+      : `<div class="row-set"><div><b>Delete ${esc(st.name)}</b><span>Removes the company from OneCorp. Your repo is never touched.</span></div><button class="btn danger-ghost" data-confirm="delete">Delete…</button></div>`;
+    body = `<div class="row-set"><div><b>Repo</b><span class="mono">${esc(st.repo)}</span></div>${reveal(st.repo)}</div>
+      <div class="row-set"><div><b>Finished work</b><span>${st.ship === "local" ? "Merges into the repo on this Mac" : `Opens pull requests on ${esc(st.origin || "")}`}</span></div>
         <div class="seg">${modes.map(([m, n]) => `<button data-ship="${m}" aria-pressed="${m === st.ship}">${n}</button>`).join("")}</div></div>
-      <div class="row-set"><div><b>OneCorp's data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div></section>
-    <section class="doc-sec"><h2>You</h2>
-      <div class="row-set"><div class="who-row">${me()}<div><b>${esc(myName())}</b><span>Founder of every company here</span></div></div><button class="btn" data-profile="1">Edit profile</button></div></section>
-    <section class="doc-sec"><h2>Health <button class="link-btn" data-health="1">Check again</button></h2><ul class="health">${health}</ul></section>
-    <section class="doc-sec danger-zone"><h2>Danger zone</h2>${del}${forget}</section>
-    <p class="fine">OneCorp ${esc(st.version)} · Everything lives in ${esc(st.home)}</p>
-  </article></div>`;
+      <div class="row-set"><div><b>OneCorp's data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div>
+      <h3 class="label danger-label">Danger zone</h3>${del}`;
+  }
+  if (tab === "health") {
+    const mark = { ok: "✓", warn: "!", fail: "×" };
+    body = S.health === null ? `<p class="muted">Checking your setup…</p>`
+      : `<ul class="health">${(S.health || []).map(h => `<li class="hc lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("")}</ul>
+        <button class="link-btn" data-health="1">Check again</button>`;
+  }
+  const tabs = [["company", "Company"], ["health", "Setup check"]];
+  el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <header class="sheet-h"><div><h2>Settings</h2><span class="muted">${esc(S.company || "")}${st ? ` · OneCorp ${esc(st.version)}` : ""}</span></div><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
+    <nav class="seg tabs">${tabs.map(([k, n]) => `<button data-sheet="${k}" aria-pressed="${k === tab}">${n}</button>`).join("")}</nav>
+    <div class="sheet-body">${body}</div></div>`;
 }
-async function openSettings() {
-  S.view = "settings"; S.confirm = null; S.health = null; render();
+async function openSettings(tab = "company") {
+  const opening = !S.sheet;
+  S.sheet = tab; S.confirm = null; S.pop = false; renderPop(); renderSheet();
+  // The entrance plays once, when the sheet opens, not each time its content changes.
+  if (opening) { const el = $("#sheet"); el.classList.add("opening"); setTimeout(() => el.classList.remove("opening"), 300); }
   try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); }
-  render();
-  try { S.health = await invoke("health"); } catch (e) { S.health = []; toast(String(e), true); }
-  render();
+  renderSheet();
+  if (S.health === null || tab === "health") { S.health = null; S.health = await invoke("health").catch(() => []); renderSheet(); }
 }
 
 /* Kickoff: from what you're building to a plan of tickets */
@@ -212,7 +229,7 @@ function viewInbox() {
   const plans = s.reviews.filter(r => r.kind === "plan"), work = s.reviews.filter(r => r.kind !== "plan");
   const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(handbook)];
   const leads = (s.with_leads || []).map(q => question(q, true));
-  const zero = `<div class="empty-state"><b>Inbox zero</b>Your team puts questions, reviews and handbook ideas here when they need you.</div>`;
+  const zero = `<div class="empty-state"><span class="empty-ic">${icon("check")}</span><b>You're all caught up</b>Your team puts questions, reviews and handbook ideas here when they need you.</div>`;
   return `<div class="inbox">${cards.length ? cards.join("") : zero}
     ${leads.length ? `<h2 class="section">With your leads <small class="muted">They decide what they can and pass up the rest. Step in anytime.</small></h2>${leads.join("")}` : ""}</div>`;
 }
@@ -367,7 +384,7 @@ const PILL = { blocked: ["Question", "warn"], review: ["Review", "info"], failed
 const spent = t => t.spend && !/^(\$0\.00|0 tok)$/.test(t.spend);
 function viewBoard() {
   const s = S.snap;
-  if (!s.tickets.length) return `<div class="empty-state"><b>No tickets yet</b>Plan the first version from the Company page, or add one with New ticket.</div>`;
+  if (!s.tickets.length) return `<div class="empty-state"><span class="empty-ic">${icon("board")}</span><b>No tickets yet</b>Plan the first version from the Company page, or add one with New ticket.</div>`;
   const nameOf = id => byId(id)?.name || id || "";
   const cols = COLUMNS.map(([title, statuses]) => {
     let ts = s.tickets.filter(t => statuses.includes(t.status));
@@ -540,7 +557,20 @@ function viewProfile() {
 function renderPop() {
   const p = $("#pop");
   p.hidden = !S.pop;
+  $(".side-foot")?.setAttribute("aria-expanded", String(!!S.pop));
   if (!S.pop) return;
+  if (S.pop === "menu") {
+    p.innerHTML = `<div class="pop-menu"><div class="pm-head">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div></div>
+      <button class="pm-item" data-pop="profile">${icon("user")}Edit profile</button>
+      ${S.company ? `<button class="pm-item" data-settings="1">${icon("settings")}Settings<kbd>⌘,</kbd></button>` : ""}
+      <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button></div>`;
+    return;
+  }
+  if (S.pop === "forget") {
+    p.innerHTML = `<div class="pop-form"><b>Forget your profile?</b><p class="fine">OneCorp forgets your name and photo and asks again. Your companies stay.</p>
+      <div class="acts end"><button class="btn" data-pop="menu">Cancel</button><button class="btn danger" data-forget="1">Forget me</button></div></div>`;
+    return;
+  }
   p.innerHTML = `<form id="profile" class="pop-form">
     <div class="pop-head"><span class="pf-pic">${pfPic(myName())}</span><div class="acts">${photoActs()}</div></div>
     <div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(S.founder?.name || "")}" autocomplete="off"></div>
@@ -699,6 +729,12 @@ function render() {
   // Setting up is full screen: no sidebar or top bar for things that don't exist yet.
   document.querySelector(".app").classList.toggle("focus", !!(S.profile || S.setup));
   v.classList.toggle("flush", !S.profile && !S.setup && S.view === "chat");
+  const where = S.profile ? "profile" : S.setup ? "setup-" + S.setup.step : `${S.company}/${S.view}`;
+  if (where !== S.shown) {
+    S.shown = where;
+    v.classList.remove("enter"); void v.offsetWidth; v.classList.add("enter");
+    clearTimeout(render.t); render.t = setTimeout(() => v.classList.remove("enter"), 400);
+  }
   if (S.profile) {
     v.innerHTML = viewProfile();
   } else if (S.setup) {
@@ -708,7 +744,7 @@ function render() {
   } else if (!S.snap) {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
-    v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard, chat: viewChat, settings: viewSettings }[S.view]?.() ?? viewCompany();
+    v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard, chat: viewChat }[S.view]?.() ?? viewCompany();
     const m = $("#msgs"); if (m) m.scrollTop = m.scrollHeight;
   }
   renderDrawer();
@@ -749,10 +785,11 @@ async function refresh(force) {
 
 /* Actions */
 document.addEventListener("click", async e => {
-  if (S.pop && !e.target.closest("#pop, [data-profile]")) { S.pop = false; renderPop(); }
+  if (S.pop && !e.target.closest("#pop, [data-profile], [data-pop]")) { S.pop = false; renderPop(); }
+  if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -779,22 +816,25 @@ document.addEventListener("click", async e => {
   if (d.switch) { S.switching = !S.switching; return renderSide(); }
   if (d.toc) return document.getElementById(d.toc)?.scrollIntoView({ behavior: "smooth", block: "start" });
   if (d.closeOpen) { S.open[d.closeOpen] = false; return render(); }
-  if (d.view === "settings") return openSettings();
   if (d.ship) {
     try { await invoke("set_ship", { company: S.company, mode: d.ship }); S.settings = await invoke("settings", { company: S.company }); toast(d.ship === "local" ? "Finished work merges on this Mac" : "Finished work opens pull requests"); }
     catch (err) { toast(String(err), true); }
-    return refresh(true);
+    renderSheet(); return refresh(true);
   }
   if (d.reveal) return window.__TAURI__.opener.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
-  if (d.health) { S.health = null; render(); S.health = await invoke("health").catch(() => []); return render(); }
-  if ("confirm" in d) { S.confirm = d.confirm || null; render(); return $("#del-name")?.focus(); }
+  if (d.health) { S.health = null; renderSheet(); S.health = await invoke("health").catch(() => []); return renderSheet(); }
+  if ("confirm" in d) { S.confirm = d.confirm || null; renderSheet(); return $("#del-name")?.focus(); }
   if (d.forget) {
     el.disabled = true;
     try { await invoke("forget_founder"); } catch (err) { el.disabled = false; return toast(String(err), true); }
     S.founder = null; S.confirm = null; S.pop = false; S.profile = { name: "" }; renderPop(); return render();
   }
   if (d.more) { S.open[d.more] = true; render(); return document.getElementById(d.more)?.focus(); }
-  if (d.profile) { S.pop = !S.pop; renderPop(); return $("#pf-name")?.focus(); }
+  if (d.profile) { S.pop = "profile"; renderPop(); return $("#pf-name")?.focus(); }
+  if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop; renderPop(); return $("#pf-name")?.focus(); }
+  if (d.settings) return openSettings();
+  if (d.sheet) { S.sheet = d.sheet; S.confirm = null; return renderSheet(); }
+  if (d.sheetClose) { S.sheet = null; return renderSheet(); }
   if (d.pf) {
     if (d.pf === "cancel") { S.pop = false; return renderPop(); }
     if (d.pf === "face") { if (await saveProfile(null, true)) { render(); renderPop(); } return; }
@@ -937,7 +977,7 @@ document.addEventListener("submit", async e => {
     const btn = f.querySelector(".danger"); btn.disabled = true; btn.textContent = "Deleting…";
     try { await invoke("delete_company", { name }); } catch (err) { btn.disabled = false; btn.textContent = `Delete ${name}`; return toast(String(err), true); }
     toast(`Deleted ${name}. Your repo is untouched.`);
-    S.company = null; S.snap = null; S.last = ""; S.settings = null; S.confirm = null; S.view = "company";
+    S.company = null; S.snap = null; S.last = ""; S.settings = null; S.confirm = null; S.sheet = null; S.view = "company"; renderSheet();
     return refresh(true);
   }
   if (f.id === "say") {
@@ -999,6 +1039,7 @@ document.addEventListener("change", async e => {
   }
 });
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && S.sheet) { S.sheet = null; return renderSheet(); }
   if (e.key === "Escape" && S.switching) { S.switching = false; return renderSide(); }
   if (e.key === "Escape" && S.pop) { S.pop = false; return renderPop(); }
   if (e.key === "Escape") { if (S.drawer) { S.drawer = null; renderDrawer(); } else if (S.addingDept) { S.addingDept = false; render(); } }
@@ -1021,7 +1062,9 @@ async function previewScreen() {
   if (screen === "setup") await startSetup();
   if (screen.startsWith("setup-")) { await startSetup(); await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.profile = { name: "" }; render(); }
-  if (screen === "popover") { S.pop = true; renderPop(); }
+  if (screen === "popover") { S.pop = "profile"; renderPop(); }
+  if (screen === "menu") { S.pop = "menu"; renderPop(); }
+  if (screen === "health") await openSettings("health");
 }
 if (window.__TAURI__) refresh(true); else previewScreen();
 setInterval(() => refresh(false), 1500);
