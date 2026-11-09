@@ -19,10 +19,14 @@ pub enum Event {
 // so the agent can commit but can't run arbitrary commands yet.
 const ALLOWED: &str = "Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)";
 
-pub fn run(cwd: &Path, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
-    let mut child = Command::new("claude")
-        .args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"])
-        .args(["--allowedTools", ALLOWED])
+pub fn run(cwd: &Path, model: Option<&str>, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
+    let mut cmd = Command::new("claude");
+    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"])
+        .args(["--allowedTools", ALLOWED]);
+    if let Some(m) = model {
+        cmd.args(["--model", m]);
+    }
+    let mut child = cmd
         .current_dir(cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -97,7 +101,9 @@ fn tool_detail(name: &str, input: &Value) -> String {
         "WebFetch" => "url",
         _ => return String::new(),
     };
-    first_line(input[key].as_str().unwrap_or(""))
+    // Not truncated: the caller strips the worktree path first, and absolute paths are long.
+    let s = input[key].as_str().unwrap_or("");
+    s.lines().find(|l| !l.trim().is_empty()).unwrap_or("").to_string()
 }
 
 fn result_text(content: &Value) -> String {

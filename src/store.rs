@@ -5,9 +5,19 @@ use std::path::{Path, PathBuf};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS employees (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  runtime TEXT NOT NULL,
+  model TEXT,
+  bio TEXT NOT NULL DEFAULT '',
+  hired_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS tickets (
   id INTEGER PRIMARY KEY,
   title TEXT NOT NULL,
+  assignee TEXT REFERENCES employees(id),
   status TEXT NOT NULL DEFAULT 'todo',
   branch TEXT,
   worktree TEXT,
@@ -52,9 +62,19 @@ pub fn list() -> Result<Vec<String>> {
     Ok(names)
 }
 
+pub struct Employee {
+    pub id: String,
+    pub name: String,
+    pub role: String,
+    pub runtime: String,
+    pub model: Option<String>,
+    pub bio: String,
+}
+
 pub struct Ticket {
     pub id: i64,
     pub title: String,
+    pub assignee: Option<String>,
     pub status: String,
     pub branch: Option<String>,
     pub cost_usd: f64,
@@ -116,8 +136,45 @@ impl Company {
         num.parse().with_context(|| format!("not a ticket: {key}"))
     }
 
-    pub fn add_ticket(&self, title: &str) -> Result<i64> {
-        self.db.execute("INSERT INTO tickets (title) VALUES (?1)", [title])?;
+    pub fn hire(&self, e: &Employee) -> Result<()> {
+        if self.employee(&e.id)?.is_some() {
+            bail!("{} already works at {}", e.id, self.name);
+        }
+        self.db.execute(
+            "INSERT INTO employees (id, name, role, runtime, model, bio) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![e.id, e.name, e.role, e.runtime, e.model, e.bio],
+        )?;
+        Ok(())
+    }
+
+    pub fn fire(&self, id: &str) -> Result<()> {
+        let busy: i64 =
+            self.db.query_row("SELECT count(*) FROM tickets WHERE assignee = ?1 AND status = 'doing'", [id], |r| r.get(0))?;
+        if busy > 0 {
+            bail!("{id} is working on a ticket right now. Wait for it to finish first");
+        }
+        // Their past tickets stay, so the history of who did what survives.
+        if self.db.execute("DELETE FROM employees WHERE id = ?1", [id])? == 0 {
+            bail!("nobody called {id} works at {}", self.name);
+        }
+        Ok(())
+    }
+
+    pub fn employee(&self, id: &str) -> Result<Option<Employee>> {
+        Ok(self
+            .db
+            .query_row("SELECT id, name, role, runtime, model, bio FROM employees WHERE id = ?1", [id], row_to_employee)
+            .optional()?)
+    }
+
+    pub fn employees(&self) -> Result<Vec<Employee>> {
+        let mut st = self.db.prepare("SELECT id, name, role, runtime, model, bio FROM employees ORDER BY hired_at")?;
+        let rows = st.query_map([], row_to_employee)?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn add_ticket(&self, title: &str, assignee: &str) -> Result<i64> {
+        self.db.execute("INSERT INTO tickets (title, assignee) VALUES (?1, ?2)", [title, assignee])?;
         Ok(self.db.last_insert_rowid())
     }
 
@@ -153,12 +210,12 @@ impl Company {
     pub fn ticket(&self, id: i64) -> Result<Option<Ticket>> {
         Ok(self
             .db
-            .query_row("SELECT id, title, status, branch, cost_usd FROM tickets WHERE id = ?1", [id], row_to_ticket)
+            .query_row("SELECT id, title, assignee, status, branch, cost_usd FROM tickets WHERE id = ?1", [id], row_to_ticket)
             .optional()?)
     }
 
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
-        let mut st = self.db.prepare("SELECT id, title, status, branch, cost_usd FROM tickets ORDER BY id")?;
+        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -172,5 +229,16 @@ impl Company {
 }
 
 fn row_to_ticket(r: &rusqlite::Row) -> rusqlite::Result<Ticket> {
-    Ok(Ticket { id: r.get(0)?, title: r.get(1)?, status: r.get(2)?, branch: r.get(3)?, cost_usd: r.get(4)? })
+    Ok(Ticket {
+        id: r.get(0)?,
+        title: r.get(1)?,
+        assignee: r.get(2)?,
+        status: r.get(3)?,
+        branch: r.get(4)?,
+        cost_usd: r.get(5)?,
+    })
+}
+
+fn row_to_employee(r: &rusqlite::Row) -> rusqlite::Result<Employee> {
+    Ok(Employee { id: r.get(0)?, name: r.get(1)?, role: r.get(2)?, runtime: r.get(3)?, model: r.get(4)?, bio: r.get(5)? })
 }
