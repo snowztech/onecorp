@@ -804,3 +804,7 @@ button.live:hover { background: var(--surface-2); color: var(--fg); }
 .ready li { align-items: flex-start; }
 .ready li > div { flex: 1; min-width: 0; }
 .ready .fix { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+
+.mini-agents { display: inline-flex; gap: 4px; }
+.mini-agent { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: 700 12px var(--display); }
+.mini-agent[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: #fff; }

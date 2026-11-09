@@ -854,12 +854,11 @@ function viewSetup() {
       ${nav("Continue")}`;
   } else if (s.step === 2) {
     const real = s.info.runtimes.filter(x => x !== "fake");
-    const runtimeOptions = sel => s.info.runtimes.map(x => `<option value="${x}" ${x === sel ? "selected" : ""}>${RUNTIME_NAMES[x] || x}</option>`).join("");
     const rows = s.people.map((p, i) => `<li class="person-row">${face(p.name || "?", "neutral")}
       <input id="su-p${i}-name" value="${esc(p.name)}" placeholder="Name" aria-label="Name" autocomplete="off">
       <input id="su-p${i}-role" value="${esc(p.role)}" placeholder="Role" aria-label="Role" autocomplete="off">
       <input id="su-p${i}-dept" value="${esc(p.dept)}" placeholder="Department" aria-label="Department" list="su-depts" autocomplete="off">
-      <select id="su-p${i}-runtime" aria-label="Works on">${runtimeOptions(p.runtime)}</select>
+      <span class="mini-agents" role="group" aria-label="Works on">${s.info.runtimes.map(k => `<button type="button" class="mini-agent" data-su-agent="${i}:${k}" aria-pressed="${k === p.runtime}" title="${esc(AGENTS[k]?.name || k)}" style="--c:${AGENTS[k]?.color || "#888"}">${esc((AGENTS[k]?.name || k)[0])}</button>`).join("")}<input type="hidden" id="su-p${i}-runtime" value="${esc(p.runtime)}"></span>
       <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
     const depts = [...new Set(s.people.map(p => p.dept).filter(Boolean).concat(["Engineering", "Product", "Design", "Growth"]))];
     body = `<h2>Who's on the team to start?</h2><p class="muted">Start from a template, then change anything: names, roles, departments. The first person in a department leads it.</p>
@@ -960,7 +959,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -991,6 +990,7 @@ document.addEventListener("click", async e => {
     await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});
     return;
   }
+  if (d.suAgent) { readSetup(); const [i, k] = d.suAgent.split(":"); S.setup.people[Number(i)].runtime = k; return render(); }
   if (d.agent) { Object.assign(S.drawer.form ||= {}, readPerson(), { runtime: d.agent, model: null }); return renderDrawer(); }
   if ("model" in d && el.classList.contains("mchip")) {
     $("#pf-m").value = d.model;
