@@ -169,6 +169,13 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// How approved work lands: local merges, or pull requests on github or gitlab
+    Ship {
+        /// local, github or gitlab. Leave out to see the current one
+        mode: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Check that git, the agent CLIs and your companies are all set up, and how to fix what isn't
     Doctor,
     /// Work queued tickets for every company, several employees at a time
@@ -241,15 +248,14 @@ fn run(cmd: Cmd) -> Result<()> {
             if !RUNTIMES.contains(&runtime.as_str()) {
                 bail!("{runtime} isn't supported yet. Available: {}", RUNTIMES.join(", "));
             }
-            let c = store::Company::create(&name, &repo, mission.as_deref().unwrap_or(""))?;
-            store::set_current(&name)?;
+            let (c, hired) = onecorp::setup::new_company(&name, &repo, mission.as_deref().unwrap_or(""), template, &runtime)?;
             println!("Created {} around {}. It's now your current company.", c.name, c.repo()?.display());
-            let mut hired = vec![];
-            if let Some(t) = template {
-                hired = onecorp::templates::apply(&c, t, &runtime)?;
-                for e in &hired {
-                    println!("  hired {} as {} ({})", e.name, e.role, e.runtime);
-                }
+            for e in &hired {
+                println!("  hired {} as {} ({})", e.name, e.role, e.runtime);
+            }
+            match onecorp::ship::forge(&c)? {
+                Some(f) => println!("Finished work opens {}s on {}. Change it with: onecorp ship local", f.pr_word(), f.name()),
+                None => println!("Approved work merges into your local repo. To open pull requests instead: onecorp ship github"),
             }
             println!("Its handbook is at {}. Everyone reads it before each ticket.", c.handbook_path().display());
             match hired.first() {
@@ -500,7 +506,7 @@ fn run(cmd: Cmd) -> Result<()> {
         }
         Cmd::Approve { ticket, company } => {
             let c = open(company)?;
-            work::approve(&c, &find_ticket(&c, &ticket)?)?;
+            onecorp::ship::approve(&c, &find_ticket(&c, &ticket)?)?;
         }
         Cmd::Stop { ticket, company } => {
             let c = open(company)?;
@@ -527,6 +533,16 @@ fn run(cmd: Cmd) -> Result<()> {
             }
         }
         Cmd::Serve { max } => onecorp::serve::serve(max)?,
+        Cmd::Ship { mode, company } => {
+            let c = open(company)?;
+            if let Some(m) = mode {
+                onecorp::ship::set_mode(&c, &m.to_lowercase())?;
+            }
+            match onecorp::ship::forge(&c)? {
+                Some(f) => println!("{}: finished work opens a {} on {}, and approving merges it.", c.name, f.pr_word(), f.name()),
+                None => println!("{}: approving merges into your local repo. Push it yourself when you want.", c.name),
+            }
+        }
         Cmd::Doctor => {
             use onecorp::doctor::Level;
             let checks = onecorp::doctor::run();

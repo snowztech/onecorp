@@ -50,6 +50,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Person drawer: what they're doing now, memory, tickets
 - [x] Company switcher in the sidebar
 - [x] Board: every ticket by status, with a ticket drawer for its log and actions
+- [x] Ship as pull requests on GitHub or GitLab, merged on approve
 - [ ] Chat page
 - [x] Reviews in the Inbox show the real changes: commits, files, diff
 - [x] Handbook page: read, edit and accept proposals in the app

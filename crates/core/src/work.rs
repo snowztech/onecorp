@@ -3,7 +3,7 @@
 
 use crate::runtime::{self, Event, first_line};
 use crate::store::{self, Company, Employee, Question, Ticket};
-use crate::{git, serve};
+use crate::{git, serve, ship};
 use anyhow::{Result, anyhow, bail};
 use std::cell::RefCell;
 use std::path::Path;
@@ -18,7 +18,7 @@ pub fn set_tag(tag: &str) {
     TAG.with(|t| *t.borrow_mut() = tag.to_string());
 }
 
-fn out(s: &str) {
+pub(crate) fn out(s: &str) {
     TAG.with(|t| {
         let t = t.borrow();
         for line in s.split('\n') {
@@ -207,7 +207,9 @@ fn start(c: &Company, t: &Ticket) -> Result<()> {
     let wt = c.dir.join("wt").join(key.to_lowercase());
     let repo = c.repo()?;
     let started = git::current_branch(&repo).and_then(|base| {
-        let branch = git::add_worktree(&repo, &wt, &format!("onecorp/{}/{}", c.name, key.to_lowercase()))?;
+        // With pull requests, start from what's on the forge, not whatever is checked out locally.
+        let from = ship::start_point(c, &repo, &base)?;
+        let branch = git::add_worktree(&repo, &wt, &format!("onecorp/{}/{}", c.name, key.to_lowercase()), &from)?;
         Ok((branch, base))
     });
     let (branch, base) = match started {
@@ -437,52 +439,6 @@ fn pick_up(c: &Company, t: &Ticket, why: &str, prompt: &str, label: &str) -> Res
     drive(c, &e, t.id, Path::new(wt), Some(session), prompt, label)
 }
 
-/// Merges a reviewed ticket into its base branch. A conflict goes back to the employee to fix.
-pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
-    let key = c.key(t.id);
-    match t.status.as_str() {
-        "review" => {}
-        "done" => bail!("{key} is already merged"),
-        s => bail!("{key} is {s}. Only tickets in review can be approved"),
-    }
-    let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) else { bail!("{key} has no branch to merge") };
-    let (repo, wt) = (c.repo()?, Path::new(wt));
-    let base = match &t.base {
-        Some(b) => b.clone(),
-        None => git::current_branch(&repo)?,
-    };
-    let who = t.assignee.as_deref().and_then(|id| c.employee(id).ok().flatten());
-    let identity = who.as_ref().map(|e| git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name))).unwrap_or_default();
-
-    if let git::Merge::Conflicts(files) = git::merge_base_into(wt, &base, &identity)? {
-        let name = who.as_ref().map(|e| e.name.as_str()).unwrap_or("its owner");
-        out(&format!("{base} moved since {key} started, and these files conflict: {}", files.join(", ")));
-        out(&format!("Sending it back to {name} to fix.\n"));
-        c.add_event(t.id, "merge", &format!("conflicts with {base}: {}", files.join(", ")), "")?;
-        let prompt = format!(
-            "The founder wants to merge your work, but {base} moved since you started and git found conflicts in: {files}.\n\n\
-             The merge is in progress in your worktree. Open each file, resolve the conflict markers so both sides' intent is kept, \
-             and remove every marker. Don't run git merge, git add or git commit: OneCorp finishes the merge when you're done. \
-             End with two or three sentences on how you resolved each conflict.",
-            files = files.join(", "),
-        );
-        let job = Job::Resume { why: "to fix the conflicts".into(), prompt, label: "resolve conflicts".into() };
-        dispatch(c, t.id, job)?;
-        out(&format!("Once it's back in review and you've checked it, approve again: onecorp approve {key}"));
-        return Ok(());
-    }
-
-    git::fast_forward(&repo, &base, branch)?;
-    c.set_status(t.id, "done")?;
-    c.add_event(t.id, "merge", &format!("merged into {base}"), "")?;
-    // The work is safe on base now, so a failed cleanup is only worth a warning.
-    if let Err(e) = git::clean_up(&repo, wt, branch) {
-        out(&format!("warning: merged, but couldn't remove the worktree: {e:#}"));
-    }
-    out(&format!("Merged {key} into {base}. New tickets start from it."));
-    Ok(())
-}
-
 /// Runs one agent session on a ticket, logging every event, commits what it left, then reports where the ticket landed.
 /// `label` names this run in the commit message, like the ticket title or "changes from review".
 fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, prompt: &str, label: &str) -> Result<()> {
@@ -554,9 +510,16 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     }
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost, tokens)?;
 
-    let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+    let mut t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+    if t.status == "review" {
+        ship::publish_or_note(c, &t, &text);
+        t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+    }
     let what = match t.status.as_str() {
-        "review" => "ready for review".to_string(),
+        "review" => match &t.pr_url {
+            Some(url) => format!("ready for review: {url}"),
+            None => "ready for review".to_string(),
+        },
         "blocked" => "blocked. See what they need: onecorp inbox".to_string(),
         s => s.to_string(),
     };

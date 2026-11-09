@@ -60,7 +60,7 @@ fn answer(company: String, id: i64, text: String) -> Res<()> {
 fn approve(company: String, key: String) -> Res<()> {
     let c = open(&company)?;
     let t = ticket(&c, &key)?;
-    work::approve(&c, &t).map_err(err)
+    onecorp::ship::approve(&c, &t).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -108,8 +108,13 @@ fn check_repo(path: String) -> Res<Value> {
         .into_iter()
         .filter(|c| Company::open(c).ok().and_then(|c| c.repo().ok()).is_some_and(|r| r == full))
         .collect();
+    // How this company would ship, so the flow can say so before you create it.
+    let forge = onecorp::forge::Forge::detect(&full);
+    let signed_in = forge.map(|f| f.signed_in(&full));
     Ok(json!({
         "ok": true, "path": full, "branch": branch, "suggested": onecorp::templates::suggest_name(&folder), "used_by": used_by,
+        "forge": forge.map(|f| f.name()), "pr_word": forge.map(|f| f.pr_word()),
+        "signed_in": signed_in.as_ref().map(|s| s.is_ok()), "account": signed_in.and_then(|s| s.ok()),
     }))
 }
 
@@ -119,9 +124,7 @@ fn create_company(name: String, repo: String, mission: String, template: String,
     if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
         return Err(format!("{runtime} isn't supported yet."));
     }
-    let c = Company::create(name.trim(), std::path::Path::new(repo.trim()), &mission).map_err(err)?;
-    onecorp::templates::apply(&c, t, &runtime).map_err(err)?;
-    store::set_current(&c.name).map_err(err)?;
+    let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, Some(t), &runtime).map_err(err)?;
     Ok(c.name)
 }
 
@@ -229,6 +232,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             companies,
             use_company,

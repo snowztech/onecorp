@@ -1,8 +1,11 @@
 pub mod doctor;
+pub mod forge;
 pub mod git;
 pub mod mcp;
 pub mod runtime;
 pub mod serve;
+pub mod setup;
+pub mod ship;
 pub mod store;
 pub mod templates;
 pub mod view;

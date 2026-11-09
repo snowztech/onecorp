@@ -303,3 +303,7 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 
 @media (max-width: 1100px) { .hq { grid-template-columns: 1fr; } .sidecol { position: static; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Pull request links */
+.prline { margin: -2px 0 8px !important; font-size: 13px; }
+.su-warn code, .su-ok code { font: 12px var(--mono); }

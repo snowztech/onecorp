@@ -60,6 +60,13 @@ function chip(e) {
   const [label, color] = RUNTIME[e.runtime] || [e.runtime, "#888"];
   return `<span class="chip"><i style="background:${color}"></i>${esc(label)}${e.model ? " · " + esc(e.model) : ""}</span>`;
 }
+// Links to a pull request open in your browser, not inside the app.
+function prLink(url, n) {
+  if (!url) return "";
+  const where = S.snap?.ship?.forge || "the forge";
+  return `<a class="link" data-open-url="${esc(url)}">#${esc(n)} on ${esc(where)} ↗</a>`;
+}
+const mergeLabel = () => (S.snap?.ship?.forge ? `Merge ${S.snap.ship.pr_word}` : "Approve and merge");
 const byId = id => (S.snap?.employees || []).find(e => e.id === id);
 const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S.snap.failed || []).length : 0);
 
@@ -78,7 +85,8 @@ function renderTop() {
   const s = S.snap;
   $("#title").textContent = S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board" }[S.view] || S.company || "OneCorp";
   const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
-  $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}` : "";
+  const ships = s?.ship?.forge ? ` · ships to ${s.ship.forge}` : s ? " · merges locally" : "";
+  $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}${ships}` : "";
   $("#spend").innerHTML = s ? `Spent <b>${esc(s.spend.label)}</b>` : "";
   const sel = $("#give-to"), keep = sel.value;
   sel.innerHTML = (s?.employees || []).map(e => `<option value="${esc(e.id)}">${esc(first(e.name))}${e.status === "idle" ? " (free)" : ""}</option>`).join("");
@@ -159,8 +167,8 @@ function question(q, withLead) {
 }
 function review(r) {
   return `<article class="ask review">${face(r.name, "done")}<div>
-    <span class="kind">Review · ${esc(r.key)} · ${esc(r.spend)}</span><h4>${esc(r.title)}</h4><p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>
-    <div class="acts"><button class="btn good" data-approve="${esc(r.key)}">Approve and merge</button>${S.diffs[r.key] ? "" : `<button class="btn" data-diff="${esc(r.key)}">Show changes</button>`}</div>
+    <span class="kind">Review · ${esc(r.key)} · ${esc(r.spend)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}<p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>
+    <div class="acts"><button class="btn good" data-approve="${esc(r.key)}">${mergeLabel()}</button>${S.diffs[r.key] ? "" : `<button class="btn" data-diff="${esc(r.key)}">Show changes</button>`}</div>
     ${changes(r.key)}
     <form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="Or ask for changes…"><button class="btn">Send back</button></form></div></article>`;
 }
@@ -241,13 +249,14 @@ function drawerTicket() {
     queued: `<button class="btn" data-stop="${esc(t.key)}">Cancel</button>`,
     failed: `<button class="btn primary" data-retry="${esc(t.key)}">Retry</button>`,
     blocked: `<button class="btn primary" data-view="inbox" data-close="1">Answer it in the Inbox</button>`,
-    review: `<button class="btn good" data-approve="${esc(t.key)}">Approve and merge</button>${S.diffs[t.key] ? "" : `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>`}`,
+    review: `<button class="btn good" data-approve="${esc(t.key)}">${mergeLabel()}</button>${S.diffs[t.key] ? "" : `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>`}`,
   }[t.status] || "";
   const back = t.status === "review" ? `<form class="reply" data-changes="${esc(t.key)}"><input id="chg-${esc(t.key)}" placeholder="Ask for changes…"><button class="btn">Send back</button></form>` : "";
   const log = t.log.map(a => `<div class="${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(5, 16))}</span>${esc(a.kind)} ${esc(a.summary)}</div>`).join("");
   return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(STATUS[t.status] || t.status)}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <div class="dbody">
       <dl class="kv"><dt>Who</dt><dd><a class="link" data-person="${esc(t.employee)}">${esc(t.name)}</a></dd><dt>Spent</dt><dd>${esc(t.spend)}</dd>
+        ${t.pr_url ? `<dt>Pull request</dt><dd>${prLink(t.pr_url, t.pr_number)}</dd>` : ""}
         ${t.branch ? `<dt>Branch</dt><dd class="mono">${esc(t.branch)}${t.base ? ` <span class="muted">from ${esc(t.base)}</span>` : ""}</dd>` : ""}</dl>
       ${acts ? `<div class="acts">${acts}</div>` : ""}${back}${changes(t.key)}
       <div><h5>Everything that happened</h5>${log ? `<div class="term tall" id="term">${log}</div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`}</div>
@@ -367,6 +376,12 @@ async function checkRepo(path) {
   render();
 }
 const RUNTIME_NAMES = { claude: "Claude Code", codex: "Codex", fake: "Stand-in, no AI" };
+function shipNote(r) {
+  if (!r.forge) return `<p class="su-warn">Approved work merges into this repo on your Mac. Add a GitHub or GitLab remote later to ship as pull requests.</p>`;
+  if (r.signed_in) return `<p class="su-ok">Finished work opens ${esc(r.pr_word)}s on ${esc(r.forge)}, and approving merges them. ${esc(r.account || "")}</p>`;
+  const cli = r.forge === "GitHub" ? "gh" : "glab";
+  return `<p class="su-warn">This repo is on ${esc(r.forge)}, but ${cli} isn't signed in, so work merges locally for now. Run <code>${cli} auth login</code>, then <code>onecorp ship ${r.forge.toLowerCase()}</code>.</p>`;
+}
 function viewSetup() {
   const s = S.setup, steps = ["Repo", "Name", "Team", "Review"];
   const dots = `<ol class="su-steps">${steps.map((n, i) => `<li class="${i === s.step ? "on" : i < s.step ? "done" : ""}">${n}</li>`).join("")}</ol>`;
@@ -376,7 +391,7 @@ function viewSetup() {
   if (s.step === 0) {
     const r = s.repo, picker = window.__TAURI__?.dialog ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : "";
     const result = !r ? "" : r.ok
-      ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>. Tickets branch off it and merge back into it.</p>${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
+      ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>.</p>${shipNote(r)}${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
       : `<p class="su-bad">${esc(r.problem)}</p>`;
     body = `<h2>Which repo does this company work on?</h2><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>
       <div class="su-row">${picker}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="check">Check</button></div>
@@ -403,6 +418,7 @@ function viewSetup() {
     body = `<h2>Ready to open ${esc(s.name)}</h2>
       <dl class="kv su-sum"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
         <dt>Mission</dt><dd>${esc(s.mission || "None yet")}</dd>
+        <dt>Ships</dt><dd>${s.repo.forge && s.repo.signed_in ? `As ${esc(s.repo.pr_word)}s on ${esc(s.repo.forge)}` : "By merging on your Mac"}</dd>
         <dt>Team</dt><dd>${t.hires.length ? t.hires.map(h => esc(h.name)).join(", ") + ` <span class="muted">on ${RUNTIME_NAMES[rt] || rt}</span>` : "Nobody yet"}</dd></dl>
       ${nav("Create the company")}`;
   }
@@ -457,9 +473,13 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.openUrl) {
+    e.preventDefault();
+    return window.__TAURI__?.opener ? window.__TAURI__.opener.openUrl(d.openUrl).catch(err => toast(String(err), true)) : window.open(d.openUrl, "_blank");
+  }
   if (d.ticket) return openTicket(d.ticket);
   if (d.stop) {
     el.disabled = true;
@@ -506,7 +526,7 @@ document.addEventListener("click", async e => {
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
   else if (d.close) { S.drawer = null; renderDrawer(); }
   else if (d.answer) { el.disabled = true; await call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.val === "no" ? "Left out of the handbook" : "Answered").catch(() => (el.disabled = false)); }
-  else if (d.approve) { el.disabled = true; el.textContent = "Merging…"; await call("approve", { company: S.company, key: d.approve }, `${d.approve} merged. New tickets start from it.`).catch(() => { el.disabled = false; el.textContent = "Approve and merge"; }); }
+  else if (d.approve) { el.disabled = true; el.textContent = "Merging…"; await call("approve", { company: S.company, key: d.approve }, `${d.approve} merged. New tickets start from it.`).catch(() => { el.disabled = false; el.textContent = mergeLabel(); }); }
   else if (d.pick) {
     const role = $("#role").value.trim() || S.drawer.role, c = candidates(role)[Number(d.pick)];
     const bio = BIOS.find(([re]) => re.test(role))[1];
@@ -602,7 +622,7 @@ function preview(cmd) {
   const data = {
     companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech" },
     snapshot: {
-      company: "snowztech", serve: true, employees: team, tickets: [
+      company: "snowztech", serve: true, ship: { mode: "github", forge: "GitHub", pr_word: "pull request" }, employees: team, tickets: [
         { key: "SNO-9", title: "Rate limit the public API", assignee: "tomas", status: "failed", spend: "40k tok" },
         { key: "SNO-11", title: "Pricing page", assignee: "odile", status: "review", spend: "$0.31" },
         { key: "SNO-12", title: "Magic link login", assignee: "maya", status: "blocked", spend: "52k tok" },
@@ -614,7 +634,7 @@ function preview(cmd) {
       inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
         { id: 3, kind: "handbook", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
       failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished. Retry it: onecorp retry" }],
-      reviews: [{ key: "SNO-11", title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31" }],
+      reviews: [{ key: "SNO-11", title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "tool", summary: "Bash cargo test billing" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
     },
@@ -624,9 +644,9 @@ function preview(cmd) {
       { key: "small", name: "Small product team", description: "A CTO who leads Engineering and reviews, an engineer, and a designer in Product.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Lina Park", role: "Product designer", dept: "Product" }] },
       { key: "demo", name: "Try it for free", description: "The small team on a stand-in with no AI.", runtime: "fake", hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }] },
       { key: "empty", name: "Start empty", description: "No one yet.", runtime: null, hires: [] }] },
-    ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
+    ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
-    check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [] },
+    check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [], forge: "GitHub", pr_word: "pull request", signed_in: true, account: "Logged in to github.com account you" },
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
       activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }],
       memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing"] },

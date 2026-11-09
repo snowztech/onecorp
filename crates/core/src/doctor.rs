@@ -97,6 +97,13 @@ fn company(name: &str, runtimes: &[&str]) -> Vec<Check> {
         Ok(b) => out.push(check(Level::Ok, &what, format!("{} on {b}", repo.display()), None)),
         Err(_) => out.push(check(Level::Fail, &what, format!("{} is on a detached HEAD, so tickets have no branch to start from", repo.display()), Some("git checkout main (or your usual branch) in that repo"))),
     }
+    if let Some(f) = crate::ship::forge(&c).ok().flatten() {
+        match (git::remote_url(&repo, "origin"), f.signed_in(&repo)) {
+            (None, _) => out.push(check(Level::Fail, &what, format!("ships to {} but has no origin remote", f.name()), Some("git remote add origin <url>, or: onecorp ship local"))),
+            (_, Err(why)) => out.push(check(Level::Fail, &what, format!("ships to {}, but: {why}", f.name()), Some(&format!("{} auth login", if f == crate::forge::Forge::GitHub { "gh" } else { "glab" })))),
+            (Some(url), Ok(who)) => out.push(check(Level::Ok, &what, format!("opens {}s on {url} ({who})", f.pr_word()), None)),
+        }
+    }
     let team = c.employees().unwrap_or_default();
     if team.is_empty() {
         out.push(check(Level::Warn, &what, "nobody works here yet", Some(&format!("onecorp hire --company {name}"))));

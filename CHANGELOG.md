@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Ship as pull requests: finished work opens a PR on GitHub or GitLab, sending it back updates it, and approving merges it. PRs merged or closed on the forge are picked up. `onecorp ship` switches modes.
+
 ## 0.1.0
 
 The first version you can use every day.

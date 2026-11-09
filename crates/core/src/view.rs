@@ -73,6 +73,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             json!({
                 "key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who),
                 "summary": last_said(c, t.id).unwrap_or_default(), "spend": spend(t.cost_usd, t.tokens),
+                "pr_number": t.pr_number, "pr_url": t.pr_url,
             })
         })
         .collect();
@@ -113,7 +114,9 @@ pub fn snapshot(c: &Company) -> Result<Value> {
 
     let cost = tickets.iter().fold(0.0, |s, t| s + t.cost_usd);
     let tokens: i64 = tickets.iter().map(|t| t.tokens).sum();
+    let forge = crate::ship::forge(c)?;
     Ok(json!({
+        "ship": {"mode": c.ship_mode()?, "forge": forge.map(|f| f.name()), "pr_word": forge.map(|f| f.pr_word())},
         "departments": departments,
         "company": c.name,
         "serve": crate::serve::running(),
@@ -139,6 +142,7 @@ pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
     Ok(json!({
         "key": c.key(t.id), "title": t.title, "status": t.status, "employee": who, "name": name,
         "branch": t.branch, "base": t.base, "spend": spend(t.cost_usd, t.tokens), "log": log,
+        "pr_number": t.pr_number, "pr_url": t.pr_url,
     }))
 }
 

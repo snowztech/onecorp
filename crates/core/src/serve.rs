@@ -8,7 +8,7 @@ use crate::store::{self, Company};
 use crate::work;
 use anyhow::{Result, bail};
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 fn heartbeat_path() -> std::path::PathBuf {
     store::home().join("serve.heartbeat")
@@ -43,7 +43,19 @@ pub fn serve(max: usize) -> Result<()> {
     );
 
     let mut workers: Vec<JoinHandle<()>> = vec![];
+    // Asking GitHub or GitLab about open pull requests is slow and rate-limited, so about once a minute.
+    let mut last_sync: Option<Instant> = None;
     loop {
+        if last_sync.is_none_or(|t| t.elapsed() > Duration::from_secs(60)) {
+            last_sync = Some(Instant::now());
+            for name in store::list()? {
+                let Ok(c) = Company::open(&name) else { continue };
+                match crate::ship::sync(&c) {
+                    Ok(changed) => changed.iter().for_each(|m| println!("{m}")),
+                    Err(e) => println!("{name}: couldn't check pull requests: {e:#}"),
+                }
+            }
+        }
         std::fs::write(heartbeat_path(), now().to_string())?;
         workers.retain(|w| !w.is_finished());
 

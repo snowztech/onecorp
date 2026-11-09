@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS tickets (
   cost_usd REAL NOT NULL DEFAULT 0,
   tokens INTEGER NOT NULL DEFAULT 0,
   agent_pid INTEGER,
+  pr_number INTEGER,
+  pr_url TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS events (
@@ -192,6 +194,9 @@ pub struct Ticket {
     pub session_id: Option<String>,
     /// The branch the ticket started from, and where it lands when approved.
     pub base: Option<String>,
+    /// Its pull request, once it has one.
+    pub pr_number: Option<i64>,
+    pub pr_url: Option<String>,
 }
 
 pub struct Company {
@@ -238,6 +243,21 @@ impl Company {
         db.execute_batch(SCHEMA)?;
         migrate(&db)?;
         Ok(Company { name: name.to_string(), dir, db })
+    }
+
+    /// How approved work lands: "local", "github" or "gitlab". See ship.rs.
+    pub fn ship_mode(&self) -> Result<String> {
+        Ok(self.db.query_row("SELECT value FROM meta WHERE key = 'ship'", [], |r| r.get(0)).optional()?.unwrap_or_else(|| "local".into()))
+    }
+
+    pub fn set_ship_mode(&self, mode: &str) -> Result<()> {
+        self.db.execute("INSERT INTO meta (key, value) VALUES ('ship', ?1) ON CONFLICT (key) DO UPDATE SET value = ?1", [mode])?;
+        Ok(())
+    }
+
+    pub fn set_pr(&self, ticket: i64, number: i64, url: &str) -> Result<()> {
+        self.db.execute("UPDATE tickets SET pr_number = ?2, pr_url = ?3 WHERE id = ?1", params![ticket, number, url])?;
+        Ok(())
     }
 
     pub fn repo(&self) -> Result<PathBuf> {
@@ -398,7 +418,7 @@ impl Company {
     /// Back to a fresh ticket: no branch, worktree or session.
     pub fn reset_ticket(&self, id: i64) -> Result<()> {
         self.db.execute(
-            "UPDATE tickets SET status = 'todo', branch = NULL, base = NULL, worktree = NULL, session_id = NULL WHERE id = ?1",
+            "UPDATE tickets SET status = 'todo', branch = NULL, base = NULL, worktree = NULL, session_id = NULL, pr_number = NULL, pr_url = NULL WHERE id = ?1",
             [id],
         )?;
         Ok(())
@@ -663,12 +683,12 @@ impl Company {
     pub fn ticket(&self, id: i64) -> Result<Option<Ticket>> {
         Ok(self
             .db
-            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base FROM tickets WHERE id = ?1", [id], row_to_ticket)
+            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url FROM tickets WHERE id = ?1", [id], row_to_ticket)
             .optional()?)
     }
 
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
-        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base FROM tickets ORDER BY id")?;
+        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -703,6 +723,8 @@ fn row_to_ticket(r: &rusqlite::Row) -> rusqlite::Result<Ticket> {
         session_id: r.get(7)?,
         tokens: r.get(8)?,
         base: r.get(9)?,
+        pr_number: r.get(10)?,
+        pr_url: r.get(11)?,
     })
 }
 
@@ -741,6 +763,8 @@ fn migrate(db: &Connection) -> Result<()> {
         ("inbox", "kind", "TEXT NOT NULL DEFAULT 'question'"),
         ("jobs", "pid", "INTEGER"),
         ("tickets", "agent_pid", "INTEGER"),
+        ("tickets", "pr_number", "INTEGER"),
+        ("tickets", "pr_url", "TEXT"),
         ("inbox", "stage", "TEXT NOT NULL DEFAULT 'founder'"),
         ("inbox", "via", "TEXT"),
         ("inbox", "note", "TEXT"),

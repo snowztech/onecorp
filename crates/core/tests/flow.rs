@@ -61,7 +61,7 @@ fn a_ticket_goes_from_start_to_merged() {
 
     // Approving lands it on main and cleans up the worktree.
     let wt_a = c.ticket(a).unwrap().unwrap().worktree.unwrap();
-    work::approve(&c, &c.ticket(a).unwrap().unwrap()).unwrap();
+    onecorp::ship::approve(&c, &c.ticket(a).unwrap().unwrap()).unwrap();
     assert_eq!(status(a), "done");
     assert!(!Path::new(&wt_a).exists());
     assert!(std::fs::read_to_string(repo.join("WORK.md")).unwrap().contains("add the first line"));
@@ -72,10 +72,10 @@ fn a_ticket_goes_from_start_to_merged() {
     assert!(c.memory("tomas").unwrap().contains("mention the release date"));
 
     // main moved, so approving finds the conflict and sends it back. The fix lands on the next approve.
-    work::approve(&c, &c.ticket(b).unwrap().unwrap()).unwrap();
+    onecorp::ship::approve(&c, &c.ticket(b).unwrap().unwrap()).unwrap();
     assert_eq!(status(b), "review", "the conflict went back and came back resolved");
     assert!(c.events(b).unwrap().iter().any(|(_, kind, s)| kind == "merge" && s.contains("conflicts")));
-    work::approve(&c, &c.ticket(b).unwrap().unwrap()).unwrap();
+    onecorp::ship::approve(&c, &c.ticket(b).unwrap().unwrap()).unwrap();
     assert_eq!(status(b), "done");
     let work_md = std::fs::read_to_string(repo.join("WORK.md")).unwrap();
     assert!(work_md.contains("add the first line") && work_md.contains("add the second line"), "{work_md}");

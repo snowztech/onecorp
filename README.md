@@ -54,6 +54,7 @@ onecorp diff SNO-1                            # what the ticket changed
 onecorp changes SNO-1 "use a match instead"   # send it back, same session picks it up
 onecorp approve SNO-1                         # merge into the branch it started from
 onecorp stop SNO-4                            # stop a run, or cancel a queued ticket
+onecorp ship github                           # ship as pull requests (or gitlab, or local)
 onecorp retry SNO-4                           # try a ticket that stopped or failed again
 onecorp inbox                                 # questions your team is waiting on
 onecorp answer 1 "go with 15 minutes"
@@ -98,6 +99,10 @@ Without `onecorp serve`, every command runs its work right there in your termina
 - Each employee works one ticket at a time, like a person. Their next ticket waits.
 - Every line serve prints is tagged with the ticket and the employee, like `SNO-3 tomas`.
 - If serve is stopped mid-ticket, the next start marks that ticket failed instead of leaving it stuck.
+
+## Shipping
+
+When your repo's `origin` is on GitHub or GitLab and you're signed in with `gh` or `glab`, finished work opens a pull request, and approving merges it on the forge. Your CI runs on it like on any PR. Otherwise approving merges into your local repo. Switch with `onecorp ship github`, `gitlab` or `local`. OneCorp uses the login you already have, there's no OneCorp account.
 
 ## Leads answer first
 

@@ -26,9 +26,10 @@ fn ok(dir: &Path, args: &[&str]) -> Result<bool> {
     Ok(run(dir, args, &[])?.status.success())
 }
 
-/// Creates a worktree on a fresh branch and returns the branch name. If `branch` is already taken
-/// (an old company with the same name, say), it tries branch-2, branch-3 and so on.
-pub fn add_worktree(repo: &Path, path: &Path, branch: &str) -> Result<String> {
+/// Creates a worktree on a fresh branch starting at `from` (a branch, or a remote one like
+/// origin/main) and returns the branch name. If `branch` is already taken (an old company with the
+/// same name, say), it tries branch-2, branch-3 and so on.
+pub fn add_worktree(repo: &Path, path: &Path, branch: &str, from: &str) -> Result<String> {
     let mut name = branch.to_string();
     for n in 2.. {
         if !ok(repo, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{name}")])? {
@@ -36,8 +37,28 @@ pub fn add_worktree(repo: &Path, path: &Path, branch: &str) -> Result<String> {
         }
         name = format!("{branch}-{n}");
     }
-    git(repo, &["worktree", "add", "-b", &name, &path.to_string_lossy()], &[])?;
+    git(repo, &["worktree", "add", "-b", &name, &path.to_string_lossy(), from], &[])?;
     Ok(name)
+}
+
+pub fn remote_url(repo: &Path, remote: &str) -> Option<String> {
+    git(repo, &["remote", "get-url", remote], &[]).ok().filter(|u| !u.is_empty())
+}
+
+pub fn fetch(repo: &Path, branch: &str) -> Result<()> {
+    git(repo, &["fetch", "--quiet", "origin", branch], &[])?;
+    Ok(())
+}
+
+/// Pushes a ticket's branch to origin, creating it there the first time.
+pub fn push(wt: &Path, branch: &str) -> Result<()> {
+    git(wt, &["push", "--quiet", "-u", "origin", &format!("{branch}:{branch}")], &[])?;
+    Ok(())
+}
+
+/// Best effort: the forge may already have deleted it after the merge.
+pub fn delete_remote_branch(repo: &Path, branch: &str) {
+    let _ = run(repo, &["push", "--quiet", "origin", "--delete", branch], &[]);
 }
 
 pub fn current_branch(repo: &Path) -> Result<String> {
@@ -191,7 +212,7 @@ mod tests {
 
         // Ticket 1 changes a.txt while main stays put: clean merge and a fast-forward.
         let wt1 = root.join("wt1");
-        let b1 = add_worktree(&repo, &wt1, "t/1").unwrap();
+        let b1 = add_worktree(&repo, &wt1, "t/1", "main").unwrap();
         write(&wt1.join("a.txt"), "two\n");
         commit_all(&wt1, "t1", &me).unwrap();
         assert!(matches!(merge_base_into(&wt1, "main", &me).unwrap(), Merge::Clean));
@@ -202,7 +223,7 @@ mod tests {
 
         // Ticket 2 started before a conflicting change landed on main.
         let wt2 = root.join("wt2");
-        let b2 = add_worktree(&repo, &wt2, "t/2").unwrap();
+        let b2 = add_worktree(&repo, &wt2, "t/2", "main").unwrap();
         write(&wt2.join("a.txt"), "ticket\n");
         commit_all(&wt2, "t2", &me).unwrap();
         write(&repo.join("a.txt"), "main\n");

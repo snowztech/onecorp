@@ -41,6 +41,9 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 | `serve.rs` | Runs queued jobs in parallel. |
 | `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. `fake.rs` is a stand-in with no AI, for tests and trying things out. |
 | `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the handbook, remember, mark blocked. |
+| `ship.rs` | How approved work lands: a local merge, or a pull request on GitHub or GitLab. Publishing, approving, and noticing PRs merged or closed on the forge. |
+| `forge.rs` | The only code that talks to `gh` and `glab`: open, look at and merge a pull request, check the login. |
+| `setup.rs` | Creating a company in one step: the company, its starting team, and how it ships. |
 | `git.rs` | Worktrees, commits under an employee's name, diffs, merges and conflicts. |
 | `templates.rs` | Role presets (engineer, reviewer, designer, writer) and starting teams for new companies. |
 | `doctor.rs` | The checks behind `onecorp doctor`: git, agent CLIs, home folder, each company's repo and team. |
@@ -74,6 +77,19 @@ The main tables: `employees` (with `department` and `fired_at`), `departments` (
 6. **Watching it work.** The runtime prints JSON lines. Each runtime's `parse` turns them into a small set of `Event`s: start, say, tool, error, done. `work::drive` stores every event, prints it, and keeps the session id so the ticket can be picked back up later.
 7. **Company tools.** While it works, the agent can call the MCP tools. `ask_human` puts a question in your inbox, and a blocking one marks the ticket `blocked`. `post_message` posts to chat. `propose_handbook` suggests a rule. `remember` adds to its own memory.
 8. **Done.** `git::commit_all` commits whatever the agent left, as `Maya Okafor <maya@snowztech.onecorp>`. The ticket becomes `review`, unless the agent marked itself blocked.
+
+### Shipping
+
+Each company has a shipping mode, stored in its database: `local`, `github` or `gitlab`. A new company picks a forge when its `origin` remote is on GitHub or GitLab and you're signed in there with `gh` or `glab`, and local otherwise. Change it with `onecorp ship`.
+
+In GitHub or GitLab mode:
+
+- A ticket starts from the latest `origin/<base>` instead of your local checkout (`ship::start_point`).
+- When the run finishes, `ship::publish` pushes the branch and opens a pull request with the agent's summary, or pushes to the PR the ticket already has. If that fails, say you're signed out, the ticket stays in review with the reason, and approving tries again.
+- `ship::approve` brings in the latest base (conflicts go back to the employee), merges the PR with a merge commit so every employee's commits keep their name, fast-forwards your local base when it can, and deletes the branch.
+- `ship::sync`, called by serve about once a minute, notices PRs merged or closed on the forge itself.
+
+OneCorp has no account of its own. `gh` and `glab` use the login you already have, and PRs are opened by your account.
 
 ### After that
 
@@ -134,6 +150,8 @@ Each test covers the risky logic in one module:
 On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, a retry, and questions answered by a lead, passed up by a lead, and unblocking a ticket. It takes under a second.
 
 `app/tests/ui-smoke.js` runs the app's UI in Node with a stand-in DOM and its sample data, and renders every screen, including each step of the new company flow.
+
+`crates/core/tests/pull_requests.rs` does the same for shipping as pull requests, with a bare repo standing in for GitHub and a small script standing in for `gh`: opening, updating and merging a PR, your local base following, and PRs merged or closed on GitHub itself.
 
 Run everything with `cargo test` and `node app/tests/ui-smoke.js`. Real agents are tested by hand on a throwaway repo, with `ONECORP_HOME` pointing somewhere temporary.
 
