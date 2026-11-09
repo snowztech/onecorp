@@ -153,7 +153,7 @@ The desktop app runs serve on a background thread while it's open.
 
 `app/` is a Tauri 2 app. `app/src/main.rs` exposes one command per action (`snapshot`, `answer`, `approve`, `hire`, `review`, `save_handbook` and so on), each a few lines that open the company and call the library. Commands run off the main thread, so the window never freezes.
 
-`app/ui/` is plain HTML, CSS and JavaScript, with no build step. `app.js` polls `snapshot` every 1.5 seconds, re-renders only when something changed, and never re-renders over a field you're typing in. Opened in a normal browser, it runs on built-in sample data, which is the quickest way to work on the design.
+`app/ui/` is plain HTML, CSS and JavaScript, with no build step. In the company workspace, `app.js` polls `snapshot` every 1.5 seconds, re-renders only when something changed, and never re-renders over a field you're typing in. Onboarding has no polling timer: actions and completed setup checks update its screens. Entering setup stops workspace polling; leaving it starts a single timer again. Opened in a normal browser, it runs on built-in sample data, which is the quickest way to work on the design.
 
 Agents start the company MCP server by re-running the current binary with `mcp ...`. Inside the app, that binary is the app itself, so `main` first checks `onecorp::mcp::from_args` before opening a window.
 

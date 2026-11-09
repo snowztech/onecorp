@@ -942,8 +942,19 @@ function viewSetup() {
 }
 
 /* Rendering and polling */
+let pollTimer = null;
+function syncPolling() {
+  const inWorkspace = S.company && !S.profile && !S.setup;
+  if (!inWorkspace && pollTimer !== null) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  } else if (inWorkspace && pollTimer === null) {
+    pollTimer = setInterval(() => refresh(false), 1500);
+  }
+}
 function render() {
-  // Background refreshes re-render too, so keep whatever is typed in the new company flow.
+  syncPolling();
+  // Keep drafts when an onboarding action redraws the form.
   if (S.setup && $("#setup")) readSetup();
   if (S.profile && $("#pf-name")) S.profile.name = $("#pf-name").value;
   renderSide(); renderTop();
@@ -979,6 +990,8 @@ function typing() {
   return a && a.matches("input, textarea") && a.closest("#view, #drawer") && a.value.trim() !== "";
 }
 async function refresh(force) {
+  // Ignore a workspace tick already queued when onboarding stopped the timer.
+  if (!force && (S.profile || S.setup)) return;
   try {
     if (S.founder === undefined) S.founder = await invoke("founder");
     if (!S.runtimes) S.runtimes = (await invoke("setup_info").catch(() => null))?.runtimes || null;
@@ -990,6 +1003,9 @@ async function refresh(force) {
     if (!S.company) {
       S.snap = null;
       if (!S.setup && !S.profile) return startSetup(); // No company yet: create one.
+      // Keep mounted onboarding inputs intact during polling, including empty inputs.
+      const where = S.profile ? "profile" : "setup-" + S.setup.step;
+      if (!force && S.shown === where) return;
       return render();
     }
     const snap = await invoke("snapshot", { company: S.company });
@@ -1007,6 +1023,8 @@ async function refresh(force) {
     render();
   } catch (e) {
     toast(String(e), true);
+    // A failed load still leaves the workspace polling, so it recovers on its own.
+    syncPolling();
   }
 }
 
@@ -1375,7 +1393,6 @@ async function previewScreen() {
 }
 try { if (localStorage.getItem("onecorp.rail")) toggleRail(true); } catch {}
 if (window.__TAURI__) refresh(true); else previewScreen();
-setInterval(() => refresh(false), 1500);
 
 /* Sample data for opening ui/index.html in a browser. Never used inside the app. */
 function preview(cmd) {

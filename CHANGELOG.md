@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Onboarding has no background polling timer, so fields keep focus while you type. Live updates start in the company workspace and stop whenever you enter setup again.
 - You're a photo or your initials, never a drawn face: those are for your AI team. On the welcome, your avatar is the photo button, so you can pick a photo before typing your name. It's saved when you continue.
 - Typing your name no longer makes the screen jump: the drawn face changes once you pause, with a soft fade, and background refreshes leave setup screens alone. Fields focus in place, with no gap around the ring.
 - Continue on the welcome follows the steps it shows, into Connect AI and the rest, even when you already have a company. Skip takes you straight back.
