@@ -54,8 +54,8 @@ function loadPhoto(e) {
   invoke("employee_photo", { company: S.company, id: e.id }).then(url => { photos[key] = url; if (!typing()) render(); }).catch(() => {});
   return null;
 }
-// Other face sets, drawn once per person and kept. Ours is the default. They're ink drawings
-// made for white paper, so they sit on a plain off-white tile, never a colour.
+// Other face sets, drawn once per person and kept. Ours is the default. Each person keeps their
+// colour, light enough under the ink to read in both themes.
 const FACE_SETS = [["ours", "OneCorp", "Drawn here, with moods that follow their work."], ["lorelei", "Lorelei", "Fine-line portraits by Lisa Wischofsky."], ["notionists", "Notionists", "Ink sketches by Zoish."]];
 const faceSet = () => { try { const f = localStorage.getItem("onecorp.faces"); return FACE_SETS.some(([k]) => k === f) ? f : "ours"; } catch { return "ours"; } };
 const drawn = {};
@@ -63,7 +63,7 @@ function drawFace(name, status, set = faceSet()) {
   if (set !== "ours" && window.Faces) {
     const key = set + "|" + name;
     drawn[key] ||= window.Faces(set, String(name));
-    return `<span class="av set-${set}">${drawn[key]}</span>`;
+    return `<span class="av set-${set}" style="--h:${HUES[(hash(name) >>> 12) % 8]}">${drawn[key]}</span>`;
   }
   const h = hash(name), L = { skin: h % 5, hair: (h >>> 3) % 6, style: (h >>> 6) % 5, acc: (h >>> 9) % 4 }, hue = HUES[(h >>> 12) % 8];
   const mood = { working: "working", blocked: "blocked", idle: "sleep", queued: "neutral", done: "happy" }[status] || "neutral";
@@ -1747,7 +1747,11 @@ async function previewScreen() {
   await refresh(true);
   if (screen === "settings") await openSettings();
   if (screen === "switcher") { S.switching = true; renderSide(); }
-  if (screen === "plan") { S.view = "board"; S.drawer = { type: "plan" }; render(); }
+  if (screen === "plan") {
+    S.view = "board"; S.drawer = { type: "plan" }; render();
+    $("#pj-name").value = "Stripe billing";
+    $("#pj-goal").value = "A Pro plan at $6 a month next to the free tier. Checkout with Stripe, webhooks that survive retries, and a billing page to see invoices or cancel.";
+  }
   if (screen === "rail") toggleRail(true);
   if (screen === "start") { S.snap.tickets = []; S.snap.projects = []; S.snap.kickoff.brief = ""; render(); }
   if (screen === "wiki-edit") { S.view = "wiki"; S.hbEdit = true; await refresh(true); render(); }
@@ -1856,8 +1860,8 @@ function preview(cmd, args) {
       { id: 6, at: "2026-11-09 11:20:00", author: "founder", name: "Lucas", founder: true, text: "@tomas how far are the Stripe webhook retries?", key: null, pending: false },
       { id: 7, at: "2026-11-09 11:20:00", author: "tomas", name: "Tomás Reis", text: "", key: null, pending: true }] },
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, voice: "dry", voices: VOICES, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
-      activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }],
-      memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing"] },
+      activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }, { key: "SNO-9", title: "Rate limit the public API", status: "failed", spend: "40k tok" }, { key: "SNO-8", title: "CI pipeline", status: "merged", spend: "$0.22" }, { key: "SNO-4", title: "Notes API: create and list", status: "merged", spend: "$0.48" }],
+      memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing", "2026-11-08 Lucas wants errors logged with the ticket key, never swallowed", "2026-11-07 Billing code lives in src/billing, one file per provider", "2026-11-06 Run cargo test billing before the full suite, it's 10x faster"] },
   };
   data.review = { key: "SNO-11", title: "Pricing page", base: "main", branch: "onecorp/snowztech/sno-11", added: 5, removed: 1,
     files: [{ path: "web/src/pages/pricing.tsx", added: 4, removed: 1 }, { path: "README.md", added: 1, removed: 0 }],

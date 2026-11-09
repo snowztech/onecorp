@@ -8,7 +8,7 @@
   --floor: #f4f4f5; --floor-dot: #e4e4e7; --desk: #d4d4d8; --desk-edge: #a1a1aa;
   --term-bg: #09090b; --term-fg: #d4d4d8; --term-dim: #71717a; --term-ok: #4ade80; --term-cmd: #7cb4ff;
   --grid: rgba(9, 9, 11, .05);
-  --av-tile: 55% 88%; --av-shirt: 38% 42%;  /* saturation and lightness; the hue is the person's */
+  --av-tile: 55% 88%; --av-shirt: 38% 42%; --av-ink: 55% 86%;  /* saturation and lightness; the hue is the person's */
   --display: "Geist", "Inter", -apple-system, "SF Pro Display", system-ui, sans-serif;
   --body: "Geist", "Inter", -apple-system, "SF Pro Text", system-ui, sans-serif;
   --mono: "Geist Mono", "SF Mono", ui-monospace, Menlo, monospace;
@@ -23,7 +23,7 @@
     --signal: #f59e0b; --signal-soft: #2b1d08; --good: #4ade80; --good-soft: #0d2617;
     --floor: #0c0c0e; --floor-dot: #1f1f23; --desk: #3f3f46; --desk-edge: #27272a; --term-bg: #000;
     --grid: rgba(255, 255, 255, .045);
-    --av-tile: 28% 30%; --av-shirt: 30% 52%;
+    --av-tile: 28% 30%; --av-shirt: 30% 52%; --av-ink: 34% 68%;
     color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -33,7 +33,7 @@
     --signal: #f59e0b; --signal-soft: #2b1d08; --good: #4ade80; --good-soft: #0d2617;
     --floor: #0c0c0e; --floor-dot: #1f1f23; --desk: #3f3f46; --desk-edge: #27272a; --term-bg: #000;
     --grid: rgba(255, 255, 255, .045);
-    --av-tile: 28% 30%; --av-shirt: 30% 52%;
+    --av-tile: 28% 30%; --av-shirt: 30% 52%; --av-ink: 34% 68%;
     color-scheme: dark;
   }
 }
@@ -1108,5 +1108,5 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .face-set > span:last-child { font-size: 12px; color: var(--muted); }
 .fs-faces { display: flex; }
 .fs-faces .av { width: 30px; height: 30px; margin-right: -7px; box-shadow: 0 0 0 2px var(--surface); }
-.av[class*="set-"] { background: #f4f4f5; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .06); }
+.av[class*="set-"] { background: hsl(var(--h) var(--av-ink)); }
 .av[class*="set-"] svg { width: 100%; height: 100%; display: block; }
