@@ -65,7 +65,7 @@ const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S
 
 /* Sidebar and top bar */
 function renderSide() {
-  const n = waiting(), pages = { company: "Company", inbox: "Inbox", handbook: "Handbook" };
+  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", handbook: "Handbook" };
   $("#side").innerHTML = `
     <div class="cos">${S.companies.map(c => `<button class="cobtn" data-co="${esc(c)}" aria-current="${!S.setup && c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span></button>`).join("")}
       <button class="cobtn add" data-new-co="1" aria-current="${!!S.setup}"><span class="logo">+</span><span class="coname">New company</span></button></div>
@@ -76,7 +76,7 @@ function renderSide() {
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook" }[S.view] || S.company || "OneCorp";
+  $("#title").textContent = S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board" }[S.view] || S.company || "OneCorp";
   const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
   $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}` : "";
   $("#spend").innerHTML = s ? `Spent <b>${esc(s.spend.label)}</b>` : "";
@@ -214,6 +214,51 @@ function viewHandbook() {
     <div class="acts"><button class="btn" data-hb-raw="1">Edit as text</button></div></div>`;
 }
 
+/* Board: every ticket by where it stands. Click one for its log and actions. */
+const COLUMNS = [
+  ["Up next", ["todo", "queued"]], ["Working", ["doing"]], ["Waiting on you", ["blocked"]],
+  ["Review", ["review"]], ["Stopped", ["failed"]], ["Done", ["done"]],
+];
+function viewBoard() {
+  const s = S.snap;
+  if (!s.tickets.length) return `<div class="empty-state"><b>No tickets yet</b>Say what needs doing in the box up top, and pick who does it.</div>`;
+  const nameOf = id => byId(id)?.name || id || "";
+  const cols = COLUMNS.map(([title, statuses]) => {
+    let ts = s.tickets.filter(t => statuses.includes(t.status));
+    if (title === "Done") ts = ts.slice(-12);
+    return `<section class="col"><h4>${title}<span>${ts.length}</span></h4>${ts.slice().reverse().map(t => `
+      <button class="tk ${t.status}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span><span class="t">${esc(t.title)}</span>
+        <span class="row">${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span><span class="chip">${esc(t.spend)}</span></span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
+  }).join("");
+  return `<div class="board">${cols}</div>`;
+}
+const STATUS = { todo: "Up next", queued: "Up next", doing: "Working", blocked: "Waiting on you", review: "Ready for review", failed: "Stopped", done: "Merged" };
+function drawerTicket() {
+  const t = S.ticket;
+  if (!t) return `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`;
+  const acts = {
+    doing: `<button class="btn" data-stop="${esc(t.key)}">Stop</button>`,
+    queued: `<button class="btn" data-stop="${esc(t.key)}">Cancel</button>`,
+    failed: `<button class="btn primary" data-retry="${esc(t.key)}">Retry</button>`,
+    blocked: `<button class="btn primary" data-view="inbox" data-close="1">Answer it in the Inbox</button>`,
+    review: `<button class="btn good" data-approve="${esc(t.key)}">Approve and merge</button>${S.diffs[t.key] ? "" : `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>`}`,
+  }[t.status] || "";
+  const back = t.status === "review" ? `<form class="reply" data-changes="${esc(t.key)}"><input id="chg-${esc(t.key)}" placeholder="Ask for changes…"><button class="btn">Send back</button></form>` : "";
+  const log = t.log.map(a => `<div class="${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(5, 16))}</span>${esc(a.kind)} ${esc(a.summary)}</div>`).join("");
+  return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(STATUS[t.status] || t.status)}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
+    <div class="dbody">
+      <dl class="kv"><dt>Who</dt><dd><a class="link" data-person="${esc(t.employee)}">${esc(t.name)}</a></dd><dt>Spent</dt><dd>${esc(t.spend)}</dd>
+        ${t.branch ? `<dt>Branch</dt><dd class="mono">${esc(t.branch)}${t.base ? ` <span class="muted">from ${esc(t.base)}</span>` : ""}</dd>` : ""}</dl>
+      ${acts ? `<div class="acts">${acts}</div>` : ""}${back}${changes(t.key)}
+      <div><h5>Everything that happened</h5>${log ? `<div class="term tall" id="term">${log}</div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`}</div>
+    </div>`;
+}
+async function openTicket(key) {
+  S.drawer = { type: "ticket", key }; S.ticket = null; renderDrawer();
+  try { S.ticket = await invoke("ticket_detail", { company: S.company, key }); } catch (e) { toast(String(e), true); }
+  renderDrawer();
+}
+
 /* The changes behind a review: commits, files, then the diff file by file. Loaded on click. */
 function changes(key) {
   const d = S.diffs[key];
@@ -243,6 +288,7 @@ function renderDrawer() {
   d.classList.toggle("open", open); $("#scrim").classList.toggle("open", open); d.setAttribute("aria-hidden", String(!open));
   if (!open) return;
   if (S.drawer.type === "hire") return (d.innerHTML = drawerHire());
+  if (S.drawer.type === "ticket") { d.innerHTML = drawerTicket(); const term = $("#term"); if (term) term.scrollTop = term.scrollHeight; return; }
   const p = S.person;
   if (!p) return (d.innerHTML = `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
   const e = byId(p.id) || { status: "idle" };
@@ -253,9 +299,9 @@ function renderDrawer() {
       ${p.bio ? `<p style="margin:0">${esc(p.bio)}</p>` : ""}
       <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></dd>
         <dt>Works on</dt><dd>${chip(p)}</dd></dl>
-      <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free. Give ${esc(first(p.name))} a ticket from the top bar.</p>`}</div>
+      <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free. Give ${esc(first(p.name))} a ticket from the top bar.</p>`}</div>
       <div><h5>What ${esc(first(p.name))} has learned</h5>${p.memory.length ? `<ul class="notes">${p.memory.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="muted" style="margin:0">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>
-      <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(t.status)}</span></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
+      <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(STATUS[t.status] || t.status)}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
     </div>`;
   const term = $("#term"); if (term) term.scrollTop = term.scrollHeight;
 }
@@ -376,7 +422,7 @@ function render() {
   } else if (!S.snap) {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
-    v.innerHTML = S.view === "inbox" ? viewInbox() : S.view === "handbook" ? viewHandbook() : viewCompany();
+    v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard }[S.view]?.() ?? viewCompany();
   }
   renderDrawer();
 }
@@ -401,6 +447,7 @@ async function refresh(force) {
     if (!force && (json === S.last || typing())) return;
     S.snap = snap; S.last = json; S.handbook = book;
     if (S.drawer?.type === "person") S.person = await invoke("person", { company: S.company, id: S.drawer.id }).catch(() => S.person);
+    if (S.drawer?.type === "ticket") S.ticket = await invoke("ticket_detail", { company: S.company, key: S.drawer.key }).catch(() => S.ticket);
     render();
   } catch (e) {
     toast(String(e), true);
@@ -410,9 +457,15 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.ticket) return openTicket(d.ticket);
+  if (d.stop) {
+    el.disabled = true;
+    await call("stop", { company: S.company, key: d.stop }, `Stopped ${d.stop}. Retry it anytime.`).catch(() => (el.disabled = false));
+    return;
+  }
   if (d.newCo) return startSetup();
   if (d.tpl) { readSetup(); S.setup.template = d.tpl; return render(); }
   if (d.su) {
@@ -447,7 +500,7 @@ document.addEventListener("click", async e => {
   }
   if (d.hideDiff) { delete S.diffs[d.hideDiff]; return render(); }
   if (d.co) { S.setup = null; S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
-  else if (d.view) { S.view = d.view; S.hbRaw = false; render(); if (d.view === "handbook") refresh(true); }
+  else if (d.view) { S.view = d.view; S.hbRaw = false; if (d.close) S.drawer = null; render(); if (d.view === "handbook") refresh(true); }
   else if (d.person) openPerson(d.person);
   else if (d.hire) { const dept = S.snap.departments.find(x => String(x.id) === d.hire); S.drawer = { type: "hire", dept: dept.id, role: /eng/i.test(dept.name) ? "Engineer" : dept.name + " specialist" }; renderDrawer(); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
@@ -549,7 +602,13 @@ function preview(cmd) {
   const data = {
     companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech" },
     snapshot: {
-      company: "snowztech", serve: true, employees: team, tickets: [],
+      company: "snowztech", serve: true, employees: team, tickets: [
+        { key: "SNO-9", title: "Rate limit the public API", assignee: "tomas", status: "failed", spend: "40k tok" },
+        { key: "SNO-11", title: "Pricing page", assignee: "odile", status: "review", spend: "$0.31" },
+        { key: "SNO-12", title: "Magic link login", assignee: "maya", status: "blocked", spend: "52k tok" },
+        { key: "SNO-14", title: "Empty state for the notes list", assignee: "lina", status: "queued", spend: "$0.00" },
+        { key: "SNO-15", title: "Retry failed Stripe webhooks", assignee: "tomas", status: "doing", spend: "75k tok" },
+        { key: "SNO-8", title: "CI pipeline", assignee: "tomas", status: "done", spend: "$0.22" }],
       departments: [{ id: 1, name: "Engineering", lead: "odile", members: ["odile", "maya", "tomas"] }, { id: 2, name: "Product", lead: "rui", members: ["rui", "lina"] }, { id: 3, name: "Growth", lead: "sam", members: ["sam"] }],
       with_leads: [{ id: 5, kind: "question", key: "SNO-15", employee: "tomas", name: "Tomás Reis", lead_name: "Odile Martin", question: "Retry webhooks 3 or 5 times?", section: "", options: ["3", "5"], default: "3", blocking: false }],
       inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
@@ -565,6 +624,8 @@ function preview(cmd) {
       { key: "small", name: "Small product team", description: "A CTO who leads Engineering and reviews, an engineer, and a designer in Product.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Lina Park", role: "Product designer", dept: "Product" }] },
       { key: "demo", name: "Try it for free", description: "The small team on a stand-in with no AI.", runtime: "fake", hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }] },
       { key: "empty", name: "Start empty", description: "No one yet.", runtime: null, hires: [] }] },
+    ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
+      log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
     check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [] },
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
       activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }],

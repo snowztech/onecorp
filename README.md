@@ -73,7 +73,7 @@ Each agent gets the company's MCP server (`onecorp mcp`, started by the agent ov
 cargo run -p onecorp-app
 ```
 
-It opens your current company: you on top, departments and their desks beneath, everything that needs you in the Inbox. The team keeps working while the window is open, since the app runs `serve` for you. The first time it opens, it walks you through creating a company: pick the repo, name it, pick a starting team. Pick **Try it for free** to see everything work with no AI and no cost.
+It opens your current company: you on top, departments and their desks beneath. The Board shows every ticket by where it stands, and the Inbox has everything that needs you. The team keeps working while the window is open, since the app runs `serve` for you. The first time it opens, it walks you through creating a company: pick the repo, name it, pick a starting team. Pick **Try it for free** to see everything work with no AI and no cost.
 
 To tweak the design without the app, open `app/ui/index.html` in a browser. It runs on sample data. `node app/tests/ui-smoke.js` renders every screen to catch errors.
 

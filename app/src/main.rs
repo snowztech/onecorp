@@ -144,6 +144,13 @@ fn add_to_handbook(company: String, section: String, text: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
+fn ticket_detail(company: String, key: String) -> Res<Value> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    onecorp::view::ticket(&c, &t).map_err(err)
+}
+
+#[tauri::command(async)]
 fn stop(company: String, key: String) -> Res<()> {
     let c = open(&company)?;
     let t = ticket(&c, &key)?;
@@ -230,6 +237,7 @@ fn main() {
             review,
             retry,
             stop,
+            ticket_detail,
             handbook,
             save_handbook,
             add_to_handbook,

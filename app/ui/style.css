@@ -170,6 +170,28 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .empty-state b { display: block; font: 700 18px var(--display); color: var(--fg); margin-bottom: 6px; }
 .empty-state code { font: 12px var(--mono); background: var(--surface-2); padding: 2px 6px; border-radius: 4px; }
 
+/* Board */
+.board { display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
+.col { background: var(--surface-2); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 200px; }
+.col h4 { margin: 2px 4px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: flex; justify-content: space-between; }
+.col .none { margin: 4px; font-size: 12px; }
+.tk { background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 10px; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.tk:hover { border-color: var(--accent); }
+.tk .k { font: 11px var(--mono); color: var(--muted); }
+.tk .t { font-weight: 500; line-height: 1.35; }
+.tk .row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.tk .row .av { width: 20px; height: 20px; }
+.tk .row .chip { margin-left: auto; }
+.tk.blocked { box-shadow: inset 3px 0 0 var(--signal); }
+.tk.doing { box-shadow: inset 3px 0 0 var(--good); }
+.tk.failed { box-shadow: inset 3px 0 0 var(--muted); }
+.tk.done { opacity: .7; }
+.term.tall { max-height: 420px; }
+.link { color: var(--accent); cursor: pointer; text-decoration: none; }
+.link:hover { text-decoration: underline; }
+.tl { display: flex; gap: 8px; align-items: center; width: 100%; border: 0; background: transparent; padding: 5px 6px; border-radius: 6px; text-align: left; font-size: 13px; }
+.tl:hover { background: var(--surface-2); }
+
 /* New company flow */
 .setup { max-width: 640px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; display: flex; flex-direction: column; gap: 14px; }
 .setup h2 { margin: 0; font: 800 24px var(--display); letter-spacing: -.02em; text-wrap: balance; }

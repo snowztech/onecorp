@@ -131,6 +131,17 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     }))
 }
 
+/// One ticket for the ticket drawer: who, where, what it cost, and everything that happened.
+pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
+    let who = t.assignee.clone().unwrap_or_default();
+    let name = c.employee(&who)?.map(|e| e.name).unwrap_or_else(|| who.clone());
+    let log: Vec<Value> = c.events(t.id)?.into_iter().map(|(at, kind, summary)| json!({"at": at, "kind": kind, "summary": summary})).collect();
+    Ok(json!({
+        "key": c.key(t.id), "title": t.title, "status": t.status, "employee": who, "name": name,
+        "branch": t.branch, "base": t.base, "spend": spend(t.cost_usd, t.tokens), "log": log,
+    }))
+}
+
 /// Everything a reviewer needs for one ticket: the files, the commits and the patch.
 pub fn review(c: &Company, ticket: &Ticket) -> Result<Value> {
     let key = c.key(ticket.id);

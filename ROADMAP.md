@@ -49,7 +49,8 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Hire into a department, add a department, move someone between departments
 - [x] Person drawer: what they're doing now, memory, tickets
 - [x] Company switcher in the sidebar
-- [ ] Board and Chat pages
+- [x] Board: every ticket by status, with a ticket drawer for its log and actions
+- [ ] Chat page
 - [x] Reviews in the Inbox show the real changes: commits, files, diff
 - [x] Handbook page: read, edit and accept proposals in the app
 - [x] New company flow in the app: pick the repo, name it, pick a starting team
