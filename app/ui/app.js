@@ -988,7 +988,7 @@ async function refresh(force) {
     const book = S.view === "handbook" ? await invoke("handbook", { company: S.company }) : S.handbook;
     if (S.view === "chat") S.chat = await invoke("chat", { company: S.company, channel: S.channel }).catch(() => S.chat);
     const json = JSON.stringify(snap) + (book ?? "") + (S.view === "chat" ? JSON.stringify(S.chat) : "");
-    if (!force && (json === S.last || typing())) return;
+    if (!force && (json === S.last || typing() || S.profile || S.setup)) return;
     S.snap = snap; S.last = json; S.handbook = book;
     alertNew(snap);
     // Channels count as read the first time they're seen, so opening the app doesn't light up every dot.
@@ -1289,11 +1289,19 @@ document.addEventListener("submit", async e => {
   }
 });
 // The drawn face follows your name as you type it.
+const faceLater = {};
 document.addEventListener("input", e => {
   if (e.target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (e.target.value.trim() || "?")[0].toUpperCase(); }
   if (e.target.id === "hb-text") $("#hb-preview").innerHTML = md(e.target.value).html;
-  if (e.target.id === "pf-n" && S.drawer?.type === "hire") $(".hire-face").innerHTML = face(e.target.value || "New hire", "neutral");
-  if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) $(".welcome .pf-pic").innerHTML = face(e.target.value || "You", "neutral");
+  if (e.target.id === "pf-n" && S.drawer?.type === "hire") {
+    clearTimeout(faceLater.t);
+    faceLater.t = setTimeout(() => { const pic = $(".hire-face"); if (pic) { pic.innerHTML = face(e.target.value || "New hire", "neutral"); pic.classList.remove("swap"); void pic.offsetWidth; pic.classList.add("swap"); } }, 400);
+  }
+  // Your drawn face follows your name, but only once you pause, so it doesn't reshuffle with every letter.
+  if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) {
+    clearTimeout(faceLater.t);
+    faceLater.t = setTimeout(() => { const pic = $(".welcome .pf-pic"); if (pic) { pic.innerHTML = face(e.target.value || "You", "neutral"); pic.classList.remove("swap"); void pic.offsetWidth; pic.classList.add("swap"); } }, 400);
+  }
 });
 document.addEventListener("change", async e => {
   if (e.target.dataset?.planAssign) {

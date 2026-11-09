@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Typing your name no longer makes the screen jump: the drawn face changes once you pause, with a soft fade, and background refreshes leave setup screens alone. Fields focus in place, with no gap around the ring.
 - Continue on the welcome follows the steps it shows, into Connect AI and the rest, even when you already have a company. Skip takes you straight back.
 - A dev-tool look: neutral zinc greys in both themes, one crisp blue, tighter type and mono labels.
 - Onboarding is a real setup flow, with the steps beside it: You, Connect AI (Claude Code, Codex and the GitHub CLI, each shown as Connected, Not signed in or Not installed, with the command to fix it), Company, Repo, Team, Launch. Launching shows the company being set up step by step. `make fresh` opens the app on an empty home to see it as a first user does.
