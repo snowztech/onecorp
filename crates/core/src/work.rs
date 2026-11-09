@@ -202,6 +202,9 @@ fn employee_of(c: &Company, t: &Ticket) -> Result<Employee> {
 }
 
 fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
+    if t.kind == "plan" {
+        return run_plan(c, t);
+    }
     let (id, key, title) = (t.id, c.key(t.id), t.title.as_str());
     let e = employee_of(c, t)?;
     let wt = c.dir.join("wt").join(key.to_lowercase());
@@ -293,6 +296,108 @@ pub fn release_waiting(c: &Company, done: i64) -> Result<()> {
     Ok(())
 }
 
+/// Who plans: the one you pick, or someone whose role sounds like product, or a department lead,
+/// or whoever's first on the team.
+pub fn pick_planner(c: &Company, by: Option<&str>) -> Result<Employee> {
+    let team = c.employees()?;
+    if let Some(by) = by.filter(|b| !b.trim().is_empty()) {
+        let id = store::slug(by);
+        return team.into_iter().find(|e| e.id == id).ok_or_else(|| anyhow!("nobody called {by} works at {}", c.name));
+    }
+    let leads: Vec<String> = c.departments()?.into_iter().filter_map(|d| d.lead).collect();
+    let product = |e: &&Employee| ["product", "pm", "manager", "founder's office"].iter().any(|w| e.role.to_lowercase().contains(w)) && !e.role.to_lowercase().contains("designer");
+    let pick = team.iter().find(product).or_else(|| team.iter().find(|e| leads.contains(&e.id))).or(team.first());
+    pick.map(|e| c.employee(&e.id)).transpose()?.flatten().ok_or_else(|| anyhow!("nobody works at {} yet. Hire someone to plan with", c.name))
+}
+
+/// Kicks off the brief: the planner reads it and the repo, and proposes the first tickets as a plan.
+/// Returns the plan ticket.
+pub fn kickoff(c: &Company, by: Option<&str>) -> Result<i64> {
+    if c.brief()?.is_empty() {
+        bail!("write the brief first: what you're building and who it's for. onecorp brief --set \"...\"");
+    }
+    let planner = pick_planner(c, by)?;
+    let id = c.new_plan("Plan the first version", &planner.id)?;
+    out(&format!("{} plans it with {}, {}.", c.key(id), planner.name, planner.role));
+    dispatch(c, id, Job::Start)?;
+    Ok(id)
+}
+
+fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
+    let (id, key) = (t.id, c.key(t.id));
+    let e = employee_of(c, t)?;
+    c.start_plan_ticket(id)?;
+    out(&format!("{key}  {}\n      {} is on it ({}), reading the repo\n", t.title, e.name, e.runtime));
+    let prompt = format!(
+        "You are {name}, {role} at {company}. {bio}\n\n\
+         Your ticket is {key}: plan the first version of what the founder wants to build, using the brief below \
+         and the code in this repo. You're in the repo read-only: look around as much as you need, but don't change files.\n\n\
+         Break the first version into 5 to 12 tickets with create_ticket, in the order they should happen. Each ticket:\n\
+         - is small enough to finish in a day, and has a clear title\n\
+         - says in its description what done looks like, so whoever picks it up needs nothing else\n\
+         - goes to the teammate who fits it best, by role, from the team list\n\
+         - waits for an earlier ticket with after only when it really can't start without it, so work can run in parallel\n\n\
+         Create them one by one. Each call tells you the new ticket's key, for use in after. If something the plan depends on \
+         is the founder's call, ask with ask_human. End with a short summary: the milestones, what runs in parallel, and the risks.\n\n\
+         {knowledge}",
+        name = e.name,
+        role = e.role,
+        company = c.name,
+        bio = e.bio,
+        knowledge = company_knowledge(c)?,
+    );
+    drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
+}
+
+/// Starts a reviewed plan: each of its tickets starts, and ones waiting for others start in order
+/// as those land. Tickets with nobody on them stay in the backlog.
+pub fn start_plan(c: &Company, plan: &Ticket) -> Result<()> {
+    let key = c.key(plan.id);
+    if plan.status != "review" {
+        bail!("{key} is {}. A plan starts once it's ready for review", plan.status);
+    }
+    let tickets = c.plan_tickets(plan.id)?;
+    let (mut started, mut skipped) = (0, vec![]);
+    for t in tickets.iter().filter(|t| t.status == "backlog") {
+        if t.assignee.is_none() {
+            skipped.push(c.key(t.id));
+            continue;
+        }
+        start(c, t)?;
+        started += 1;
+    }
+    c.set_status(plan.id, "done")?;
+    c.add_event(plan.id, "merge", &format!("the founder started {started} tickets"), "")?;
+    out(&format!("Started {key}: {started} tickets."));
+    if !skipped.is_empty() {
+        out(&format!("{} have nobody on them yet, so they wait in the backlog: onecorp assign <ticket> <name>", skipped.join(", ")));
+    }
+    Ok(())
+}
+
+/// Removes the plan's tickets that haven't started. Returns how many.
+fn drop_plan_tickets(c: &Company, plan: &Ticket) -> Result<usize> {
+    let mut n = 0;
+    for t in c.plan_tickets(plan.id)?.iter().filter(|t| t.status == "backlog") {
+        c.delete_ticket(t.id)?;
+        n += 1;
+    }
+    Ok(n)
+}
+
+/// Throws a plan away: its tickets go, and the plan ticket stops. Retry it to plan from scratch.
+pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
+    let key = c.key(plan.id);
+    if plan.kind != "plan" {
+        bail!("{key} isn't a plan");
+    }
+    let n = drop_plan_tickets(c, plan)?;
+    c.set_status(plan.id, "failed")?;
+    c.add_event(plan.id, "stop", &format!("dismissed by the founder, {n} tickets removed"), "")?;
+    out(&format!("Dismissed {key} and its {n} tickets. Plan again anytime: onecorp retry {key}"));
+    Ok(())
+}
+
 /// What every employee should know before starting: the handbook, and who does what.
 fn company_knowledge(c: &Company) -> Result<String> {
     // Keeps a runaway handbook from eating the whole context window.
@@ -307,6 +412,11 @@ fn company_knowledge(c: &Company) -> Result<String> {
     let mut out = String::new();
     if let Some(f) = crate::founder::load() {
         out.push_str(&format!("You work for {}, the founder of {}. Questions with ask_human go to them.\n\n", f.name, c.name));
+    }
+    let brief = c.brief()?;
+    if !brief.is_empty() {
+        let brief: String = brief.chars().take(6_000).collect();
+        out.push_str(&format!("What we're building, in the founder's words:\n\n{brief}\n\n"));
     }
     if !doc.is_empty() {
         out.push_str(&format!("The company handbook. Everyone reads it, so follow it:\n\n{doc}\n\n"));
@@ -405,10 +515,19 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
     if feedback.is_empty() {
         bail!("what should change? For example: onecorp changes {key} \"use a match instead of if/else\"");
     }
-    let prompt = format!(
-        "The founder reviewed your work and asked for changes:\n\n{feedback}\n\n\
-         Make them. Same rules as before: don't commit, and end with two or three sentences on what changed."
-    );
+    let prompt = if t.kind == "plan" {
+        let dropped = drop_plan_tickets(c, t)?;
+        format!(
+            "The founder read your plan and wants it redone:\n\n{feedback}\n\n\
+             Your {dropped} tickets were removed. Create the new plan from scratch with create_ticket, same rules as before, \
+             and end with a short summary of it."
+        )
+    } else {
+        format!(
+            "The founder reviewed your work and asked for changes:\n\n{feedback}\n\n\
+             Make them. Same rules as before: don't commit, and end with two or three sentences on what changed."
+        )
+    };
     c.add_event(t.id, "review", &format!("changes requested: {}", first_line(feedback)), "")?;
     if let Some(who) = &t.assignee {
         c.remember(who, &format!("On {key} the founder asked for changes: {feedback}"))?;
@@ -466,6 +585,13 @@ pub fn retry(c: &Company, t: &Ticket) -> Result<()> {
         bail!("{key} is {}. Only tickets that stopped or failed can be retried", t.status);
     }
     c.add_event(t.id, "retry", "the founder asked to try again", "")?;
+    // A plan starts over from the brief. It has no worktree of its own to resume or throw away:
+    // it runs on your repo, read-only.
+    if t.kind == "plan" {
+        drop_plan_tickets(c, t)?;
+        c.reset_ticket(t.id)?;
+        return dispatch(c, t.id, Job::Start);
+    }
     let resumable = t.session_id.is_some() && t.worktree.as_deref().is_some_and(|w| Path::new(w).exists());
     if resumable {
         let prompt = format!(
@@ -476,7 +602,7 @@ pub fn retry(c: &Company, t: &Ticket) -> Result<()> {
         return dispatch(c, t.id, Job::Resume { why: "where it stopped".into(), prompt, label: "finish after retry".into() });
     }
     if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
-        git::discard(&c.repo()?, Path::new(wt), branch);
+        git::discard(&c.repo()?, Path::new(wt), branch, &c.dir.join("wt"));
     }
     c.reset_ticket(t.id)?;
     dispatch(c, t.id, Job::Start)
@@ -504,7 +630,9 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     let remember_pid = |pid: u32| {
         let _ = c.set_agent_pid(id, Some(pid));
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity, read_only: false, on_spawn: Some(&remember_pid) };
+    // A plan only reads the repo and creates tickets. It must never change your checkout.
+    let planning = c.ticket(id)?.is_some_and(|t| t.kind == "plan");
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid) };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
@@ -556,7 +684,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
 
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     let text = if text.is_empty() { last_say } else { text };
-    if ok {
+    if ok && !planning {
         let msg = short(&format!("{key}: {label}"), 72);
         if let Some(hash) = git::commit_all(wt, &msg, &identity)? {
             c.add_event(id, "commit", &format!("{hash} {msg}"), "")?;
@@ -566,7 +694,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost, tokens)?;
 
     let mut t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
-    if t.status == "review" {
+    if t.status == "review" && !planning {
         ship::publish_or_note(c, &t, &text);
         t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
     }

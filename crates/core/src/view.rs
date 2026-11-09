@@ -70,8 +70,17 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         .filter(|t| t.status == "review")
         .map(|t| {
             let who = t.assignee.clone().unwrap_or_default();
+            // A plan's review is its tickets, which you can change before starting it.
+            let tickets: Vec<Value> = if t.kind == "plan" {
+                c.plan_tickets(t.id).unwrap_or_default().iter().map(|p| {
+                    let who = p.assignee.clone().unwrap_or_default();
+                    json!({"key": c.key(p.id), "title": p.title, "description": p.description, "assignee": p.assignee, "name": name_of(&who), "after": p.after.map(|a| c.key(a)), "status": p.status})
+                }).collect()
+            } else {
+                vec![]
+            };
             json!({
-                "key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who),
+                "key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who), "kind": t.kind, "tickets": tickets,
                 "summary": last_said(c, t.id).unwrap_or_default(), "spend": spend(t.cost_usd, t.tokens),
                 "pr_number": t.pr_number, "pr_url": t.pr_url,
             })
@@ -115,7 +124,20 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     let cost = tickets.iter().fold(0.0, |s, t| s + t.cost_usd);
     let tokens: i64 = tickets.iter().map(|t| t.tokens).sum();
     let forge = crate::ship::forge(c)?;
+    // Kickoff: what you're building, who'd plan it, and any planning happening now.
+    let planning: Vec<Value> = tickets
+        .iter()
+        .filter(|t| t.kind == "plan" && ["todo", "queued", "doing"].contains(&t.status.as_str()))
+        .map(|t| json!({"key": c.key(t.id), "name": name_of(t.assignee.as_deref().unwrap_or(""))}))
+        .collect();
+    let kickoff = json!({
+        "brief": c.brief()?,
+        "planner": crate::work::pick_planner(c, None).ok().map(|e| e.id),
+        "planned": tickets.iter().any(|t| t.kind == "plan"),
+        "planning": planning,
+    });
     Ok(json!({
+        "kickoff": kickoff,
         "ship": {"mode": c.ship_mode()?, "forge": forge.map(|f| f.name()), "pr_word": forge.map(|f| f.pr_word())},
         "departments": departments,
         "company": c.name,
@@ -123,7 +145,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "employees": employees,
         "tickets": tickets.iter().map(|t| json!({
             "key": c.key(t.id), "title": t.title, "assignee": t.assignee, "status": t.status,
-            "spend": spend(t.cost_usd, t.tokens), "after": t.after.map(|a| c.key(a)),
+            "spend": spend(t.cost_usd, t.tokens), "after": t.after.map(|a| c.key(a)), "kind": t.kind,
             "created_by": (t.created_by != "founder").then(|| name_of(&t.created_by)),
         })).collect::<Vec<_>>(),
         "inbox": inbox,

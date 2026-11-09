@@ -25,6 +25,20 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         return Ok(());
     }
 
+    // On a plan ticket, planning or planning again: create tickets through the real company tools.
+    if company_ticket(o).is_some_and(|(c, t)| c.ticket(t).ok().flatten().is_some_and(|t| t.kind == "plan")) {
+        let made = plan(o, prompt)?;
+        let text = format!("Planned the first version in {} tickets: setup first, then the core and the docs in parallel.", made.len());
+        on("", Event::Say(text.clone()))?;
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
+        return Ok(());
+    }
+    // Read-only means read-only, like the real runtimes: never write a file.
+    if o.read_only {
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text: "Looked around, changed nothing.".into() })?;
+        return Ok(());
+    }
+
     let first_try = o.cwd.join(".fake-tried");
     if prompt.contains("[fail once]") && !first_try.exists() {
         fs::write(&first_try, "")?;
@@ -57,4 +71,50 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
     on("", Event::Say(said.clone()))?;
     on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text: said })?;
     Ok(())
+}
+
+/// Calls `create_ticket` like an agent would, through the company's MCP handler, in-process: the
+/// stand-in has no MCP client, and in tests there's no onecorp binary to start one with.
+/// The company and ticket this run is for, read from its company tool settings.
+fn company_ticket(o: &Opts) -> Option<(crate::store::Company, i64)> {
+    let arg = |flag: &str| o.mcp.args.iter().position(|a| a == flag).and_then(|i| o.mcp.args.get(i + 1)).cloned();
+    Some((crate::store::Company::open(&arg("--company")?).ok()?, arg("--ticket")?.parse().ok()?))
+}
+
+fn plan(o: &Opts, prompt: &str) -> Result<Vec<String>> {
+    let arg = |flag: &str| o.mcp.args.iter().position(|a| a == flag).and_then(|i| o.mcp.args.get(i + 1)).cloned().unwrap_or_default();
+    let (c, ticket) = company_ticket(o).ok_or_else(|| anyhow::anyhow!("no company to plan for"))?;
+    let ctx = crate::mcp::Ctx { ticket, employee: arg("--employee") };
+    let team = c.employees()?;
+    let engineer = team.iter().find(|e| e.role.to_lowercase().contains("engineer")).or(team.first()).map(|e| e.id.clone()).unwrap_or_default();
+    let writer = team.iter().find(|e| !e.role.to_lowercase().contains("engineer")).map(|e| e.id.clone()).unwrap_or(engineer.clone());
+    let brief = c.brief()?;
+    let idea = prompt
+        .split("in the founder's words:")
+        .nth(1)
+        .unwrap_or(&brief)
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or("the product")
+        .trim()
+        .to_string();
+
+    let mut keys: Vec<String> = vec![];
+    let tickets = [
+        ("Set up the project", "A clean skeleton that builds, with a README saying how to run it.", &engineer, None),
+        ("Build the core", "The main thing the brief asks for, end to end.", &engineer, Some(0)),
+        ("Write the docs", "How to use it, for someone who has never seen it.", &writer, Some(0)),
+    ];
+    for (title, details, who, after) in tickets {
+        let mut args = serde_json::json!({"title": format!("{title}: {idea}"), "description": details, "assignee": who});
+        if let Some(i) = after {
+            args["after"] = serde_json::json!(keys[i]);
+        }
+        let call = serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "create_ticket", "arguments": args}});
+        let reply = crate::mcp::handle(&c, &ctx, &call).unwrap_or_default();
+        let text = reply["result"]["content"][0]["text"].as_str().unwrap_or("").to_string();
+        anyhow::ensure!(reply["result"]["isError"].is_null(), "create_ticket failed: {text}");
+        keys.push(text.split_whitespace().next().unwrap_or("").to_string());
+    }
+    Ok(keys)
 }

@@ -227,10 +227,15 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
                 a if a.is_empty() => None,
                 a => Some(c.parse_key(&a)?),
             };
-            let new = crate::store::NewTicket { title: s("title"), description: s("description"), assignee, created_by: Some(ctx.employee.clone()), after };
+            // Created while planning, it belongs to that plan, and starts when the founder starts the plan.
+            let plan = c.ticket(ctx.ticket)?.filter(|t| t.kind == "plan").map(|t| t.id);
+            let new = crate::store::NewTicket { title: s("title"), description: s("description"), assignee, created_by: Some(ctx.employee.clone()), after, plan };
             let id = c.new_ticket(&new, "backlog")?;
             c.add_event(id, "create", &format!("created by {} while working on {}", ctx.employee, c.key(ctx.ticket)), "")?;
-            Ok(format!("{} is in the backlog. The founder starts it.", c.key(id)))
+            Ok(match plan {
+                Some(_) => format!("{} is in the plan.", c.key(id)),
+                None => format!("{} is in the backlog. The founder starts it.", c.key(id)),
+            })
         }
         "remember" => {
             let text = s("text");

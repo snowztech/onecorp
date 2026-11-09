@@ -27,6 +27,11 @@ pub const PRESETS: &[Preset] = &[
         bio: "Designs in code. Keeps screens simple and copy short, and follows the styles already in the repo.",
     },
     Preset {
+        key: "pm",
+        role: "Product manager",
+        bio: "Turns ideas into small tickets anyone can pick up. Asks one clarifying question, never five. Keeps the first version small.",
+    },
+    Preset {
         key: "writer",
         role: "Writer",
         bio: "Writes docs, changelogs and posts. Short sentences, plain words, no hype.",
@@ -58,6 +63,8 @@ const SMALL_TEAM: &[Hire] = &[
     // First into Engineering, so she leads it and answers the team's questions first.
     Hire { name: "Odile Martin", preset: "reviewer", role: Some("CTO"), dept: Some("Engineering") },
     Hire { name: "Maya Okafor", preset: "engineer", role: None, dept: Some("Engineering") },
+    // First into Product, so he leads it and plans the work from your brief.
+    Hire { name: "Rui Alves", preset: "pm", role: None, dept: Some("Product") },
     Hire { name: "Lina Park", preset: "designer", role: None, dept: Some("Product") },
 ];
 
@@ -72,7 +79,7 @@ pub const TEMPLATES: &[Template] = &[
     Template {
         key: "small",
         name: "Small product team",
-        description: "A CTO who leads Engineering and reviews, an engineer, and a designer in Product.",
+        description: "A CTO who leads Engineering and reviews, an engineer, and a product manager and a designer in Product.",
         runtime: None,
         hires: SMALL_TEAM,
     },
@@ -144,12 +151,12 @@ mod tests {
         let c = Company::open_dir("acme", dir.clone()).unwrap();
 
         let hired = apply(&c, template("demo").unwrap(), "claude").unwrap();
-        assert_eq!(hired.len(), 3);
+        assert_eq!(hired.len(), 4);
         assert!(hired.iter().all(|e| e.runtime == "fake"), "the demo always runs on the stand-in");
         let eng = c.department("Engineering").unwrap().unwrap();
         assert_eq!(eng.lead.as_deref(), Some("odile"));
         assert_eq!(c.employee("odile").unwrap().unwrap().role, "CTO");
-        assert!(c.department("product").unwrap().is_some());
+        assert_eq!(c.department("product").unwrap().unwrap().lead.as_deref(), Some("rui"));
 
         assert_eq!(suggest_name("My Notes App"), "my-notes-app");
         assert_eq!(suggest_name("  snowztech.com "), "snowztech-com");

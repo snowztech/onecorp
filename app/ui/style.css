@@ -200,6 +200,31 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .tl { display: flex; gap: 8px; align-items: center; width: 100%; border: 0; background: transparent; padding: 5px 6px; border-radius: 6px; text-align: left; font-size: 13px; }
 .tl:hover { background: var(--surface-2); }
 
+/* Kickoff and plans */
+.kick { display: flex; gap: 14px; align-items: flex-start; background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 0 0 4px var(--accent-soft); }
+.kick.busy { align-items: center; border-color: var(--line); box-shadow: none; }
+.kick.busy .av { width: 40px; height: 40px; }
+.kick.busy > div { flex: 1; display: flex; flex-direction: column; }
+.kick-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.kick-body b { font: 700 18px var(--display); letter-spacing: -.01em; }
+.kick textarea, .brief-text { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface-2); font: inherit; resize: vertical; width: 100%; }
+.brief-text { margin: 12px 14px 0; width: calc(100% - 28px); }
+.brief-acts { padding: 10px 14px 14px; }
+.kick select { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: var(--surface); }
+.ask.plan { border-color: var(--accent); }
+.ask.plan .kind { color: var(--accent); }
+.plan-list { list-style: none; margin: 4px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; counter-reset: none; }
+.pt { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto auto; gap: 10px; align-items: start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.pt .k { font: 11px var(--mono); color: var(--muted); padding-top: 2px; }
+.pt-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pt-main b { font-weight: 600; font-size: 14px; }
+.pt-main .muted, .pt-main .after { font-size: 12px; }
+.pt .after { font-family: var(--mono); color: var(--muted); }
+.pt select { border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; background: var(--surface); font-size: 12px; }
+.pt .x { border: 0; background: transparent; color: var(--muted); font-size: 16px; padding: 2px 6px; border-radius: 6px; }
+.pt .x:hover { background: var(--line); color: var(--fg); }
+.tk.is-plan { border-color: var(--accent); }
+
 /* Backlog and new tickets */
 .board-top { display: flex; justify-content: flex-end; margin-bottom: 10px; }
 .tk .after { font: 11px var(--mono); color: var(--muted); }

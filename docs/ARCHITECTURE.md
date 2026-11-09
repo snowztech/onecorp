@@ -102,6 +102,20 @@ OneCorp has no account of its own. `gh` and `glab` use the login you already hav
 - **You ask for changes.** `work::request_changes` sends your feedback back to the same session and also saves it to that employee's memory, so they learn how you like things.
 - **You approve.** `work::approve` first merges the base branch into the ticket branch. If that conflicts, the ticket goes back to its employee with the list of files, they fix the markers and you approve again. Then the base fast-forwards to the ticket branch, the ticket becomes `done`, and its worktree and branch are removed.
 
+## From an idea to a plan
+
+Each company has a brief in `brief.md`: what you're building, who it's for, what the first version needs. Everyone reads it at the start of every ticket, so the whole team knows the product.
+
+`work::kickoff` turns the brief into a plan. A plan is a ticket of kind `plan`, which keeps planning visible on the Board, costed and logged, and lets it be stopped, retried and sent back like any work. `work::pick_planner` picks who plans: the one you choose, or a product person, or a department lead.
+
+The planner runs **read-only on your repo itself** (no worktree, no commit, no pull request) and creates tickets with `create_ticket`. Tickets created while working on a plan ticket belong to it (`tickets.plan`). The plan then waits for you:
+
+- Approving a plan (`ship::approve` sends it to `work::start_plan`) starts every ticket with someone on it. Tickets that wait for others go to `waiting` and start in order.
+- Sending it back with changes removes its tickets and has the planner plan again with your feedback.
+- `work::dismiss_plan` removes its tickets and stops it. Retrying plans again from scratch.
+
+Ticket ids use `AUTOINCREMENT`, so a removed ticket's key is never given to a new one. `git::discard`, which force-removes a worktree, refuses any path outside the company's `wt/` folder, so it can never touch your repo.
+
 ## Leads answer first
 
 When someone in a department asks a question with `ask_human`, it goes to their department's lead, not to you (`store::lead_of`). The question is stored with stage `lead`, and a `consult` job is queued for it.
@@ -152,7 +166,7 @@ Each test covers the risky logic in one module:
 - departments, handbook section editing and the screen snapshot
 - reading a lead's verdict, including markdown like `**DECISION:**`
 
-On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, a retry, and questions answered by a lead, passed up by a lead, and unblocking a ticket. It takes under a second.
+On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, a retry, and questions answered by a lead, passed up by a lead, and unblocking a ticket. `crates/core/tests/kickoff.rs` goes from a brief to a plan, plans again, starts the plan in order, and dismisses and retries one, checking your checkout is never touched. It takes under a second.
 
 `app/tests/ui-smoke.js` runs the app's UI in Node with a stand-in DOM and its sample data, and renders every screen, including each step of the new company flow.
 

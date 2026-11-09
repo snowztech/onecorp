@@ -7,7 +7,8 @@ use crate::ship;
 use anyhow::Result;
 use std::path::Path;
 
-pub fn new_company(name: &str, repo: &Path, mission: &str, team: Option<&Template>, runtime: &str) -> Result<(Company, Vec<Employee>)> {
+/// `brief` is what you're building. With a brief and a team, planning starts right away.
+pub fn new_company(name: &str, repo: &Path, mission: &str, team: Option<&Template>, runtime: &str, brief: &str) -> Result<(Company, Vec<Employee>)> {
     let c = Company::create(name, repo, mission)?;
     c.set_ship_mode(ship::default_mode(&c.repo()?))?;
     let hired = match team {
@@ -15,5 +16,11 @@ pub fn new_company(name: &str, repo: &Path, mission: &str, team: Option<&Templat
         None => vec![],
     };
     crate::store::set_current(&c.name)?;
+    if !brief.trim().is_empty() {
+        c.write_brief(brief)?;
+        if !hired.is_empty() {
+            crate::work::kickoff(&c, None)?;
+        }
+    }
     Ok((c, hired))
 }

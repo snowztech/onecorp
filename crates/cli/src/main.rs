@@ -26,6 +26,9 @@ enum Cmd {
         /// Runtime for the starting team, like claude or codex
         #[arg(long, default_value = "claude")]
         runtime: String,
+        /// What you're building. With a team, planning starts right away
+        #[arg(long)]
+        brief: Option<String>,
         /// What the company is for. Goes at the top of the handbook
         #[arg(long)]
         mission: Option<String>,
@@ -93,6 +96,34 @@ enum Cmd {
         /// Wait for another ticket to be merged first, like SNO-3
         #[arg(long)]
         after: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// What you're building, in your words. Everyone reads it, and planning starts from it
+    Brief {
+        /// Replace it with this text
+        #[arg(long)]
+        set: Option<String>,
+        /// Open it in $EDITOR
+        #[arg(long)]
+        edit: bool,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Have someone turn the brief into a plan of tickets you review and start
+    Plan {
+        /// Who plans it. By default a product person, then a lead
+        #[arg(long)]
+        by: Option<String>,
+        /// Write the brief and plan it in one go
+        #[arg(long)]
+        brief: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Throw a plan away, with its tickets
+    Dismiss {
+        plan: String,
         #[arg(short, long)]
         company: Option<String>,
     },
@@ -270,7 +301,7 @@ fn open(company: Option<String>) -> Result<store::Company> {
 
 fn run(cmd: Cmd) -> Result<()> {
     match cmd {
-        Cmd::New { name, repo, mission, team, runtime } => {
+        Cmd::New { name, repo, mission, team, runtime, brief } => {
             let template = match team.as_deref() {
                 Some(key) => Some(onecorp::templates::template(key).ok_or_else(|| {
                     let keys: Vec<_> = onecorp::templates::TEMPLATES.iter().map(|t| t.key).collect();
@@ -281,7 +312,7 @@ fn run(cmd: Cmd) -> Result<()> {
             if !RUNTIMES.contains(&runtime.as_str()) {
                 bail!("{runtime} isn't supported yet. Available: {}", RUNTIMES.join(", "));
             }
-            let (c, hired) = onecorp::setup::new_company(&name, &repo, mission.as_deref().unwrap_or(""), template, &runtime)?;
+            let (c, hired) = onecorp::setup::new_company(&name, &repo, mission.as_deref().unwrap_or(""), template, &runtime, brief.as_deref().unwrap_or(""))?;
             println!("Created {} around {}. It's now your current company.", c.name, c.repo()?.display());
             for e in &hired {
                 println!("  hired {} as {} ({})", e.name, e.role, e.runtime);
@@ -414,6 +445,39 @@ fn run(cmd: Cmd) -> Result<()> {
                 work::start(&c, &find_ticket(&c, &key)?)?;
             }
         }
+        Cmd::Brief { set, edit, company } => {
+            let c = open(company)?;
+            if let Some(text) = set {
+                c.write_brief(&text)?;
+                println!("Brief saved. Everyone reads it from their next ticket. Plan it: onecorp plan");
+            } else if edit {
+                if !c.brief_path().exists() {
+                    c.write_brief("What you're building, who it's for, and what the first version needs.")?;
+                }
+                open_in_editor(&c.brief_path())?;
+            } else {
+                match c.brief()? {
+                    b if b.is_empty() => println!("No brief yet. Write one: onecorp brief --set \"A notes app for writers...\""),
+                    b => println!("{b}"),
+                }
+            }
+        }
+        Cmd::Plan { by, brief, company } => {
+            let c = open(company)?;
+            if let Some(text) = brief {
+                c.write_brief(&text)?;
+            }
+            let id = work::kickoff(&c, by.as_deref())?;
+            let key = c.key(id);
+            if c.ticket(id)?.is_some_and(|t| t.status == "review") {
+                println!("\nThe plan is ready. See it: onecorp logs {key}, and its tickets: onecorp status");
+                println!("Start it: onecorp approve {key}. Redo it: onecorp changes {key} \"...\". Drop it: onecorp dismiss {key}");
+            }
+        }
+        Cmd::Dismiss { plan, company } => {
+            let c = open(company)?;
+            work::dismiss_plan(&c, &find_ticket(&c, &plan)?)?;
+        }
         Cmd::Start { ticket, company } => {
             let c = open(company)?;
             work::start(&c, &find_ticket(&c, &ticket)?)?;
@@ -442,7 +506,12 @@ fn run(cmd: Cmd) -> Result<()> {
             let tokens: i64 = tickets.iter().map(|t| t.tokens).sum();
             for t in &tickets {
                 let who = t.assignee.as_deref().unwrap_or("-");
-                println!("{:<8} {:<7} {:<10} {:>8}  {}", c.key(t.id), t.status, who, spend(t.cost_usd, t.tokens), t.title);
+                let title = match (t.kind.as_str(), t.plan) {
+                    ("plan", _) => format!("[plan] {} ({} tickets)", t.title, c.plan_tickets(t.id)?.len()),
+                    (_, Some(p)) => format!("{}  (from {})", t.title, c.key(p)),
+                    _ => t.title.clone(),
+                };
+                println!("{:<8} {:<7} {:<10} {:>8}  {title}", c.key(t.id), t.status, who, spend(t.cost_usd, t.tokens));
             }
             println!("{:<27} ${cost:.2} and {}k tokens", "total", (tokens + 500) / 1000);
         }

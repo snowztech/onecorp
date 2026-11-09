@@ -178,7 +178,13 @@ pub fn patch(repo: &Path, base: &str, branch: &str, max: usize) -> Result<(Strin
 }
 
 /// Throws away a ticket's worktree and branch, whatever state they're in. For retrying from scratch.
-pub fn discard(repo: &Path, wt: &Path, branch: &str) {
+/// `workspaces` is the company's own folder of worktrees: anything outside it is refused, so a
+/// mistake can never delete your repo or anything else on disk.
+pub fn discard(repo: &Path, wt: &Path, branch: &str, workspaces: &Path) {
+    let inside = wt.canonicalize().ok().zip(workspaces.canonicalize().ok()).is_some_and(|(w, root)| w.starts_with(&root) && w != root);
+    if !inside {
+        return;
+    }
     let _ = run(repo, &["worktree", "remove", "--force", &wt.to_string_lossy()], &[]);
     let _ = std::fs::remove_dir_all(wt);
     let _ = run(repo, &["worktree", "prune"], &[]);
@@ -220,6 +226,12 @@ mod tests {
         assert_eq!(std::fs::read_to_string(repo.join("a.txt")).unwrap(), "two\n");
         clean_up(&repo, &wt1, &b1).unwrap();
         assert!(!wt1.exists());
+
+        // Discarding refuses anything outside the worktrees folder, like the repo itself.
+        let workspaces = root.join("wt");
+        std::fs::create_dir_all(&workspaces).unwrap();
+        discard(&repo, &repo, "main", &workspaces);
+        assert!(repo.join("a.txt").exists(), "the repo must survive a discard aimed at it");
 
         // Ticket 2 started before a conflicting change landed on main.
         let wt2 = root.join("wt2");

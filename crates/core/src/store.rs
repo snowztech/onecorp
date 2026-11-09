@@ -24,11 +24,14 @@ CREATE TABLE IF NOT EXISTS departments (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS tickets (
-  id INTEGER PRIMARY KEY,
+  -- AUTOINCREMENT: a removed ticket's key is never handed to a new one.
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   created_by TEXT NOT NULL DEFAULT 'founder',
   after INTEGER REFERENCES tickets(id),
+  kind TEXT NOT NULL DEFAULT 'work',
+  plan INTEGER REFERENCES tickets(id),
   assignee TEXT REFERENCES employees(id),
   status TEXT NOT NULL DEFAULT 'todo',
   branch TEXT,
@@ -206,6 +209,10 @@ pub struct Ticket {
     pub created_by: String,
     /// Another ticket this one waits for: it starts once that one is merged.
     pub after: Option<i64>,
+    /// "work" for code, "plan" for a planning ticket whose result is other tickets.
+    pub kind: String,
+    /// The plan ticket this one came from, if any.
+    pub plan: Option<i64>,
 }
 
 /// A ticket to create. Everything but the title is optional.
@@ -216,6 +223,7 @@ pub struct NewTicket {
     pub assignee: Option<String>,
     pub created_by: Option<String>,
     pub after: Option<i64>,
+    pub plan: Option<i64>,
 }
 
 pub struct Company {
@@ -409,10 +417,59 @@ impl Company {
             bail!("there's no ticket {} to wait for", self.key(after));
         }
         self.db.execute(
-            "INSERT INTO tickets (title, description, assignee, created_by, after, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![title, t.description.trim(), t.assignee, t.created_by.as_deref().unwrap_or("founder"), t.after, status],
+            "INSERT INTO tickets (title, description, assignee, created_by, after, plan, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![title, t.description.trim(), t.assignee, t.created_by.as_deref().unwrap_or("founder"), t.after, t.plan, status],
         )?;
         Ok(self.db.last_insert_rowid())
+    }
+
+    /// A planning ticket: its work is reading the brief and the repo and creating tickets.
+    pub fn new_plan(&self, title: &str, planner: &str) -> Result<i64> {
+        self.db.execute("INSERT INTO tickets (title, assignee, kind, status) VALUES (?1, ?2, 'plan', 'todo')", params![title, planner])?;
+        Ok(self.db.last_insert_rowid())
+    }
+
+    /// The tickets a plan created, oldest first.
+    pub fn plan_tickets(&self, plan: i64) -> Result<Vec<Ticket>> {
+        Ok(self.tickets()?.into_iter().filter(|t| t.plan == Some(plan)).collect())
+    }
+
+    /// Deletes a ticket that never started, like one you removed from a plan. Anything that was
+    /// waiting for it stops waiting.
+    pub fn delete_ticket(&self, id: i64) -> Result<()> {
+        let Some(t) = self.ticket(id)? else { bail!("no ticket {}", self.key(id)) };
+        if t.status != "backlog" || t.branch.is_some() {
+            bail!("{} has already started, so it can't be removed. Stop it instead", self.key(id));
+        }
+        self.db.execute("UPDATE tickets SET after = NULL WHERE after = ?1", [id])?;
+        self.db.execute("DELETE FROM events WHERE ticket_id = ?1", [id])?;
+        self.db.execute("DELETE FROM jobs WHERE ticket_id = ?1", [id])?;
+        self.db.execute("DELETE FROM tickets WHERE id = ?1", [id])?;
+        Ok(())
+    }
+
+    /// A planning ticket runs on the repo itself, read-only, so it has no branch or worktree of its own.
+    pub fn start_plan_ticket(&self, id: i64) -> Result<()> {
+        self.db.execute("UPDATE tickets SET status = 'doing', worktree = ?2 WHERE id = ?1", params![id, self.repo()?.to_string_lossy()])?;
+        Ok(())
+    }
+
+    pub fn brief_path(&self) -> PathBuf {
+        self.dir.join("brief.md")
+    }
+
+    /// What you're building, in your words. Empty until you write it.
+    pub fn brief(&self) -> Result<String> {
+        match fs::read_to_string(self.brief_path()) {
+            Ok(s) => Ok(s.trim().to_string()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn write_brief(&self, text: &str) -> Result<()> {
+        fs::write(self.brief_path(), format!("{}\n", text.trim()))?;
+        Ok(())
     }
 
     pub fn assign(&self, ticket: i64, employee: &str) -> Result<()> {
@@ -745,12 +802,12 @@ impl Company {
     pub fn ticket(&self, id: i64) -> Result<Option<Ticket>> {
         Ok(self
             .db
-            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after FROM tickets WHERE id = ?1", [id], row_to_ticket)
+            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after, kind, plan FROM tickets WHERE id = ?1", [id], row_to_ticket)
             .optional()?)
     }
 
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
-        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after FROM tickets ORDER BY id")?;
+        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after, kind, plan FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -790,6 +847,8 @@ fn row_to_ticket(r: &rusqlite::Row) -> rusqlite::Result<Ticket> {
         description: r.get(12)?,
         created_by: r.get(13)?,
         after: r.get(14)?,
+        kind: r.get(15)?,
+        plan: r.get(16)?,
     })
 }
 
@@ -833,6 +892,8 @@ fn migrate(db: &Connection) -> Result<()> {
         ("tickets", "description", "TEXT NOT NULL DEFAULT ''"),
         ("tickets", "created_by", "TEXT NOT NULL DEFAULT 'founder'"),
         ("tickets", "after", "INTEGER REFERENCES tickets(id)"),
+        ("tickets", "kind", "TEXT NOT NULL DEFAULT 'work'"),
+        ("tickets", "plan", "INTEGER REFERENCES tickets(id)"),
         ("inbox", "stage", "TEXT NOT NULL DEFAULT 'founder'"),
         ("inbox", "via", "TEXT"),
         ("inbox", "note", "TEXT"),

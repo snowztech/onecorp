@@ -48,6 +48,8 @@ onecorp hire "Maya Okafor" --as engineer --model sonnet
 onecorp hire "Tomás Reis" --as engineer --runtime codex
 onecorp hire Demo --runtime fake              # a stand-in with no AI, free, for trying things out
 onecorp team
+onecorp plan --brief "A notes app for writers..."  # your team turns it into tickets for you to review
+onecorp approve SNO-1                         # on a plan: start it
 onecorp run "add a --version flag" --to maya  # --to is optional with one employee
 onecorp run "notes API" -d "REST, JSON" --later --after SNO-1   # backlog, waits for SNO-1
 onecorp start SNO-2                           # start a backlog ticket

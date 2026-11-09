@@ -180,13 +180,45 @@ fn check_repo(path: String) -> Res<Value> {
 }
 
 #[tauri::command(async)]
-fn create_company(name: String, repo: String, mission: String, template: String, runtime: String) -> Res<String> {
+fn create_company(name: String, repo: String, mission: String, template: String, runtime: String, brief: Option<String>) -> Res<String> {
     let t = onecorp::templates::template(&template).ok_or_else(|| format!("No starting team called {template}."))?;
     if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
         return Err(format!("{runtime} isn't supported yet."));
     }
-    let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, Some(t), &runtime).map_err(err)?;
+    let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, Some(t), &runtime, brief.as_deref().unwrap_or("")).map_err(err)?;
     Ok(c.name)
+}
+
+/// Saves the brief and has someone plan it. Returns the plan ticket.
+#[tauri::command(async)]
+fn kickoff(company: String, brief: String, by: Option<String>) -> Res<String> {
+    let c = open(&company)?;
+    if brief.trim().is_empty() {
+        return Err("Say what you're building first.".into());
+    }
+    c.write_brief(&brief).map_err(err)?;
+    let id = work::kickoff(&c, by.as_deref().filter(|b| !b.is_empty())).map_err(err)?;
+    Ok(c.key(id))
+}
+
+#[tauri::command(async)]
+fn save_brief(company: String, brief: String) -> Res<()> {
+    open(&company)?.write_brief(&brief).map_err(err)
+}
+
+#[tauri::command(async)]
+fn dismiss_plan(company: String, key: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    work::dismiss_plan(&c, &t).map_err(err)
+}
+
+/// Removes a ticket that never started, like one you don't want from a plan.
+#[tauri::command(async)]
+fn delete_ticket(company: String, key: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    c.delete_ticket(t.id).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -304,6 +336,10 @@ fn main() {
             stop,
             ticket_detail,
             handbook,
+            kickoff,
+            save_brief,
+            dismiss_plan,
+            delete_ticket,
             save_handbook,
             add_to_handbook,
             setup_info,

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Kickoff from an idea: write a brief (in the app, `onecorp brief`, or when creating a company), and your product manager plans it into small tickets with owners and an order. Review the plan in the Inbox, change owners or remove tickets, then start it. Plan again with feedback, or dismiss it. The small and demo teams now include a product manager.
 - Real tickets: details, a backlog (`--later`, `start`, `assign`), tickets that wait for another one to be merged and then start by themselves, and a `create_ticket` tool so leads and PMs can plan work. The app's Board has a Backlog column and a New ticket drawer.
 - Founder profile: your name and photo, set on first launch or with `onecorp founder`. It shows on the org chart, and employees know who they work for. No account, it stays on your Mac.
 - Ship as pull requests: finished work opens a PR on GitHub or GitLab, sending it back updates it, and approving merges it. PRs merged or closed on the forge are picked up. `onecorp ship` switches modes.

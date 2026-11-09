@@ -132,6 +132,7 @@ function viewCompany() {
   const items = [...(s.failed || []).map(t => ({ who: t.employee, name: t.name, text: `${t.key} stopped. Retry it?` })), ...s.reviews.map(r => ({ who: r.employee, name: r.name, text: `${r.key} is ready for review` })), ...s.inbox.map(q => ({ who: q.employee, name: q.name, text: q.kind === "handbook" ? "Handbook proposal" : q.question }))];
   const needs = items.slice(0, 4).map(i => `<button class="need" data-view="inbox">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   return `<div class="hq"><div>
+      ${kickoffCard()}
       <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${s.employees.length} people · ${working} working now</span></div><button class="btn" data-add-dept="1">+ Department</button></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
@@ -139,6 +140,23 @@ function viewCompany() {
       <section class="panel"><h3>Live <small class="muted">${s.serve ? "streaming" : "paused"}</small></h3><ul class="feed">${feed(s.feed)}</ul></section>
     </aside></div>`;
 }
+/* Kickoff: from what you're building to a plan of tickets */
+function kickoffCard() {
+  const k = S.snap.kickoff, team = S.snap.employees;
+  if (k.planning.length) {
+    const p = k.planning[0];
+    return `<section class="kick busy">${face(p.name, "working")}<div><b>${esc(first(p.name))} is planning the first version</b>
+      <span class="muted">Reading your brief and the repo. The plan shows up in your Inbox to review.</span></div>
+      <button class="btn" data-ticket="${esc(p.key)}">Follow along</button></section>`;
+  }
+  if (k.planned || !team.length) return "";
+  return `<form class="kick" id="kick"><div class="kick-body"><b>What are you building?</b>
+      <span class="muted">The product, who it's for, what the first version needs. Your team plans it into tickets, and you start them when you're happy.</span>
+      <textarea id="ko-brief" rows="4" placeholder="A notes app for writers. Magic link login, notes that sync, and export to Markdown. Free to start, $6 a month for more.">${esc(k.brief)}</textarea>
+      <div class="acts"><select id="ko-by" aria-label="Who plans it">${team.map(e => `<option value="${esc(e.id)}" ${e.id === k.planner ? "selected" : ""}>${esc(first(e.name))}, ${esc(e.role)}</option>`).join("")}</select>
+        <button class="btn primary">Plan it</button></div></div></form>`;
+}
+
 function feed(items) {
   if (!items.length) return `<li><span></span><span class="muted">Nothing yet. Give someone a ticket up top.</span></li>`;
   return items.map(f => `<li>${face(f.name, "neutral")}<div><b>${esc(first(f.name))}</b> <span class="key">${esc(f.key)}</span> ${esc(f.summary)}<time>${esc(String(f.at).slice(11, 16))}</time></div></li>`).join("");
@@ -148,7 +166,8 @@ function feed(items) {
 function viewInbox() {
   const s = S.snap;
   const blocking = s.inbox.filter(q => q.kind !== "handbook" && q.blocking), other = s.inbox.filter(q => q.kind !== "handbook" && !q.blocking), books = s.inbox.filter(q => q.kind === "handbook");
-  const cards = [...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...s.reviews.map(review), ...other.map(q => question(q)), ...books.map(handbook)];
+  const plans = s.reviews.filter(r => r.kind === "plan"), work = s.reviews.filter(r => r.kind !== "plan");
+  const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(handbook)];
   const leads = (s.with_leads || []).map(q => question(q, true));
   const zero = `<div class="empty-state"><b>Inbox zero</b>Your team puts questions, reviews and handbook ideas here when they need you.</div>`;
   return `<div class="inbox">${cards.length ? cards.join("") : zero}
@@ -170,6 +189,20 @@ function question(q, withLead) {
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
     <div class="acts">${opts}${def}</div>
     <form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Or write your own answer…"><button class="btn">Send</button></form></div></article>`;
+}
+function planReview(r) {
+  const people = S.snap.employees;
+  const rows = r.tickets.map(t => `<li class="pt">
+    <span class="k">${esc(t.key)}</span>
+    <div class="pt-main"><b>${esc(t.title)}</b>${t.description ? `<span class="muted">${esc(t.description)}</span>` : ""}${t.after ? `<span class="after">after ${esc(t.after)}</span>` : ""}</div>
+    <select data-plan-assign="${esc(t.key)}" aria-label="Who does ${esc(t.key)}"><option value="">Nobody yet</option>${people.map(e => `<option value="${esc(e.id)}" ${e.id === t.assignee ? "selected" : ""}>${esc(first(e.name))}</option>`).join("")}</select>
+    <button class="x" data-plan-del="${esc(t.key)}" title="Remove from the plan" aria-label="Remove ${esc(t.key)}">×</button></li>`).join("");
+  return `<article class="ask plan">${face(r.name, "done")}<div>
+    <span class="kind">Plan · ${esc(r.key)} · by ${esc(first(r.name))}</span><h4>The first version, in ${r.tickets.length} tickets</h4>
+    ${r.summary ? `<p>${esc(r.summary)}</p>` : ""}
+    <ol class="plan-list">${rows || `<li class="muted">No tickets left. Plan again, or dismiss it.</li>`}</ol>
+    <div class="acts"><button class="btn good" data-approve="${esc(r.key)}" ${r.tickets.length ? "" : "disabled"}>Start the plan</button><button class="btn" data-dismiss="${esc(r.key)}">Dismiss</button></div>
+    <form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="Or plan again: what should change?"><button class="btn">Plan again</button></form></div></article>`;
 }
 function review(r) {
   return `<article class="ask review">${face(r.name, "done")}<div>
@@ -221,7 +254,11 @@ function viewHandbook() {
       ${s.text.length ? `<p class="hb-text">${s.text.map(esc).join("<br>")}</p>` : ""}
       ${s.items.length ? `<ul class="rules">${s.items.map((it, k) => `<li><span>${esc(it)}</span><button class="x" data-hb-del="${i}:${k}" aria-label="Remove">×</button></li>`).join("")}</ul>` : ""}
       <form class="reply" data-hb-add="${esc(s.name)}"><input id="hb-add-${i}" placeholder="Add to ${esc(s.name)}…"><button class="btn">Add</button></form></section>`).join("");
+  const brief = `<form class="panel hb" id="brief-form"><h3>What we're building<small class="muted">Everyone reads it. Planning starts from it.</small></h3>
+      <textarea id="brief-text" class="brief-text" rows="5" placeholder="The product, who it's for, what the first version needs.">${esc(S.snap.kickoff.brief)}</textarea>
+      <div class="acts brief-acts"><button class="btn">Save</button><button class="btn" type="button" data-replan="1">Save and plan it</button></div></form>`;
   return `<div class="book">
+    ${brief}
     <p class="lede">Everyone reads this before every ticket. Decide something once, write it here, and the whole team follows it.</p>
     ${props}${sections || `<div class="empty-state"><b>Empty handbook</b>Add a section below, like Decisions or Conventions.</div>`}
     <form class="room-new" id="hb-section"><label for="hb-new"><b>+ New section</b></label><div class="row"><input id="hb-new" placeholder="Glossary, Tone of voice, Security…" autocomplete="off"><button class="btn">Add section</button></div></form>
@@ -241,7 +278,7 @@ function viewBoard() {
     let ts = s.tickets.filter(t => statuses.includes(t.status));
     if (title === "Done") ts = ts.slice(-12);
     return `<section class="col"><h4>${title}<span>${ts.length}</span></h4>${ts.slice().reverse().map(t => `
-      <button class="tk ${t.status}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span><span class="t">${esc(t.title)}</span>
+      <button class="tk ${t.status} ${t.kind === "plan" ? "is-plan" : ""}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}${t.kind === "plan" ? " · plan" : ""}</span><span class="t">${esc(t.title)}</span>
         ${t.after && t.status !== "done" ? `<span class="after">after ${esc(t.after)}</span>` : ""}
         <span class="row">${t.assignee ? `${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span>` : `<span class="muted">Nobody yet</span>`}<span class="chip">${esc(t.spend)}</span></span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
   }).join("");
@@ -259,7 +296,7 @@ function drawerTicket() {
     queued: `<button class="btn" data-stop="${esc(t.key)}">Cancel</button>`,
     failed: `<button class="btn primary" data-retry="${esc(t.key)}">Retry</button>`,
     blocked: `<button class="btn primary" data-view="inbox" data-close="1">Answer it in the Inbox</button>`,
-    review: `<button class="btn good" data-approve="${esc(t.key)}">${mergeLabel()}</button>${S.diffs[t.key] ? "" : `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>`}`,
+    review: `<button class="btn good" data-approve="${esc(t.key)}">${t.kind === "plan" ? "Start the plan" : mergeLabel()}</button>${S.diffs[t.key] ? "" : `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>`}`,
   }[t.status] || "";
   const back = t.status === "review" ? `<form class="reply" data-changes="${esc(t.key)}"><input id="chg-${esc(t.key)}" placeholder="Ask for changes…"><button class="btn">Send back</button></form>` : "";
   const log = t.log.map(a => `<div class="${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(5, 16))}</span>${esc(a.kind)} ${esc(a.summary)}</div>`).join("");
@@ -423,6 +460,7 @@ function readSetup() {
   if (val("su-name") !== undefined) s.name = val("su-name").trim();
   if (val("su-mission") !== undefined) s.mission = val("su-mission").trim();
   if (val("su-runtime") !== undefined) s.runtime = val("su-runtime");
+  if (val("su-brief") !== undefined) s.brief = val("su-brief").trim();
 }
 async function checkRepo(path) {
   const s = S.setup;
@@ -457,6 +495,7 @@ function viewSetup() {
     body = `<h2>Name your company</h2><p class="muted">Tickets are numbered from its first letters, like ${esc((s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM")}-1.</p>
       <div class="field"><label for="su-name">Name</label><input id="su-name" value="${esc(s.name)}" placeholder="snowztech" autocomplete="off" spellcheck="false"></div>
       <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the handbook)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
+      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional. Your team plans it as soon as the company exists)</span></label><textarea id="su-brief" rows="4" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
       ${nav("Continue")}`;
   } else if (s.step === 2) {
     const real = s.info.runtimes.filter(x => x !== "fake");
@@ -476,6 +515,7 @@ function viewSetup() {
       <dl class="kv su-sum"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
         <dt>Mission</dt><dd>${esc(s.mission || "None yet")}</dd>
         <dt>Ships</dt><dd>${s.repo.forge && s.repo.signed_in ? `As ${esc(s.repo.pr_word)}s on ${esc(s.repo.forge)}` : "By merging on your Mac"}</dd>
+        ${s.brief && t.hires.length ? `<dt>First plan</dt><dd>Planning starts as soon as it's created</dd>` : ""}
         <dt>Team</dt><dd>${t.hires.length ? t.hires.map(h => esc(h.name)).join(", ") + ` <span class="muted">on ${RUNTIME_NAMES[rt] || rt}</span>` : "Nobody yet"}</dd></dl>
       ${nav("Create the company")}`;
   }
@@ -536,9 +576,17 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-new-ticket],[data-nt],[data-start],[data-give-later],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-give-later],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
+  if (d.dismiss) { el.disabled = true; await call("dismiss_plan", { company: S.company, key: d.dismiss }, "Plan dismissed").catch(() => (el.disabled = false)); return; }
+  if (d.replan) {
+    const brief = $("#brief-text").value.trim();
+    if (!brief) return $("#brief-text").focus();
+    await call("kickoff", { company: S.company, brief, by: null }, "Saved. Your team is planning it").catch(() => {});
+    return;
+  }
   if (d.newTicket) { S.drawer = { type: "new-ticket" }; renderDrawer(); return $("#nt-title")?.focus(); }
   if (d.nt) { e.preventDefault(); return saveNewTicket(d.nt === "later"); }
   if (d.start) {
@@ -627,6 +675,18 @@ document.addEventListener("click", async e => {
 document.addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
+  if (f.id === "kick") {
+    const brief = $("#ko-brief").value.trim();
+    if (!brief) { toast("Say what you're building first", true); return $("#ko-brief").focus(); }
+    const btn = f.querySelector(".btn.primary");
+    btn.disabled = true;
+    await call("kickoff", { company: S.company, brief, by: $("#ko-by").value || null }, "Planning started. The plan shows up in your Inbox").catch(() => (btn.disabled = false));
+    return;
+  }
+  if (f.id === "brief-form") {
+    await call("save_brief", { company: S.company, brief: $("#brief-text").value }, "Brief saved. Everyone reads it from their next ticket").catch(() => {});
+    return;
+  }
   if (f.id === "profile") {
     const firstTime = !S.founder;
     if (!(await saveProfile())) return;
@@ -652,7 +712,7 @@ document.addEventListener("submit", async e => {
     const btn = f.querySelector(".btn.primary");
     btn.disabled = true; btn.textContent = "Creating…";
     try {
-      const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, template: s.template, runtime: s.runtime });
+      const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, template: s.template, runtime: s.runtime, brief: s.brief || null });
       S.setup = null; S.company = name; S.view = "company"; S.snap = null; S.last = "";
       toast(`${name} is open. Give someone a ticket up top.`);
       await refresh(true);
@@ -694,6 +754,11 @@ document.addEventListener("submit", async e => {
   }
 });
 document.addEventListener("change", async e => {
+  if (e.target.dataset?.planAssign) {
+    const employee = e.target.value;
+    if (employee) await call("assign", { company: S.company, key: e.target.dataset.planAssign, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
+    return;
+  }
   if (e.target.dataset?.assign) {
     const key = e.target.dataset.assign, employee = e.target.value;
     if (employee) await call("assign", { company: S.company, key, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
@@ -722,7 +787,7 @@ function preview(cmd) {
   const data = {
     companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech" },
     snapshot: {
-      company: "snowztech", serve: true, ship: { mode: "github", forge: "GitHub", pr_word: "pull request" }, employees: team, tickets: [
+      company: "snowztech", serve: true, kickoff: { brief: "A notes app for writers.", planner: "rui", planned: true, planning: [] }, ship: { mode: "github", forge: "GitHub", pr_word: "pull request" }, employees: team, tickets: [
         { key: "SNO-9", title: "Rate limit the public API", assignee: "tomas", status: "failed", spend: "40k tok" },
         { key: "SNO-11", title: "Pricing page", assignee: "odile", status: "review", spend: "$0.31" },
         { key: "SNO-12", title: "Magic link login", assignee: "maya", status: "blocked", spend: "52k tok" },
@@ -736,7 +801,10 @@ function preview(cmd) {
       inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
         { id: 3, kind: "handbook", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
       failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished. Retry it: onecorp retry" }],
-      reviews: [{ key: "SNO-11", title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
+      reviews: [{ key: "SNO-20", title: "Plan the first version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",
+          tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
+            { key: "SNO-22", title: "Magic link login", description: "Email a one-time link, 15 minute expiry.", assignee: "tomas", name: "Tomás Reis", after: "SNO-21", status: "backlog" }] },
+        { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "tool", summary: "Bash cargo test billing" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
     },

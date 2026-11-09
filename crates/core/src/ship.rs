@@ -83,6 +83,10 @@ pub fn publish_or_note(c: &Company, t: &Ticket, summary: &str) {
 /// Lands a reviewed ticket. Its branch first takes in the latest base, and a conflict goes back
 /// to the employee. Then it merges locally, or merges the pull request.
 pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
+    // Approving a plan means starting it. It has nothing to merge.
+    if t.kind == "plan" {
+        return crate::work::start_plan(c, t);
+    }
     let key = c.key(t.id);
     match t.status.as_str() {
         "review" => {}
