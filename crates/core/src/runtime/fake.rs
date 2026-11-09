@@ -4,7 +4,8 @@
 //!
 //! A test steers it through the prompt: a ticket containing `[fail]` fails, and a conflict
 //! prompt makes it resolve the markers by keeping both sides. `[fail once]` fails the first run
-//! in a worktree and succeeds after, to test retries.
+//! in a worktree and succeeds after, to test retries. `[limit]` answers like a plan that hit its
+//! usage limit.
 
 use super::{Event, Opts};
 use anyhow::Result;
@@ -59,6 +60,12 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
     if prompt.contains("[fail once]") && !first_try.exists() {
         fs::write(&first_try, "")?;
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: "Failed on purpose, this once.".into() })?;
+        return Ok(());
+    }
+    // Like a plan that ran out: Claude's own wording, with a reset an hour from now.
+    if prompt.contains("[limit]") {
+        let reset = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() + 3600).unwrap_or(0);
+        on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: format!("Claude AI usage limit reached|{reset}") })?;
         return Ok(());
     }
     if prompt.contains("[fail]") {

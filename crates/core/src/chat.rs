@@ -114,8 +114,8 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
         return Ok(vec![]);
     }
     // A direct message always gets its answer: there's only one person to ask. Someone at their
-    // daily cap reads it later, with their next ticket.
-    let capped = crate::spend::capped(c)?;
+    // daily cap, or whose agent hit its limit, reads it later, with their next ticket.
+    let capped = crate::limits::away(c)?;
     let who = if dm_of(&channel).is_some() { members(c, &channel)? } else { mentions(c, &channel, text)? };
     who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id)).collect()
 }
@@ -163,10 +163,19 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     });
-    let text = match run {
-        Ok(()) if !said.trim().is_empty() => said.trim().to_string(),
-        Ok(()) => "(no reply)".into(),
-        Err(err) => format!("(couldn't reply: {err:#})"),
+    let failed = match &run {
+        Ok(()) => (said.trim().is_empty()).then(String::new),
+        Err(err) => Some(format!("{err:#}")),
+    };
+    let limited = match &failed {
+        Some(why) => crate::limits::hit(&e.runtime, &format!("{why} {said}"))?,
+        None => false,
+    };
+    let text = match (run, limited) {
+        (_, true) => format!("(My usage limit is reached. I'm back at {}.)", crate::limits::until(&e.runtime).map(crate::limits::label).unwrap_or_default()),
+        (Ok(()), _) if !said.trim().is_empty() => said.trim().to_string(),
+        (Ok(()), _) => "(no reply)".into(),
+        (Err(err), _) => format!("(couldn't reply: {err:#})"),
     };
     let cost = crate::spend::record(c, &e.id, None, &e.runtime, e.model.as_deref(), cost, tokens)?;
     c.finish_message(id, &text, cost, tokens)

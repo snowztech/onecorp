@@ -3,6 +3,7 @@ pub mod doctor;
 pub mod forge;
 pub mod founder;
 pub mod git;
+pub mod limits;
 pub mod mcp;
 pub mod runtime;
 pub mod serve;

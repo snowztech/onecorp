@@ -1185,8 +1185,11 @@ function render() {
   renderSide(); renderTop();
   const v = $("#view");
   const banner = $("#paused");
-  banner.hidden = !(S.snap?.paused && !S.profile && !S.setup);
-  if (!banner.hidden) banner.innerHTML = S.snap.spend?.paused_by_budget
+  const limits = S.snap?.limits || [];
+  banner.hidden = !((S.snap?.paused || limits.length) && !S.profile && !S.setup);
+  // A plan limit isn't something you can fix from here, so it's said plainly, with no button.
+  if (!banner.hidden && !S.snap.paused) banner.innerHTML = `<span>${icon("pause")}<b>${limits.map(l => `${esc(AGENTS[l.runtime]?.name || l.runtime)} reached its plan's usage limit`).join(", ")}.</b> That work waits and starts again by itself at ${esc(limits.map(l => l.back).join(" and "))}.</span>`;
+  else if (!banner.hidden) banner.innerHTML = S.snap.spend?.paused_by_budget
     ? `<span>${icon("pause")}<b>${esc(S.company)} reached its ${money(S.snap.spend.budget)} daily budget.</b> Running work finishes, and nothing new starts until tomorrow.</span><button class="btn" data-settings-tab="spend">Raise budget</button><button class="btn" data-keep-going="1">Keep going today</button>`
     : `<span>${icon("pause")}<b>${esc(S.company)} is paused.</b> Running work finishes, nothing new starts, and nobody replies in chat.</span><button class="btn" data-pause="0">Resume</button>`;
   // Setting up is full screen: no sidebar or top bar for things that don't exist yet.
@@ -1705,6 +1708,7 @@ async function previewScreen() {
   if (screen === "profile") { S.founder = null; S.profile = { name: "" }; render(); }
   if (["popover", "you", "agents"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
+  if (screen === "limit") { S.snap.limits = [{ runtime: "claude", back: "15:00" }]; render(); }
   if (screen === "health") await openSettings("health");
 }
 try { if (localStorage.getItem("onecorp.rail")) toggleRail(true); } catch {}

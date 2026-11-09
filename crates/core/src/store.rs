@@ -850,8 +850,9 @@ impl Company {
     }
 
     fn claim(&self, kind: Option<&str>) -> Result<Option<Claimed>> {
-        // People at their daily cap take no new work today. Matched against a ",a,b," list.
-        let capped = format!(",{},", crate::spend::capped(self)?.join(","));
+        // People at their daily cap, or whose agent hit its plan limit, take no new work for now.
+        // Matched against a ",a,b," list.
+        let capped = format!(",{},", crate::limits::away(self)?.join(","));
         let next = self
             .db
             .query_row(

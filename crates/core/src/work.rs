@@ -39,12 +39,12 @@ pub enum Job {
 
 /// Queues the job when `onecorp serve` is running, otherwise runs it right here.
 pub fn dispatch(c: &Company, ticket: i64, job: Job) -> Result<()> {
-    let capped = c.ticket(ticket)?.and_then(|t| t.assignee).is_some_and(|a| crate::spend::capped(c).is_ok_and(|v| v.contains(&a)));
+    let capped = c.ticket(ticket)?.and_then(|t| t.assignee).is_some_and(|a| crate::limits::away(c).is_ok_and(|v| v.contains(&a)));
     if c.paused()? || capped {
         let key = c.key(ticket);
         c.enqueue(ticket, &job)?;
         c.set_status(ticket, "queued")?;
-        let why = if capped { "its assignee reached their daily cap".to_string() } else { format!("{} is paused", c.name) };
+        let why = if capped { "its assignee can't work right now (daily cap or plan limit)".to_string() } else { format!("{} is paused", c.name) };
         out(&format!("{key} is queued: {why}. It starts when that changes, or with: onecorp resume"));
         return Ok(());
     }
@@ -720,6 +720,13 @@ pub fn retry(c: &Company, t: &Ticket) -> Result<()> {
         bail!("{key} is {}. Only tickets that stopped or failed can be retried", t.status);
     }
     c.add_event(t.id, "retry", "the founder asked to try again", "")?;
+    requeue(c, t)
+}
+
+/// Sends a failed ticket back to work: resumed where it stopped when its session is still there,
+/// started over otherwise.
+fn requeue(c: &Company, t: &Ticket) -> Result<()> {
+    let key = c.key(t.id);
     // A plan starts over from the brief. It has no worktree of its own to resume or throw away:
     // it runs on your repo, read-only.
     if t.kind == "plan" {
@@ -741,6 +748,17 @@ pub fn retry(c: &Company, t: &Ticket) -> Result<()> {
     }
     c.reset_ticket(t.id)?;
     dispatch(c, t.id, Job::Start)
+}
+
+/// The agent's plan hit its usage limit. The ticket goes back in the queue, and starts again by
+/// itself once the limit resets.
+fn wait_for_limit(c: &Company, e: &Employee, id: i64) -> Result<()> {
+    let back = crate::limits::until(&e.runtime).map(crate::limits::label).unwrap_or_default();
+    let name = if e.runtime == "codex" { "Codex" } else { "Claude Code" };
+    c.add_event(id, "wait", &format!("{name} usage limit reached, back at {back}"), "")?;
+    let t = c.ticket(id)?.ok_or_else(|| anyhow!("{} disappeared", c.key(id)))?;
+    out(&format!("{} waits: {name}'s usage limit is reached. It picks up again at {back}.", c.key(id)));
+    requeue(c, &t)
 }
 
 /// Sends a ticket back to its employee: same session, same worktree, new instructions.
@@ -813,11 +831,19 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             out(&format!("{key} stopped. Pick it back up anytime: onecorp retry {key}"));
             return Ok(());
         }
+        if crate::limits::hit(&e.runtime, &format!("{err:#}"))? {
+            return wait_for_limit(c, e, id);
+        }
         return Err(err);
     }
     c.set_agent_pid(id, None)?;
 
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
+    if !ok && crate::limits::hit(&e.runtime, &text)? {
+        let cost = crate::spend::record(c, &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+        c.finish_ticket(id, "failed", cost, tokens)?;
+        return wait_for_limit(c, e, id);
+    }
     let text = if text.is_empty() { last_say } else { text };
     // A writing ticket's whole reply is its work, kept in full for whoever reads it next.
     if c.ticket(id)?.is_some_and(|t| t.kind == "wiki") {

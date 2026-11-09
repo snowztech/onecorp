@@ -176,10 +176,13 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "planned": tickets.iter().any(|t| t.kind == "plan"),
         "planning": planning,
     });
+    let limits: Vec<Value> = ["claude", "codex"].iter().filter_map(|r| crate::limits::until(r).map(|at| json!({"runtime": r, "back": crate::limits::label(at)}))).collect();
     Ok(json!({
         "kickoff": kickoff,
         "projects": projects,
         "paused": c.paused()?,
+        // Agents on this Mac that hit their plan's usage limit, and when they're back.
+        "limits": limits,
         "ship": {"mode": c.ship_mode()?, "forge": forge.map(|f| f.name()), "pr_word": forge.map(|f| f.pr_word())},
         "departments": departments,
         "company": c.name,
