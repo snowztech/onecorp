@@ -199,9 +199,37 @@ fn attention() -> Res<Value> {
     for name in store::list().map_err(err)? {
         let Ok(c) = Company::open(&name) else { continue };
         let Ok(s) = onecorp::view::snapshot(&c) else { continue };
-        out.push(json!({ "company": name, "inbox": s["inbox"], "reviews": s["reviews"], "failed": s["failed"] }));
+        out.push(json!({ "company": name, "inbox": s["inbox"], "reviews": s["reviews"], "failed": s["failed"], "spend": s["spend"] }));
     }
     Ok(json!(out))
+}
+
+#[tauri::command(async)]
+fn spend_report(company: String) -> Res<Value> {
+    onecorp::view::spend_report(&open(&company)?).map_err(err)
+}
+
+/// The daily budget in dollars, 0 for none.
+#[tauri::command(async)]
+fn set_budget(company: String, dollars: f64) -> Res<()> {
+    onecorp::spend::set_budget(&open(&company)?, dollars).map_err(err)
+}
+
+#[tauri::command(async)]
+fn set_cap(company: String, id: String, dollars: f64) -> Res<()> {
+    open(&company)?.set_daily_cap(&id, dollars).map_err(err)
+}
+
+/// Dollars per million tokens, for estimating agents that report only tokens.
+#[tauri::command(async)]
+fn set_price(company: String, runtime: String, per_million: f64) -> Res<()> {
+    onecorp::spend::set_price(&open(&company)?, &runtime, per_million).map_err(err)
+}
+
+/// Go on past today's budget. It applies again tomorrow.
+#[tauri::command(async)]
+fn keep_going_today(company: String) -> Res<()> {
+    onecorp::spend::resume_for_today(&open(&company)?).map_err(err)
 }
 
 /// The same checks as `onecorp doctor`.
@@ -557,6 +585,11 @@ fn main() {
             health,
             readiness,
             attention,
+            spend_report,
+            set_budget,
+            set_cap,
+            set_price,
+            keep_going_today,
             delete_company,
             forget_founder,
             snapshot,

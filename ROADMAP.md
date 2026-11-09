@@ -87,7 +87,7 @@ Everything a solo founder needs from download to merged work, with no dead ends.
 - [ ] Agents answer each other's @mentions, with a cap so two of them can't chat forever
 - [ ] Ask for a ticket from chat: "@rui plan the export feature" turns into a ticket
 - [ ] Faces and personality from the prototype (generated avatars, moods, voice in chat)
-- [ ] Budgets and payroll: a daily cap per employee and per company, pause at the cap
+- [x] Budgets: a daily budget per company and a cap per person, a pause at the budget, and spend by person, project and agent
 - [ ] Pi runtime
 - [ ] Extra MCP servers per employee, picked at hiring (GitHub, Figma, Notion…), next to the company tools
 - [ ] Let Claude employees build and test, in a sandbox

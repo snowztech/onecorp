@@ -39,11 +39,13 @@ pub enum Job {
 
 /// Queues the job when `onecorp serve` is running, otherwise runs it right here.
 pub fn dispatch(c: &Company, ticket: i64, job: Job) -> Result<()> {
-    if c.paused()? {
+    let capped = c.ticket(ticket)?.and_then(|t| t.assignee).is_some_and(|a| crate::spend::capped(c).is_ok_and(|v| v.contains(&a)));
+    if c.paused()? || capped {
         let key = c.key(ticket);
         c.enqueue(ticket, &job)?;
         c.set_status(ticket, "queued")?;
-        out(&format!("{key} is queued. {} is paused, so it starts when you resume: onecorp resume", c.name));
+        let why = if capped { "its assignee reached their daily cap".to_string() } else { format!("{} is paused", c.name) };
+        out(&format!("{key} is queued: {why}. It starts when that changes, or with: onecorp resume"));
         return Ok(());
     }
     if !serve::running() {
@@ -175,6 +177,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     })?;
+    let cost = crate::spend::record(c, &lead.id, Some(t.id), &lead.runtime, lead.model.as_deref(), cost, tokens)?;
     c.add_cost(t.id, cost, tokens)?;
 
     match verdict(&said) {
@@ -827,6 +830,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             out(&format!("  commit {hash} as {}", e.name));
         }
     }
+    let cost = crate::spend::record(c, &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost, tokens)?;
 
     let mut t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;

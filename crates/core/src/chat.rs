@@ -113,11 +113,11 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     if c.paused()? {
         return Ok(vec![]);
     }
-    // A direct message always gets its answer: there's only one person to ask.
-    if dm_of(&channel).is_some() {
-        return members(c, &channel)?.iter().map(|e| c.post_pending(&channel, &e.id)).collect();
-    }
-    mentions(c, &channel, text)?.iter().map(|e| c.post_pending(&channel, &e.id)).collect()
+    // A direct message always gets its answer: there's only one person to ask. Someone at their
+    // daily cap reads it later, with their next ticket.
+    let capped = crate::spend::capped(c)?;
+    let who = if dm_of(&channel).is_some() { members(c, &channel)? } else { mentions(c, &channel, text)? };
+    who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id)).collect()
 }
 
 /// A mentioned employee answers in the channel. Read-only in the repo and with no company tools,
@@ -168,6 +168,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         Ok(()) => "(no reply)".into(),
         Err(err) => format!("(couldn't reply: {err:#})"),
     };
+    let cost = crate::spend::record(c, &e.id, None, &e.runtime, e.model.as_deref(), cost, tokens)?;
     c.finish_message(id, &text, cost, tokens)
 }
 

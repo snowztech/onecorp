@@ -66,6 +66,7 @@ pub fn serve(max: usize) -> Result<()> {
             for key in c.recover_interrupted()? {
                 println!("{key} stopped before it finished. It's marked failed: onecorp retry {key}");
             }
+            crate::spend::new_day(&c)?;
             if c.paused()? {
                 continue;
             }

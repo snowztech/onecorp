@@ -6,6 +6,17 @@ use std::path::{Path, PathBuf};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS spend (
+  id INTEGER PRIMARY KEY,
+  at TEXT NOT NULL DEFAULT (datetime('now')),
+  employee TEXT NOT NULL,
+  ticket_id INTEGER,
+  runtime TEXT NOT NULL,
+  model TEXT,
+  cost_usd REAL NOT NULL,
+  tokens INTEGER NOT NULL,
+  estimated INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS employees (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -111,6 +122,21 @@ pub fn slug(name: &str) -> String {
 }
 
 /// Everything lives under ~/.onecorp, or $ONECORP_HOME when set (handy for tests).
+/// A ledger row for reports: (local day, employee, runtime, plan, dollars, tokens, estimated).
+pub type SpendRow = (String, String, String, Option<i64>, f64, i64, bool);
+
+/// One run in the spend ledger: who, for which ticket, on what, and what it cost.
+pub struct Spent<'a> {
+    pub employee: &'a str,
+    pub ticket: Option<i64>,
+    pub runtime: &'a str,
+    pub model: Option<&'a str>,
+    pub cost: f64,
+    pub tokens: u64,
+    /// Priced from tokens, because the agent didn't report a cost.
+    pub estimated: bool,
+}
+
 /// The wiki section that says what the company is building.
 pub const BUILDING: &str = "What we're building";
 
@@ -329,6 +355,66 @@ impl Company {
             }
         }
         self.db.execute("INSERT INTO meta (key, value) VALUES ('color', ?1) ON CONFLICT (key) DO UPDATE SET value = ?1", [color])?;
+        Ok(())
+    }
+
+    /// The local date `n` days ago, from the same clock as the spend ledger.
+    pub fn spent_day(&self, n: i64) -> Result<String> {
+        Ok(self.db.query_row("SELECT date('now', 'localtime', '-' || ?1 || ' days')", [n], |r| r.get(0))?)
+    }
+
+    /// Today's date in local time, from the same clock as the spend ledger.
+    pub fn today(&self) -> Result<String> {
+        Ok(self.db.query_row("SELECT date('now', 'localtime')", [], |r| r.get(0))?)
+    }
+
+    /// A company setting, like its budget. None when it was never set.
+    pub fn setting(&self, key: &str) -> Result<Option<String>> {
+        Ok(self.db.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0)).optional()?)
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        self.db.execute("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = ?2", [key, value])?;
+        Ok(())
+    }
+
+    /// One run's cost, in the spend ledger.
+    pub fn add_spend(&self, s: &Spent) -> Result<()> {
+        self.db.execute(
+            "INSERT INTO spend (employee, ticket_id, runtime, model, cost_usd, tokens, estimated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![s.employee, s.ticket, s.runtime, s.model, s.cost, s.tokens as i64, s.estimated],
+        )?;
+        Ok(())
+    }
+
+    /// Spend since `days` ago, local time, today being 0: (dollars, tokens), for one person or everyone.
+    pub fn spent_since(&self, days: i64, employee: Option<&str>) -> Result<(f64, i64)> {
+        Ok(self.db.query_row(
+            "SELECT coalesce(sum(cost_usd), 0), coalesce(sum(tokens), 0) FROM spend
+             WHERE date(at, 'localtime') >= date('now', 'localtime', '-' || ?1 || ' days') AND (?2 IS NULL OR employee = ?2)",
+            params![days, employee],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?)
+    }
+
+    pub fn spend_rows(&self) -> Result<Vec<SpendRow>> {
+        let mut st = self.db.prepare(
+            "SELECT date(s.at, 'localtime'), s.employee, s.runtime, t.plan, s.cost_usd, s.tokens, s.estimated
+             FROM spend s LEFT JOIN tickets t ON t.id = s.ticket_id ORDER BY s.id",
+        )?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn daily_cap(&self, employee: &str) -> Result<f64> {
+        Ok(self.db.query_row("SELECT daily_cap FROM employees WHERE id = ?1", [employee], |r| r.get(0)).optional()?.unwrap_or(0.0))
+    }
+
+    pub fn set_daily_cap(&self, employee: &str, dollars: f64) -> Result<()> {
+        if dollars.is_nan() || dollars < 0.0 {
+            bail!("a cap is a positive amount, or 0 for none");
+        }
+        self.db.execute("UPDATE employees SET daily_cap = ?2 WHERE id = ?1", params![employee, dollars])?;
         Ok(())
     }
 
@@ -764,6 +850,8 @@ impl Company {
     }
 
     fn claim(&self, kind: Option<&str>) -> Result<Option<Claimed>> {
+        // People at their daily cap take no new work today. Matched against a ",a,b," list.
+        let capped = format!(",{},", crate::spend::capped(self)?.join(","));
         let next = self
             .db
             .query_row(
@@ -772,8 +860,9 @@ impl Company {
                    SELECT 1 FROM jobs r JOIN tickets rt ON rt.id = r.ticket_id
                    WHERE r.started_at IS NOT NULL AND r.finished_at IS NULL
                      AND (r.ticket_id = j.ticket_id OR rt.assignee = t.assignee))
+                   AND instr(?2, ',' || coalesce(t.assignee, '') || ',') = 0
                  ORDER BY j.id LIMIT 1",
-                [kind],
+                params![kind, capped],
                 |r| {
                     let job = match r.get::<_, String>(2)?.as_str() {
                         "start" => Job::Start,
@@ -1042,13 +1131,13 @@ impl Company {
     }
 
     /// The company's latest events across all tickets, newest first: (time, ticket, employee, kind, summary).
-    /// The moments worth seeing in the Live feed, newest first. Tool calls, agent chatter and
-    /// commits stay in each ticket's own log.
+    /// The moments worth seeing in the Live feed, newest first. A list of what to show, not what to
+    /// hide: anything new stays in the ticket's own log until it's chosen for the feed.
     pub fn recent_events(&self, limit: i64) -> Result<Vec<FeedEvent>> {
         let mut st = self.db.prepare(
             "SELECT e.at, e.ticket_id, coalesce(t.assignee, ''), e.kind, e.summary, t.title
              FROM events e JOIN tickets t ON t.id = e.ticket_id
-             WHERE e.kind NOT IN ('tool', 'say', 'error', 'commit', 'wiki-text') ORDER BY e.id DESC LIMIT ?1",
+             WHERE e.kind IN ('start', 'done', 'merge', 'pr', 'block', 'lead', 'create', 'review', 'stop', 'retry', 'wait', 'wiki') ORDER BY e.id DESC LIMIT ?1",
         )?;
         let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -1115,6 +1204,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("employees", "fired_at", "TEXT"),
         ("employees", "department", "INTEGER REFERENCES departments(id)"),
         ("employees", "face", "TEXT"),
+        ("employees", "daily_cap", "REAL NOT NULL DEFAULT 0"),
         ("tickets", "tokens", "INTEGER NOT NULL DEFAULT 0"),
         ("tickets", "base", "TEXT"),
         ("inbox", "kind", "TEXT NOT NULL DEFAULT 'question'"),

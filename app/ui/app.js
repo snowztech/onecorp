@@ -172,7 +172,9 @@ function viewCompany() {
   const working = s.employees.filter(e => e.status === "working").length;
   const depts = s.departments.filter(d => d.id !== null).length;
   const facts = [`${s.employees.length} ${s.employees.length === 1 ? "person" : "people"}`, `${depts} ${depts === 1 ? "department" : "departments"}`,
-    s.ship?.forge ? `ships to ${s.ship.forge}` : "merges locally", ...(s.spend.cost > 0 || s.spend.tokens > 0 ? [`${s.spend.label} spent`] : []), ...(working ? [`<span class="ok">${working} working now</span>`] : [])];
+    s.ship?.forge ? `ships to ${s.ship.forge}` : "merges locally", ...(working ? [`<span class="ok">${working} working now</span>`] : [])];
+  const b = s.spend.budget, pct = b > 0 ? Math.min(100, (s.spend.today / b) * 100) : 0;
+  const spendLine = `<button class="spend-line ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}" data-settings-tab="spend" title="See where it goes">${money(s.spend.today)}${b > 0 ? ` of ${money(b)}` : ""} today${b > 0 ? `<span class="meter"><i style="width:${pct}%"></i></span>` : ` <span class="muted">· set a budget</span>`}</button>`;
   const items = needItems(s);
   const needs = items.slice(0, 3).map(i => `<button class="need" data-goto="${esc(i.to)}">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   const needsCard = `<section class="side-sec needs-sec"><h3 class="label">Needs you ${items.length ? `<span class="badge">${items.length}</span>` : ""}</h3>
@@ -184,7 +186,7 @@ function viewCompany() {
     ? `<p class="idle">Your team is free · <button class="link-btn" data-plan-new="1">Start a project</button> · <button class="link-btn" data-new-ticket="${esc(free.id)}">Give ${esc(first(free.name))} a ticket</button></p>` : "";
   return `<div class="hq"><div>
       ${kickoffCard()}
-      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span>${idle}</div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
+      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span>${spendLine}${idle}</div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
       ${needsCard}
@@ -218,7 +220,8 @@ function renderSheet() {
       : `<ul class="health">${(S.health || []).map(h => `<li class="hc lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("")}</ul>
         <button class="link-btn" data-health="1">Check again</button>`;
   }
-  const tabs = [["company", "Company"], ["health", "Setup check"]];
+  if (tab === "spend") body = spendTab();
+  const tabs = [["company", "Company"], ["spend", "Spend"], ["health", "Setup check"]];
   el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Settings">
     <header class="sheet-h"><div><h2>Settings</h2><span class="muted">${esc(S.company || "")}${st ? ` · OneCorp ${esc(st.version)}` : ""}</span></div><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
     <nav class="seg tabs">${tabs.map(([k, n]) => `<button data-sheet="${k}" aria-pressed="${k === tab}">${n}</button>`).join("")}</nav>
@@ -231,7 +234,37 @@ async function openSettings(tab = "company") {
   if (opening) { const el = $("#sheet"); el.classList.add("opening"); setTimeout(() => el.classList.remove("opening"), 300); }
   try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); }
   renderSheet();
+  if (tab === "spend") await loadSpend();
   if (S.health === null || tab === "health") { S.health = null; S.health = await invoke("health").catch(() => []); renderSheet(); }
+}
+async function loadSpend() {
+  try { S.spend = await invoke("spend_report", { company: S.company }); } catch (e) { toast(String(e), true); }
+  renderSheet();
+}
+/* Spend: today against the budget, two weeks of days, and where it goes, by person, project and agent. */
+function spendTab() {
+  const r = S.spend;
+  if (!r) return `<p class="muted">Adding it up…</p>`;
+  const t = r.totals, b = r.budget, pct = b > 0 ? Math.min(100, (t.today.cost / b) * 100) : 0;
+  const top = Math.max(...r.days.map(d => d.cost), b || 0, 0.01);
+  const today = r.days[r.days.length - 1]?.day;
+  const row = (lead, w, extra = "") => `<tr><td>${lead}</td><td class="num">${money(w.today.cost)}</td><td class="num">${money(w.week.cost)}</td><td class="num">${money(w.all.cost)}</td>${extra}</tr>`;
+  const head = (first, extra = "") => `<thead><tr><th>${first}</th><th class="num">Today</th><th class="num">7 days</th><th class="num">All time</th>${extra}</tr></thead>`;
+  const people = r.people.filter(p => p.all.cost > 0 || p.cap > 0);
+  return `<div class="spend-top">
+      <div class="spend-now"><span class="label">Today</span><b>${money(t.today.cost)}</b><span class="muted">${b > 0 ? `of a ${money(b)} budget` : "No daily budget"} · ${tokensText(t.today.tokens)}</span>
+        ${b > 0 ? `<span class="meter big ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}"><i style="width:${pct}%"></i></span>` : ""}</div>
+      <form class="budget" id="budget-form"><label for="budget-in" class="flabel">Daily budget</label>
+        <div class="money-in"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b > 0 ? b : ""}" placeholder="None"><button class="btn">Save</button></div>
+        <span class="fine">A heads-up at 80%. At 100% the company pauses until tomorrow.</span></form></div>
+    <div class="chart" role="img" aria-label="Spend over the last 14 days">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}"><i style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%"></i></div>`).join("")}${b > 0 ? `<span class="budget-line" style="bottom:${(b / top) * 100}%" title="Daily budget ${money(b)}"></span>` : ""}</div>
+    <div class="chart-axis"><span>${esc(r.days[0]?.day.slice(5) || "")}</span><span>Today</span></div>
+    ${people.length ? `<h3 class="label sp-h">People</h3><table class="sp">${head("", '<th class="num">Daily cap</th>')}<tbody>${people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(p.name)}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")}</tbody></table>` : `<p class="muted sp-empty">Nothing spent yet. It adds up here as your team works.</p>`}
+    ${r.projects.some(p => p.all.cost > 0) ? `<h3 class="label sp-h">Projects</h3><table class="sp">${head("")}<tbody>${r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("")}</tbody></table>` : ""}
+    ${r.agents.length ? `<h3 class="label sp-h">Agents</h3><table class="sp">${head("")}<tbody>${r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ' <span class="est">est.</span>' : ""}</span>`, a)).join("")}</tbody></table>` : ""}
+    <form class="rates" id="rates-form"><span class="flabel">Estimating from tokens</span>
+      <p class="fine">Claude Code reports what each run costs. Codex reports only tokens, so OneCorp estimates at this rate. On a subscription, these are what the same work would cost on the API.</p>
+      ${r.prices.filter(p => p.runtime === "codex").map(p => `<div class="money-in"><span>$</span><input id="price-${p.runtime}" data-runtime="${p.runtime}" type="number" min="0" step="0.5" value="${p.price}"><span class="unit">per million tokens, Codex</span><button class="btn">Save</button></div>`).join("")}</form>`;
 }
 
 /* Everything waiting on you, most urgent first. The Company page, the dock badge and notifications all use it. */
@@ -254,8 +287,21 @@ function alertNew(snap) {
   notified[snap.company] = new Set(items.map(i => i.to));
   // The company you're looking at needs no pop-up while the app is in front.
   if (seen && !document.hasFocus()) for (const i of items.filter(i => !seen.has(i.to)).slice(0, 3)) notify(`${first(i.name)} · ${snap.company}`, i.text);
+  budgetAlert(snap.company, snap.spend);
   badgeAll();
 }
+// Each budget moment is said once a day: the 80% heads-up, then the pause.
+const budgetSaid = {};
+function budgetAlert(company, sp) {
+  if (!sp?.budget) return;
+  const was = budgetSaid[company], now = sp.paused_by_budget ? "paused" : sp.warn ? "warn" : "";
+  budgetSaid[company] = now;
+  if (was === undefined || now === was || !now) return;
+  notify(`${company} · budget`, now === "paused" ? `Reached the ${money(sp.budget)} daily budget. Nothing new starts until tomorrow.` : `80% of today's ${money(sp.budget)} budget is spent.`);
+}
+// Dollars the way people read them: cents under $100, whole dollars above.
+const tokensText = n => !n ? "no tokens" : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M tokens` : n >= 1e3 ? `${Math.round(n / 1e3)}k tokens` : `${n} tokens`;
+const money = x => `$${x >= 100 ? Math.round(x).toLocaleString() : Number(x || 0).toFixed(2)}`;
 // Every company, every few seconds: the badge counts them all, and a question in another company
 // gets a notification even when you're in this one.
 async function watchAll() {
@@ -267,7 +313,9 @@ async function watchAll() {
     notified[a.company] = new Set(items.map(i => i.to));
     S.needs[a.company] = items.length;
     if (seen) for (const i of items.filter(i => !seen.has(i.to)).slice(0, 3)) notify(`${first(i.name)} · ${a.company}`, i.text);
+    budgetAlert(a.company, a.spend);
   }
+  S.spendAll = all.reduce((t, a) => t + (a.spend?.today || 0), 0) + (S.snap?.spend?.today || 0);
   badgeAll(); renderSide();
 }
 function badgeAll() {
@@ -592,7 +640,7 @@ function viewBoard() {
     const state = p.status === "review" ? "to review" : ["todo", "queued", "doing"].includes(p.status) ? "planning" : `${p.done}/${p.total}`;
     return `<button class="pchip" data-project="${esc(p.key)}" aria-pressed="${S.project === p.key}">${esc(p.title)}<span class="prog"><i style="width:${pct}%"></i></span><span class="n">${state}</span></button>`;
   };
-  const bar = `<div class="board-bar"><div class="pchips">${projects.length ? `<button class="pchip" data-project="" aria-pressed="${!S.project}">All work</button>${projects.map(chip).join("")}` : `<span class="muted">No projects yet. Plan one to group its tickets here.</span>`}</div>
+  const bar = `<div class="board-bar"><div class="pchips">${projects.length ? `<button class="pchip" data-project="" aria-pressed="${!S.project}">All work</button>${projects.map(chip).join("")}` : `<span class="muted">No projects yet. Start one to group its tickets here.</span>`}</div>
     <button class="btn" data-plan-new="1">${icon("plus")}New project</button></div>
     ${current?.goal ? `<p class="pgoal">${esc(current.goal)}</p>` : ""}`;
   const cols = COLUMNS.map(([title, statuses]) => {
@@ -709,6 +757,7 @@ function renderDrawer() {
     d.innerHTML = `${head}<form class="dbody" id="emp-form">
       ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
       ${personFields(S.drawer.form)}
+      <div class="field"><label for="pf-cap">Daily cap <span class="muted">(optional)</span></label><div class="money-in"><span>$</span><input id="pf-cap" type="number" min="0" step="0.5" value="${byId(p.id)?.cap > 0 ? byId(p.id).cap : ""}" placeholder="No cap"><span class="unit">a day. They stop picking up work when they reach it</span></div></div>
       <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`;
     return;
   }
@@ -844,6 +893,7 @@ function renderPop() {
   if (!S.pop) return;
   if (S.pop === "menu") {
     p.innerHTML = `<div class="pop-menu"><div class="pm-head">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div></div>
+      ${S.spendAll !== undefined && S.companies.length > 1 ? `<div class="pm-note">${money(S.spendAll)} spent today across your ${S.companies.length} companies</div>` : ""}
       <button class="pm-item" data-pop="profile">${icon("user")}Edit profile</button>
       ${S.company ? `<button class="pm-item" data-settings="1">${icon("settings")}Settings<kbd>⌘,</kbd></button>` : ""}
       <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button></div>`;
@@ -1075,7 +1125,9 @@ function render() {
   const v = $("#view");
   const banner = $("#paused");
   banner.hidden = !(S.snap?.paused && !S.profile && !S.setup);
-  if (!banner.hidden) banner.innerHTML = `<span>${icon("pause")}<b>${esc(S.company)} is paused.</b> Running work finishes, nothing new starts, and nobody replies in chat.</span><button class="btn" data-pause="0">Resume</button>`;
+  if (!banner.hidden) banner.innerHTML = S.snap.spend?.paused_by_budget
+    ? `<span>${icon("pause")}<b>${esc(S.company)} reached its ${money(S.snap.spend.budget)} daily budget.</b> Running work finishes, and nothing new starts until tomorrow.</span><button class="btn" data-settings-tab="spend">Raise budget</button><button class="btn" data-keep-going="1">Keep going today</button>`
+    : `<span>${icon("pause")}<b>${esc(S.company)} is paused.</b> Running work finishes, nothing new starts, and nobody replies in chat.</span><button class="btn" data-pause="0">Resume</button>`;
   // Setting up is full screen: no sidebar or top bar for things that don't exist yet.
   document.querySelector(".app").classList.toggle("focus", !!(S.profile || S.setup));
   v.classList.toggle("flush", !S.profile && !S.setup && S.view === "chat");
@@ -1152,7 +1204,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1256,7 +1308,9 @@ document.addEventListener("click", async e => {
   if (d.profile) { S.pop = "profile"; renderPop(); return $("#pf-name")?.focus(); }
   if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop; renderPop(); return $("#pf-name")?.focus(); }
   if (d.settings) return openSettings();
-  if (d.sheet) { S.sheet = d.sheet; S.confirm = null; return renderSheet(); }
+  if (d.sheet) { S.sheet = d.sheet; S.confirm = null; renderSheet(); if (d.sheet === "spend") await loadSpend(); return; }
+  if (d.settingsTab) return openSettings(d.settingsTab);
+  if (d.keepGoing) { await call("keep_going_today", { company: S.company }, "Going on for today. The budget applies again tomorrow").catch(() => {}); return; }
   if (d.sheetClose) { S.sheet = null; return renderSheet(); }
   if (d.pf) {
     if (d.pf === "cancel") { S.pop = false; return renderPop(); }
@@ -1416,6 +1470,15 @@ document.addEventListener("submit", async e => {
     } catch (e) { clearInterval(tick); s.launch = null; render(); toast(String(e), true); }
     return;
   }
+  if (f.id === "budget-form") {
+    const v = Number($("#budget-in").value || 0);
+    await call("set_budget", { company: S.company, dollars: v }, v > 0 ? `Daily budget set to ${money(v)}` : "No daily budget").catch(() => {});
+    return loadSpend();
+  }
+  if (f.id === "rates-form") {
+    for (const i of f.querySelectorAll("input[data-runtime]")) await call("set_price", { company: S.company, runtime: i.dataset.runtime, perMillion: Number(i.value || 0) }, "Rate saved. New runs use it").catch(() => {});
+    return loadSpend();
+  }
   if (f.id === "del-co") {
     const name = S.settings.name;
     if ($("#del-name").value.trim() !== name) { toast(`Type ${name} to confirm`, true); return $("#del-name").focus(); }
@@ -1451,6 +1514,7 @@ document.addEventListener("submit", async e => {
         await invoke("update_employee", { company: S.company, id: S.drawer.id, ...p });
         const f = S.drawer.form;
         await invoke("set_avatar", { company: S.company, id: S.drawer.id, face: f.face === p.name ? null : f.face, photo: f.photoPath, removePhoto: !!f.removePhoto });
+        await invoke("set_cap", { company: S.company, id: S.drawer.id, dollars: Number($("#pf-cap")?.value || 0) });
         toast("Saved"); S.drawer.edit = false; await openPerson(S.drawer.id);
       }
       await refresh(true);
@@ -1524,6 +1588,7 @@ async function previewScreen() {
   if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the wiki"] }; render(); }
   if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
   if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
+  if (screen === "spend") await openSettings("spend");
   if (screen === "paused") { S.snap.paused = true; render(); }
   if (screen === "hire") openHire(1);
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
@@ -1573,7 +1638,7 @@ function preview(cmd, args) {
             { key: "SNO-22", title: "Magic link login", description: "Email a one-time link, 15 minute expiry.", assignee: "tomas", name: "Tomás Reis", after: "SNO-21", status: "backlog" }] },
         { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31", title: "Pricing page" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "start", summary: "started", title: "Retry failed Stripe webhooks" }, { at: "2026-11-09 10:31:00", key: "SNO-12", employee: "maya", name: "Maya Okafor", kind: "block", summary: "asked you about magic link expiry", title: "Magic link login" }],
-      spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
+      spend: { cost: 3.24, tokens: 180000, label: "$3.24", today: 3.24, today_label: "$3.24", budget: 5, warn: false, paused_by_budget: false },
       dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
@@ -1598,6 +1663,13 @@ function preview(cmd, args) {
     founder: { name: "Lucas", photo: null },
     save_founder: null,
     create_company: "acme",
+    spend_report: { budget: 5, estimated: true,
+      totals: { today: { cost: 3.24, tokens: 180000, label: "$3.24" }, week: { cost: 14.8, tokens: 900000, label: "$14.80" }, all: { cost: 31.5, tokens: 2100000, label: "$31.50" } },
+      days: [0.4, 1.2, 0, 2.1, 3.8, 1.1, 0, 0.6, 2.9, 4.6, 1.8, 2.2, 3.1, 3.24].map((cost, i) => ({ day: new Date(Date.UTC(2026, 9, 27 + i)).toISOString().slice(0, 10), cost })),
+      people: [["odile", "Odile Martin", 1.31, 6.2, 12.4, 0], ["tomas", "Tomás Reis", 1.12, 4.1, 9.8, 3], ["maya", "Maya Okafor", 0.52, 3.0, 6.1, 0], ["rui", "Rui Alves", 0.29, 1.5, 3.2, 0]].map(([id, name, t, w, a, cap]) => ({ id, name, cap, today: { cost: t }, week: { cost: w }, all: { cost: a } })),
+      projects: [{ key: "SNO-20", title: "First version", today: { cost: 2.1 }, week: { cost: 11.2 }, all: { cost: 24.9 } }],
+      agents: [{ runtime: "claude", estimated: false, today: { cost: 2.12 }, week: { cost: 10.7 }, all: { cost: 21.7 } }, { runtime: "codex", estimated: true, today: { cost: 1.12 }, week: { cost: 4.1 }, all: { cost: 9.8 } }],
+      prices: [{ runtime: "codex", price: 5 }, { runtime: "claude", price: 9 }] },
     chat: { channel: "general", messages: [
       { id: 1, at: "2026-11-09 09:12:00", author: "founder", name: "Lucas", founder: true, text: "Morning team. Goal this week: magic link login and the pricing page live.", key: null, pending: false },
       { id: 2, at: "2026-11-09 09:40:00", author: "rui", name: "Rui Alves", text: "Plan is in your inbox as SNO-20. Setup first, then login and sync in parallel.", key: "SNO-20", pending: false },

@@ -38,6 +38,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             let photo = photo.and_then(|p| std::fs::metadata(&p).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs().to_string());
             json!({
                 "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "face": seed, "photo": photo,
+                "today": c.spent_since(0, Some(&e.id)).map(|s| s.0).unwrap_or(0.0), "cap": c.daily_cap(&e.id).unwrap_or(0.0),
                 "status": status, "bubble": bubble, "spend": spend(cost, tokens), "department": e.department,
                 "ticket": ticket.map(|t| json!({"key": c.key(t.id), "title": t.title})),
             })
@@ -108,6 +109,9 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         .map(|(at, ticket, who, kind, summary, title)| {
             // "claude (opus), started" reads as just "started" in the feed.
             let summary = if kind == "start" { summary.rsplit(", ").next().unwrap_or("started").to_string() } else { summary };
+            // One short line, whatever the event carries.
+            let line = summary.lines().next().unwrap_or("").trim();
+            let summary = if line.chars().count() > 90 { format!("{}…", line.chars().take(90).collect::<String>().trim_end()) } else { line.to_string() };
             json!({"at": at, "key": c.key(ticket), "employee": who, "name": name_of(&who), "kind": kind, "summary": summary, "title": title})
         })
         .collect();
@@ -127,6 +131,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     }
 
     let (chat_cost, chat_tokens) = c.chat_spend()?;
+    let today = c.spent_since(0, None)?;
     let cost = tickets.iter().fold(chat_cost, |s, t| s + t.cost_usd);
     let tokens: i64 = chat_tokens + tickets.iter().map(|t| t.tokens).sum::<i64>();
     let all_messages = c.messages(None)?;
@@ -193,7 +198,82 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "feed": feed,
         "channels": channels,
         "dms": dms,
-        "spend": { "cost": cost, "tokens": tokens, "label": spend(cost, tokens) },
+        "spend": {
+            "cost": cost, "tokens": tokens, "label": spend(cost, tokens),
+            "today": today.0, "today_label": spend(today.0, today.1), "budget": crate::spend::budget(c)?,
+            "warn": crate::spend::warned_today(c)?, "paused_by_budget": crate::spend::paused_by_budget(c)?,
+        },
+    }))
+}
+
+/// Where the money goes: today, this week and all time, the last 14 days, and by person,
+/// project and agent. Dollars are estimated from tokens where the agent doesn't report a cost.
+pub fn spend_report(c: &Company) -> Result<Value> {
+    let rows = c.spend_rows()?;
+    let day = |n: i64| c.spent_day(n);
+    let (today, week_start) = (day(0)?, day(6)?);
+    let sum = |f: &dyn Fn(&crate::store::SpendRow) -> bool| {
+        let (mut d, mut t) = (0.0, 0i64);
+        for r in rows.iter().filter(|r| f(r)) {
+            d += r.4;
+            t += r.5;
+        }
+        json!({"cost": d, "tokens": t, "label": spend(d, t)})
+    };
+    let windows = |f: &dyn Fn(&crate::store::SpendRow) -> bool| {
+        json!({
+            "today": sum(&|r| f(r) && r.0 == today),
+            "week": sum(&|r| f(r) && r.0 >= week_start),
+            "all": sum(&|r| f(r)),
+        })
+    };
+    let mut days = vec![];
+    for n in (0..14).rev() {
+        let d = day(n)?;
+        let cost: f64 = rows.iter().filter(|r| r.0 == d).map(|r| r.4).sum();
+        days.push(json!({"day": d, "cost": cost}));
+    }
+    let team = c.employees()?;
+    let people: Vec<Value> = team
+        .iter()
+        .map(|e| {
+            let mut v = windows(&|r| r.1 == e.id);
+            v["id"] = json!(e.id);
+            v["name"] = json!(e.name);
+            v["runtime"] = json!(e.runtime);
+            v["cap"] = json!(c.daily_cap(&e.id).unwrap_or(0.0));
+            v
+        })
+        .collect();
+    let projects: Vec<Value> = c
+        .tickets()?
+        .iter()
+        .filter(|t| t.kind == "plan")
+        .map(|p| {
+            let mut v = windows(&|r| r.3 == Some(p.id));
+            v["key"] = json!(c.key(p.id));
+            v["title"] = json!(p.title);
+            v
+        })
+        .collect();
+    let mut runtimes: Vec<&str> = rows.iter().map(|r| r.2.as_str()).collect();
+    runtimes.sort();
+    runtimes.dedup();
+    let agents: Vec<Value> = runtimes
+        .iter()
+        .map(|rt| {
+            let mut v = windows(&|r| r.2 == *rt);
+            v["runtime"] = json!(rt);
+            v["estimated"] = json!(rows.iter().any(|r| r.2 == *rt && r.6));
+            v["price"] = json!(crate::spend::price(c, rt).unwrap_or(0.0));
+            v
+        })
+        .collect();
+    Ok(json!({
+        "totals": windows(&|_| true), "budget": crate::spend::budget(c)?, "days": days,
+        "people": people, "projects": projects, "agents": agents,
+        "prices": crate::spend::DEFAULT_PRICES.iter().map(|(rt, _)| json!({"runtime": rt, "price": crate::spend::price(c, rt).unwrap_or(0.0)})).collect::<Vec<_>>(),
+        "estimated": rows.iter().any(|r| r.6),
     }))
 }
 

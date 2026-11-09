@@ -7,6 +7,7 @@ pub mod mcp;
 pub mod runtime;
 pub mod serve;
 pub mod setup;
+pub mod spend;
 pub mod ship;
 pub mod store;
 pub mod templates;
