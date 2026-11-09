@@ -8,6 +8,7 @@
   --floor: #f4f4f5; --floor-dot: #e4e4e7; --desk: #d4d4d8; --desk-edge: #a1a1aa;
   --term-bg: #09090b; --term-fg: #d4d4d8; --term-dim: #71717a; --term-ok: #4ade80; --term-cmd: #7cb4ff;
   --grid: rgba(9, 9, 11, .05);
+  --av-tile: #e4e4e7; --av-shirt: #3f3f46;
   --display: "Geist", "Inter", -apple-system, "SF Pro Display", system-ui, sans-serif;
   --body: "Geist", "Inter", -apple-system, "SF Pro Text", system-ui, sans-serif;
   --mono: "Geist Mono", "SF Mono", ui-monospace, Menlo, monospace;
@@ -21,6 +22,7 @@
     --signal: #f59e0b; --signal-soft: #2b1d08; --good: #4ade80; --good-soft: #0d2617;
     --floor: #0c0c0e; --floor-dot: #1f1f23; --desk: #3f3f46; --desk-edge: #27272a; --term-bg: #000;
     --grid: rgba(255, 255, 255, .045);
+    --av-tile: #52525b; --av-shirt: #a1a1aa;
     color-scheme: dark;
   }
 }
