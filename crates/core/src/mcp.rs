@@ -104,7 +104,7 @@ fn tools() -> Value {
         },
         {
             "name": "propose_handbook",
-            "description": "Propose adding something to the company handbook that every employee reads: a decision, a convention, \
+            "description": "Propose adding something to the company wiki that every employee reads: a decision, a convention, \
                             a fact about the codebase. Only things that should outlive this ticket. The founder approves it from their inbox.",
             "inputSchema": {
                 "type": "object",

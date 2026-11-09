@@ -377,9 +377,9 @@ pub fn write_handbook(c: &Company, by: Option<&str>) -> Result<i64> {
             }
         }
     };
-    let id = c.new_ticket(&crate::store::NewTicket { title: "Write the handbook".into(), assignee: Some(writer.id.clone()), ..Default::default() }, "todo")?;
+    let id = c.new_ticket(&crate::store::NewTicket { title: "Write the wiki".into(), assignee: Some(writer.id.clone()), ..Default::default() }, "todo")?;
     c.set_kind(id, "handbook")?;
-    out(&format!("{} writes the handbook: {}.", c.key(id), writer.name));
+    out(&format!("{} writes the wiki: {}.", c.key(id), writer.name));
     dispatch(c, id, Job::Start)?;
     Ok(id)
 }
@@ -391,9 +391,9 @@ fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
     let mission = handbook_section(&c.handbook()?, "Mission");
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
-         Your ticket is {key}: write the company handbook. Every teammate reads it before every ticket, so it's how a \
+         Your ticket is {key}: write the company wiki. Every teammate reads it before every ticket, so it's how a \
          new hire learns this codebase. Read the repo as much as you need, but don't change any files.\n\n\
-         Reply with the handbook in Markdown and nothing else. Start with \"# {company} handbook\", then these sections:\n\
+         Reply with the wiki in Markdown and nothing else. Start with \"# {company} wiki\", then these sections:\n\
          ## Mission: {mission}\n\
          {building}\
          ## Codebase: what this is, the stack, and where things live, folder by folder.\n\
@@ -425,11 +425,11 @@ fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
             c.write_brief(&yours)?;
         }
         c.set_status(id, "done")?;
-        c.add_event(id, "handbook", "wrote the handbook", "")?;
-        out(&format!("{key}  the handbook is written. Read it: onecorp handbook"));
+        c.add_event(id, "handbook", "wrote the wiki", "")?;
+        out(&format!("{key}  the wiki is written. Read it: onecorp wiki"));
     } else if t.status == "review" {
         c.set_status(id, "failed")?;
-        c.add_event(id, "error", "the reply wasn't a handbook, so nothing was changed", "")?;
+        c.add_event(id, "error", "the reply wasn't a wiki page, so nothing was changed", "")?;
     }
     Ok(())
 }
@@ -543,7 +543,7 @@ pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
     if doc.len() > MAX {
         let cut = (0..=MAX).rev().find(|&i| doc.is_char_boundary(i)).unwrap_or(0);
         doc.truncate(cut);
-        doc.push_str("\n\n(The handbook goes on. Ask the founder if you need more.)");
+        doc.push_str("\n\n(The wiki goes on. Ask the founder if you need more.)");
     }
     let team: Vec<String> = c.employees()?.iter().map(|e| format!("- {}, {} (works on {})", e.name, e.role, e.runtime)).collect();
     let mut out = String::new();
@@ -551,7 +551,7 @@ pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
         out.push_str(&format!("You work for {}, the founder of {}. Questions with ask_human go to them.\n\n", f.name, c.name));
     }
     if !doc.is_empty() {
-        out.push_str(&format!("The company handbook. Everyone reads it, so follow it:\n\n{doc}\n\n"));
+        out.push_str(&format!("The company wiki. Everyone reads it, so follow it:\n\n{doc}\n\n"));
     }
     out.push_str(&format!("Who works here:\n{}", team.join("\n")));
     Ok(out)
@@ -602,7 +602,7 @@ pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
     let q = c.answer(id, text)?;
     if q.kind == "handbook" {
         match text.to_lowercase().as_str() {
-            "no" | "n" => out("Left out of the handbook."),
+            "no" | "n" => out("Left out of the wiki."),
             yes => {
                 let line = if matches!(yes, "yes" | "y") { q.question.as_str() } else { text };
                 c.add_to_handbook(&q.options, line)?;

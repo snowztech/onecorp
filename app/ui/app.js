@@ -123,7 +123,7 @@ function toggleRail(on = !S.rail) {
   renderSide();
 }
 function renderSide() {
-  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
+  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Wiki" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
     <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `${badge(S.company, S.looks?.[S.company])}<span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}${Object.entries(S.needs).some(([c, n]) => c !== S.company && n) ? '<i class="dot" title="Another company needs you"></i>' : ""}<span class="chev">${icon("chevrons")}</span></button>
@@ -135,7 +135,7 @@ function renderSide() {
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board", chat: "Chat" }[S.view] || (S.company ? "Company" : "OneCorp");
+  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Wiki", board: "Board", chat: "Chat" }[S.view] || (S.company ? "Company" : "OneCorp");
   $("#new-ticket").hidden = !!S.setup || !!S.profile || !s;
 }
 
@@ -203,7 +203,7 @@ function renderSheet() {
     const modes = [["local", "On this Mac"], ["github", "GitHub"], ["gitlab", "GitLab"]].filter(([m]) => m === "local" || m === st.forge || m === st.ship);
     const reveal = path => window.__TAURI__?.opener ? `<button class="link-btn" data-reveal="${esc(path)}">Show in Finder</button>` : "";
     const del = S.confirm === "delete"
-      ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, handbook and memory. Running work stops. Your repo and its branches stay as they are.</p>
+      ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, wiki and memory. Running work stops. Your repo and its branches stay as they are.</p>
           <div class="su-row"><input id="del-name" placeholder="Type ${esc(st.name)} to confirm" autocomplete="off" spellcheck="false"><button class="btn danger">Delete</button><button class="btn ghost" type="button" data-confirm="">Cancel</button></div></form>`
       : `<div class="row-set"><div><b>Delete ${esc(st.name)}</b><span>Removes the company from OneCorp. Your repo is never touched.</span></div><button class="btn danger-ghost" data-confirm="delete">Delete…</button></div>`;
     body = `<div class="row-set"><div><b>Repo</b><span class="mono">${esc(st.repo)}</span></div>${reveal(st.repo)}</div>
@@ -300,14 +300,14 @@ function kickoffCard() {
 /* Getting started: five steps from an empty company to your first merged work. Each step is done
    by doing it for real, so the list can't lie. It goes away when you're through, or when you hide it. */
 function gettingStarted() {
-  // Only real work counts: planning and the handbook your lead writes at launch are not "work" yet.
+  // Only real work counts: planning and the wiki your lead writes at launch are not "work" yet.
   const s = S.snap, work = s.tickets.filter(t => !t.kind || t.kind === "work");
   const firstDept = s.departments.find(d => d.id !== null);
   const plan = (s.projects || [])[0];
   const steps = [
     { done: s.employees.length > 0, title: "Hire your team", sub: "Who works here, and on which AI.", act: firstDept ? `<button class="btn primary" data-hire="${firstDept.id}">Hire someone</button>` : `<button class="btn primary" data-add-dept="1">Add a department</button>` },
-    { done: !!s.kickoff.brief, title: "Read your handbook", sub: "What we're building, the codebase and its conventions, written from your repo. Fix anything that's off.",
-      act: s.tickets.some(t => t.kind === "handbook" && ["todo", "queued", "doing"].includes(t.status)) ? `<span class="muted">Being written…</span>` : `<button class="btn primary" data-view="handbook">Open the handbook</button>` },
+    { done: !!s.kickoff.brief, title: "Read your wiki", sub: "What we're building, the codebase and its conventions, written from your repo. Fix anything that's off.",
+      act: s.tickets.some(t => t.kind === "handbook" && ["todo", "queued", "doing"].includes(t.status)) ? `<span class="muted">Being written…</span>` : `<button class="btn primary" data-view="handbook">Open the wiki</button>` },
     { done: !!plan, title: "Start your first project", sub: "Say what you want. Your planner breaks it into tickets with owners.", act: `<button class="btn primary" data-plan-new="1">New project</button>` },
     { done: work.some(t => !["backlog"].includes(t.status)) || plan?.status === "done", title: "Approve the plan", sub: "Change owners, remove tickets, then start it.", act: plan?.status === "review" ? `<button class="btn primary" data-goto="${esc(plan.key)}">Review the plan</button>` : `<span class="muted">Waiting for the plan</span>` },
     { done: work.some(t => t.status === "done"), title: "Merge your first work", sub: "Read the changes in your Inbox and approve them.", act: `<button class="btn" data-view="inbox">Open Inbox</button>` },
@@ -397,8 +397,8 @@ function review(r) {
 }
 function handbook(q) {
   return `<article class="ask" id="in-q${q.id}">${face(q.name, "neutral")}<div>
-    <span class="kind">Handbook · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
-    <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the handbook</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
+    <span class="kind">Wiki · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
+    <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the wiki</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
     ${more(`ans-${q.id}`, "Add it in your own words", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="The rule, as you'd put it"><button class="btn">Add</button></form>`)}</div></article>`;
 }
 
@@ -502,8 +502,8 @@ function chatText(text) {
   return esc(text).replace(/@([\p{L}\d]+)/gu, '<span class="mention">@$1</span>').replace(/\b([A-Z]{2,5}-\d+)\b/g, '<a class="tkey" data-ticket="$1">$1</a>');
 }
 
-/* Handbook: the file every employee reads before each ticket, shown as sections you can edit in place */
-// A small Markdown renderer for the handbook: headings, lists, quotes, code, bold, italics, links.
+/* Wiki: the company's shared knowledge, the file every employee reads before each ticket */
+// A small Markdown renderer for the wiki: headings, lists, quotes, code, bold, italics, links.
 // Enough for a wiki page, and nothing that needs a library.
 function inline(t) {
   return esc(t)
@@ -559,15 +559,15 @@ function viewHandbook() {
   // Editing: Markdown on the left, the page as everyone will read it on the right.
   if (S.hbEdit) {
     return `<form class="wiki-edit" id="hb-raw">
-      <header><div><span class="label">Editing the handbook</span><span class="muted">Markdown. ## starts a section. Everyone reads it from their next ticket.</span></div>
+      <header><div><span class="label">Editing the wiki</span><span class="muted">Markdown. ## starts a section. Everyone reads it from their next ticket.</span></div>
         <div class="acts"><button class="btn ghost" type="button" data-hb-edit="0">Cancel</button><button class="btn primary">Save</button></div></header>
       <div class="wiki-split"><textarea id="hb-text" spellcheck="false">${esc(S.handbook)}</textarea><article class="doc wiki" id="hb-preview">${md(S.handbook).html}</article></div></form>`;
   }
   // The page's own # title leads, then the page.
-  const title = (S.handbook.match(/^#\s+(.*)$/m) || [])[1] || `${S.company} handbook`;
+  const title = (S.handbook.match(/^#\s+(.*)$/m) || [])[1] || `${S.company} wiki`;
   const page = md(S.handbook.replace(/^#\s+.*$/m, ""));
   return `<div class="doc-wrap"><article class="doc">
-      <div class="wiki-top"><span class="label">Handbook · everyone reads it before every ticket</span><button class="btn" data-hb-edit="1">Edit</button></div>
+      <div class="wiki-top"><span class="label">Wiki · everyone reads it before every ticket</span><button class="btn" data-hb-edit="1">Edit</button></div>
       <div class="wiki"><h1>${inline(title)}</h1></div>
       ${props}
       <div class="wiki">${page.html || `<p class="muted">Empty for now. Edit it to write your mission, decisions and conventions.</p>`}</div>
@@ -992,8 +992,8 @@ function viewSetup() {
         <span class="fine">Letters, digits, - and _. Tickets are numbered from it, like ${esc(prefix)}-1.</span></div></div>
       <div class="field"><span class="flabel">Logo</span><div class="look-row"><div class="swatches">${PALETTE.map(c => `<button type="button" class="swatch" data-su="color-${c}" aria-pressed="${c === s.color && !s.logoUrl}" style="--c:${c}" aria-label="Color ${c}"></button>`).join("")}</div>
         ${picker ? `<button class="btn" type="button" data-su="logo">${s.logoUrl ? "Change logo…" : "Upload a logo…"}</button>` : ""}${s.logoUrl ? `<button class="link-btn" type="button" data-su="logo-remove">Use the letter</button>` : ""}</div></div>
-      <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the handbook)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
-      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, it starts your handbook. Your lead fills in the rest from the repo)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
+      <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the wiki)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
+      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, it starts your wiki. Your lead fills in the rest from the repo)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
       ${nav("Continue")}`;
   } else if (s.step === 2) {
     const tabs = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-su="mode-existing" aria-selected="${s.mode === "existing"}">Use an existing repo</button>
@@ -1046,7 +1046,7 @@ function viewSetup() {
         <header>${badge(s.name, look, "xl")}<div><b>${esc(s.name)}</b><span>${esc(s.mission || "No mission yet")}</span></div></header>
         <dl class="kv"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
           <dt>Ships</dt><dd>${ships}</dd>
-          <dt>Handbook</dt><dd>Starts with what OneCorp reads in the repo</dd>
+          <dt>Wiki</dt><dd>Your lead writes it from the repo</dd>
           ${s.brief && s.people.length ? `<dt>First plan</dt><dd>Your planner starts right after launch</dd>` : ""}
           <dt>Team</dt><dd>${s.people.length ? `<span class="launch-team">${s.people.map(p => `<span title="${esc(p.name)}, ${esc(p.role)}">${face(p.name, "happy")}</span>`).join("")}</span> ${s.people.length} ${s.people.length === 1 ? "person" : "people"}` : "Nobody yet, hire after launch"}</dd></dl>
       </div>
@@ -1340,7 +1340,7 @@ document.addEventListener("click", async e => {
   else if (d.hire) { openHire(Number(d.hire)); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
   else if (d.close) { S.drawer = null; renderDrawer(); }
-  else if (d.answer) { el.disabled = true; await call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.val === "no" ? "Left out of the handbook" : "Answered").catch(() => (el.disabled = false)); }
+  else if (d.answer) { el.disabled = true; await call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.val === "no" ? "Left out of the wiki" : "Answered").catch(() => (el.disabled = false)); }
   else if (d.approve) { el.disabled = true; el.textContent = "Merging…"; await call("approve", { company: S.company, key: d.approve }, `${d.approve} merged. New tickets start from it.`).catch(() => { el.disabled = false; el.textContent = mergeLabel(); }); }
 
 });
@@ -1402,7 +1402,7 @@ document.addEventListener("submit", async e => {
     const people = s.people.filter(p => p.name.trim()), real = people.some(p => p.runtime !== "fake");
     const lead = people.find(p => /eng/i.test(p.dept || "")) || people[0];
     s.launch = { done: 0, steps: [`Founding ${s.name}`, people.length ? `Hiring ${people.length} ${people.length === 1 ? "person" : "people"}` : "Opening the office",
-      `Connecting ${s.repo.path.split("/").pop()}`, real && lead ? `${first(lead.name)} starts writing the handbook` : "Reading the repo",
+      `Connecting ${s.repo.path.split("/").pop()}`, real && lead ? `${first(lead.name)} starts writing the wiki` : "Reading the repo",
       ...(s.brief && people.length ? ["Planning the first version"] : [])] };
     render();
     const tick = setInterval(() => { if (s.launch.done < s.launch.steps.length - 1) { s.launch.done++; render(); } }, 420);
@@ -1521,7 +1521,7 @@ async function previewScreen() {
   if (screen === "start") { S.snap.tickets = []; S.snap.projects = []; S.snap.kickoff.brief = ""; render(); }
   if (screen === "wiki-edit") { S.view = "handbook"; S.hbEdit = true; await refresh(true); render(); }
   if (screen === "inbox-zero") { S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; S.snap.with_leads = []; S.view = "inbox"; render(); }
-  if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the handbook"] }; render(); }
+  if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the wiki"] }; render(); }
   if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
   if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
   if (screen === "paused") { S.snap.paused = true; render(); }
@@ -1577,7 +1577,7 @@ function preview(cmd, args) {
       dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
-    handbook: "# snowztech handbook\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
+    handbook: "# snowztech wiki\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
     setup_info: { runtimes: ["claude", "fake"], templates: [
       { key: "solo", name: "Solo builder", description: "One engineer who ships. Hire more when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
       { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", role: "Product manager", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth writer", dept: "Growth" }] },

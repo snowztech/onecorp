@@ -263,7 +263,7 @@ impl Company {
         let c = Self::open_dir(name, dir)?;
         c.db.execute("INSERT INTO meta (key, value) VALUES ('repo', ?1)", [repo.to_string_lossy()])?;
         let mission = if mission.trim().is_empty() { "What the company is for, in a sentence or two." } else { mission.trim() };
-        fs::write(c.handbook_path(), format!("# {name} handbook\n\n## Mission\n\n{mission}\n\n## Decisions\n\n## Conventions\n"))?;
+        fs::write(c.handbook_path(), format!("# {name} wiki\n\n## Mission\n\n{mission}\n\n## Decisions\n\n## Conventions\n"))?;
         Ok(c)
     }
 
@@ -892,7 +892,7 @@ impl Company {
 
     pub fn add_to_handbook(&self, section: &str, text: &str) -> Result<()> {
         let doc = self.handbook()?;
-        let doc = if doc.is_empty() { format!("# {} handbook\n", self.name) } else { doc };
+        let doc = if doc.is_empty() { format!("# {} wiki\n", self.name) } else { doc };
         fs::write(self.handbook_path(), add_to_section(&doc, section, text))?;
         Ok(())
     }

@@ -175,7 +175,8 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
-    /// The handbook every employee reads before each ticket
+    /// The company wiki every employee reads before each ticket
+    #[command(name = "wiki", alias = "handbook")]
     Handbook {
         #[command(subcommand)]
         action: Option<HandbookCmd>,
