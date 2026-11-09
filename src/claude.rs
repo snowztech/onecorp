@@ -19,21 +19,27 @@ pub enum Event {
 // so the agent can commit but can't run arbitrary commands yet. The company tools are always allowed.
 const ALLOWED: &str = "Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__onecorp";
 
-/// `mcp_config` is the JSON for --mcp-config. Only that server loads: the user's own MCP servers stay out.
-pub fn run(
-    cwd: &Path,
-    model: Option<&str>,
-    mcp_config: &str,
-    prompt: &str,
-    mut on: impl FnMut(&str, Event) -> Result<()>,
-) -> Result<()> {
+pub struct Opts<'a> {
+    pub cwd: &'a Path,
+    pub model: Option<&'a str>,
+    /// JSON for --mcp-config. Only that server loads: the user's own MCP servers stay out.
+    pub mcp_config: &'a str,
+    /// Continue this session instead of starting a new one. Must run in the same cwd.
+    pub resume: Option<&'a str>,
+}
+
+pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     let mut cmd = Command::new("claude");
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"])
-        .args(["--mcp-config", mcp_config, "--strict-mcp-config"])
+        .args(["--mcp-config", o.mcp_config, "--strict-mcp-config"])
         .args(["--allowedTools", ALLOWED]);
-    if let Some(m) = model {
+    if let Some(m) = o.model {
         cmd.args(["--model", m]);
     }
+    if let Some(s) = o.resume {
+        cmd.args(["--resume", s]);
+    }
+    let cwd = o.cwd;
     let mut child = cmd
         .current_dir(cwd)
         .stdin(Stdio::piped())

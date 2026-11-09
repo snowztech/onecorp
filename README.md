@@ -33,6 +33,11 @@ Each agent gets the company's MCP server (`onecorp mcp`, started by Claude Code 
 - `post_message` posts to a team channel.
 - `update_ticket` marks the ticket blocked, with a reason.
 
+Answering picks the work back up on its own. `onecorp answer` resumes the agent's session in the same worktree when:
+
+- the question was blocking and it was the ticket's last open one, or
+- the agent went ahead with a default and your answer is different.
+
 Only this MCP server loads for agents. Your own Claude Code MCP servers stay out of it.
 
 For now agents can edit files in their worktree and run git, nothing else. No builds, no tests, no network commands.

@@ -114,6 +114,8 @@ pub struct Ticket {
     pub status: String,
     pub branch: Option<String>,
     pub cost_usd: f64,
+    pub worktree: Option<String>,
+    pub session_id: Option<String>,
 }
 
 pub struct Company {
@@ -272,22 +274,12 @@ impl Company {
             "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer
              FROM inbox WHERE answer IS NULL ORDER BY id",
         )?;
-        let rows = st.query_map([], |r| {
-            Ok(Question {
-                id: r.get(0)?,
-                ticket_id: r.get(1)?,
-                employee: r.get(2)?,
-                question: r.get(3)?,
-                options: r.get(4)?,
-                default_answer: r.get(5)?,
-                blocking: r.get(6)?,
-                answer: r.get(7)?,
-            })
-        })?;
+        let rows = st.query_map([], row_to_question)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    pub fn answer(&self, id: i64, answer: &str) -> Result<()> {
+    /// Saves the answer and returns the answered question.
+    pub fn answer(&self, id: i64, answer: &str) -> Result<Question> {
         let n = self.db.execute(
             "UPDATE inbox SET answer = ?2, answered_at = datetime('now') WHERE id = ?1 AND answer IS NULL",
             params![id, answer],
@@ -295,7 +287,19 @@ impl Company {
         if n == 0 {
             bail!("no open question #{id}. See: onecorp inbox");
         }
-        Ok(())
+        Ok(self.db.query_row(
+            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer FROM inbox WHERE id = ?1",
+            [id],
+            row_to_question,
+        )?)
+    }
+
+    pub fn open_blocking(&self, ticket: i64) -> Result<i64> {
+        Ok(self.db.query_row(
+            "SELECT count(*) FROM inbox WHERE ticket_id = ?1 AND blocking = 1 AND answer IS NULL",
+            [ticket],
+            |r| r.get(0),
+        )?)
     }
 
     pub fn post(&self, channel: &str, author: &str, text: &str, ticket: Option<i64>) -> Result<()> {
@@ -327,12 +331,12 @@ impl Company {
     pub fn ticket(&self, id: i64) -> Result<Option<Ticket>> {
         Ok(self
             .db
-            .query_row("SELECT id, title, assignee, status, branch, cost_usd FROM tickets WHERE id = ?1", [id], row_to_ticket)
+            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id FROM tickets WHERE id = ?1", [id], row_to_ticket)
             .optional()?)
     }
 
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
-        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd FROM tickets ORDER BY id")?;
+        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -353,6 +357,21 @@ fn row_to_ticket(r: &rusqlite::Row) -> rusqlite::Result<Ticket> {
         status: r.get(3)?,
         branch: r.get(4)?,
         cost_usd: r.get(5)?,
+        worktree: r.get(6)?,
+        session_id: r.get(7)?,
+    })
+}
+
+fn row_to_question(r: &rusqlite::Row) -> rusqlite::Result<Question> {
+    Ok(Question {
+        id: r.get(0)?,
+        ticket_id: r.get(1)?,
+        employee: r.get(2)?,
+        question: r.get(3)?,
+        options: r.get(4)?,
+        default_answer: r.get(5)?,
+        blocking: r.get(6)?,
+        answer: r.get(7)?,
     })
 }
 

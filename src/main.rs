@@ -274,8 +274,24 @@ fn run(cmd: Cmd) -> Result<()> {
             if text.trim().is_empty() {
                 bail!("what's the answer? For example: onecorp answer {id} \"go with 15 minutes\"");
             }
-            c.answer(id, text.trim())?;
+            let text = text.trim();
+            let q = c.answer(id, text)?;
             println!("Answered #{id}.");
+            let Some(tid) = q.ticket_id else { return Ok(()) };
+            let (key, status) = (c.key(tid), c.ticket(tid)?.map(|t| t.status).unwrap_or_default());
+
+            if q.blocking && status == "blocked" {
+                match c.open_blocking(tid)? {
+                    0 => resume(&c, &q)?,
+                    n => println!("{key} is still waiting on {n} more: onecorp inbox"),
+                }
+            } else if !q.blocking && status == "review" && !q.default_answer.eq_ignore_ascii_case(text) {
+                // They went ahead with their default. A different answer means the work needs a change.
+                let went_with = if q.default_answer.is_empty() { "their own call".to_string() } else { format!("\"{}\"", q.default_answer) };
+                let who = c.employee(&q.employee)?.map(|e| e.name).unwrap_or_else(|| q.employee.clone());
+                println!("{who} went with {went_with}, so {key} goes back to apply your answer.\n");
+                resume(&c, &q)?;
+            }
         }
         Cmd::Chat { channel, company } => {
             let c = open(company)?;
@@ -417,7 +433,35 @@ fn work(c: &store::Company, e: &Employee, title: &str) -> Result<()> {
         company = c.name,
         bio = e.bio,
     );
+    drive(c, e, id, &wt, None, &prompt)
+}
 
+/// Picks a ticket's session back up, in the same worktree, with the founder's answer.
+fn resume(c: &store::Company, q: &store::Question) -> Result<()> {
+    let Some(t) = q.ticket_id.map(|id| c.ticket(id)).transpose()?.flatten() else { return Ok(()) };
+    let key = c.key(t.id);
+    let (Some(wt), Some(session)) = (&t.worktree, &t.session_id) else {
+        bail!("{key} has no session to pick back up");
+    };
+    let Some(e) = c.employee(&q.employee)? else {
+        bail!("{} no longer works at {}, so {key} stays {}", q.employee, c.name, t.status);
+    };
+    c.set_status(t.id, "doing")?;
+    println!("{key}  {}\n      {} picks it back up with your answer\n", t.title, e.name);
+    let prompt = format!(
+        "The founder answered your question #{n}: \"{question}\"\n\nTheir answer: {answer}\n\n\
+         Pick the ticket back up from where you left off and apply this answer. Same rules as before: \
+         commit when done, and end with two or three sentences on what changed.",
+        n = q.id,
+        question = q.question,
+        answer = q.answer.as_deref().unwrap_or(""),
+    );
+    drive(c, &e, t.id, std::path::Path::new(wt), Some(session), &prompt)
+}
+
+/// Runs one agent session on a ticket, logging every event, then reports where the ticket landed.
+fn drive(c: &store::Company, e: &Employee, id: i64, wt: &std::path::Path, resume: Option<&str>, prompt: &str) -> Result<()> {
+    let key = c.key(id);
     // Claude Code starts this same binary as the company's MCP server, scoped to this ticket.
     let mcp = serde_json::json!({"mcpServers": {"onecorp": {
         "command": std::env::current_exe()?.to_string_lossy(),
@@ -425,14 +469,16 @@ fn work(c: &store::Company, e: &Employee, title: &str) -> Result<()> {
         "env": {"ONECORP_HOME": store::home().to_string_lossy()},
     }}})
     .to_string();
+    let opts = claude::Opts { cwd: wt, model: e.model.as_deref(), mcp_config: &mcp, resume };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
-    claude::run(&wt, e.model.as_deref(), &mcp, &prompt, |raw, ev| {
+    claude::run(&opts, prompt, |raw, ev| {
         let (kind, summary) = match &ev {
             Event::Init { session, model } => {
                 c.set_session(id, session)?;
-                ("start", format!("Claude Code ({model})"))
+                let verb = if resume.is_some() { "resumed" } else { "started" };
+                ("start", format!("Claude Code ({model}), {verb}"))
             }
             Event::Say(text) => ("say", first_line(text)),
             Event::Tool { name, detail } => {
@@ -456,15 +502,16 @@ fn work(c: &store::Company, e: &Employee, title: &str) -> Result<()> {
 
     let (ok, cost, text) = outcome.unwrap_or_default();
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost)?;
-    let status = c.ticket(id)?.map(|t| t.status).unwrap_or_default();
-    let what = match status.as_str() {
+    let t = c.ticket(id)?.ok_or_else(|| anyhow::anyhow!("{key} disappeared"))?;
+    let what = match t.status.as_str() {
         "review" => "ready for review".to_string(),
         "blocked" => "blocked. See what they need: onecorp inbox".to_string(),
         s => s.to_string(),
     };
-    println!("\n{text}\n\n{key} is {what}\nBranch {branch}, cost ${cost:.2}.");
+    println!("\n{text}\n\n{key} is {what}");
+    println!("Branch {}, this run ${cost:.2}, ticket total ${:.2}.", t.branch.unwrap_or_default(), t.cost_usd);
     let waiting = c.inbox()?.len();
-    if waiting > 0 && status != "blocked" {
+    if waiting > 0 && t.status != "blocked" {
         let q = if waiting == 1 { "question" } else { "questions" };
         println!("{waiting} {q} in your inbox: onecorp inbox");
     }
