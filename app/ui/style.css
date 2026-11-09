@@ -974,3 +974,18 @@ h1, h2, h3, .titles h1 { letter-spacing: -.02em; }
 .calls-faces { display: inline-flex; }
 .calls .av { width: 18px; height: 18px; margin-right: -5px; box-shadow: 0 0 0 2px var(--bg); }
 .calls-faces + span { margin-left: 6px; }
+
+/* Direct messages */
+.chans .dm-h { margin-top: 18px; }
+.chan.dm { gap: 9px; }
+.chan.dm .av { width: 20px; height: 20px; }
+.st { position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 99px; background: var(--muted); box-shadow: 0 0 0 2px var(--bg); }
+.st-working { background: var(--good); } .st-blocked { background: var(--signal); } .st-queued { background: var(--accent); }
+.chat-h .dm-face .av { width: 34px; height: 34px; }
+
+/* Avatar picker */
+.faces-pick { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.fpick { padding: 2px; border: 1px solid transparent; border-radius: 99px; background: none; aspect-ratio: 1; }
+.fpick .av { width: 100%; height: 100%; }
+.fpick:hover { border-color: var(--line); }
+.fpick[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }

@@ -35,6 +35,23 @@ const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>>
 const SKIN = ["#f3d5bd", "#e6b590", "#c88e64", "#9a6542", "#6b442b"];
 const HAIR = ["#1e1916", "#4b301e", "#8b5b2c", "#d0a660", "#b4442f", "#70747d"];
 function face(name, status) {
+  const e = S.snap?.employees?.find(x => x.name === name);
+  if (e?.photo) {
+    const url = loadPhoto(e);
+    if (url) return `<span class="av"><img src="${esc(url)}" alt=""></span>`;
+  }
+  return drawFace(e?.face || name, status);
+}
+// Photos load once per change, then come from here: the snapshot only carries a stamp.
+const photos = {};
+function loadPhoto(e) {
+  const key = `${S.company}/${e.id}/${e.photo}`;
+  if (key in photos) return photos[key];
+  photos[key] = null;
+  invoke("employee_photo", { company: S.company, id: e.id }).then(url => { photos[key] = url; if (!typing()) render(); }).catch(() => {});
+  return null;
+}
+function drawFace(name, status) {
   const h = hash(name), L = { skin: h % 5, hair: (h >>> 3) % 6, style: (h >>> 6) % 5, acc: (h >>> 9) % 4 }, hue = h % 360;
   const mood = { working: "working", blocked: "blocked", idle: "sleep", queued: "neutral", done: "happy" }[status] || "neutral";
   const sk = SKIN[L.skin], hr = HAIR[L.hair], ink = "#2a211c", alt = (hue + 180) % 360;
@@ -386,14 +403,18 @@ function handbook(q) {
 
 /* Chat: #general and a channel per department. Your team posts as they work; @mention someone to ask them. */
 function viewChat() {
-  const s = S.snap, chans = s.channels || [];
-  const ch = chans.find(c => c.name === S.channel) || chans[0];
+  const s = S.snap, chans = s.channels || [], dms = s.dms || [];
+  const dmRow = dms.find(d => d.channel === S.channel), person = dmRow && byId(dmRow.id);
+  const ch = person ? { name: dmRow.channel, last: dmRow.last } : chans.find(c => c.name === S.channel) || chans[0];
   if (!ch) return "";
   S.seen[ch.name] = ch.last || 0;
-  const dept = s.departments.find(d => d.id === ch.department);
-  const people = (dept ? dept.members.map(byId) : s.employees).filter(Boolean);
+  const dept = person ? null : s.departments.find(d => d.id === ch.department);
+  const people = person ? [person] : (dept ? dept.members.map(byId) : s.employees).filter(Boolean);
   const lead = dept?.lead && byId(dept.lead);
-  const list = chans.map(c => `<button class="chan" data-channel="${esc(c.name)}" aria-current="${c.name === ch.name}"><span class="hash">#</span>${esc(c.name)}${c.last && c.last > (S.seen[c.name] || 0) ? '<i class="dot"></i>' : ""}</button>`).join("");
+  const unread = c => c.last && c.last > (S.seen[c.name || c.channel] || 0) ? '<i class="dot"></i>' : "";
+  const list = chans.map(c => `<button class="chan" data-channel="${esc(c.name)}" aria-current="${c.name === ch.name}"><span class="hash">#</span>${esc(c.name)}${unread(c)}</button>`).join("");
+  const STATE = { working: "Working", blocked: "Waiting on you", queued: "Up next", idle: "Free" };
+  const dmList = dms.map(d => byId(d.id) && `<button class="chan dm" data-channel="${esc(d.channel)}" aria-current="${d.channel === ch.name}"><span class="with-agent">${face(byId(d.id).name, byId(d.id).status)}<i class="st st-${byId(d.id).status}" title="${STATE[byId(d.id).status] || ""}"></i></span>${esc(first(byId(d.id).name))}${unread(d)}</button>`).filter(Boolean).join("");
   const msgs = S.chat?.channel === ch.name ? S.chat.messages : null;
   let prev = null;
   const rows = (msgs || []).map(m => {
@@ -404,16 +425,18 @@ function viewChat() {
     const meta = `<header><b>${esc(m.founder ? m.name : first(m.name))}</b>${m.founder ? '<span class="you">you</span>' : ""}<time>${hhmm(m.at)}</time>${m.key ? `<a class="tkey" data-ticket="${esc(m.key)}">${esc(m.key)}</a>` : ""}</header>`;
     return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}</div></li>`;
   }).join("");
-  const empty = `<li class="chat-empty"><b>Nothing in #${esc(ch.name)} yet</b>Your team posts here as they work. Mention someone with @ to ask them something.</li>`;
-  const sub = dept ? `${lead ? "Led by " + esc(first(lead.name)) + " · " : ""}${people.length} ${people.length === 1 ? "person" : "people"}` : ch.name === "general" ? "Everyone at " + esc(s.company) : "";
+  const empty = person
+    ? `<li class="chat-empty"><b>Message ${esc(first(person.name))}</b>Just between you two. ${esc(first(person.name))} replies to every message and reads this before their next ticket.</li>`
+    : `<li class="chat-empty"><b>Nothing in #${esc(ch.name)} yet</b>Your team posts here as they work. Mention someone with @ to ask them something.</li>`;
+  const sub = person ? `${esc(person.role)} · ${STATE[person.status] || ""}` : dept ? `${lead ? "Led by " + esc(first(lead.name)) + " · " : ""}${people.length} ${people.length === 1 ? "person" : "people"}` : ch.name === "general" ? "Everyone at " + esc(s.company) : "";
   return `<div class="chat">
-    <nav class="chans" aria-label="Channels"><h6>Channels</h6>${list}</nav>
+    <nav class="chans" aria-label="Channels"><h6>Channels</h6>${list}${dmList ? `<h6 class="dm-h">Direct messages</h6>${dmList}` : ""}</nav>
     <section class="room-chat">
-      <header class="chat-h"><div><h3>#${esc(ch.name)}</h3><span class="muted">${sub}</span></div>
-        <div class="faces">${people.slice(0, 8).map(e => `<button class="face-btn" data-mention="${esc(e.id)}" title="Mention ${esc(first(e.name))}">${face(e.name, e.status)}</button>`).join("")}</div></header>
+      <header class="chat-h">${person ? `<span class="with-agent dm-face">${face(person.name, person.status)}${agentBadge(person.runtime)}</span>` : ""}<div><h3>${person ? esc(person.name) : "#" + esc(ch.name)}</h3><span class="muted">${sub}</span></div>
+        ${person ? `<button class="btn ghost" data-person="${esc(person.id)}">Profile</button>` : `<div class="faces">${people.slice(0, 8).map(e => `<button class="face-btn" data-mention="${esc(e.id)}" title="Mention ${esc(first(e.name))}">${face(e.name, e.status)}</button>`).join("")}</div>`}</header>
       <ul class="msgs" id="msgs">${msgs === null ? `<li class="chat-empty muted">Loading…</li>` : rows || empty}</ul>
       <form class="composer" id="say"><div class="compose-box"><div class="mpop" id="mpop" role="listbox" hidden></div>
-        <input id="say-text" placeholder="Message #${esc(ch.name)}. Type @ to ask someone, @all for everyone" autocomplete="off" role="combobox" aria-controls="mpop">
+        <input id="say-text" placeholder="${person ? `Message ${esc(first(person.name))}` : `Message #${esc(ch.name)}. Type @ to ask someone, @all for everyone`}" autocomplete="off" role="combobox" aria-controls="mpop">
         <p class="calls" id="calls"></p></div><button class="btn primary">Send</button></form>
     </section></div>`;
 }
@@ -424,12 +447,15 @@ const hhmm = at => { const d = utc(at); return isNaN(d) ? "" : d.toLocaleTimeStr
 const fold = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 // Everyone in the channel you're in: the whole company in #general, a department's people in theirs.
 function channelPeople() {
+  const dm = (S.snap.dms || []).find(d => d.channel === S.channel);
+  if (dm) return [byId(dm.id)].filter(Boolean);
   const ch = (S.snap.channels || []).find(c => c.name === S.channel), dept = S.snap.departments.find(d => d.id === ch?.department);
   return (dept ? dept.members.map(byId) : S.snap.employees).filter(Boolean);
 }
 // Who a message calls, the same way the core reads it: @firstname, or @all for the channel.
 function calledBy(text) {
   const team = S.snap.employees, out = [];
+  if (String(S.channel).startsWith("dm:")) out.push(...channelPeople());
   for (const [, w] of String(text).matchAll(/@([\p{L}\d]+)/gu)) {
     const id = fold(w);
     const add = ["all", "everyone", "channel"].includes(id) ? channelPeople() : team.filter(e => e.id === id);
@@ -680,9 +706,13 @@ function renderDrawer() {
   const e = byId(p.id) || { status: "idle" };
   const depts = S.snap.departments.filter(x => x.id !== null), dept = depts.find(x => x.id === p.department);
   const head = `<div class="dhead"><span class="with-agent">${face(p.name, e.status)}${agentBadge(p.runtime)}</span><div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
+  if (S.drawer.edit && S.drawer.form?.photoUrl) {
+    d.innerHTML = head.replace(/<span class="with-agent">[\s\S]*?<\/span>(?=<div>)/, `<span class="with-agent"><span class="av"><img src="${esc(S.drawer.form.photoUrl)}" alt=""></span>${agentBadge(p.runtime)}</span>`);
+  }
   if (S.drawer.edit) {
     d.innerHTML = `${head}<form class="dbody" id="emp-form">
-      ${personFields(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio })}
+      ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
+      ${personFields(S.drawer.form)}
       <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`;
     return;
   }
@@ -698,7 +728,7 @@ function renderDrawer() {
       <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
           ${dept ? (leads ? `<span class="leadtag">Lead</span>` : `<button class="link-btn" data-make-lead="${esc(p.id)}">Make lead</button>`) : ""}</dd>
         <dt>Works on</dt><dd>${chip(p)}</dd></dl>
-      <div class="acts"><button class="btn" data-edit-person="1">Edit</button><button class="btn" data-new-ticket="${esc(p.id)}">Give ${esc(first(p.name))} a ticket</button></div>
+      <div class="acts"><button class="btn" data-edit-person="1">Edit</button><button class="btn" data-new-ticket="${esc(p.id)}">Give ${esc(first(p.name))} a ticket</button><button class="btn" data-dm="${esc(p.id)}">Message</button></div>
       <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free right now.</p>`}</div>
       <div><h5>What ${esc(first(p.name))} has learned</h5>${p.memory.length ? `<ul class="notes">${p.memory.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="muted" style="margin:0">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>
       <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(STATUS[t.status] || t.status)}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
@@ -746,6 +776,13 @@ function agentPicker(f) {
     <div class="field"><span class="flabel">Model</span><div class="models">${models.map(([v, n]) => `<button type="button" class="mchip" data-model="${esc(v)}" aria-pressed="${v === (f.model || "")}">${esc(n)}</button>`).join("")}</div><input type="hidden" id="pf-m" value="${esc(f.model || "")}"></div>`;
 }
 // The fields for a person, shared by hiring and editing, so both look and behave the same.
+function avatarPicker(f) {
+  // Variations lead with a number: a change at the start reshapes the whole face, at the end it barely moves.
+  const base = f.name || "New hire", seeds = [base, ...[1, 2, 3, 4, 5, 6, 7].map(n => `${n} ${base}`)];
+  const photo = f.photoUrl || (f.hasPhoto && !f.removePhoto);
+  return `<div class="field"><span class="flabel">Avatar</span><div class="faces-pick">${seeds.map(sd => `<button type="button" class="fpick" data-face="${esc(sd)}" aria-pressed="${!photo && sd === (f.face || base)}" aria-label="Face ${esc(sd)}">${drawFace(sd, "neutral")}</button>`).join("")}</div>
+    <div class="photo-acts">${window.__TAURI__?.dialog ? `<button class="link-btn" type="button" data-avatar-photo="1">${photo ? "Change photo" : "Use a photo instead"}</button>` : ""}${photo ? `<button class="link-btn" type="button" data-avatar-clear="1">Remove photo</button>` : ""}</div></div>`;
+}
 function personFields(f) {
   // Their current runtime is always listed, so saving never switches it by accident.
   const runtimes = [...new Set([...(S.runtimes || ["claude", "codex", "fake"]), ...(f.runtime ? [f.runtime] : [])])];
@@ -1119,7 +1156,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1181,6 +1218,20 @@ document.addEventListener("click", async e => {
     return;
   }
   if (d.rail) return toggleRail();
+  if (d.dm) { S.view = "chat"; S.channel = "dm:" + d.dm; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
+  if (d.face && S.drawer?.form) {
+    S.drawer.form.face = d.face;
+    el.parentElement.querySelectorAll(".fpick").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
+    if (!S.drawer.form.photoUrl) $("#drawer .dhead .with-agent").firstElementChild.outerHTML = drawFace(d.face, "neutral");
+    return;
+  }
+  if (d.avatarPhoto) {
+    const path = await window.__TAURI__?.dialog?.open({ multiple: false, title: "Pick a photo", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }] }).catch(() => null);
+    if (!path) return;
+    try { Object.assign(S.drawer.form, readPerson(), { photoUrl: await invoke("image_preview", { path: String(path) }), photoPath: String(path), removePhoto: false }); } catch (err) { return toast(String(err), true); }
+    return renderDrawer();
+  }
+  if (d.avatarClear) { Object.assign(S.drawer.form, readPerson(), { photoUrl: null, photoPath: null, removePhoto: true }); return renderDrawer(); }
   if (d.planNew) { S.drawer = { type: "plan" }; renderDrawer(); return $("#pj-name")?.select(); }
   if ("project" in d) { S.project = d.project || null; return render(); }
   if (d.switch) { S.switching = !S.switching; return renderSide(); }
@@ -1402,6 +1453,8 @@ document.addEventListener("submit", async e => {
         toast(`${first(p.name)} joined. Give them a ticket whenever you're ready`); S.drawer = null; renderDrawer();
       } else {
         await invoke("update_employee", { company: S.company, id: S.drawer.id, ...p });
+        const f = S.drawer.form;
+        await invoke("set_avatar", { company: S.company, id: S.drawer.id, face: f.face === p.name ? null : f.face, photo: f.photoPath, removePhoto: !!f.removePhoto });
         toast("Saved"); S.drawer.edit = false; await openPerson(S.drawer.id);
       }
       await refresh(true);
@@ -1473,6 +1526,8 @@ async function previewScreen() {
   if (screen === "wiki-edit") { S.view = "handbook"; S.hbEdit = true; await refresh(true); render(); }
   if (screen === "inbox-zero") { S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; S.snap.with_leads = []; S.view = "inbox"; render(); }
   if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the handbook"] }; render(); }
+  if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
+  if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
   if (screen === "paused") { S.snap.paused = true; render(); }
   if (screen === "hire") openHire(1);
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
@@ -1493,7 +1548,7 @@ try { if (localStorage.getItem("onecorp.rail")) toggleRail(true); } catch {}
 if (window.__TAURI__) refresh(true); else previewScreen();
 
 /* Sample data for opening ui/index.html in a browser. Never used inside the app. */
-function preview(cmd) {
+function preview(cmd, args) {
   const team = [
     ["odile", "Odile Martin", "CTO", "claude", "opus", "working", "Reading the SNO-12 diff", 1], ["maya", "Maya Okafor", "Senior engineer", "codex", null, "blocked", "Need you on SNO-12", 1],
     ["tomas", "Tomás Reis", "Engineer", "codex", null, "working", "Bash cargo test billing", 1], ["rui", "Rui Alves", "Product lead", "claude", "sonnet", "working", "Created SNO-18", 2],
@@ -1523,6 +1578,7 @@ function preview(cmd) {
         { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31", title: "Pricing page" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "start", summary: "started", title: "Retry failed Stripe webhooks" }, { at: "2026-11-09 10:31:00", key: "SNO-12", employee: "maya", name: "Maya Okafor", kind: "block", summary: "asked you about magic link expiry", title: "Magic link login" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24" },
+      dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
     handbook: "# snowztech handbook\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
@@ -1562,6 +1618,9 @@ function preview(cmd) {
     files: [{ path: "web/src/pages/pricing.tsx", added: 4, removed: 1 }, { path: "README.md", added: 1, removed: 0 }],
     commits: [{ hash: "c3dbf20", author: "Odile Martin", subject: "SNO-11: pricing page" }],
     patch: "diff --git a/web/src/pages/pricing.tsx b/web/src/pages/pricing.tsx\nindex 1..2 100644\n--- a/web/src/pages/pricing.tsx\n+++ b/web/src/pages/pricing.tsx\n@@ -1,3 +1,6 @@\n export function Pricing() {\n-  return null\n+  return <>\n+    <Plan name=\"Free\" price={0} />\n+    <Plan name=\"Pro\" price={6} />\n+  </>\n }\ndiff --git a/README.md b/README.md\nindex 3..4 100644\n--- a/README.md\n+++ b/README.md\n@@ -1 +1,2 @@\n # Notes\n+Pricing: free, or $6 a month.\n", truncated: false };
+  if (cmd === "chat" && String(args?.channel).startsWith("dm:")) return Promise.resolve({ channel: args.channel, messages: args.channel === "dm:tomas"
+    ? [{ id: 13, at: "2026-11-09 11:40:00", author: "founder", name: "Lucas", founder: true, text: "How are the webhook retries going?", key: null, pending: false },
+       { id: 14, at: "2026-11-09 11:41:00", author: "tomas", name: "Tomás Reis", text: "Close. Retries back off over 3 days now, and handlers are idempotent. Tests next, then it's in your Inbox as SNO-15.", key: "SNO-15", pending: false }] : [] });
   if (cmd in data) return Promise.resolve(data[cmd]);
   return Promise.reject("This is a preview. Open the OneCorp app to make changes.");
 }

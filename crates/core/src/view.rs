@@ -33,8 +33,11 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             };
             let cost = theirs.iter().fold(0.0, |s, t| s + t.cost_usd);
             let tokens: i64 = theirs.iter().map(|t| t.tokens).sum();
+            // How they look: a chosen face seed, and a stamp for their photo so the app knows when to reload it.
+            let (seed, photo) = c.avatar(&e.id).unwrap_or_default();
+            let photo = photo.and_then(|p| std::fs::metadata(&p).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs().to_string());
             json!({
-                "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model,
+                "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "face": seed, "photo": photo,
                 "status": status, "bubble": bubble, "spend": spend(cost, tokens), "department": e.department,
                 "ticket": ticket.map(|t| json!({"key": c.key(t.id), "title": t.title})),
             })
@@ -127,6 +130,14 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     let cost = tickets.iter().fold(chat_cost, |s, t| s + t.cost_usd);
     let tokens: i64 = chat_tokens + tickets.iter().map(|t| t.tokens).sum::<i64>();
     let all_messages = c.messages(None)?;
+    // A direct message thread with each person, with its latest message for unread dots.
+    let dms: Vec<Value> = team
+        .iter()
+        .map(|e| {
+            let ch = crate::chat::dm(&e.id);
+            json!({"id": e.id, "channel": ch, "last": all_messages.iter().filter(|m| m.channel == ch).map(|m| m.id).max()})
+        })
+        .collect();
     let channels: Vec<Value> = crate::chat::channels(c)?
         .into_iter()
         .map(|ch| {
@@ -181,6 +192,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "failed": failed,
         "feed": feed,
         "channels": channels,
+        "dms": dms,
         "spend": { "cost": cost, "tokens": tokens, "label": spend(cost, tokens) },
     }))
 }

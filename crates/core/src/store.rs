@@ -448,6 +448,48 @@ impl Company {
         Ok(())
     }
 
+    /// How someone looks: the seed their drawn face comes from (their name unless you picked
+    /// another), and their photo if you added one.
+    pub fn avatar(&self, id: &str) -> Result<(Option<String>, Option<PathBuf>)> {
+        let seed = self.db.query_row("SELECT face FROM employees WHERE id = ?1", [id], |r| r.get(0)).optional()?.flatten();
+        let photo = fs::read_dir(self.dir.join("avatars")).ok().and_then(|d| d.flatten().map(|e| e.path()).find(|p| p.file_stem().is_some_and(|s| s == id)));
+        Ok((seed, photo))
+    }
+
+    pub fn set_face(&self, id: &str, seed: Option<&str>) -> Result<()> {
+        self.db.execute("UPDATE employees SET face = ?2 WHERE id = ?1", params![id, seed.filter(|s| !s.trim().is_empty())])?;
+        Ok(())
+    }
+
+    /// A photo for someone, copied in, or None to go back to their drawn face.
+    pub fn set_photo(&self, id: &str, photo: Option<&Path>) -> Result<()> {
+        let dir = self.dir.join("avatars");
+        let new = match photo {
+            Some(src) => {
+                let ext = src.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+                if !["png", "jpg", "jpeg", "webp", "gif"].contains(&ext.as_str()) {
+                    bail!("use a photo: png, jpg, webp or gif");
+                }
+                if fs::metadata(src).with_context(|| format!("couldn't read {}", src.display()))?.len() > 4 * 1024 * 1024 {
+                    bail!("that photo is over 4 MB. Pick a smaller one");
+                }
+                fs::create_dir_all(&dir)?;
+                let tmp = dir.join(format!("{id}-new.{ext}"));
+                fs::copy(src, &tmp)?;
+                Some((tmp, dir.join(format!("{id}.{ext}"))))
+            }
+            None => None,
+        };
+        // The old photo goes only once the new one is safely copied.
+        if let (_, Some(old)) = self.avatar(id)? {
+            fs::remove_file(old)?;
+        }
+        if let Some((tmp, dest)) = new {
+            fs::rename(tmp, dest)?;
+        }
+        Ok(())
+    }
+
     /// Changes how someone works: their name as shown, role, runtime, model and bio. Their id stays,
     /// so their tickets, memory and git identity follow them.
     pub fn update_employee(&self, e: &Employee) -> Result<()> {
@@ -1050,6 +1092,7 @@ fn migrate(db: &Connection) -> Result<()> {
     const ADDED: &[(&str, &str, &str)] = &[
         ("employees", "fired_at", "TEXT"),
         ("employees", "department", "INTEGER REFERENCES departments(id)"),
+        ("employees", "face", "TEXT"),
         ("tickets", "tokens", "INTEGER NOT NULL DEFAULT 0"),
         ("tickets", "base", "TEXT"),
         ("inbox", "kind", "TEXT NOT NULL DEFAULT 'question'"),

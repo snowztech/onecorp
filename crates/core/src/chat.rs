@@ -9,6 +9,15 @@ use anyhow::{Result, bail, ensure};
 
 pub const GENERAL: &str = "general";
 
+/// The direct message channel between you and one employee. Department channels only use
+/// letters, digits and dashes, so a DM can never clash with one.
+pub fn dm(employee: &str) -> String {
+    format!("dm:{employee}")
+}
+fn dm_of(channel: &str) -> Option<&str> {
+    channel.strip_prefix("dm:")
+}
+
 pub struct Channel {
     pub name: String,
     pub title: String,
@@ -22,7 +31,7 @@ pub fn channels(c: &Company) -> Result<Vec<Channel>> {
         out.push(Channel { name: suggest_name(&d.name), title: d.name, department: Some(d.id) });
     }
     for name in c.channel_names()? {
-        if !out.iter().any(|ch| ch.name == name) {
+        if dm_of(&name).is_none() && !out.iter().any(|ch| ch.name == name) {
             out.push(Channel { title: name.clone(), name, department: None });
         }
     }
@@ -31,6 +40,10 @@ pub fn channels(c: &Company) -> Result<Vec<Channel>> {
 
 /// A channel from what someone typed: "#Engineering", "engineering" or just "eng". Empty means #general.
 pub fn resolve(c: &Company, typed: &str) -> Result<String> {
+    if let Some(id) = dm_of(typed.trim()) {
+        c.employee(id)?.ok_or_else(|| anyhow::anyhow!("nobody called {id} works here"))?;
+        return Ok(dm(id));
+    }
     let want = suggest_name(typed.trim().trim_start_matches('#'));
     if want.is_empty() {
         return Ok(GENERAL.into());
@@ -55,6 +68,9 @@ pub fn home(c: &Company, e: &Employee) -> Result<String> {
 /// Who's in a channel: everyone for #general, the department's people for its channel.
 pub fn members(c: &Company, channel: &str) -> Result<Vec<Employee>> {
     let team = c.employees()?;
+    if let Some(id) = dm_of(channel) {
+        return Ok(team.into_iter().filter(|e| e.id == id).collect());
+    }
     let dept = channels(c)?.into_iter().find(|ch| ch.name == channel).and_then(|ch| ch.department);
     Ok(match dept {
         Some(id) => team.into_iter().filter(|e| e.department == Some(id)).collect(),
@@ -97,6 +113,10 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     if c.paused()? {
         return Ok(vec![]);
     }
+    // A direct message always gets its answer: there's only one person to ask.
+    if dm_of(&channel).is_some() {
+        return members(c, &channel)?.iter().map(|e| c.post_pending(&channel, &e.id)).collect();
+    }
     mentions(c, &channel, text)?.iter().map(|e| c.post_pending(&channel, &e.id)).collect()
 }
 
@@ -112,7 +132,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let history: Vec<String> = before.iter().rev().take(20).rev().map(|m| line(c, m)).collect();
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
-         {founder} mentioned you in #{channel}, the team chat. The conversation so far:\n\n{history}\n\n\
+         {founder} {place}. The conversation so far:\n\n{history}\n\n\
          They wrote: {asked}\n\n\
          Reply like a colleague would in chat: a few short sentences, plain words, no headings. \
          Read the code in this repo if it helps you answer, but don't change any files. \
@@ -122,7 +142,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         company = c.name,
         bio = e.bio,
         founder = crate::founder::name(),
-        channel = slot.channel,
+        place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
         knowledge = crate::work::company_knowledge(c)?,
         notes = crate::work::own_notes(c, &e.id)?,
@@ -160,12 +180,18 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
     let msgs: Vec<Message> = c
         .messages(None)?
         .into_iter()
-        .filter(|m| !m.pending && (m.channel == GENERAL || m.channel == home || m.text.to_lowercase().contains(&tag)))
+        .filter(|m| !m.pending && (m.channel == GENERAL || m.channel == home || m.channel == dm(&e.id) || m.text.to_lowercase().contains(&tag)))
         .collect();
     if msgs.is_empty() {
         return Ok(String::new());
     }
-    let lines: Vec<String> = msgs.iter().rev().take(RECENT).rev().map(|m| format!("#{} {}", m.channel, line(c, m))).collect();
+    let lines: Vec<String> = msgs
+        .iter()
+        .rev()
+        .take(RECENT)
+        .rev()
+        .map(|m| format!("{} {}", if dm_of(&m.channel).is_some() { "(direct message)".to_string() } else { format!("#{}", m.channel) }, line(c, m)))
+        .collect();
     Ok(format!(
         "\n\nRecent team chat, newest last. Your posts go to #{home} unless you name another channel:\n{}",
         lines.join("\n")

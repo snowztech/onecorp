@@ -485,6 +485,25 @@ fn set_paused(company: String, paused: bool) -> Res<()> {
     open(&company)?.set_paused(paused).map_err(err)
 }
 
+/// Someone's photo, fetched only when it changes (the snapshot carries a stamp, not the image).
+#[tauri::command(async)]
+fn employee_photo(company: String, id: String) -> Res<Option<String>> {
+    Ok(open(&company)?.avatar(&id).map_err(err)?.1.as_deref().and_then(data_url))
+}
+
+/// How someone looks: a face seed, a new photo, or back to their drawn face.
+#[tauri::command(async)]
+fn set_avatar(company: String, id: String, face: Option<String>, photo: Option<String>, remove_photo: bool) -> Res<()> {
+    let c = open(&company)?;
+    c.set_face(&id, face.as_deref()).map_err(err)?;
+    if let Some(p) = photo.filter(|p| !p.is_empty()) {
+        c.set_photo(&id, Some(std::path::Path::new(&p))).map_err(err)?;
+    } else if remove_photo {
+        c.set_photo(&id, None).map_err(err)?;
+    }
+    Ok(())
+}
+
 #[tauri::command(async)]
 fn fire(company: String, id: String) -> Res<()> {
     open(&company)?.fire(&id).map_err(err)
@@ -550,6 +569,8 @@ fn main() {
             remove_ticket,
             update_employee,
             fire,
+            employee_photo,
+            set_avatar,
             set_paused,
             learn_repo,
             image_preview,

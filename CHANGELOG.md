@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Direct messages: each person has a private thread under Direct messages in Chat, with their face, agent and a status dot. Every message gets a reply, no @ needed, and they read the thread before their next ticket. Message someone from their drawer too.
+- Change how someone looks: pick from eight drawn faces, or use a photo. It changes everywhere they appear.
 - Chat: type @ for a list of your team, with their faces and agents, and pick with the arrows and Enter. A line under the box says who will reply before you send. @all (or @everyone) calls everyone in the channel: the whole company in #general, the team in a department's channel.
 - When your lead writes the handbook and you haven't said what you're building, they draft that too, from the repo. Planning starts from it, and Getting started ticks it off. A brief you wrote is never replaced.
 - Some employees were drawn without their hair or accessories. Every face is complete now.

@@ -59,6 +59,27 @@ fn channels_posts_and_replies() {
     assert!(seen.contains("Login uses magic links") && seen.contains("Shipping Friday") && seen.contains("can you check"));
     assert!(!seen.contains("Pricing is $6"));
 
+    // A direct message: no @ needed, it always gets its answer, and stays out of the channel list.
+    let slots = chat::say(&c, "dm:rui", "how is the roadmap looking?").unwrap();
+    assert_eq!(slots.len(), 1);
+    chat::reply(&c, slots[0]).unwrap();
+    assert_eq!(c.message(slots[0]).unwrap().unwrap().author, "rui");
+    assert!(chat::channels(&c).unwrap().iter().all(|ch| !ch.name.starts_with("dm:")));
+    assert!(chat::catch_up(&c, &c.employee("rui").unwrap().unwrap()).unwrap().contains("(direct message)"));
+    assert!(!chat::catch_up(&c, &maya).unwrap().contains("roadmap"), "a DM is private");
+    assert!(chat::resolve(&c, "dm:nobody").is_err());
+
+    // A chosen face and a photo, kept with the company.
+    let photo = root.join("rui.png");
+    std::fs::write(&photo, b"png").unwrap();
+    c.set_face("rui", Some("Rui Alves 3")).unwrap();
+    c.set_photo("rui", Some(&photo)).unwrap();
+    let (seed, file) = c.avatar("rui").unwrap();
+    assert_eq!(seed.as_deref(), Some("Rui Alves 3"));
+    assert!(file.unwrap().ends_with("avatars/rui.png"));
+    c.set_photo("rui", None).unwrap();
+    assert!(c.avatar("rui").unwrap().1.is_none());
+
     // No brief yet: whoever writes the handbook drafts what we're building, so planning has it.
     assert!(c.brief().unwrap().is_empty());
     work::write_handbook(&c, None).unwrap();
