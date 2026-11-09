@@ -179,7 +179,7 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .empty-state code { font: 12px var(--mono); background: var(--surface-2); padding: 2px 6px; border-radius: 4px; }
 
 /* Board */
-.board { display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
+.board { display: grid; grid-template-columns: repeat(7, minmax(190px, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
 .col { background: var(--surface-2); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 200px; }
 .col h4 { margin: 2px 4px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: flex; justify-content: space-between; }
 .col .none { margin: 4px; font-size: 12px; }
@@ -199,6 +199,15 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .link:hover { text-decoration: underline; }
 .tl { display: flex; gap: 8px; align-items: center; width: 100%; border: 0; background: transparent; padding: 5px 6px; border-radius: 6px; text-align: left; font-size: 13px; }
 .tl:hover { background: var(--surface-2); }
+
+/* Backlog and new tickets */
+.board-top { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.tk .after { font: 11px var(--mono); color: var(--muted); }
+.tk.backlog { border-style: dashed; }
+.tk.waiting { box-shadow: inset 3px 0 0 var(--line); }
+.details { margin: 0; white-space: pre-wrap; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.field textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface-2); resize: vertical; font: inherit; }
+.acts select { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--surface); }
 
 /* New company flow */
 .setup { max-width: 640px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; display: flex; flex-direction: column; gap: 14px; }

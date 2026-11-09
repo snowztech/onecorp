@@ -4,7 +4,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use onecorp::store::{self, Company};
-use onecorp::work::{self, Job};
+use onecorp::work;
 use serde_json::{Value, json};
 
 type Res<T> = Result<T, String>;
@@ -37,18 +37,35 @@ fn snapshot(company: String) -> Res<Value> {
     onecorp::view::snapshot(&c).map_err(err)
 }
 
+/// Creates a ticket. `later` saves it to the backlog, otherwise it starts now (or waits for `after`).
 #[tauri::command(async)]
-fn new_ticket(company: String, title: String, employee: String) -> Res<()> {
+fn new_ticket(company: String, title: String, employee: Option<String>, description: Option<String>, after: Option<String>, later: bool) -> Res<String> {
     let c = open(&company)?;
-    let title = title.trim();
-    if title.is_empty() {
-        return Err("Say what needs doing.".into());
+    let employee = employee.filter(|e| !e.is_empty());
+    if employee.is_none() && !later {
+        return Err("Pick who does it, or save it for later.".into());
     }
-    if c.employee(&employee).map_err(err)?.is_none() {
-        return Err(format!("Nobody called {employee} works at {company}."));
+    let after = after.filter(|a| !a.is_empty()).map(|k| ticket(&c, &k).map(|t| t.id)).transpose()?;
+    let new = store::NewTicket { title, description: description.unwrap_or_default(), assignee: employee, after, ..Default::default() };
+    let id = c.new_ticket(&new, "backlog").map_err(err)?;
+    if !later {
+        work::start(&c, &ticket(&c, &c.key(id))?).map_err(err)?;
     }
-    let id = c.add_ticket(title, &employee).map_err(err)?;
-    work::dispatch(&c, id, Job::Start).map_err(err)
+    Ok(c.key(id))
+}
+
+#[tauri::command(async)]
+fn start_ticket(company: String, key: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    work::start(&c, &t).map_err(err)
+}
+
+#[tauri::command(async)]
+fn assign(company: String, key: String, employee: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    c.assign(t.id, &employee).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -295,6 +312,8 @@ fn main() {
             check_repo,
             create_company,
             new_ticket,
+            start_ticket,
+            assign,
             answer,
             approve,
             request_changes,

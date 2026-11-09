@@ -70,13 +70,13 @@ The main tables: `employees` (with `department` and `fired_at`), `departments` (
 
 ## Life of a ticket
 
-1. **You give the ticket.** `onecorp run "add a --version flag" --to maya`, or the box in the app's top bar. `store` adds a row in `tickets` with status `todo`.
+1. **You give the ticket.** `onecorp run "add a --version flag" --to maya`, or the box in the app's top bar. A ticket has a title, optional details, who created it (you, or an employee through `create_ticket`), and optionally another ticket it waits for. Saved for later, it sits in `backlog`. `work::start` starts it: it needs someone to do it, and if it waits for a ticket that isn't merged yet, it goes to `waiting` and `work::release_waiting` starts it once that one lands.
 2. **Now or later.** `work::dispatch` checks whether `serve` is running. If not, it runs the ticket right there. If it is, it adds a row in `jobs`, marks the ticket `queued` and returns straight away.
 3. **A private workspace.** `work::start` records the base branch (usually `main`) and has `git` create a worktree on a fresh branch, `onecorp/snowztech/sno-12`. Your own checkout is never touched.
 4. **The prompt.** It's built from the employee's name, role and bio, the ticket, what their runtime can do, who the founder is, the company handbook, the list of who works here, and their own memory.
 5. **The runtime starts.** `runtime::run` picks `claude.rs`, `codex.rs` or `fake.rs`, which start the agent CLI headless in the worktree. It runs with `runtime::path()`: your current PATH plus your login shell's PATH and the usual install folders, because an app opened from the Dock gets a bare PATH and wouldn't find `claude` or `codex`. They pass it two things: the git identity of the employee, so any commit is theirs, and an MCP config pointing at `onecorp mcp --company snowztech --ticket 12 --employee maya`. Only that MCP server loads. Your personal ones stay out.
 6. **Watching it work.** The runtime prints JSON lines. Each runtime's `parse` turns them into a small set of `Event`s: start, say, tool, error, done. `work::drive` stores every event, prints it, and keeps the session id so the ticket can be picked back up later.
-7. **Company tools.** While it works, the agent can call the MCP tools. `ask_human` puts a question in your inbox, and a blocking one marks the ticket `blocked`. `post_message` posts to chat. `propose_handbook` suggests a rule. `remember` adds to its own memory.
+7. **Company tools.** While it works, the agent can call the MCP tools. `ask_human` puts a question in your inbox, and a blocking one marks the ticket `blocked`. `post_message` posts to chat. `propose_handbook` suggests a rule. `remember` adds to its own memory. `create_ticket` puts a follow-up or a piece of a plan in the backlog, for the founder to start.
 8. **Done.** `git::commit_all` commits whatever the agent left, as `Maya Okafor <maya@snowztech.onecorp>`. The ticket becomes `review`, unless the agent marked itself blocked.
 
 ### Shipping

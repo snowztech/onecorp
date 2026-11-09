@@ -49,6 +49,9 @@ onecorp hire "Tomás Reis" --as engineer --runtime codex
 onecorp hire Demo --runtime fake              # a stand-in with no AI, free, for trying things out
 onecorp team
 onecorp run "add a --version flag" --to maya  # --to is optional with one employee
+onecorp run "notes API" -d "REST, JSON" --later --after SNO-1   # backlog, waits for SNO-1
+onecorp start SNO-2                           # start a backlog ticket
+onecorp assign SNO-2 tomas                    # give it to someone
 onecorp status
 onecorp logs SNO-1
 onecorp diff SNO-1                            # what the ticket changed
@@ -78,6 +81,7 @@ Each agent gets the company's MCP server (`onecorp mcp`, started by the agent ov
 - `post_message` posts to a team channel.
 - `update_ticket` marks the ticket blocked, with a reason.
 - `remember` saves a one-line note to the employee's own memory.
+- `create_ticket` puts a follow-up or a piece of a plan in the backlog, for you to start.
 - `propose_handbook` suggests a decision or convention. It lands in your inbox, and `onecorp answer N yes` (or `no`, or your own wording) settles it.
 
 ## Desktop app

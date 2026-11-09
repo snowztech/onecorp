@@ -230,27 +230,31 @@ function viewHandbook() {
 
 /* Board: every ticket by where it stands. Click one for its log and actions. */
 const COLUMNS = [
-  ["Up next", ["todo", "queued"]], ["Working", ["doing"]], ["Waiting on you", ["blocked"]],
+  ["Backlog", ["backlog"]], ["Up next", ["todo", "queued", "waiting"]], ["Working", ["doing"]], ["Waiting on you", ["blocked"]],
   ["Review", ["review"]], ["Stopped", ["failed"]], ["Done", ["done"]],
 ];
 function viewBoard() {
   const s = S.snap;
-  if (!s.tickets.length) return `<div class="empty-state"><b>No tickets yet</b>Say what needs doing in the box up top, and pick who does it.</div>`;
+  if (!s.tickets.length) return `<div class="empty-state"><b>No tickets yet</b>Say what needs doing in the box up top, or plan ahead: <button class="btn" data-new-ticket="1">+ New ticket</button></div>`;
   const nameOf = id => byId(id)?.name || id || "";
   const cols = COLUMNS.map(([title, statuses]) => {
     let ts = s.tickets.filter(t => statuses.includes(t.status));
     if (title === "Done") ts = ts.slice(-12);
     return `<section class="col"><h4>${title}<span>${ts.length}</span></h4>${ts.slice().reverse().map(t => `
       <button class="tk ${t.status}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span><span class="t">${esc(t.title)}</span>
-        <span class="row">${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span><span class="chip">${esc(t.spend)}</span></span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
+        ${t.after && t.status !== "done" ? `<span class="after">after ${esc(t.after)}</span>` : ""}
+        <span class="row">${t.assignee ? `${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span>` : `<span class="muted">Nobody yet</span>`}<span class="chip">${esc(t.spend)}</span></span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
   }).join("");
-  return `<div class="board">${cols}</div>`;
+  return `<div class="board-top"><button class="btn primary" data-new-ticket="1">+ New ticket</button></div><div class="board">${cols}</div>`;
 }
-const STATUS = { todo: "Up next", queued: "Up next", doing: "Working", blocked: "Waiting on you", review: "Ready for review", failed: "Stopped", done: "Merged" };
+const STATUS = { backlog: "In the backlog", waiting: "Waiting for another ticket", todo: "Up next", queued: "Up next", doing: "Working", blocked: "Waiting on you", review: "Ready for review", failed: "Stopped", done: "Merged" };
 function drawerTicket() {
   const t = S.ticket;
   if (!t) return `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`;
+  const people = (S.snap?.employees || []).map(e => `<option value="${esc(e.id)}" ${e.id === t.employee ? "selected" : ""}>${esc(e.name)}</option>`).join("");
   const acts = {
+    backlog: `<select id="t-who" data-assign="${esc(t.key)}" aria-label="Who does it"><option value="">Nobody yet</option>${people}</select><button class="btn primary" data-start="${esc(t.key)}">Start</button>`,
+    waiting: `<button class="btn" data-stop="${esc(t.key)}">Back to backlog</button>`,
     doing: `<button class="btn" data-stop="${esc(t.key)}">Stop</button>`,
     queued: `<button class="btn" data-stop="${esc(t.key)}">Cancel</button>`,
     failed: `<button class="btn primary" data-retry="${esc(t.key)}">Retry</button>`,
@@ -261,13 +265,36 @@ function drawerTicket() {
   const log = t.log.map(a => `<div class="${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(5, 16))}</span>${esc(a.kind)} ${esc(a.summary)}</div>`).join("");
   return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(STATUS[t.status] || t.status)}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <div class="dbody">
-      <dl class="kv"><dt>Who</dt><dd><a class="link" data-person="${esc(t.employee)}">${esc(t.name)}</a></dd><dt>Spent</dt><dd>${esc(t.spend)}</dd>
+      ${t.description ? `<p class="details">${esc(t.description)}</p>` : ""}
+      <dl class="kv"><dt>Who</dt><dd>${t.employee ? `<a class="link" data-person="${esc(t.employee)}">${esc(t.name)}</a>` : "Nobody yet"}</dd><dt>Spent</dt><dd>${esc(t.spend)}</dd>
+        ${t.created_by ? `<dt>Created by</dt><dd>${esc(t.created_by)}</dd>` : ""}
+        ${t.after ? `<dt>After</dt><dd><a class="link" data-ticket="${esc(t.after)}">${esc(t.after)}</a></dd>` : ""}
         ${t.pr_url ? `<dt>Pull request</dt><dd>${prLink(t.pr_url, t.pr_number)}</dd>` : ""}
         ${t.branch ? `<dt>Branch</dt><dd class="mono">${esc(t.branch)}${t.base ? ` <span class="muted">from ${esc(t.base)}</span>` : ""}</dd>` : ""}</dl>
       ${acts ? `<div class="acts">${acts}</div>` : ""}${back}${changes(t.key)}
       <div><h5>Everything that happened</h5>${log ? `<div class="term tall" id="term">${log}</div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`}</div>
     </div>`;
 }
+/* New ticket: details, who, what it waits for, and start now or later */
+function drawerNewTicket() {
+  const open = (S.snap?.tickets || []).filter(t => t.status !== "done");
+  return `<div class="dhead"><div><h2>New ticket</h2><span class="muted">Plan it now, start it now or later.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
+    <form class="dbody" id="nt">
+      <div class="field"><label for="nt-title">What needs doing</label><input id="nt-title" placeholder="Add magic link login" autocomplete="off"></div>
+      <div class="field"><label for="nt-desc">Details <span class="muted">(what done looks like, links, constraints)</span></label><textarea id="nt-desc" rows="6"></textarea></div>
+      <div class="field"><label for="nt-who">Who</label><select id="nt-who"><option value="">Nobody yet</option>${(S.snap?.employees || []).map(e => `<option value="${esc(e.id)}">${esc(e.name)}, ${esc(e.role)}</option>`).join("")}</select></div>
+      <div class="field"><label for="nt-after">After</label><select id="nt-after"><option value="">Nothing, it can start right away</option>${open.map(t => `<option value="${esc(t.key)}">${esc(t.key)} ${esc(t.title)}</option>`).join("")}</select></div>
+      <div class="acts"><button class="btn primary" data-nt="now">Start now</button><button class="btn" data-nt="later">Save for later</button></div>
+    </form>`;
+}
+async function saveNewTicket(later) {
+  const title = $("#nt-title").value.trim();
+  if (!title) return $("#nt-title").focus();
+  const args = { company: S.company, title, employee: $("#nt-who").value || null, description: $("#nt-desc").value, after: $("#nt-after").value || null, later };
+  const key = await call("new_ticket", args, later ? "Saved to the backlog" : "Started").catch(() => null);
+  if (key) { S.view = "board"; openTicket(key); }
+}
+
 async function openTicket(key) {
   S.drawer = { type: "ticket", key }; S.ticket = null; renderDrawer();
   try { S.ticket = await invoke("ticket_detail", { company: S.company, key }); } catch (e) { toast(String(e), true); }
@@ -303,6 +330,7 @@ function renderDrawer() {
   d.classList.toggle("open", open); $("#scrim").classList.toggle("open", open); d.setAttribute("aria-hidden", String(!open));
   if (!open) return;
   if (S.drawer.type === "hire") return (d.innerHTML = drawerHire());
+  if (S.drawer.type === "new-ticket") return (d.innerHTML = drawerNewTicket());
   if (S.drawer.type === "ticket") { d.innerHTML = drawerTicket(); const term = $("#term"); if (term) term.scrollTop = term.scrollHeight; return; }
   const p = S.person;
   if (!p) return (d.innerHTML = `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
@@ -508,9 +536,22 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-new-ticket],[data-nt],[data-start],[data-give-later],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.newTicket) { S.drawer = { type: "new-ticket" }; renderDrawer(); return $("#nt-title")?.focus(); }
+  if (d.nt) { e.preventDefault(); return saveNewTicket(d.nt === "later"); }
+  if (d.start) {
+    el.disabled = true;
+    await call("start_ticket", { company: S.company, key: d.start }, `${d.start} is starting`).catch(() => (el.disabled = false));
+    return;
+  }
+  if (d.giveLater) {
+    const title = $("#give-task").value.trim();
+    if (!title) return $("#give-task").focus();
+    await call("new_ticket", { company: S.company, title, employee: $("#give-to").value || null, description: null, after: null, later: true }, "Saved to the backlog").then(() => ($("#give-task").value = "")).catch(() => {});
+    return;
+  }
   if (d.profile) { S.profile = { name: myName() === "You" ? "" : myName() }; S.drawer = null; return render(); }
   if (d.pf) {
     if (d.pf === "cancel") { S.profile = null; return render(); }
@@ -621,7 +662,7 @@ document.addEventListener("submit", async e => {
   if (f.id === "give") {
     const title = $("#give-task").value.trim(), employee = $("#give-to").value;
     if (!title) return $("#give-task").focus();
-    await call("new_ticket", { company: S.company, title, employee }, `Given to ${first(byId(employee)?.name)}`).then(() => ($("#give-task").value = "")).catch(() => {});
+    await call("new_ticket", { company: S.company, title, employee, description: null, after: null, later: false }, `Given to ${first(byId(employee)?.name)}`).then(() => ($("#give-task").value = "")).catch(() => {});
   } else if (f.id === "dept-form") {
     const name = $("#dept-name").value.trim();
     if (!name) return $("#dept-name").focus();
@@ -653,6 +694,11 @@ document.addEventListener("submit", async e => {
   }
 });
 document.addEventListener("change", async e => {
+  if (e.target.dataset?.assign) {
+    const key = e.target.dataset.assign, employee = e.target.value;
+    if (employee) await call("assign", { company: S.company, key, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
+    return openTicket(key);
+  }
   if (e.target.id === "move" && e.target.value) {
     await call("move_to_department", { company: S.company, employee: e.target.dataset.move, department: Number(e.target.value) }, "Moved").catch(() => {});
     if (S.drawer?.type === "person") openPerson(S.drawer.id);
@@ -682,7 +728,9 @@ function preview(cmd) {
         { key: "SNO-12", title: "Magic link login", assignee: "maya", status: "blocked", spend: "52k tok" },
         { key: "SNO-14", title: "Empty state for the notes list", assignee: "lina", status: "queued", spend: "$0.00" },
         { key: "SNO-15", title: "Retry failed Stripe webhooks", assignee: "tomas", status: "doing", spend: "75k tok" },
-        { key: "SNO-8", title: "CI pipeline", assignee: "tomas", status: "done", spend: "$0.22" }],
+        { key: "SNO-8", title: "CI pipeline", assignee: "tomas", status: "done", spend: "$0.22" },
+        { key: "SNO-16", title: "Export notes as Markdown", assignee: null, status: "backlog", spend: "$0.00", created_by: "Rui Alves" },
+        { key: "SNO-17", title: "Notes API pagination", assignee: "maya", status: "waiting", spend: "$0.00", after: "SNO-12" }],
       departments: [{ id: 1, name: "Engineering", lead: "odile", members: ["odile", "maya", "tomas"] }, { id: 2, name: "Product", lead: "rui", members: ["rui", "lina"] }, { id: 3, name: "Growth", lead: "sam", members: ["sam"] }],
       with_leads: [{ id: 5, kind: "question", key: "SNO-15", employee: "tomas", name: "Tomás Reis", lead_name: "Odile Martin", question: "Retry webhooks 3 or 5 times?", section: "", options: ["3", "5"], default: "3", blocking: false }],
       inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
@@ -698,7 +746,7 @@ function preview(cmd) {
       { key: "small", name: "Small product team", description: "A CTO who leads Engineering and reviews, an engineer, and a designer in Product.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Lina Park", role: "Product designer", dept: "Product" }] },
       { key: "demo", name: "Try it for free", description: "The small team on a stand-in with no AI.", runtime: "fake", hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }] },
       { key: "empty", name: "Start empty", description: "No one yet.", runtime: null, hires: [] }] },
-    ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
+    ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
     check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [], forge: "GitHub", pr_word: "pull request", signed_in: true, account: "Logged in to github.com account you" },
     founder: { name: "Lucas", photo: null },

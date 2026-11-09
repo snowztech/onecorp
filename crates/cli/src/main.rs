@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use onecorp::runtime::RUNTIMES;
-use onecorp::work::{self, Job, spend};
+use onecorp::work::{self, spend};
 use onecorp::store::{self, Employee, slug};
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::PathBuf;
@@ -84,6 +84,28 @@ enum Cmd {
         /// Who does it. Optional when there's only one employee
         #[arg(long)]
         to: Option<String>,
+        /// What done looks like, links, constraints
+        #[arg(short, long)]
+        description: Option<String>,
+        /// Save it to the backlog instead of starting now
+        #[arg(long)]
+        later: bool,
+        /// Wait for another ticket to be merged first, like SNO-3
+        #[arg(long)]
+        after: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Start a ticket from the backlog
+    Start {
+        ticket: String,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Give a ticket to someone
+    Assign {
+        ticket: String,
+        employee: String,
         #[arg(short, long)]
         company: Option<String>,
     },
@@ -371,15 +393,40 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{:<10} {:<20} {:<18} {:<16} {n} {plural}, {}", e.id, e.name, e.role, rt, spend(cost, tokens));
             }
         }
-        Cmd::Run { task, to, company } => {
+        Cmd::Run { task, to, description, later, after, company } => {
             let title = task.join(" ");
             if title.trim().is_empty() {
                 bail!("say what needs doing, for example: onecorp run \"add a --version flag\"");
             }
             let c = open(company)?;
-            let who = assignee(&c, to)?;
-            let id = c.add_ticket(&title, &who.id)?;
-            work::dispatch(&c, id, Job::Start)?;
+            // A ticket saved for later can wait for its owner too. One to start now needs one.
+            let who = match (&to, later) {
+                (None, true) => None,
+                _ => Some(assignee(&c, to)?.id),
+            };
+            let after = after.map(|a| find_ticket(&c, &a).map(|t| t.id)).transpose()?;
+            let new = store::NewTicket { title, description: description.unwrap_or_default(), assignee: who, after, ..Default::default() };
+            let id = c.new_ticket(&new, "backlog")?;
+            let key = c.key(id);
+            if later {
+                println!("{key} is in the backlog. Start it with: onecorp start {key}");
+            } else {
+                work::start(&c, &find_ticket(&c, &key)?)?;
+            }
+        }
+        Cmd::Start { ticket, company } => {
+            let c = open(company)?;
+            work::start(&c, &find_ticket(&c, &ticket)?)?;
+        }
+        Cmd::Assign { ticket, employee, company } => {
+            let c = open(company)?;
+            let t = find_ticket(&c, &ticket)?;
+            let e = c.employee(&slug(&employee))?.ok_or_else(|| anyhow::anyhow!("nobody called {employee} works at {}. See: onecorp team", c.name))?;
+            if !["backlog", "todo", "waiting", "failed"].contains(&t.status.as_str()) {
+                bail!("{} is {}, so it stays with whoever has it", c.key(t.id), t.status);
+            }
+            c.assign(t.id, &e.id)?;
+            println!("{} is now {}'s.", c.key(t.id), e.name);
         }
         Cmd::Status { company } => {
             let c = open(company)?;

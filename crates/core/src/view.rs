@@ -123,7 +123,8 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "employees": employees,
         "tickets": tickets.iter().map(|t| json!({
             "key": c.key(t.id), "title": t.title, "assignee": t.assignee, "status": t.status,
-            "spend": spend(t.cost_usd, t.tokens),
+            "spend": spend(t.cost_usd, t.tokens), "after": t.after.map(|a| c.key(a)),
+            "created_by": (t.created_by != "founder").then(|| name_of(&t.created_by)),
         })).collect::<Vec<_>>(),
         "inbox": inbox,
         "with_leads": with_leads,
@@ -143,6 +144,8 @@ pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
         "key": c.key(t.id), "title": t.title, "status": t.status, "employee": who, "name": name,
         "branch": t.branch, "base": t.base, "spend": spend(t.cost_usd, t.tokens), "log": log,
         "pr_number": t.pr_number, "pr_url": t.pr_url,
+        "description": t.description, "after": t.after.map(|a| c.key(a)),
+        "created_by": (t.created_by != "founder").then(|| c.employee(&t.created_by).ok().flatten().map(|e| e.name).unwrap_or_else(|| t.created_by.clone())),
     }))
 }
 

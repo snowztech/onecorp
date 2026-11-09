@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS departments (
 CREATE TABLE IF NOT EXISTS tickets (
   id INTEGER PRIMARY KEY,
   title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT 'founder',
+  after INTEGER REFERENCES tickets(id),
   assignee TEXT REFERENCES employees(id),
   status TEXT NOT NULL DEFAULT 'todo',
   branch TEXT,
@@ -197,6 +200,22 @@ pub struct Ticket {
     /// Its pull request, once it has one.
     pub pr_number: Option<i64>,
     pub pr_url: Option<String>,
+    /// The details beyond the title: what done looks like, links, constraints.
+    pub description: String,
+    /// "founder", or the id of the employee who created it.
+    pub created_by: String,
+    /// Another ticket this one waits for: it starts once that one is merged.
+    pub after: Option<i64>,
+}
+
+/// A ticket to create. Everything but the title is optional.
+#[derive(Default)]
+pub struct NewTicket {
+    pub title: String,
+    pub description: String,
+    pub assignee: Option<String>,
+    pub created_by: Option<String>,
+    pub after: Option<i64>,
 }
 
 pub struct Company {
@@ -368,9 +387,52 @@ impl Company {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// A ticket to start now, with just a title and who does it.
     pub fn add_ticket(&self, title: &str, assignee: &str) -> Result<i64> {
-        self.db.execute("INSERT INTO tickets (title, assignee) VALUES (?1, ?2)", [title, assignee])?;
+        self.new_ticket(&NewTicket { title: title.into(), assignee: Some(assignee.into()), ..Default::default() }, "todo")
+    }
+
+    /// Creates a ticket in `status`: "backlog" to save it for later, "todo" to start it.
+    pub fn new_ticket(&self, t: &NewTicket, status: &str) -> Result<i64> {
+        let title = t.title.trim();
+        if title.is_empty() {
+            bail!("a ticket needs a title: say what needs doing");
+        }
+        if let Some(who) = &t.assignee
+            && self.employee(who)?.is_none()
+        {
+            bail!("nobody called {who} works at {}", self.name);
+        }
+        if let Some(after) = t.after
+            && self.ticket(after)?.is_none()
+        {
+            bail!("there's no ticket {} to wait for", self.key(after));
+        }
+        self.db.execute(
+            "INSERT INTO tickets (title, description, assignee, created_by, after, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![title, t.description.trim(), t.assignee, t.created_by.as_deref().unwrap_or("founder"), t.after, status],
+        )?;
         Ok(self.db.last_insert_rowid())
+    }
+
+    pub fn assign(&self, ticket: i64, employee: &str) -> Result<()> {
+        if self.employee(employee)?.is_none() {
+            bail!("nobody called {employee} works at {}", self.name);
+        }
+        self.db.execute("UPDATE tickets SET assignee = ?2 WHERE id = ?1", params![ticket, employee])?;
+        Ok(())
+    }
+
+    pub fn set_after(&self, ticket: i64, after: Option<i64>) -> Result<()> {
+        self.db.execute("UPDATE tickets SET after = ?2 WHERE id = ?1", params![ticket, after])?;
+        Ok(())
+    }
+
+    /// Tickets waiting for `ticket` to be merged before they start.
+    pub fn waiting_for(&self, ticket: i64) -> Result<Vec<i64>> {
+        let mut st = self.db.prepare("SELECT id FROM tickets WHERE after = ?1 AND status = 'waiting' ORDER BY id")?;
+        let rows = st.query_map([ticket], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     pub fn start_ticket(&self, id: i64, branch: &str, base: &str, worktree: &Path) -> Result<()> {
@@ -683,12 +745,12 @@ impl Company {
     pub fn ticket(&self, id: i64) -> Result<Option<Ticket>> {
         Ok(self
             .db
-            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url FROM tickets WHERE id = ?1", [id], row_to_ticket)
+            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after FROM tickets WHERE id = ?1", [id], row_to_ticket)
             .optional()?)
     }
 
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
-        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url FROM tickets ORDER BY id")?;
+        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -725,6 +787,9 @@ fn row_to_ticket(r: &rusqlite::Row) -> rusqlite::Result<Ticket> {
         base: r.get(9)?,
         pr_number: r.get(10)?,
         pr_url: r.get(11)?,
+        description: r.get(12)?,
+        created_by: r.get(13)?,
+        after: r.get(14)?,
     })
 }
 
@@ -765,6 +830,9 @@ fn migrate(db: &Connection) -> Result<()> {
         ("tickets", "agent_pid", "INTEGER"),
         ("tickets", "pr_number", "INTEGER"),
         ("tickets", "pr_url", "TEXT"),
+        ("tickets", "description", "TEXT NOT NULL DEFAULT ''"),
+        ("tickets", "created_by", "TEXT NOT NULL DEFAULT 'founder'"),
+        ("tickets", "after", "INTEGER REFERENCES tickets(id)"),
         ("inbox", "stage", "TEXT NOT NULL DEFAULT 'founder'"),
         ("inbox", "via", "TEXT"),
         ("inbox", "note", "TEXT"),

@@ -77,6 +77,7 @@ fn tool_detail(name: &str, input: &Value) -> String {
         "WebFetch" => "url",
         "mcp__onecorp__ask_human" => "question",
         "mcp__onecorp__post_message" | "mcp__onecorp__propose_handbook" | "mcp__onecorp__remember" => "text",
+        "mcp__onecorp__create_ticket" => "title",
         "mcp__onecorp__update_ticket" => "note",
         _ => return String::new(),
     };

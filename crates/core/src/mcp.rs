@@ -116,6 +116,21 @@ fn tools() -> Value {
             }
         },
         {
+            "name": "create_ticket",
+            "description": "Create a ticket for work that should happen but isn't yours to do now: a follow-up, a piece of a bigger plan, \
+                            a bug you noticed. It goes to the backlog, and the founder starts it. Give it to a teammate when you know who fits.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "What needs doing, short, like 'Add rate limiting to the public API'"},
+                    "description": {"type": "string", "description": "What done looks like, and anything the person doing it should know"},
+                    "assignee": {"type": "string", "description": "A teammate's first name or id, from the team list"},
+                    "after": {"type": "string", "description": "A ticket this one should wait for, like SNO-3"}
+                },
+                "required": ["title"]
+            }
+        },
+        {
             "name": "remember",
             "description": "Save a one-line note for your future self: where things live in the code, how the founder likes things done, \
                             a trap you hit. Only you read these, at the start of every ticket. Rules for the whole team go to propose_handbook instead.",
@@ -203,6 +218,20 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
             })?;
             Ok(format!("Proposal #{n} is in the founder's inbox. Carry on, it doesn't block your ticket."))
         }
+        "create_ticket" => {
+            let assignee = match s("assignee") {
+                a if a.is_empty() => None,
+                a => Some(crate::store::slug(&a)).filter(|id| c.employee(id).ok().flatten().is_some()).ok_or_else(|| anyhow::anyhow!("nobody called {a} works here. Leave assignee out, or use a name from the team list"))?.into(),
+            };
+            let after = match s("after") {
+                a if a.is_empty() => None,
+                a => Some(c.parse_key(&a)?),
+            };
+            let new = crate::store::NewTicket { title: s("title"), description: s("description"), assignee, created_by: Some(ctx.employee.clone()), after };
+            let id = c.new_ticket(&new, "backlog")?;
+            c.add_event(id, "create", &format!("created by {} while working on {}", ctx.employee, c.key(ctx.ticket)), "")?;
+            Ok(format!("{} is in the backlog. The founder starts it.", c.key(id)))
+        }
         "remember" => {
             let text = s("text");
             anyhow::ensure!(!text.is_empty(), "text is required");
@@ -250,7 +279,7 @@ mod tests {
         assert!(handle(&c, &ctx, &json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).is_none());
 
         let list = handle(&c, &ctx, &req(2, "tools/list", json!({}))).unwrap();
-        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 5);
+        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 6);
 
         let args = json!({"question": "15 or 60 minutes?", "options": ["15", "60"], "default": "15", "blocking": true});
         let ask = handle(&c, &ctx, &req(3, "tools/call", json!({"name": "ask_human", "arguments": args}))).unwrap();
@@ -276,6 +305,14 @@ mod tests {
         handle(&c, &ctx, &req(8, "tools/call", note)).unwrap();
         let mem = c.memory("maya").unwrap();
         assert!(mem.starts_with("- 20") && mem.ends_with(" auth lives in src/auth\n"), "{mem}");
+
+        let make = json!({"name": "create_ticket", "arguments": {"title": "Rate limit the API", "description": "60 a minute", "assignee": "Maya", "after": c.key(t)}});
+        let made = handle(&c, &ctx, &req(9, "tools/call", make)).unwrap();
+        assert!(made["result"]["isError"].is_null(), "{made}");
+        let new = c.tickets().unwrap().into_iter().find(|x| x.title == "Rate limit the API").unwrap();
+        assert_eq!((new.status.as_str(), new.assignee.as_deref(), new.after, new.created_by.as_str()), ("backlog", Some("maya"), Some(t), "maya"));
+        let nobody = json!({"name": "create_ticket", "arguments": {"title": "x", "assignee": "Zed"}});
+        assert_eq!(handle(&c, &ctx, &req(10, "tools/call", nobody)).unwrap()["result"]["isError"], true);
 
         let bad = handle(&c, &ctx, &req(5, "tools/call", json!({"name": "nope", "arguments": {}}))).unwrap();
         assert_eq!(bad["result"]["isError"], true);

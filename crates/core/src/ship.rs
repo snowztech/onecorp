@@ -138,7 +138,8 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
             out(&format!("Merged {key} (#{n}) on {}. New tickets start from it.", f.name()));
         }
     }
-    Ok(())
+    // Only now, so the merge is reported before what it sets off.
+    crate::work::release_waiting(c, t.id)
 }
 
 /// After the work is on base: mark it done, bring your local base up to date, and clean up.
@@ -176,6 +177,7 @@ pub fn sync(c: &Company) -> Result<Vec<String>> {
             PrState::Merged => {
                 landed(c, t, Some(f), &format!("#{n} was merged on {}", f.name()))?;
                 changed.push(format!("{key} was merged on {}", f.name()));
+                crate::work::release_waiting(c, t.id)?;
             }
             PrState::Closed => {
                 c.set_status(t.id, "failed")?;

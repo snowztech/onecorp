@@ -76,7 +76,7 @@ fn item(i: &Value) -> Vec<Event> {
         Some("mcp_tool_call") => {
             let tool = s("tool");
             let a = &i["arguments"];
-            let detail = ["question", "text", "note"].iter().find_map(|k| a[k].as_str()).unwrap_or("").to_string();
+            let detail = ["question", "text", "note", "title"].iter().find_map(|k| a[k].as_str()).unwrap_or("").to_string();
             // Named like Claude's MCP tools so logs read the same whatever the runtime.
             let mut out = vec![Event::Tool { name: format!("mcp__{}__{tool}", s("server")), detail }];
             if let Some(msg) = i["error"]["message"].as_str() {

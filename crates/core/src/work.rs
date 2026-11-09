@@ -58,7 +58,7 @@ pub fn dispatch(c: &Company, ticket: i64, job: Job) -> Result<()> {
 pub fn execute(c: &Company, ticket: i64, job: &Job) -> Result<()> {
     let t = c.ticket(ticket)?.ok_or_else(|| anyhow!("no ticket {}", c.key(ticket)))?;
     match job {
-        Job::Start => start(c, &t),
+        Job::Start => run_ticket(c, &t),
         Job::Resume { why, prompt, label } => pick_up(c, &t, why, prompt, label),
         Job::Consult { question } => consult(c, *question),
     }
@@ -201,7 +201,7 @@ fn employee_of(c: &Company, t: &Ticket) -> Result<Employee> {
     c.employee(who)?.ok_or_else(|| anyhow!("{who} no longer works at {}, so {} stays {}", c.name, c.key(t.id), t.status))
 }
 
-fn start(c: &Company, t: &Ticket) -> Result<()> {
+fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     let (id, key, title) = (t.id, c.key(t.id), t.title.as_str());
     let e = employee_of(c, t)?;
     let wt = c.dir.join("wt").join(key.to_lowercase());
@@ -224,7 +224,7 @@ fn start(c: &Company, t: &Ticket) -> Result<()> {
 
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
-         Your ticket is {key}: {title}\n\n\
+         Your ticket is {key}: {title}\n\n{details}\
          You are in a git worktree on branch {branch}. {abilities} Don't commit: when you finish, \
          OneCorp commits your changes under your name. \
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
@@ -240,10 +240,57 @@ fn start(c: &Company, t: &Ticket) -> Result<()> {
         company = c.name,
         bio = e.bio,
         abilities = runtime::abilities(&e.runtime),
+        details = ticket_details(c, t)?,
         knowledge = company_knowledge(c)?,
         notes = own_notes(c, &e.id)?,
     );
     drive(c, &e, id, &wt, None, &prompt, title)
+}
+
+/// The ticket's details and who asked for it, as a paragraph for the prompt. Empty when there are none.
+fn ticket_details(c: &Company, t: &Ticket) -> Result<String> {
+    let mut out = String::new();
+    if !t.description.is_empty() {
+        out.push_str(&format!("Details:\n{}\n\n", t.description));
+    }
+    if t.created_by != "founder"
+        && let Some(e) = c.employee(&t.created_by)?
+    {
+        out.push_str(&format!("{}, {}, created this ticket.\n\n", e.name, e.role));
+    }
+    Ok(out)
+}
+
+/// Starts a saved ticket. It needs someone to do it, and if it waits for another ticket that
+/// isn't merged yet, it waits, then starts by itself once that one lands.
+pub fn start(c: &Company, t: &Ticket) -> Result<()> {
+    let key = c.key(t.id);
+    if !["backlog", "todo", "waiting"].contains(&t.status.as_str()) {
+        bail!("{key} is {}. Only tickets that haven't started can be started", t.status);
+    }
+    let Some(who) = &t.assignee else { bail!("{key} has nobody on it yet. Give it to someone: onecorp assign {key} <name>") };
+    if c.employee(who)?.is_none() {
+        bail!("{who} no longer works at {}. Give {key} to someone else: onecorp assign {key} <name>", c.name);
+    }
+    if let Some(dep) = t.after.map(|a| c.ticket(a)).transpose()?.flatten().filter(|d| d.status != "done") {
+        c.set_status(t.id, "waiting")?;
+        c.add_event(t.id, "wait", &format!("waits for {} to be merged", c.key(dep.id)), "")?;
+        out(&format!("{key} starts once {} is merged.", c.key(dep.id)));
+        return Ok(());
+    }
+    c.set_status(t.id, "todo")?;
+    dispatch(c, t.id, Job::Start)
+}
+
+/// Starts the tickets that were waiting for `done` to be merged.
+pub fn release_waiting(c: &Company, done: i64) -> Result<()> {
+    for id in c.waiting_for(done)? {
+        if let Some(t) = c.ticket(id)? {
+            out(&format!("{} was waiting for {}, so it starts now.", c.key(id), c.key(done)));
+            start(c, &t)?;
+        }
+    }
+    Ok(())
 }
 
 /// What every employee should know before starting: the handbook, and who does what.
@@ -400,6 +447,11 @@ pub fn stop(c: &Company, t: &Ticket) -> Result<()> {
             c.add_event(t.id, "stop", "cancelled before it started", "")?;
             c.set_status(t.id, "failed")?;
             out(&format!("Cancelled {key} before it started. Run it later: onecorp retry {key}"));
+        }
+        "waiting" => {
+            c.set_status(t.id, "backlog")?;
+            c.add_event(t.id, "stop", "back to the backlog, it won't start by itself", "")?;
+            out(&format!("{key} is back in the backlog. Start it again: onecorp start {key}"));
         }
         s => bail!("{key} is {s}, so there's nothing to stop"),
     }

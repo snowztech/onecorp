@@ -3,7 +3,7 @@
 //! conflicts and merging all still work together.
 
 use onecorp::mcp;
-use onecorp::store::{Company, Employee};
+use onecorp::store::{Company, Employee, NewTicket};
 use onecorp::work::{self, Job};
 use std::path::Path;
 use serde_json::{Value, json};
@@ -93,6 +93,24 @@ fn a_ticket_goes_from_start_to_merged() {
     work::retry(&c, &c.ticket(r).unwrap().unwrap()).unwrap();
     assert_eq!(status(r), "review");
     assert!(work::retry(&c, &c.ticket(r).unwrap().unwrap()).is_err(), "only failed tickets can be retried");
+
+    // Tickets saved for later, chained: the second starts by itself once the first is merged.
+    let saved = |title: &str, who: &str, after: Option<i64>| {
+        let new = NewTicket { title: title.into(), description: format!("Details for {title}"), assignee: Some(who.into()), after, ..Default::default() };
+        c.new_ticket(&new, "backlog").unwrap()
+    };
+    let one = saved("plan step one", "maya", None);
+    let two = saved("plan step two", "tomas", Some(one));
+    assert_eq!((status(one), status(two)), ("backlog".to_string(), "backlog".to_string()));
+    work::start(&c, &c.ticket(two).unwrap().unwrap()).unwrap();
+    assert_eq!(status(two), "waiting", "it waits for step one");
+    work::start(&c, &c.ticket(one).unwrap().unwrap()).unwrap();
+    assert_eq!(status(one), "review");
+    onecorp::ship::approve(&c, &c.ticket(one).unwrap().unwrap()).unwrap();
+    assert_eq!(status(two), "review", "merging step one started step two");
+    let nobody = c.new_ticket(&NewTicket { title: "someday".into(), ..Default::default() }, "backlog").unwrap();
+    let err = work::start(&c, &c.ticket(nobody).unwrap().unwrap()).unwrap_err().to_string();
+    assert!(err.contains("nobody on it"), "{err}");
 
     // Questions go to the department lead before they reach the founder.
     hire(&c, "odile", "Odile Martin");
