@@ -1,0 +1,515 @@
+<title>OneCorp Headquarters</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Schibsted+Grotesk:wght@400;500;600&family=Martian+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one screen. Company rail | living org chart (the company) | your desk (inbox + live). Drawers and a command bar instead of pages. */
+:root {
+  --paper: #f3f4f0;       /* copy paper, a touch green-grey */
+  --card: #fdfdfb;
+  --sheet: #e8eae3;       /* the desk the org chart sits on */
+  --manila: #ecd9a6;      /* department folders */
+  --manila-ink: #6b5420;
+  --ink: #1b1f2a;
+  --ink-2: #5b6170;
+  --rule: #d5d8cf;
+  --stamp: #5a3fd0;       /* violet ink pad: approvals, the one bold colour */
+  --stamp-soft: #e8e2fb;
+  --work: #1d8a5a; --wait: #c27712; --wait-soft: #fbeed8; --idle: #9aa0aa;
+  --display: "Bricolage Grotesque", "Schibsted Grotesk", system-ui, sans-serif;
+  --body: "Schibsted Grotesk", system-ui, -apple-system, sans-serif;
+  --mono: "Martian Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #12151c; --card: #1a1e27; --sheet: #161a22; --manila: #3a3220; --manila-ink: #e6cf8e;
+  --ink: #e8e9ec; --ink-2: #9aa1ae; --rule: #2a2f3a; --stamp: #9b86ff; --stamp-soft: #2a2546;
+  --work: #4fd49a; --wait: #f2a94a; --wait-soft: #3a2c17; --idle: #6b7280; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --paper: #12151c; --card: #1a1e27; --sheet: #161a22; --manila: #3a3220; --manila-ink: #e6cf8e;
+  --ink: #e8e9ec; --ink-2: #9aa1ae; --rule: #2a2f3a; --stamp: #9b86ff; --stamp-soft: #2a2546;
+  --work: #4fd49a; --wait: #f2a94a; --wait-soft: #3a2c17; --idle: #6b7280; color-scheme: dark; }
+
+html, body { height: 100%; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 14px; line-height: 1.45;
+  padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-size: 11px; letter-spacing: .02em; }
+
+.hq { height: 100%; display: grid; grid-template-columns: 64px minmax(0, 1fr) 360px; }
+
+/* Company rail */
+.rail { background: var(--ink); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0; }
+.co { width: 40px; height: 40px; border-radius: 12px; border: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 800; font-size: 16px;
+  color: var(--paper); background: color-mix(in srgb, var(--paper) 14%, transparent); position: relative; transition: border-radius .2s; }
+.co:hover { border-radius: 16px; }
+.co[aria-current="true"] { background: var(--paper); color: var(--ink); }
+.co[aria-current="true"]::before { content: ""; position: absolute; left: -12px; width: 4px; height: 24px; border-radius: 0 4px 4px 0; background: var(--paper); }
+.co .dot { position: absolute; right: -3px; top: -3px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--wait); color: #fff; font: 600 10px/16px var(--body); padding: 0 4px; }
+.co.add { background: transparent; border: 1.5px dashed color-mix(in srgb, var(--paper) 35%, transparent); color: color-mix(in srgb, var(--paper) 60%, transparent); font-weight: 500; }
+.rail .me { margin-top: auto; width: 34px; height: 34px; border-radius: 50%; background: var(--stamp); color: #fff; display: grid; place-items: center; font-weight: 600; }
+
+/* Main */
+.main { display: grid; grid-template-rows: auto 1fr; min-width: 0; min-height: 0; }
+.top { display: flex; align-items: center; gap: 18px; padding: 14px 24px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.top h1 { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: -.02em; margin: 0; }
+.top .mission { color: var(--ink-2); font-size: 13px; }
+.grow { flex: 1; }
+.payroll { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+.payroll .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.payroll .row b { color: var(--ink); font-weight: 600; }
+.meter { height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--ink); border-radius: 3px; transition: width .5s; }
+.k { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule); background: var(--card); border-radius: 10px; padding: 7px 10px 7px 12px; color: var(--ink-2); min-width: 220px; }
+.k kbd { margin-left: auto; font: 600 11px var(--mono); border: 1px solid var(--rule); border-radius: 5px; padding: 1px 5px; color: var(--ink-2); }
+.k:hover { border-color: var(--ink-2); }
+
+.canvas { overflow: auto; min-height: 0; background-color: var(--sheet);
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1.4px); background-size: 18px 18px; }
+.org { padding: 28px 24px 60px; min-width: max-content; }
+.org ul { list-style: none; margin: 0; padding: 26px 0 0; display: flex; justify-content: center; position: relative; }
+.org > ul { padding-top: 0; }
+.org li { position: relative; padding: 26px 12px 0; display: flex; flex-direction: column; align-items: center; }
+.org > ul > li { padding-top: 0; }
+.org li::before, .org li::after { content: ""; position: absolute; top: 0; width: 50%; height: 26px; border-top: 1.5px solid var(--ink-2); }
+.org li::before { right: 50%; } .org li::after { left: 50%; border-left: 1.5px solid var(--ink-2); }
+.org li:first-child::before, .org li:last-child::after { border-top: 0; }
+.org li:only-child::before { display: none; }
+.org > ul > li::before, .org > ul > li::after { display: none; }
+.org ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 26px; border-left: 1.5px solid var(--ink-2); }
+
+.founder { display: flex; align-items: center; gap: 12px; background: var(--ink); color: var(--paper); border-radius: 16px; padding: 12px 18px 12px 12px; }
+.founder .pic { width: 44px; height: 44px; border-radius: 50%; background: var(--stamp); display: grid; place-items: center; font: 700 18px var(--display); color: #fff; }
+.founder b { font-family: var(--display); font-size: 17px; display: block; }
+.founder span { font-size: 12px; opacity: .7; }
+
+/* Department folders */
+.dept { background: var(--manila); border-radius: 4px 14px 14px 14px; padding: 16px 16px 16px; position: relative; margin-top: 18px; }
+.dept::before { content: attr(data-tab); position: absolute; top: -22px; left: 0; height: 24px; padding: 4px 14px 0 12px; border-radius: 10px 10px 0 0; background: var(--manila);
+  font: 600 10px/1.7 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--manila-ink); }
+.dept .lead { font-size: 12px; color: var(--manila-ink); margin: 0 0 10px; display: flex; gap: 6px; align-items: center; }
+.badges { display: flex; gap: 12px; align-items: flex-start; }
+.newteam { border: 1.5px dashed var(--ink-2); background: transparent; color: var(--ink-2); border-radius: 14px; padding: 14px 18px; margin-top: 18px; font-weight: 500; }
+.newteam:hover { color: var(--ink); border-color: var(--ink); }
+.newteam-form { display: flex; gap: 6px; margin-top: 18px; }
+.newteam-form input { border: 1px solid var(--rule); background: var(--card); border-radius: 10px; padding: 8px 10px; width: 150px; }
+
+/* ID badges */
+.badge { width: 156px; background: var(--card); border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent); border-radius: 12px; padding: 18px 12px 0; text-align: center;
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent), 0 8px 20px -14px color-mix(in srgb, var(--ink) 50%, transparent);
+  transition: transform .18s; overflow: visible; }
+.badge:hover { transform: translateY(-2px) rotate(-.4deg); }
+.badge::before { content: ""; position: absolute; top: 7px; left: 50%; width: 30px; height: 5px; margin-left: -15px; border-radius: 3px; background: var(--sheet); box-shadow: inset 0 1px 1px color-mix(in srgb, var(--ink) 25%, transparent); }
+.badge .face { width: 64px; height: 64px; border-radius: 10px; overflow: hidden; margin: 6px 0 6px; }
+.badge .face svg { display: block; width: 100%; height: 100%; }
+.badge b { font-family: var(--display); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.badge .role { font-size: 12px; color: var(--ink-2); }
+.badge .id { margin-top: 4px; color: var(--ink-2); }
+.badge .now { width: calc(100% + 24px); margin-top: 10px; padding: 7px 10px 8px; font-size: 12px; text-align: left; border-top: 1px dashed var(--rule); min-height: 46px; }
+.badge .now .t { font-family: var(--mono); font-size: 10px; color: var(--ink-2); display: flex; justify-content: space-between; }
+.badge .now p { margin: 2px 0 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.badge .strip { width: calc(100% + 24px); height: 6px; border-radius: 0 0 11px 11px; background: var(--idle); }
+.badge.working .strip { background: var(--work); }
+.badge.blocked .strip { background: var(--wait); }
+.badge.blocked { border-color: var(--wait); }
+.badge .st { position: absolute; top: 12px; right: 12px; width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+.badge.working .st { background: var(--work); box-shadow: 0 0 0 0 var(--work); animation: ping 2s infinite; }
+.badge.blocked .st { background: var(--wait); }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--work) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
+.bubble { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translate(-50%, 4px); background: var(--ink); color: var(--paper); font-size: 12px; padding: 5px 10px;
+  border-radius: 10px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 3; }
+.bubble::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--ink); }
+.bubble.show { opacity: 1; transform: translate(-50%, 0); }
+.badge.hire { border-style: dashed; background: transparent; box-shadow: none; color: var(--manila-ink); justify-content: center; min-height: 196px; border-color: var(--manila-ink); }
+.badge.hire::before { display: none; }
+.badge.hire b { font-size: 14px; }
+.zz { position: absolute; top: 18px; right: 34px; font: 800 13px var(--display); color: var(--ink-2); animation: zz 2.6s ease-in-out infinite; }
+@keyframes zz { 0% { opacity: 0; transform: translateY(4px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translateY(-8px); } }
+
+/* Your desk */
+.desk { border-left: 1px solid var(--rule); background: var(--paper); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
+.desk h2 { margin: 0; padding: 16px 18px 10px; font: 700 13px var(--display); letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+.desk h2 .n { background: var(--wait); color: #fff; border-radius: 9px; font: 600 11px/18px var(--body); padding: 0 7px; }
+.desk h2 small { margin-left: auto; font: 400 12px var(--body); color: var(--ink-2); }
+.pile { overflow: auto; padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.memo { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 12px 14px; position: relative; overflow: hidden; transition: opacity .35s, transform .35s, max-height .4s; max-height: 400px; }
+.memo.gone { opacity: 0; transform: translateX(30px); max-height: 0; padding-block: 0; margin: 0; border-width: 0; }
+.memo .from { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
+.memo .from .mini { width: 22px; height: 22px; border-radius: 6px; overflow: hidden; flex: none; }
+.memo .from .mini svg { display: block; width: 100%; height: 100%; }
+.memo .from b { color: var(--ink); font-weight: 600; }
+.memo .kind { margin-left: auto; font: 600 9px var(--mono); letter-spacing: .12em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: var(--sheet); color: var(--ink-2); }
+.memo.blocking .kind { background: var(--wait-soft); color: var(--wait); }
+.memo.review .kind { background: var(--stamp-soft); color: var(--stamp); }
+.memo h3 { margin: 8px 0 4px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.memo p { margin: 0 0 10px; color: var(--ink-2); font-size: 13px; }
+.memo .via { font-size: 11px; color: var(--ink-2); margin: -4px 0 8px; }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--rule); background: var(--card); padding: 6px 11px; border-radius: 8px; font-weight: 500; font-size: 13px; }
+.btn:hover { border-color: var(--ink-2); }
+.btn.ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn.stamp { background: var(--stamp); color: #fff; border-color: var(--stamp); }
+.reply { display: flex; gap: 6px; margin-top: 8px; }
+.reply input { flex: 1; min-width: 0; border: 1px solid var(--rule); background: var(--paper); border-radius: 8px; padding: 6px 9px; font-size: 13px; }
+.stampmark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-9deg) scale(1); border: 3px solid var(--stamp); color: var(--stamp); border-radius: 8px;
+  padding: 4px 12px; font: 600 18px var(--mono); letter-spacing: .14em; background: color-mix(in srgb, var(--card) 70%, transparent); animation: thump .35s cubic-bezier(.2, 1.4, .4, 1); pointer-events: none; }
+@keyframes thump { from { transform: translate(-50%, -50%) rotate(-14deg) scale(2.2); opacity: 0; } to { transform: translate(-50%, -50%) rotate(-9deg) scale(1); opacity: 1; } }
+.zero { text-align: center; color: var(--ink-2); padding: 30px 10px; }
+.zero b { display: block; font-family: var(--display); font-size: 18px; color: var(--ink); margin-bottom: 4px; }
+.live { border-top: 1px solid var(--rule); max-height: 38%; display: flex; flex-direction: column; min-height: 0; }
+.live h2 { padding-bottom: 6px; }
+.live ul { list-style: none; margin: 0; padding: 0 18px 14px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.live li { font-size: 12px; color: var(--ink-2); display: grid; grid-template-columns: 44px 1fr; gap: 6px; }
+.live li time { font: 400 10px/1.8 var(--mono); }
+.live li b { color: var(--ink); font-weight: 600; }
+.live li.new { animation: fresh .6s ease-out; }
+@keyframes fresh { from { background: var(--stamp-soft); } to { background: transparent; } }
+
+/* Drawer */
+.scrim { position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 30%, transparent); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 20; }
+.scrim.open { opacity: 1; pointer-events: auto; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--paper); border-left: 1px solid var(--rule); z-index: 21; transform: translateX(102%);
+  transition: transform .25s cubic-bezier(.2, .8, .2, 1); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.drawer.open { transform: none; }
+.dh { display: flex; gap: 14px; align-items: center; padding: 18px 20px; border-bottom: 1px solid var(--rule); }
+.dh .face { width: 56px; height: 56px; border-radius: 12px; overflow: hidden; }
+.dh .face svg { display: block; width: 100%; height: 100%; }
+.dh h2 { margin: 0; font: 800 22px var(--display); letter-spacing: -.02em; }
+.dh p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.x { margin-left: auto; border: 0; background: transparent; font-size: 22px; color: var(--ink-2); width: 36px; height: 36px; border-radius: 8px; }
+.x:hover { background: var(--sheet); }
+.tabs { display: flex; gap: 4px; padding: 10px 20px 0; border-bottom: 1px solid var(--rule); }
+.tabs button { border: 0; background: transparent; padding: 8px 10px; border-bottom: 2px solid transparent; color: var(--ink-2); font-weight: 500; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.db { overflow: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+.db h4 { margin: 0 0 6px; font: 600 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+.term { background: #0f1218; color: #c8cfda; border-radius: 10px; padding: 12px; font: 400 11.5px/1.7 var(--mono); height: 210px; overflow: auto; }
+.term .c { color: #8fb0ff; } .term .ok { color: #6fd39f; } .term .d { color: #7c8596; }
+.notes { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.notes li { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.notes li time { display: block; font: 400 10px var(--mono); color: var(--ink-2); }
+.facts { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 13px; margin: 0; }
+.facts dt { color: var(--ink-2); } .facts dd { margin: 0; }
+.traits { display: grid; gap: 8px; }
+.trait { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 10px; font-size: 13px; }
+.trait .meter i { background: var(--stamp); }
+.candidates { display: grid; gap: 10px; }
+.cand { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 10px; }
+.cand .face { width: 48px; height: 48px; border-radius: 10px; overflow: hidden; }
+.cand .face svg { display: block; width: 100%; height: 100%; }
+.cand b { font-family: var(--display); } .cand small { display: block; color: var(--ink-2); font-size: 12px; }
+
+/* Command bar */
+.cmd { position: fixed; inset: 0; z-index: 30; display: grid; place-items: start center; padding: 12vh 16px 16px; background: color-mix(in srgb, var(--ink) 35%, transparent); }
+.cmdbox { width: min(560px, 100%); background: var(--card); border-radius: 14px; border: 1px solid var(--rule); box-shadow: 0 30px 60px -20px color-mix(in srgb, var(--ink) 60%, transparent); overflow: hidden; }
+.cmdbox input { width: 100%; border: 0; border-bottom: 1px solid var(--rule); padding: 16px 18px; font-size: 16px; background: transparent; outline: none; }
+.cmdbox ul { list-style: none; margin: 0; padding: 6px; max-height: 320px; overflow: auto; }
+.cmdbox li button { width: 100%; text-align: left; border: 0; background: transparent; padding: 9px 12px; border-radius: 8px; display: flex; gap: 10px; align-items: center; }
+.cmdbox li button[aria-selected="true"] { background: var(--sheet); }
+.cmdbox li small { margin-left: auto; color: var(--ink-2); font: 400 11px var(--mono); }
+.hint { padding: 8px 14px; font-size: 12px; color: var(--ink-2); border-top: 1px solid var(--rule); }
+
+.toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 16px); background: var(--ink); color: var(--paper); padding: 9px 14px; border-radius: 10px;
+  font-size: 13px; opacity: 0; transition: all .2s; pointer-events: none; z-index: 40; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 1100px) { .hq { grid-template-columns: 64px minmax(0, 1fr) 320px; } }
+@media (max-width: 860px) {
+  .hq { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(420px, 1fr) auto; height: auto; min-height: 100%; }
+  .rail { flex-direction: row; padding: 10px 16px; justify-content: flex-start; }
+  .rail .me { margin: 0 0 0 auto; }
+  .co[aria-current="true"]::before { display: none; }
+  .main { grid-row: 2 / 4; }
+  .top { padding-inline: 16px; }
+  .k { min-width: 0; flex: 1; }
+  .desk { border-left: 0; border-top: 1px solid var(--rule); }
+  .live { max-height: none; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="hq">
+  <nav class="rail" id="rail" aria-label="Companies"></nav>
+  <section class="main">
+    <header class="top">
+      <div><h1 id="coname">snowztech</h1><div class="mission" id="mission">Open source tools for building AI agents</div></div>
+      <div class="grow"></div>
+      <div class="payroll"><div class="row"><span>Payroll today</span><span><b id="spent">$3.24</b> of $15.00</span></div><div class="meter"><i id="meter" style="width:22%"></i></div></div>
+      <button class="k" id="kbtn"><span>New ticket, hire, find…</span><kbd>⌘K</kbd></button>
+    </header>
+    <div class="canvas"><div class="org" id="org"></div></div>
+  </section>
+  <aside class="desk" aria-label="Your desk">
+    <h2>Needs you <span class="n" id="count">3</span><small>Answer in one click</small></h2>
+    <div class="pile" id="pile"></div>
+    <div class="live"><h2>Live</h2><ul id="feed"></ul></div>
+  </aside>
+</div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+<div class="cmd" id="cmd" hidden><div class="cmdbox"><input id="cmdin" placeholder="Type a task, or a command" autocomplete="off"><ul id="cmdlist"></ul><div class="hint">Type what needs doing and press Enter to give it to someone. Esc to close.</div></div></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const now = () => new Date().toTimeString().slice(0, 5);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 2400); }
+
+// Faces come from a seed, so every hire gets a stable one. Mood follows status.
+const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+const SKIN = ["#f3d5bd", "#e6b590", "#c88e64", "#9a6542", "#6b442b"], HAIR = ["#1e1916", "#4b301e", "#8b5b2c", "#d0a660", "#b4442f", "#70747d"];
+function face(p) {
+  const h = hash(p.name), L = Object.assign({ skin: h % 5, hair: (h >> 3) % 6, style: (h >> 6) % 5, acc: (h >> 9) % 4 }, p.look || {});
+  const mood = p.mood > Date.now() ? "happy" : ({ working: "working", blocked: "blocked", idle: "sleep" }[p.status] || "neutral");
+  const sk = SKIN[L.skin], hr = HAIR[L.hair], ink = "#2a211c", hue = p.hue ?? h % 360;
+  const cap = '<path d="M19 30q0-17 13-17t13 17q-3-9-13-9t-13 9z"/>';
+  const back = L.style === 1 ? '<rect x="18" y="20" width="28" height="27" rx="9"/>' : "";
+  const front = [cap, cap, '<circle cx="32" cy="12" r="5"/>' + cap, [[20, 22], [25, 17], [32, 15], [39, 17], [44, 22]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5.5"/>`).join(""), '<path d="M20 25q12-12 24 0q-12-5-24 0z"/>'][L.style];
+  const eo = '<circle cx="27" cy="31" r="1.7"/><circle cx="37" cy="31" r="1.7"/>';
+  const E = { happy: '<path d="M24.5 31q2.5-3 5 0M34.5 31q2.5-3 5 0" stroke-width="1.8" fill="none"/>', sleep: '<path d="M24.5 30.5h5M34.5 30.5h5" stroke-width="1.8"/>', blocked: eo + '<path d="M24 26l5-2M40 26l-5-2" stroke-width="1.6"/>', working: eo, neutral: eo };
+  const M = { happy: '<path d="M27 36q5 6 10 0z" fill="#fff" stroke-width="1.5"/>', sleep: '<path d="M30 37.5h4" stroke-width="1.6"/>', blocked: '<path d="M28 39q4-3.5 8 0" fill="none" stroke-width="1.6"/>', working: '<path d="M29 37.5h6" stroke-width="1.6"/>', neutral: '<path d="M28 36.5q4 3 8 0" fill="none" stroke-width="1.6"/>' };
+  const A = ["", `<g fill="none" stroke="${ink}" stroke-width="1.5"><circle cx="27" cy="30.5" r="4.2"/><circle cx="37" cy="30.5" r="4.2"/><path d="M31.2 30.5h1.6"/></g>`,
+    '<path d="M18 31a14 14 0 0 1 28 0" fill="none" stroke="#2f3440" stroke-width="3"/><rect x="15" y="27" width="5" height="10" rx="2" fill="#2f3440"/><rect x="44" y="27" width="5" height="10" rx="2" fill="#2f3440"/>',
+    `<path d="M18.5 27q0-15 13.5-15t13.5 15z" fill="hsl(${(hue + 180) % 360} 45% 45%)"/><rect x="18" y="24" width="28" height="5" rx="2.5" fill="hsl(${(hue + 180) % 360} 45% 34%)"/>`][L.acc];
+  const blush = mood === "happy" ? '<circle cx="22.5" cy="35" r="2.6" fill="#f08a8a" opacity=".55"/><circle cx="41.5" cy="35" r="2.6" fill="#f08a8a" opacity=".55"/>' : "";
+  return `<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" fill="hsl(${hue} 45% 84%)"/><g fill="${hr}">${back}</g><path d="M11 64q2-17 21-17t21 17z" fill="hsl(${hue} 50% 44%)"/><rect x="28.5" y="40" width="7" height="9" rx="2" fill="${sk}"/><circle cx="32" cy="30" r="13" fill="${sk}"/><g fill="${hr}">${front}</g>${blush}<g fill="${ink}" stroke="${ink}" stroke-linecap="round">${E[mood]}${M[mood]}</g>${A}</svg>`;
+}
+
+const RT = { claude: "Claude Code", codex: "Codex", pi: "Pi" };
+const S = {
+  co: "snowztech", spent: 3.24, cap: 15, drawer: null, addingTeam: false,
+  companies: [
+    { id: "snowztech", letter: "S", waiting: 3 }, { id: "tvcask", letter: "T", waiting: 1 }, { id: "autoremind", letter: "A", waiting: 0 }, { id: "pingbuddy", letter: "P", waiting: 0 },
+  ],
+  teams: [
+    { id: "eng", name: "Engineering", lead: "odile", members: ["odile", "maya", "tomas"] },
+    { id: "product", name: "Product", lead: "rui", members: ["rui", "lina"] },
+    { id: "growth", name: "Growth", lead: "sam", members: ["sam"] },
+  ],
+  people: {
+    odile: { id: "odile", n: 1, name: "Odile Martin", role: "CTO", rt: "claude", model: "opus", status: "working", hue: 262, look: { style: 1, acc: 1 }, ticket: "SNO-11", now: "Reviewing Maya's magic links diff",
+      notes: ["Founder wants a security pass on anything touching auth", "No new crates without asking"], traits: { Chatty: .2, Bold: .5, Picky: 1 }, quirk: "Says no to new dependencies on reflex." },
+    maya: { id: "maya", n: 2, name: "Maya Okafor", role: "Senior engineer", rt: "codex", model: "gpt-5-codex", status: "blocked", hue: 338, look: { style: 3, acc: 1 }, ticket: "SNO-12", now: "Waiting on you: link expiry",
+      notes: ["Founder prefers argument parsing in its own function", "Auth code lives in src/auth, tests next to it"], traits: { Chatty: .3, Bold: .6, Picky: .9 }, quirk: "Won't merge without a test." },
+    tomas: { id: "tomas", n: 3, name: "Tomás Reis", role: "Engineer", rt: "codex", model: "default", status: "working", hue: 26, look: { style: 0, acc: 2 }, ticket: "SNO-15", now: "cargo test billing",
+      notes: ["Stripe retries for 3 days, make handlers idempotent instead of queueing"], traits: { Chatty: .6, Bold: .9, Picky: .3 }, quirk: "Wants to refactor everything." },
+    rui: { id: "rui", n: 4, name: "Rui Alves", role: "Product lead", rt: "claude", model: "sonnet", status: "working", hue: 205, look: { style: 0, acc: 0 }, ticket: "SNO-16", now: "Splitting export into two tickets",
+      notes: ["Every ticket should be shippable in a day"], traits: { Chatty: .7, Bold: .4, Picky: .5 }, quirk: "Ends every plan with a one-line TL;DR." },
+    lina: { id: "lina", n: 5, name: "Lina Park", role: "Product designer", rt: "claude", model: "sonnet", status: "working", hue: 160, look: { style: 2, acc: 0 }, ticket: "SNO-14", now: "Empty state for the notes list",
+      notes: ["No modals, ever", "Copy under 12 words"], traits: { Chatty: .4, Bold: .7, Picky: .8 }, quirk: "Deletes words from every screen she touches." },
+    sam: { id: "sam", n: 6, name: "Sam Duarte", role: "Growth", rt: "claude", model: "haiku", status: "idle", hue: 96, look: { style: 4, acc: 3 }, ticket: null, now: "",
+      notes: [], traits: { Chatty: .9, Bold: .6, Picky: .2 }, quirk: "Drafts three headlines, ships the shortest." },
+  },
+  desk: [
+    { id: 1, kind: "review", who: "odile", key: "SNO-11", title: "Pricing page is ready to merge", text: "Reviewed by Odile. 6 files, +212 −18. Ships to the public site.", via: null },
+    { id: 2, kind: "blocking", who: "maya", key: "SNO-12", title: "Magic links: 15 or 60 minute expiry?", text: "15 is safer. 60 is friendlier on mobile mail apps.", options: ["15 minutes", "60 minutes"], via: "Odile couldn't decide, so it came to you" },
+    { id: 3, kind: "handbook", who: "lina", key: "SNO-14", title: "Add to Conventions: empty states are one sentence and one button", text: "Lina proposes this for everyone's next ticket.", via: null },
+  ],
+  feed: [
+    { at: "11:02", who: "odile", text: "asked you to approve SNO-11" },
+    { at: "10:58", who: "maya", text: "is blocked on SNO-12 until you answer" },
+    { at: "10:52", who: "tomas", text: "ran cargo test billing, 12 passed" },
+    { at: "10:47", who: "lina", text: "proposed a handbook convention" },
+    { at: "10:31", who: "rui", text: "created SNO-16 and gave it to Tomás" },
+  ],
+  term: { tomas: [["c", "$ git worktree add wt/sno-15"], ["d", "› get_ticket SNO-15"], ["d", "› reading src/billing/webhook.rs"], ["d", "› editing src/billing/webhook.rs (+31 −9)"], ["c", "$ cargo test billing"]] },
+};
+const P = id => S.people[id];
+const first = n => n.split(" ")[0];
+
+function renderRail() {
+  $("#rail").innerHTML = S.companies.map(c => `<button class="co" data-co="${c.id}" aria-current="${c.id === S.co}" title="${c.id}">${c.letter}${c.waiting && c.id !== S.co ? `<span class="dot">${c.waiting}</span>` : ""}</button>`).join("")
+    + `<button class="co add" data-newco="1" title="New company">+</button><div class="me" title="Lucas, founder">L</div>`;
+}
+function badge(p) {
+  const bubble = p.status === "blocked" ? "Need you on " + p.ticket : (p.bubble || "");
+  return `<button class="badge ${p.status}" data-person="${p.id}" id="b-${p.id}">
+    <span class="bubble ${bubble ? "show" : ""}">${esc(bubble)}</span><i class="st"></i>${p.status === "idle" ? '<span class="zz">z</span>' : ""}
+    <span class="face">${face(p)}</span><b>${esc(first(p.name))}</b><span class="role">${esc(p.role)}</span>
+    <span class="id mono">${RT[p.rt]} · ${esc(p.model)}</span>
+    <span class="now"><span class="t"><span>${p.ticket || "No ticket"}</span><span>${p.status === "working" ? "working" : p.status === "blocked" ? "waiting on you" : "free"}</span></span><p>${esc(p.now || "Free for a ticket. Press ⌘K to give them one.")}</p></span>
+    <span class="strip"></span></button>`;
+}
+function renderOrg() {
+  const teams = S.teams.map(t => `<li><div class="dept" data-tab="${esc(t.name)}">
+      <p class="lead">Lead: <b>${esc(first(P(t.lead).name))}</b> · questions stop here first</p>
+      <div class="badges">${t.members.map(id => badge(P(id))).join("")}<button class="badge hire" data-hire="${t.id}"><b>+ Hire</b><span class="role">into ${esc(t.name)}</span></button></div></div></li>`).join("");
+  const add = S.addingTeam
+    ? `<li><form class="newteam-form" id="teamform"><input id="teamname" placeholder="Team name" aria-label="Team name"><button class="btn ink">Add</button></form></li>`
+    : `<li><button class="newteam" data-addteam="1">+ New team</button></li>`;
+  $("#org").innerHTML = `<ul><li><div class="founder"><span class="pic">L</span><div><b>Lucas</b><span>Founder · approves what ships</span></div></div><ul>${teams}${add}</ul></li></ul>`;
+}
+function memo(d) {
+  const p = P(d.who), kinds = { review: "Review", blocking: "Blocking", handbook: "Handbook", question: "Question" };
+  let acts = "";
+  if (d.kind === "review") acts = `<div class="acts"><button class="btn stamp" data-approve="${d.id}">Approve and merge</button><button class="btn" data-open="${d.key}">See the diff</button></div><div class="reply"><input id="r-${d.id}" placeholder="Or ask for changes…"><button class="btn" data-changes="${d.id}">Send back</button></div>`;
+  if (d.kind === "blocking") acts = `<div class="acts">${d.options.map(o => `<button class="btn ink" data-answer="${d.id}" data-val="${esc(o)}">${esc(o)}</button>`).join("")}</div><div class="reply"><input id="r-${d.id}" placeholder="Or write your own answer…"><button class="btn" data-answer="${d.id}">Send</button></div>`;
+  if (d.kind === "handbook") acts = `<div class="acts"><button class="btn stamp" data-file="${d.id}">Add to handbook</button><button class="btn" data-drop="${d.id}">Not for everyone</button></div>`;
+  return `<article class="memo ${d.kind}" id="m-${d.id}"><div class="from"><span class="mini">${face(p)}</span><b>${esc(first(p.name))}</b> · ${d.key}<span class="kind">${kinds[d.kind]}</span></div>
+    <h3>${esc(d.title)}</h3>${d.via ? `<div class="via">${esc(d.via)}</div>` : ""}<p>${esc(d.text)}</p>${acts}</article>`;
+}
+function renderDesk() {
+  $("#count").textContent = S.desk.length;
+  $("#count").hidden = !S.desk.length;
+  $("#pile").innerHTML = S.desk.length ? S.desk.map(memo).join("") : `<div class="zero"><b>Desk is clear</b>Your team will put things here when they need a decision.</div>`;
+  S.companies.find(c => c.id === S.co).waiting = S.desk.length;
+  renderRail();
+}
+function renderFeed(fresh) {
+  $("#feed").innerHTML = S.feed.slice(0, 30).map((f, i) => `<li class="${fresh && i === 0 ? "new" : ""}"><time>${f.at}</time><span><b>${esc(first(P(f.who).name))}</b> ${esc(f.text)}</span></li>`).join("");
+}
+function pushFeed(who, text) { S.feed.unshift({ at: now(), who, text }); renderFeed(true); }
+function render() { renderRail(); renderOrg(); renderDesk(); renderFeed(); renderDrawer(); }
+
+function resolve(id, mark, after) {
+  const el = $("#m-" + id);
+  if (!el) return;
+  el.insertAdjacentHTML("beforeend", `<span class="stampmark">${mark}</span>`);
+  setTimeout(() => el.classList.add("gone"), 650);
+  setTimeout(() => { S.desk = S.desk.filter(d => d.id !== id); renderDesk(); after && after(); }, 1000);
+}
+function cheer(id) { const p = P(id); p.mood = Date.now() + 4000; renderOrg(); setTimeout(renderOrg, 4100); }
+
+// Drawer: one place for a person, a ticket, or hiring.
+function renderDrawer() {
+  const d = $("#drawer"), open = !!S.drawer;
+  d.classList.toggle("open", open); $("#scrim").classList.toggle("open", open); d.setAttribute("aria-hidden", String(!open));
+  if (!open) return;
+  if (S.drawer.type === "person") {
+    const p = P(S.drawer.id), tab = S.drawer.tab || "now";
+    const lines = (S.term[p.id] || [["d", p.ticket ? "› working on " + p.ticket : "› free, waiting for a ticket"]]).map(([k, l]) => `<div class="${k}">${esc(l)}</div>`).join("");
+    const body = tab === "now"
+      ? `<div><h4>${p.ticket ? p.ticket + " · " + esc(p.now) : "No ticket"}</h4><div class="term" id="term">${lines}</div></div>
+         <dl class="facts"><dt>Works on</dt><dd>${RT[p.rt]} · ${esc(p.model)}</dd><dt>Team</dt><dd>${esc(S.teams.find(t => t.members.includes(p.id))?.name || "None")}</dd><dt>Can run</dt><dd>${p.rt === "codex" ? "Builds and tests, no network" : "Edits and read-only git"}</dd><dt>Pushes code</dt><dd>Only when you approve</dd></dl>`
+      : tab === "memory"
+      ? `<div><h4>What ${esc(first(p.name))} has learned</h4>${p.notes.length ? `<ul class="notes">${p.notes.map(n => `<li><time>2026-11-09</time>${esc(n)}</li>`).join("")}</ul>` : `<p class="zero">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>`
+      : `<div><h4>Personality</h4><div class="traits">${Object.entries(p.traits).map(([k, v]) => `<div class="trait"><span>${k}</span><div class="meter"><i style="width:${v * 100}%"></i></div></div>`).join("")}</div><p>${esc(p.quirk)}</p><p style="color:var(--ink-2);font-size:12px">Personality shapes how they talk to you, never the code.</p></div>`;
+    d.innerHTML = `<div class="dh"><span class="face">${face(p)}</span><div><h2>${esc(p.name)}</h2><p>${esc(p.role)}</p></div><button class="x" data-close="1" aria-label="Close">×</button></div>
+      <div class="tabs" role="tablist">${["now", "memory", "personality"].map(t => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div>
+      <div class="db">${body}</div>`;
+    const term = $("#term"); if (term) term.scrollTop = term.scrollHeight;
+  } else if (S.drawer.type === "hire") {
+    const t = S.teams.find(x => x.id === S.drawer.team);
+    const cands = [["Noor Haddad", 15, "Junior · cheap", "claude", "haiku", "Does exactly what the ticket says."], ["Jonas Berg", 220, "Senior", "claude", "sonnet", "Pushes back on vague tickets, ships small PRs."], ["Inês Costa", 300, "Staff · pricier", "codex", "default", "Plans first, fewer mistakes, runs the tests."]];
+    d.innerHTML = `<div class="dh"><div><h2>Hire into ${esc(t.name)}</h2><p>Three candidates. Each gets a face, a badge and a desk.</p></div><button class="x" data-close="1" aria-label="Close">×</button></div>
+      <div class="db"><div class="candidates">${cands.map(([n, hue, tier, rt, model, line], i) => `<div class="cand"><span class="face">${face({ name: n, hue })}</span><div><b>${n}</b><small>${tier} · ${RT[rt]} · ${model}</small><small>${line}</small></div><button class="btn ink" data-pickhire="${i}">Hire</button></div>`).join("")}</div>
+      <p style="color:var(--ink-2);font-size:12px">Or describe the role in ⌘K: “a writer who keeps the docs short”.</p></div>`;
+    d.dataset.cands = JSON.stringify(cands);
+  } else {
+    d.innerHTML = `<div class="dh"><div><h2>${S.drawer.key}</h2><p>Pricing page</p></div><button class="x" data-close="1" aria-label="Close">×</button></div>
+      <div class="db"><div><h4>Changes</h4><div class="term"><div class="d">web/src/pages/pricing.tsx</div><div class="ok">+  &lt;Plan name="Free" price={0} /&gt;</div><div class="ok">+  &lt;Plan name="Pro" price={6} /&gt;</div><div class="d">web/src/components/Plan.tsx  +48 −0</div><div class="d">4 more files</div></div></div>
+      <div><h4>Thread</h4><ul class="notes"><li><time>10:16 · Odile</time>Hash the token at rest. sha2 is already in Cargo.lock.</li><li><time>11:02 · Odile</time>Approved on my side. Needs Lucas since it ships to the public site.</li></ul></div></div>`;
+  }
+}
+
+// Command bar
+const CMDS = () => [
+  ...S.companies.filter(c => c.id !== S.co).map(c => ({ label: "Switch to " + c.id, hint: "company", run: () => switchCo(c.id) })),
+  ...S.teams.map(t => ({ label: "Hire into " + t.name, hint: "hire", run: () => openDrawer({ type: "hire", team: t.id }) })),
+  { label: "New team", hint: "org", run: () => { S.addingTeam = true; renderOrg(); $("#teamname")?.focus(); } },
+  ...Object.values(S.people).map(p => ({ label: "Open " + p.name, hint: p.role, run: () => openDrawer({ type: "person", id: p.id }) })),
+];
+let sel = 0, items = [];
+function openCmd() { $("#cmd").hidden = false; $("#cmdin").value = ""; fillCmd(); $("#cmdin").focus(); }
+function closeCmd() { $("#cmd").hidden = true; }
+function fillCmd() {
+  const q = $("#cmdin").value.trim(), ql = q.toLowerCase();
+  items = CMDS().filter(c => c.label.toLowerCase().includes(ql));
+  if (q && !items.length || q.split(" ").length > 2) {
+    const free = Object.values(S.people).filter(p => p.status === "idle").concat(Object.values(S.people).filter(p => p.status !== "idle"));
+    items = free.slice(0, 3).map(p => ({ label: `Give “${q}” to ${first(p.name)}`, hint: p.status === "idle" ? "free now" : "after current ticket", run: () => giveTicket(p.id, q) })).concat(items);
+  }
+  sel = 0; drawCmd();
+}
+function drawCmd() { $("#cmdlist").innerHTML = items.slice(0, 8).map((c, i) => `<li><button data-cmd="${i}" aria-selected="${i === sel}">${esc(c.label)}<small>${esc(c.hint)}</small></button></li>`).join(""); }
+function giveTicket(id, task) {
+  const p = P(id), key = "SNO-" + (17 + Math.floor(Math.random() * 20));
+  if (p.status === "idle") { Object.assign(p, { status: "working", ticket: key, now: task, bubble: "On it" }); cheer(id); }
+  pushFeed(id, `picked up ${key}: ${task}`); toast(`${key} goes to ${first(p.name)}`); renderOrg();
+}
+
+function openDrawer(d) { S.drawer = d; renderDrawer(); }
+function switchCo(id) { S.co = id; $("#coname").textContent = id; $("#mission").textContent = id === "snowztech" ? "Open source tools for building AI agents" : "Sample data shows snowztech's team"; renderRail(); toast("Switched to " + id); }
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-co],[data-newco],[data-person],[data-hire],[data-addteam],[data-approve],[data-answer],[data-changes],[data-file],[data-drop],[data-open],[data-close],[data-tab],[data-pickhire],[data-cmd]");
+  if (e.target.id === "scrim") { S.drawer = null; renderDrawer(); return; }
+  if (e.target.id === "cmd") { closeCmd(); return; }
+  if (e.target.closest("#kbtn")) { openCmd(); return; }
+  if (!el) return;
+  const d = el.dataset;
+  if (d.co) switchCo(d.co);
+  else if (d.newco) toast("New company: name, repos, payroll, first team. Four steps.");
+  else if (d.person) openDrawer({ type: "person", id: d.person, tab: "now" });
+  else if (d.hire) openDrawer({ type: "hire", team: d.hire });
+  else if (d.addteam) { S.addingTeam = true; renderOrg(); $("#teamname").focus(); }
+  else if (d.tab) { S.drawer.tab = d.tab; renderDrawer(); }
+  else if (d.close) { S.drawer = null; renderDrawer(); }
+  else if (d.open) openDrawer({ type: "ticket", key: d.open });
+  else if (d.cmd) { const c = items[+d.cmd]; closeCmd(); c && c.run(); }
+  else if (d.approve) {
+    const m = S.desk.find(x => x.id === +d.approve);
+    resolve(m.id, "MERGED", () => { pushFeed(m.who, `merged ${m.key} into main`); Object.assign(P(m.who), { now: "Picking up the next review", bubble: "Shipped!" }); cheer(m.who); toast(`${m.key} merged. New tickets start from it.`); });
+  } else if (d.answer) {
+    const m = S.desk.find(x => x.id === +d.answer), val = d.val || $("#r-" + m.id).value.trim();
+    if (!val) { $("#r-" + m.id).focus(); return; }
+    resolve(m.id, "ANSWERED", () => { Object.assign(P(m.who), { status: "working", now: "Applying your answer: " + val, bubble: "Thanks, on it" }); cheer(m.who); pushFeed(m.who, `picked ${m.key} back up with your answer`); toast(`${first(P(m.who).name)} picks it back up`); });
+  } else if (d.changes) {
+    const m = S.desk.find(x => x.id === +d.changes), val = $("#r-" + m.id).value.trim();
+    if (!val) { $("#r-" + m.id).focus(); toast("Say what should change"); return; }
+    resolve(m.id, "SENT BACK", () => { P(m.who).notes.unshift(`On ${m.key} the founder asked: ${val}`); pushFeed(m.who, `took ${m.key} back with your feedback`); toast(`Back to ${first(P(m.who).name)}. Saved to their memory too.`); });
+  } else if (d.file) {
+    const m = S.desk.find(x => x.id === +d.file);
+    resolve(m.id, "FILED", () => { pushFeed(m.who, "got a convention into the handbook"); toast("In the handbook. Everyone reads it from their next ticket."); });
+  } else if (d.drop) { const m = S.desk.find(x => x.id === +d.drop); resolve(m.id, "NOTED", () => toast("Left out of the handbook")); }
+  else if (d.pickhire) {
+    const cands = JSON.parse($("#drawer").dataset.cands), [n, hue, , rt, model] = cands[+d.pickhire], t = S.teams.find(x => x.id === S.drawer.team);
+    const id = n.split(" ")[0].toLowerCase();
+    S.people[id] = { id, n: Object.keys(S.people).length + 1, name: n, role: t.name === "Engineering" ? "Engineer" : t.name, rt, model, status: "idle", hue, ticket: null, now: "", notes: [], traits: { Chatty: .5, Bold: .5, Picky: .5 }, quirk: "Just joined." };
+    t.members.push(id); S.drawer = null; renderDrawer(); renderOrg(); cheer(id); pushFeed(id, "joined " + t.name); toast(`${n} joined ${t.name}. Give them a ticket with ⌘K.`);
+  }
+});
+document.addEventListener("submit", e => {
+  e.preventDefault();
+  if (e.target.id === "teamform") {
+    const name = $("#teamname").value.trim(); if (!name) return;
+    S.teams.push({ id: "t" + Date.now(), name, lead: "odile", members: [] }); S.addingTeam = false; renderOrg(); toast(`${name} is set up. Hire its first person.`);
+  }
+});
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#cmd").hidden ? openCmd() : closeCmd(); return; }
+  if (e.key === "Escape") { if (!$("#cmd").hidden) closeCmd(); else if (S.drawer) { S.drawer = null; renderDrawer(); } else if (S.addingTeam) { S.addingTeam = false; renderOrg(); } return; }
+  if (!$("#cmd").hidden) {
+    if (e.key === "ArrowDown") { sel = Math.min(sel + 1, Math.min(items.length, 8) - 1); drawCmd(); e.preventDefault(); }
+    if (e.key === "ArrowUp") { sel = Math.max(sel - 1, 0); drawCmd(); e.preventDefault(); }
+    if (e.key === "Enter") { const c = items[sel]; closeCmd(); c && c.run(); }
+  }
+});
+document.addEventListener("input", e => { if (e.target.id === "cmdin") fillCmd(); });
+
+// Sample activity, so the office feels alive. In the app this comes from the real event log.
+const BEATS = {
+  tomas: [["c", "$ cargo test billing", "cargo test billing"], ["ok", "12 passed, 0 failed", "12 passed"], ["d", "› editing src/billing/retry.rs", "Edit src/billing/retry.rs"]],
+  odile: [["d", "› reading the SNO-12 diff", "Reading SNO-12"], ["d", "› post_message #eng", "Hash tokens at rest, please"]],
+  rui: [["d", "› create_ticket SNO-18", "Created SNO-18"], ["d", "› drafting SNO-19", "Export as .zip"]],
+  lina: [["d", "› editing NotesList.tsx", "Edit NotesList.tsx"], ["d", "› attach empty-state.png", "Attached a mockup"]],
+};
+setInterval(() => {
+  const working = Object.values(S.people).filter(p => p.status === "working" && BEATS[p.id]);
+  if (!working.length) return;
+  const p = pick(working), [k, line, said] = pick(BEATS[p.id]);
+  (S.term[p.id] ||= []).push([k, line]);
+  S.spent += .01 + Math.random() * .03;
+  $("#spent").textContent = "$" + S.spent.toFixed(2); $("#meter").style.width = Math.min(100, S.spent / S.cap * 100) + "%";
+  const b = $("#b-" + p.id + " .bubble");
+  if (b) { b.textContent = said; b.classList.add("show"); clearTimeout(b.h); b.h = setTimeout(() => b.classList.remove("show"), 3200); }
+  if (Math.random() < .4) pushFeed(p.id, said.charAt(0).toLowerCase() + said.slice(1));
+  if (S.drawer?.type === "person" && S.drawer.id === p.id && (S.drawer.tab || "now") === "now") renderDrawer();
+}, 2200);
+
+render();
+</script>
