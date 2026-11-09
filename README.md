@@ -81,7 +81,9 @@ Each agent gets the company's MCP server (`onecorp mcp`, started by the agent ov
 ## Desktop app
 
 ```sh
-cargo run -p onecorp-app
+make app      # your real companies
+make demo     # a throwaway home, to try things safely
+make          # every command
 ```
 
 It opens your current company: you on top, departments and their desks beneath. The Board shows every ticket by where it stands, and the Inbox has everything that needs you. The team keeps working while the window is open, since the app runs `serve` for you. The first time it opens, it walks you through creating a company: pick the repo, name it, pick a starting team. Pick **Try it for free** to see everything work with no AI and no cost.
