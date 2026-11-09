@@ -32,6 +32,8 @@ The whole company loop works in the CLI, tested end to end on throwaway repos.
 - [x] Departments with leads (`dept`, `hire --dept`)
 - [x] Fake runtime with no AI, and an end-to-end test of the whole ticket loop
 - [x] Stuck tickets get noticed and marked failed, and `retry` picks them back up
+- [x] `doctor` checks git, the agent CLIs and every company, with the fix for each problem
+- [x] Agents are found even when the app is opened from the Dock, with its bare PATH
 - [x] Workspace layout: `crates/core` holds the logic, `crates/cli` and `app` are thin shells
 
 ## Now: the desktop app

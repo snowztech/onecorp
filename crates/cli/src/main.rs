@@ -157,6 +157,8 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// Check that git, the agent CLIs and your companies are all set up, and how to fix what isn't
+    Doctor,
     /// Work queued tickets for every company, several employees at a time
     Serve {
         /// How many employees work at the same time
@@ -505,6 +507,28 @@ fn run(cmd: Cmd) -> Result<()> {
             }
         }
         Cmd::Serve { max } => onecorp::serve::serve(max)?,
+        Cmd::Doctor => {
+            use onecorp::doctor::Level;
+            let checks = onecorp::doctor::run();
+            for ch in &checks {
+                let mark = match ch.level {
+                    Level::Ok => "✓",
+                    Level::Warn => "!",
+                    Level::Fail => "✗",
+                };
+                println!("{mark} {:<20} {}", ch.what, ch.detail);
+                if let (Some(fix), false) = (&ch.fix, ch.level == Level::Ok) {
+                    println!("  {:<20} fix: {fix}", "");
+                }
+            }
+            let broken = checks.iter().filter(|c| c.level == Level::Fail).count();
+            println!();
+            if broken == 0 {
+                println!("All set.");
+            } else {
+                bail!("{broken} {} to fix", if broken == 1 { "thing" } else { "things" });
+            }
+        }
         Cmd::Mcp { company, ticket, employee } => {
             let c = store::Company::open(&company)?;
             onecorp::mcp::serve(&c, &onecorp::mcp::Ctx { ticket, employee })?;

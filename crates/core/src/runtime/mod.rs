@@ -11,6 +11,8 @@ use anyhow::{Context, Result, bail};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
+use std::time::Duration;
 
 /// What you can hire on. `fake` is a stand-in with no AI, for trying things out and for tests.
 pub const RUNTIMES: &[&str] = &["claude", "codex", "fake"];
@@ -60,11 +62,56 @@ pub fn abilities(runtime: &str) -> &'static str {
     }
 }
 
+/// The PATH agent CLIs run with. Apps opened from the Dock or Finder get a bare PATH, without
+/// ~/.local/bin or Homebrew, so `claude` and `codex` wouldn't be found. This adds the login
+/// shell's PATH and the usual install folders. Worked out once.
+pub fn path() -> &'static str {
+    static PATH: OnceLock<String> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let mut dirs: Vec<String> = std::env::var("PATH").unwrap_or_default().split(':').filter(|d| !d.is_empty()).map(String::from).collect();
+        let usual = [".local/bin", ".cargo/bin", ".bun/bin", ".npm-global/bin", ".volta/bin"].map(|d| format!("{home}/{d}"));
+        let extra = login_shell_path().unwrap_or_default();
+        for d in extra.split(':').map(String::from).chain(usual).chain(["/opt/homebrew/bin".into(), "/usr/local/bin".into()]) {
+            if !d.is_empty() && !dirs.contains(&d) && Path::new(&d).is_dir() {
+                dirs.push(d);
+            }
+        }
+        dirs.join(":")
+    })
+}
+
+/// Asks the user's shell for its PATH, giving up after a few seconds. Markers around the value
+/// skip anything the shell's startup files print.
+fn login_shell_path() -> Option<String> {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let child = Command::new(shell)
+        .args(["-ilc", "printf '<<PATH>>%s<<PATH>>' \"$PATH\""])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    let id = child.id();
+    std::thread::spawn(move || {
+        let _ = tx.send(child.wait_with_output());
+    });
+    let Ok(Ok(out)) = rx.recv_timeout(Duration::from_secs(3)) else {
+        let _ = Command::new("kill").arg(id.to_string()).status();
+        return None;
+    };
+    let text = String::from_utf8_lossy(&out.stdout);
+    text.split("<<PATH>>").nth(1).map(str::to_string)
+}
+
 /// Starts `cmd`, writes the prompt to its stdin, and feeds each parsed line to `on`.
 /// Fails if the process ends without a Done event.
 pub fn stream(mut cmd: Command, prompt: &str, parse: fn(&str) -> Vec<Event>, mut on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     let program = cmd.get_program().to_string_lossy().into_owned();
+    // Setting PATH on the command also makes it the PATH used to find the program.
     let mut child = cmd
+        .env("PATH", path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

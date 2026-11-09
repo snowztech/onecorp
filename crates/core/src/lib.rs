@@ -1,3 +1,4 @@
+pub mod doctor;
 pub mod git;
 pub mod mcp;
 pub mod runtime;

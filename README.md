@@ -27,6 +27,8 @@ Logic lives in `crates/core`. The CLI and the app are thin shells over it, so bo
 cargo build
 alias onecorp=./target/debug/onecorp
 
+onecorp doctor                                # checks git, Claude Code, Codex and your companies
+
 onecorp new snowztech --repo ~/dev/some-repo --mission "Open source tools for AI agents"
 onecorp hire                                  # asks name, job, how they work, model
 onecorp hire "Maya Okafor" --as engineer --model sonnet

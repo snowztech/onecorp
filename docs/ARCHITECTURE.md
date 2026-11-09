@@ -42,6 +42,7 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 | `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. `fake.rs` is a stand-in with no AI, for tests and trying things out. |
 | `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the handbook, remember, mark blocked. |
 | `git.rs` | Worktrees, commits under an employee's name, diffs, merges and conflicts. |
+| `doctor.rs` | The checks behind `onecorp doctor`: git, agent CLIs, home folder, each company's repo and team. |
 | `view.rs` | What the screens show: who's doing what, the feed, the inbox, a review's diff, one person's details. |
 
 ## On disk
@@ -68,7 +69,7 @@ The main tables: `employees` (with `department` and `fired_at`), `departments` (
 2. **Now or later.** `work::dispatch` checks whether `serve` is running. If not, it runs the ticket right there. If it is, it adds a row in `jobs`, marks the ticket `queued` and returns straight away.
 3. **A private workspace.** `work::start` records the base branch (usually `main`) and has `git` create a worktree on a fresh branch, `onecorp/snowztech/sno-12`. Your own checkout is never touched.
 4. **The prompt.** It's built from the employee's name, role and bio, the ticket, what their runtime can do, the company handbook, the list of who works here, and their own memory.
-5. **The runtime starts.** `runtime::run` picks `claude.rs` or `codex.rs`, which start the agent CLI headless in the worktree. They pass it two things: the git identity of the employee, so any commit is theirs, and an MCP config pointing at `onecorp mcp --company snowztech --ticket 12 --employee maya`. Only that MCP server loads. Your personal ones stay out.
+5. **The runtime starts.** `runtime::run` picks `claude.rs`, `codex.rs` or `fake.rs`, which start the agent CLI headless in the worktree. It runs with `runtime::path()`: your current PATH plus your login shell's PATH and the usual install folders, because an app opened from the Dock gets a bare PATH and wouldn't find `claude` or `codex`. They pass it two things: the git identity of the employee, so any commit is theirs, and an MCP config pointing at `onecorp mcp --company snowztech --ticket 12 --employee maya`. Only that MCP server loads. Your personal ones stay out.
 6. **Watching it work.** The runtime prints JSON lines. Each runtime's `parse` turns them into a small set of `Event`s: start, say, tool, error, done. `work::drive` stores every event, prints it, and keeps the session id so the ticket can be picked back up later.
 7. **Company tools.** While it works, the agent can call the MCP tools. `ask_human` puts a question in your inbox, and a blocking one marks the ticket `blocked`. `post_message` posts to chat. `propose_handbook` suggests a rule. `remember` adds to its own memory.
 8. **Done.** `git::commit_all` commits whatever the agent left, as `Maya Okafor <maya@snowztech.onecorp>`. The ticket becomes `review`, unless the agent marked itself blocked.
