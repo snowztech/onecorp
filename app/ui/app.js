@@ -54,8 +54,8 @@ function loadPhoto(e) {
   invoke("employee_photo", { company: S.company, id: e.id }).then(url => { photos[key] = url; if (!typing()) render(); }).catch(() => {});
   return null;
 }
-// Other face sets, drawn once per person and kept. Ours is the default. Their ink is dark,
-// so they always sit on a light tile, like portrait cards.
+// Other face sets, drawn once per person and kept. Ours is the default. They're ink drawings
+// made for white paper, so they sit on a plain off-white tile, never a colour.
 const FACE_SETS = [["ours", "OneCorp", "Drawn here, with moods that follow their work."], ["lorelei", "Lorelei", "Fine-line portraits by Lisa Wischofsky."], ["notionists", "Notionists", "Ink sketches by Zoish."]];
 const faceSet = () => { try { const f = localStorage.getItem("onecorp.faces"); return FACE_SETS.some(([k]) => k === f) ? f : "ours"; } catch { return "ours"; } };
 const drawn = {};
@@ -63,7 +63,7 @@ function drawFace(name, status, set = faceSet()) {
   if (set !== "ours" && window.Faces) {
     const key = set + "|" + name;
     drawn[key] ||= window.Faces(set, String(name));
-    return `<span class="av set-${set}" style="background:hsl(${HUES[(hash(name) >>> 12) % 8]} 55% 88%)">${drawn[key]}</span>`;
+    return `<span class="av set-${set}">${drawn[key]}</span>`;
   }
   const h = hash(name), L = { skin: h % 5, hair: (h >>> 3) % 6, style: (h >>> 6) % 5, acc: (h >>> 9) % 4 }, hue = HUES[(h >>> 12) % 8];
   const mood = { working: "working", blocked: "blocked", idle: "sleep", queued: "neutral", done: "happy" }[status] || "neutral";
