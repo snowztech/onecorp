@@ -1,9 +1,13 @@
-[package]
-name = "onecorp"
+[workspace]
+members = ["crates/core", "crates/cli"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
+[workspace.dependencies]
+onecorp = { path = "crates/core" }
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }
 rusqlite = { version = "0.41.1", features = ["bundled"] }

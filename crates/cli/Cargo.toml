@@ -1,0 +1,14 @@
+[package]
+name = "onecorp-cli"
+description = "The onecorp command"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "onecorp"
+path = "src/main.rs"
+
+[dependencies]
+onecorp.workspace = true
+anyhow.workspace = true
+clap.workspace = true

@@ -208,9 +208,17 @@ name = "onecorp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap",
  "rusqlite",
  "serde_json",
+]
+
+[[package]]
+name = "onecorp-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "onecorp",
 ]
 
 [[package]]

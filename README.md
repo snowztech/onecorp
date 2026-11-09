@@ -2,7 +2,24 @@
 
 Run a company of AI employees. Hire a team, give them tickets, watch them work in real repos, approve what ships.
 
-Early days. Employees run on Claude Code or Codex, and everything happens in the CLI. The idea, product and architecture notes live in `../crew-hq/`. Where this is going and what is next: [ROADMAP.md](ROADMAP.md).
+Early days. Employees run on Claude Code or Codex, and everything happens in the CLI. The idea, product and brand notes live in [docs/vision](docs/vision). Where this is going and what is next: [ROADMAP.md](ROADMAP.md).
+
+## Layout
+
+```
+crates/core/     the `onecorp` library: everything that runs a company
+  src/store.rs     companies, employees, tickets, inbox, jobs (one SQLite file per company)
+  src/work.rs      start, resume and approve tickets
+  src/serve.rs     runs queued work in parallel
+  src/mcp.rs       the company tools agents call
+  src/git.rs       worktrees, merges, commits under each employee's name
+  src/runtime/     the agent CLIs: shared stream loop, Claude Code, Codex
+crates/cli/      the `onecorp` command: parses arguments and prints, nothing else
+app/             the desktop app (in progress), on the same library
+docs/vision/     product, architecture, brand and the clickable prototype
+```
+
+Logic lives in `crates/core`. The CLI and the app are thin shells over it, so both always behave the same.
 
 ## Try it
 

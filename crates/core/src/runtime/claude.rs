@@ -1,6 +1,6 @@
 //! Claude Code, run headless with stream-json output.
 
-use crate::agent::{Event, Opts, first_line, stream};
+use super::{Event, Opts, first_line, stream};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::process::Command;

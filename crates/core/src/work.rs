@@ -1,7 +1,7 @@
 //! Running tickets: starting them, sending them back to their employee, approving them.
 //! The CLI and `onecorp serve` both go through `dispatch`, which runs a job now or queues it for serve.
 
-use crate::agent::{self, Event, first_line};
+use crate::runtime::{self, Event, first_line};
 use crate::store::{self, Company, Employee, Question, Ticket};
 use crate::{git, serve};
 use anyhow::{Result, anyhow, bail};
@@ -110,7 +110,7 @@ fn start(c: &Company, t: &Ticket) -> Result<()> {
         role = e.role,
         company = c.name,
         bio = e.bio,
-        abilities = agent::abilities(&e.runtime),
+        abilities = runtime::abilities(&e.runtime),
         knowledge = company_knowledge(c)?,
         notes = own_notes(c, &e.id)?,
     );
@@ -228,18 +228,18 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
 fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, prompt: &str, label: &str) -> Result<()> {
     let key = c.key(id);
     // The agent starts this same binary as the company's MCP server, scoped to this ticket.
-    let mcp = agent::Mcp {
+    let mcp = runtime::Mcp {
         command: std::env::current_exe()?.to_string_lossy().into_owned(),
         args: ["mcp", "--company", &c.name, "--ticket", &id.to_string(), "--employee", &e.id].map(String::from).to_vec(),
         env: vec![("ONECORP_HOME".into(), store::home().to_string_lossy().into_owned())],
     };
     let identity = git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name));
-    let opts = agent::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
     let mut last_say = String::new();
-    agent::run(&e.runtime, &opts, prompt, |raw, ev| {
+    runtime::run(&e.runtime, &opts, prompt, |raw, ev| {
         let (kind, summary) = match &ev {
             Event::Init { session, model } => {
                 c.set_session(id, session)?;

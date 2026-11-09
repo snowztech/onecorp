@@ -11,7 +11,7 @@ One founder runs real companies staffed by AI employees, from a desktop app that
 - **Great DX.** Up and running in two minutes. Every error says what to do next.
 - **A real identity.** Faces, personalities and a look of its own, so it never feels vibecoded.
 
-The clickable prototype shows where this is going: https://claude.ai/artifact/EqjxeApnFJi7TNUmFna3Fy (source in `../crew-hq/prototype.html`).
+The clickable prototype shows where this is going: https://claude.ai/artifact/EqjxeApnFJi7TNUmFna3Fy (source in [docs/vision/prototype.html](docs/vision/prototype.html)).
 
 ## Done
 

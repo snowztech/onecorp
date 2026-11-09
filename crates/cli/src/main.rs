@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
-use onecorp::agent::{RUNTIMES, first_line};
+use onecorp::runtime::{RUNTIMES, first_line};
 use onecorp::work::{self, Job, spend};
 use onecorp::store::{self, Employee};
 use std::io::{BufRead, IsTerminal, Write};

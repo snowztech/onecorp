@@ -3,7 +3,7 @@
 //! Shapes, from codex-cli 0.166: `thread.started` carries the session id, each `item.completed`
 //! is a message, command, file change or MCP call, and `turn.completed` carries token usage.
 
-use crate::agent::{Event, Opts, first_line, stream};
+use super::{Event, Opts, first_line, stream};
 use anyhow::Result;
 use serde_json::Value;
 use std::process::Command;

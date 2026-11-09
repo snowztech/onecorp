@@ -1,0 +1,10 @@
+[package]
+name = "onecorp"
+description = "Everything that runs a OneCorp company: store, tickets, runtimes, git, the company MCP server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true

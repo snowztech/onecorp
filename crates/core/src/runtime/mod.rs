@@ -1,5 +1,10 @@
+//! Runtimes are the agent CLIs that do an employee's work.
+//!
 //! What every runtime has in common: the events we log, how to start one, and the loop that
 //! streams its JSON output. Each runtime (claude.rs, codex.rs) builds its command and parses its own lines.
+
+mod claude;
+mod codex;
 
 use anyhow::{Context, Result, bail};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -37,8 +42,8 @@ pub struct Opts<'a> {
 
 pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     match runtime {
-        "claude" => crate::claude::run(o, prompt, on),
-        "codex" => crate::codex::run(o, prompt, on),
+        "claude" => claude::run(o, prompt, on),
+        "codex" => codex::run(o, prompt, on),
         r => bail!("{r} isn't supported yet. Available: {}", RUNTIMES.join(", ")),
     }
 }
