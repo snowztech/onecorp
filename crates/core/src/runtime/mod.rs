@@ -5,13 +5,15 @@
 
 mod claude;
 mod codex;
+mod fake;
 
 use anyhow::{Context, Result, bail};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-pub const RUNTIMES: &[&str] = &["claude", "codex"];
+/// What you can hire on. `fake` is a stand-in with no AI, for trying things out and for tests.
+pub const RUNTIMES: &[&str] = &["claude", "codex", "fake"];
 
 #[derive(Debug, PartialEq)]
 pub enum Event {
@@ -44,6 +46,7 @@ pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) ->
     match runtime {
         "claude" => claude::run(o, prompt, on),
         "codex" => codex::run(o, prompt, on),
+        "fake" => fake::run(o, prompt, on),
         r => bail!("{r} isn't supported yet. Available: {}", RUNTIMES.join(", ")),
     }
 }
@@ -52,6 +55,7 @@ pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) ->
 pub fn abilities(runtime: &str) -> &'static str {
     match runtime {
         "codex" => "You can run commands, like builds and tests, in a sandbox without network access.",
+        "fake" => "You are a stand-in with no AI.",
         _ => "You can only run read-only git commands, so don't try to build or test.",
     }
 }
