@@ -108,6 +108,9 @@ pub struct Employee {
     pub bio: String,
 }
 
+/// (time, ticket, employee, kind, summary)
+pub type FeedEvent = (String, i64, String, String, String);
+
 /// (time, channel, author, text, ticket)
 pub type Message = (String, String, String, String, Option<i64>);
 
@@ -473,6 +476,16 @@ impl Company {
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
         let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The company's latest events across all tickets, newest first: (time, ticket, employee, kind, summary).
+    pub fn recent_events(&self, limit: i64) -> Result<Vec<FeedEvent>> {
+        let mut st = self.db.prepare(
+            "SELECT e.at, e.ticket_id, coalesce(t.assignee, ''), e.kind, e.summary
+             FROM events e JOIN tickets t ON t.id = e.ticket_id ORDER BY e.id DESC LIMIT ?1",
+        )?;
+        let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 

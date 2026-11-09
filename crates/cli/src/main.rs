@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
-use onecorp::runtime::{RUNTIMES, first_line};
+use onecorp::runtime::RUNTIMES;
 use onecorp::work::{self, Job, spend};
 use onecorp::store::{self, Employee};
 use std::io::{BufRead, IsTerminal, Write};
@@ -383,39 +383,7 @@ fn run(cmd: Cmd) -> Result<()> {
         Cmd::Answer { question, answer, company } => {
             let c = open(company)?;
             let id: i64 = question.trim_start_matches('#').parse().map_err(|_| anyhow::anyhow!("not a question number: {question}"))?;
-            let text = answer;
-            if text.trim().is_empty() {
-                bail!("what's the answer? For example: onecorp answer {id} \"go with 15 minutes\"");
-            }
-            let text = text.trim();
-            let q = c.answer(id, text)?;
-            if q.kind == "handbook" {
-                match text.to_lowercase().as_str() {
-                    "no" | "n" => println!("Left out of the handbook."),
-                    yes => {
-                        let line = if matches!(yes, "yes" | "y") { q.question.as_str() } else { text };
-                        c.add_to_handbook(&q.options, line)?;
-                        println!("Added to {}: {line}", q.options);
-                    }
-                }
-                return Ok(());
-            }
-            println!("Answered #{id}.");
-            let Some(tid) = q.ticket_id else { return Ok(()) };
-            let (key, status) = (c.key(tid), c.ticket(tid)?.map(|t| t.status).unwrap_or_default());
-
-            if q.blocking && status == "blocked" {
-                match c.open_blocking(tid)? {
-                    0 => work::resume(&c, &q)?,
-                    n => println!("{key} is still waiting on {n} more: onecorp inbox"),
-                }
-            } else if !q.blocking && status == "review" && !q.default_answer.eq_ignore_ascii_case(text) {
-                // They went ahead with their default. A different answer means the work needs a change.
-                let went_with = if q.default_answer.is_empty() { "their own call".to_string() } else { format!("\"{}\"", q.default_answer) };
-                let who = c.employee(&q.employee)?.map(|e| e.name).unwrap_or_else(|| q.employee.clone());
-                println!("{who} went with {went_with}, so {key} goes back to apply your answer.\n");
-                work::resume(&c, &q)?;
-            }
+            work::answer(&c, id, &answer)?;
         }
         Cmd::Diff { ticket, company } => {
             let c = open(company)?;
@@ -435,25 +403,7 @@ fn run(cmd: Cmd) -> Result<()> {
         }
         Cmd::Changes { ticket, feedback, company } => {
             let c = open(company)?;
-            let t = find_ticket(&c, &ticket)?;
-            let key = c.key(t.id);
-            if t.status != "review" {
-                bail!("{key} is {}. You can only ask for changes on a ticket in review", t.status);
-            }
-            if feedback.trim().is_empty() {
-                bail!("what should change? For example: onecorp changes {key} \"use a match instead of if/else\"");
-            }
-            let prompt = format!(
-                "The founder reviewed your work and asked for changes:\n\n{}\n\n\
-                 Make them. Same rules as before: don't commit, and end with two or three sentences on what changed.",
-                feedback.trim()
-            );
-            c.add_event(t.id, "review", &format!("changes requested: {}", first_line(&feedback)), "")?;
-            // How the founder reviews is the most useful thing a coworker can learn.
-            if let Some(who) = &t.assignee {
-                c.remember(who, &format!("On {key} the founder asked for changes: {}", feedback.trim()))?;
-            }
-            work::dispatch(&c, t.id, Job::Resume { why: "with your feedback".into(), prompt, label: "changes from review".into() })?;
+            work::request_changes(&c, &find_ticket(&c, &ticket)?, &feedback)?;
         }
         Cmd::Chat { channel, company } => {
             let c = open(company)?;

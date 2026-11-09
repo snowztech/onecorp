@@ -165,6 +165,67 @@ pub fn resume(c: &Company, q: &Question) -> Result<()> {
     dispatch(c, ticket, Job::Resume { why: "with your answer".into(), prompt, label })
 }
 
+/// Settles an inbox item. A handbook proposal is accepted with "yes", dropped with "no", or replaced
+/// by your own wording. A question's answer resumes the ticket when it unblocks it, or when the
+/// employee already went with a different default.
+pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
+    let text = text.trim();
+    if text.is_empty() {
+        bail!("what's the answer? For example: onecorp answer {id} \"go with 15 minutes\"");
+    }
+    let q = c.answer(id, text)?;
+    if q.kind == "handbook" {
+        match text.to_lowercase().as_str() {
+            "no" | "n" => out("Left out of the handbook."),
+            yes => {
+                let line = if matches!(yes, "yes" | "y") { q.question.as_str() } else { text };
+                c.add_to_handbook(&q.options, line)?;
+                out(&format!("Added to {}: {line}", q.options));
+            }
+        }
+        return Ok(());
+    }
+    out(&format!("Answered #{id}."));
+    let Some(tid) = q.ticket_id else { return Ok(()) };
+    let (key, status) = (c.key(tid), c.ticket(tid)?.map(|t| t.status).unwrap_or_default());
+
+    if q.blocking && status == "blocked" {
+        match c.open_blocking(tid)? {
+            0 => resume(c, &q)?,
+            n => out(&format!("{key} is still waiting on {n} more: onecorp inbox")),
+        }
+    } else if !q.blocking && status == "review" && !q.default_answer.eq_ignore_ascii_case(text) {
+        // They went ahead with their default. A different answer means the work needs a change.
+        let went_with = if q.default_answer.is_empty() { "their own call".to_string() } else { format!("\"{}\"", q.default_answer) };
+        let who = c.employee(&q.employee)?.map(|e| e.name).unwrap_or_else(|| q.employee.clone());
+        out(&format!("{who} went with {went_with}, so {key} goes back to apply your answer.\n"));
+        resume(c, &q)?;
+    }
+    Ok(())
+}
+
+/// Sends a ticket in review back with the founder's feedback. The feedback also goes into the
+/// employee's memory, since how the founder reviews is the most useful thing a coworker can learn.
+pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
+    let key = c.key(t.id);
+    let feedback = feedback.trim();
+    if t.status != "review" {
+        bail!("{key} is {}. You can only ask for changes on a ticket in review", t.status);
+    }
+    if feedback.is_empty() {
+        bail!("what should change? For example: onecorp changes {key} \"use a match instead of if/else\"");
+    }
+    let prompt = format!(
+        "The founder reviewed your work and asked for changes:\n\n{feedback}\n\n\
+         Make them. Same rules as before: don't commit, and end with two or three sentences on what changed."
+    );
+    c.add_event(t.id, "review", &format!("changes requested: {}", first_line(feedback)), "")?;
+    if let Some(who) = &t.assignee {
+        c.remember(who, &format!("On {key} the founder asked for changes: {feedback}"))?;
+    }
+    dispatch(c, t.id, Job::Resume { why: "with your feedback".into(), prompt, label: "changes from review".into() })
+}
+
 /// Sends a ticket back to its employee: same session, same worktree, new instructions.
 fn pick_up(c: &Company, t: &Ticket, why: &str, prompt: &str, label: &str) -> Result<()> {
     let key = c.key(t.id);
