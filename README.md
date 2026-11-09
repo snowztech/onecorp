@@ -2,7 +2,7 @@
 
 Run a company of AI employees. Hire a team, give them tickets, watch them work in real repos, approve what ships.
 
-Early days. Employees run on Claude Code or Codex, and everything happens in the CLI. The idea, product and architecture notes live in `../crew-hq/`.
+Early days. Employees run on Claude Code or Codex, and everything happens in the CLI. The idea, product and architecture notes live in `../crew-hq/`. Where this is going and what is next: [ROADMAP.md](ROADMAP.md).
 
 ## Try it
 
