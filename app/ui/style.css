@@ -727,3 +727,24 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .paused-bar .btn { padding: 4px 10px; }
 button.live { border: 0; background: none; padding: 2px 6px; border-radius: 99px; color: var(--muted); font-size: 11px; }
 button.live:hover { background: var(--surface-2); color: var(--fg); }
+
+/* Getting started */
+.start { margin-bottom: 24px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.start header { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.start header > div { display: flex; flex-direction: column; }
+.start header b { font: 700 15px var(--display); }
+.start header .muted { font-size: 12px; }
+.start-bar { flex: 1; height: 4px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.start-bar i { display: block; height: 100%; background: var(--good); border-radius: 99px; transition: width .4s var(--ease); }
+.start header .link-btn { margin: 0; }
+.start ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.start li { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-radius: var(--r-sm); font-size: 13px; color: var(--muted); }
+.start li > div { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.start li b { font-weight: 500; }
+.start li.next { background: var(--surface-2); color: var(--fg); }
+.start li.next b { font-weight: 600; }
+.start li.done b { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.st { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 99px; border: 1px solid var(--line); font: 600 11px var(--body); }
+.start li.next .st { border-color: var(--accent); color: var(--accent); }
+.start li.done .st { border: 0; background: var(--good-soft); color: var(--good); }
+.st .ic { width: 12px; height: 12px; }

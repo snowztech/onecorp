@@ -251,9 +251,31 @@ function kickoffCard() {
       <span class="muted">Reading the repo and turning it into tickets. The plan shows up in your Inbox to review.</span></div>
       <button class="btn" data-ticket="${esc(p.key)}">Follow along</button></section>`;
   }
-  if (!team.length || S.snap.tickets.length) return "";
-  return `<button class="nudge" data-plan-new="1"><span class="kick-step">${icon("board")}</span><div><b>Your team is ready</b>
-    <span class="muted">Plan your first project and they get to work. You approve the plan before anything starts.</span></div><span class="nudge-go">Plan a project →</span></button>`;
+  return gettingStarted();
+}
+
+/* Getting started: five steps from an empty company to your first merged work. Each step is done
+   by doing it for real, so the list can't lie. It goes away when you're through, or when you hide it. */
+function gettingStarted() {
+  const s = S.snap, work = s.tickets.filter(t => t.kind !== "plan");
+  const firstDept = s.departments.find(d => d.id !== null);
+  const plan = (s.projects || [])[0];
+  const steps = [
+    { done: s.employees.length > 0, title: "Hire your team", sub: "Who works here, and on which AI.", act: firstDept ? `<button class="btn primary" data-hire="${firstDept.id}">Hire someone</button>` : `<button class="btn primary" data-add-dept="1">Add a department</button>` },
+    { done: !!s.kickoff.brief, title: "Say what you're building", sub: "Everyone reads it before every ticket.", act: `<button class="btn primary" data-brief="1">Write it</button>` },
+    { done: !!plan, title: "Plan your first project", sub: "Your planner breaks it into tickets with owners.", act: `<button class="btn primary" data-plan-new="1">Plan a project</button>` },
+    { done: work.some(t => !["backlog"].includes(t.status)) || plan?.status === "done", title: "Approve the plan", sub: "Change owners, remove tickets, then start it.", act: plan?.status === "review" ? `<button class="btn primary" data-goto="${esc(plan.key)}">Review the plan</button>` : `<span class="muted">Waiting for the plan</span>` },
+    { done: work.some(t => t.status === "done"), title: "Merge your first work", sub: "Read the changes in your Inbox and approve them.", act: `<button class="btn" data-view="inbox">Open Inbox</button>` },
+  ];
+  const left = steps.filter(x => !x.done).length;
+  let hidden = false;
+  try { hidden = localStorage.getItem("onecorp.started." + S.company) === "hide"; } catch {}
+  if (!left || hidden) return "";
+  const next = steps.findIndex(x => !x.done);
+  return `<section class="start"><header><div><b>Getting started</b><span class="muted">${steps.length - left} of ${steps.length} done</span></div>
+      <span class="start-bar"><i style="width:${((steps.length - left) / steps.length) * 100}%"></i></span><button class="link-btn" data-hide-start="1">Hide</button></header>
+    <ol>${steps.map((x, i) => `<li class="${x.done ? "done" : i === next ? "next" : ""}"><span class="st">${x.done ? icon("check") : i + 1}</span>
+      <div><b>${x.title}</b>${i === next ? `<span class="muted">${x.sub}</span>` : ""}</div>${i === next ? x.act : ""}</li>`).join("")}</ol></section>`;
 }
 
 /* Plan a project: like an epic, except your planner breaks it down and you approve it */
@@ -892,7 +914,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -916,6 +938,8 @@ document.addEventListener("click", async e => {
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
   }
+  if (d.hideStart) { try { localStorage.setItem("onecorp.started." + S.company, "hide"); } catch {} return render(); }
+  if (d.brief) { S.view = "handbook"; S.open.brief = true; render(); await refresh(true); return $("#brief-text")?.focus(); }
   if (d.pause) {
     const on = d.pause === "1";
     await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});
@@ -1199,6 +1223,7 @@ async function previewScreen() {
   if (screen === "switcher") { S.switching = true; renderSide(); }
   if (screen === "plan") { S.view = "board"; S.drawer = { type: "plan" }; render(); }
   if (screen === "rail") toggleRail(true);
+  if (screen === "start") { S.snap.tickets = []; S.snap.projects = []; S.snap.kickoff.brief = ""; render(); }
   if (screen === "paused") { S.snap.paused = true; render(); }
   if (screen === "hire") openHire(1);
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }

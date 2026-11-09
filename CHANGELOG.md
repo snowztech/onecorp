@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Getting started: five steps on the Company page from an empty company to your first merged work (hire, say what you're building, plan, approve, merge), each checked off by doing it for real, with the next one a click away.
 - Know when your team needs you, even with the app in the background: the dock icon shows how much waits on you, and each new question, plan or review sends a macOS notification.
 - Pause a company: your off switch for spending. Running work finishes, nothing new starts, leads don't consult and nobody replies in chat. A bar on every page says so, with Resume. From the Live section, or `onecorp pause` and `onecorp resume`.
 - Hire anyone you like: the hire drawer is a form (name, role, runtime, model, how they work) with three suggestions that fill it in one click, and a face that follows the name. + Hire is back on each department and + Department on your card. In someone's drawer you can edit them, make them lead, give them a ticket, or let them go; a lead who leaves hands the department to the next person in it.
