@@ -99,6 +99,18 @@ fn tools() -> Value {
             }
         },
         {
+            "name": "remember",
+            "description": "Save a one-line note for your future self: where things live in the code, how the founder likes things done, \
+                            a trap you hit. Only you read these, at the start of every ticket. Rules for the whole team go to propose_handbook instead.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "One line, like 'Greeting text lives in main.rs, nowhere else'"}
+                },
+                "required": ["text"]
+            }
+        },
+        {
             "name": "update_ticket",
             "description": "Mark your ticket blocked, with the reason. The founder sees it on the board.",
             "inputSchema": {
@@ -168,6 +180,12 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
             })?;
             Ok(format!("Proposal #{n} is in the founder's inbox. Carry on, it doesn't block your ticket."))
         }
+        "remember" => {
+            let text = s("text");
+            anyhow::ensure!(!text.is_empty(), "text is required");
+            c.remember(&ctx.employee, &text)?;
+            Ok("Saved to your notes. You'll see it at the start of your next ticket.".into())
+        }
         "update_ticket" => {
             anyhow::ensure!(s("status") == "blocked", "the only status you can set is blocked");
             let note = s("note");
@@ -208,7 +226,7 @@ mod tests {
         assert!(handle(&c, &ctx, &json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).is_none());
 
         let list = handle(&c, &ctx, &req(2, "tools/list", json!({}))).unwrap();
-        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 4);
+        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 5);
 
         let args = json!({"question": "15 or 60 minutes?", "options": ["15", "60"], "default": "15", "blocking": true});
         let ask = handle(&c, &ctx, &req(3, "tools/call", json!({"name": "ask_human", "arguments": args}))).unwrap();
@@ -229,6 +247,11 @@ mod tests {
         handle(&c, &ctx, &req(7, "tools/call", prop)).unwrap();
         let p = c.inbox().unwrap().into_iter().find(|q| q.kind == "handbook").unwrap();
         assert_eq!((p.question.as_str(), p.options.as_str(), p.blocking), ("Tokens are hashed at rest", "Conventions", false));
+
+        let note = json!({"name": "remember", "arguments": {"text": "  auth lives in\n src/auth  "}});
+        handle(&c, &ctx, &req(8, "tools/call", note)).unwrap();
+        let mem = c.memory("maya").unwrap();
+        assert!(mem.starts_with("- 20") && mem.ends_with(" auth lives in src/auth\n"), "{mem}");
 
         let bad = handle(&c, &ctx, &req(5, "tools/call", json!({"name": "nope", "arguments": {}}))).unwrap();
         assert_eq!(bad["result"]["isError"], true);

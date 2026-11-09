@@ -27,6 +27,7 @@ onecorp chat eng                              # what the team posted
 onecorp handbook                              # what every employee reads before a ticket
 onecorp handbook add "No ORMs"                # under Decisions, or --section Conventions
 onecorp handbook edit                         # open it in $EDITOR
+onecorp memory maya                           # what Maya has learned (--edit to change it)
 onecorp fire maya
 onecorp serve                                 # run queued work, several employees at a time
 ```
@@ -40,6 +41,7 @@ Each agent gets the company's MCP server (`onecorp mcp`, started by the agent ov
 - `ask_human` puts a question in your inbox. With a default the agent carries on. With `blocking` it stops and the ticket shows as blocked.
 - `post_message` posts to a team channel.
 - `update_ticket` marks the ticket blocked, with a reason.
+- `remember` saves a one-line note to the employee's own memory.
 - `propose_handbook` suggests a decision or convention. It lands in your inbox, and `onecorp answer N yes` (or `no`, or your own wording) settles it.
 
 ## Running in the background
@@ -54,6 +56,8 @@ Without `onecorp serve`, every command runs its work right there in your termina
 ## Shared knowledge
 
 Each company has a handbook at `~/.onecorp/companies/<name>/handbook.md`: mission, decisions, conventions. It's plain markdown, so edit it however you like. Every ticket starts with the handbook and a list of who works here, generated from the team, so a decision made once is known by everyone. Approved work lands on the base branch, so the next ticket starts from everyone's merged code too.
+
+Each employee also has their own memory at `~/.onecorp/companies/<name>/memory/<id>.md`: one dated line per note, read at the start of each of their tickets. They add to it with `remember`, and when you ask for changes, your feedback goes in automatically, so they pick up how you like things done. Firing someone keeps the file, so rehiring brings their memory back.
 
 Answering picks the work back up on its own. `onecorp answer` resumes the agent's session in the same worktree when:
 

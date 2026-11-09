@@ -347,6 +347,33 @@ impl Company {
         Ok(stuck.iter().map(|(_, t)| self.key(*t)).collect())
     }
 
+    pub fn memory_path(&self, employee: &str) -> PathBuf {
+        self.dir.join("memory").join(format!("{employee}.md"))
+    }
+
+    /// An employee's own notes from past tickets, or empty.
+    pub fn memory(&self, employee: &str) -> Result<String> {
+        match fs::read_to_string(self.memory_path(employee)) {
+            Ok(s) => Ok(s),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Appends a dated one-line note to an employee's memory.
+    pub fn remember(&self, employee: &str, note: &str) -> Result<()> {
+        let note = note.split_whitespace().collect::<Vec<_>>().join(" ");
+        if note.is_empty() {
+            return Ok(());
+        }
+        let today: String = self.db.query_row("SELECT date('now')", [], |r| r.get(0))?;
+        let path = self.memory_path(employee);
+        fs::create_dir_all(path.parent().unwrap())?;
+        let mut f = fs::OpenOptions::new().create(true).append(true).open(path)?;
+        std::io::Write::write_all(&mut f, format!("- {today} {note}\n").as_bytes())?;
+        Ok(())
+    }
+
     pub fn handbook_path(&self) -> PathBuf {
         self.dir.join("handbook.md")
     }

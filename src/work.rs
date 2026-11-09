@@ -102,14 +102,17 @@ fn start(c: &Company, t: &Ticket) -> Result<()> {
          You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
          or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
          If something outside your control stops you, use update_ticket to mark the ticket blocked. \
-         If you learn or decide something every teammate should know from now on, propose it with propose_handbook.\n\n\
-         {knowledge}",
+         If you learn or decide something every teammate should know from now on, propose it with propose_handbook. \
+         If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
+         save it with remember: one line per note.\n\n\
+         {knowledge}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
         bio = e.bio,
         abilities = agent::abilities(&e.runtime),
         knowledge = company_knowledge(c)?,
+        notes = own_notes(c, &e.id)?,
     );
     drive(c, &e, id, &wt, None, &prompt, title)
 }
@@ -131,6 +134,20 @@ fn company_knowledge(c: &Company) -> Result<String> {
     }
     out.push_str(&format!("Who works here:\n{}", team.join("\n")));
     Ok(out)
+}
+
+/// The employee's own notes, newest kept when they get long.
+fn own_notes(c: &Company, employee: &str) -> Result<String> {
+    const MAX: usize = 4_000;
+    let notes = c.memory(employee)?;
+    let mut lines: Vec<&str> = notes.lines().filter(|l| !l.trim().is_empty()).collect();
+    while lines.iter().map(|l| l.len() + 1).sum::<usize>() > MAX && lines.len() > 1 {
+        lines.remove(0);
+    }
+    if lines.is_empty() {
+        return Ok(String::new());
+    }
+    Ok(format!("\n\nYour own notes from past tickets. Only you see these:\n{}", lines.join("\n")))
 }
 
 /// Sends the founder's answer back to the ticket's session.

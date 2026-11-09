@@ -82,6 +82,15 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// What an employee has learned. They read it before each ticket
+    Memory {
+        employee: String,
+        /// Open it in $EDITOR
+        #[arg(long)]
+        edit: bool,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// The handbook every employee reads before each ticket
     Handbook {
         #[command(subcommand)]
@@ -299,6 +308,23 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{at}  {kind:<6} {summary}");
             }
         }
+        Cmd::Memory { employee, edit, company } => {
+            let c = open(company)?;
+            let id = slug(&employee);
+            let Some(e) = c.employee(&id)? else { bail!("nobody called {employee} works at {}. See: onecorp team", c.name) };
+            if edit {
+                let path = c.memory_path(&id);
+                std::fs::create_dir_all(path.parent().unwrap())?;
+                open_in_editor(&path)?;
+                return Ok(());
+            }
+            let notes = c.memory(&id)?;
+            if notes.trim().is_empty() {
+                println!("{} hasn't noted anything yet. Notes build up as they work and as you review them.", e.name);
+            } else {
+                print!("{notes}");
+            }
+        }
         Cmd::Handbook { action, company } => {
             let c = open(company)?;
             match action {
@@ -322,11 +348,7 @@ fn run(cmd: Cmd) -> Result<()> {
                     if !path.exists() {
                         c.add_to_handbook("Decisions", "")?;
                     }
-                    // $EDITOR can carry flags, like "code -w".
-                    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".into());
-                    let mut parts = editor.split_whitespace();
-                    let program = parts.next().unwrap_or("vi");
-                    std::process::Command::new(program).args(parts).arg(&path).status()?;
+                    open_in_editor(&path)?;
                 }
             }
         }
@@ -427,6 +449,10 @@ fn run(cmd: Cmd) -> Result<()> {
                 feedback.trim()
             );
             c.add_event(t.id, "review", &format!("changes requested: {}", first_line(&feedback)), "")?;
+            // How the founder reviews is the most useful thing a coworker can learn.
+            if let Some(who) = &t.assignee {
+                c.remember(who, &format!("On {key} the founder asked for changes: {}", feedback.trim()))?;
+            }
             work::dispatch(&c, t.id, Job::Resume { why: "with your feedback".into(), prompt, label: "changes from review".into() })?;
         }
         Cmd::Chat { channel, company } => {
@@ -553,6 +579,15 @@ fn assignee(c: &store::Company, to: Option<String>) -> Result<Employee> {
             bail!("who should do it? Add --to with one of: {}", ids.join(", "))
         }
     }
+}
+
+fn open_in_editor(path: &std::path::Path) -> Result<()> {
+    // $EDITOR can carry flags, like "code -w".
+    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".into());
+    let mut parts = editor.split_whitespace();
+    let program = parts.next().unwrap_or("vi");
+    std::process::Command::new(program).args(parts).arg(path).status()?;
+    Ok(())
 }
 
 fn find_ticket(c: &store::Company, key: &str) -> Result<store::Ticket> {
