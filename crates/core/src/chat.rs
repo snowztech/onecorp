@@ -52,12 +52,31 @@ pub fn home(c: &Company, e: &Employee) -> Result<String> {
     Ok(e.department.and_then(|id| c.departments().ok()?.into_iter().find(|d| d.id == id)).map(|d| suggest_name(&d.name)).unwrap_or_else(|| GENERAL.into()))
 }
 
-/// Who an @mention points at: @maya, @Maya, or @tomas for Tomás. Each person once.
-pub fn mentions(c: &Company, text: &str) -> Result<Vec<Employee>> {
+/// Who's in a channel: everyone for #general, the department's people for its channel.
+pub fn members(c: &Company, channel: &str) -> Result<Vec<Employee>> {
+    let team = c.employees()?;
+    let dept = channels(c)?.into_iter().find(|ch| ch.name == channel).and_then(|ch| ch.department);
+    Ok(match dept {
+        Some(id) => team.into_iter().filter(|e| e.department == Some(id)).collect(),
+        None => team,
+    })
+}
+
+/// Who an @mention points at: @maya, @Maya, or @tomas for Tomás, and @all (or @everyone,
+/// @channel) for everyone in the channel. Each person once.
+pub fn mentions(c: &Company, channel: &str, text: &str) -> Result<Vec<Employee>> {
     let team = c.employees()?;
     let mut out: Vec<Employee> = vec![];
     for word in text.split_whitespace().filter_map(|w| w.strip_prefix('@')) {
         let id = crate::store::slug(word);
+        if ["all", "everyone", "channel"].contains(&id.as_str()) {
+            for e in members(c, channel)? {
+                if !out.iter().any(|o| o.id == e.id) {
+                    out.push(e);
+                }
+            }
+            continue;
+        }
         if let Some(e) = team.iter().find(|e| e.id == id)
             && !out.iter().any(|o| o.id == e.id)
         {
@@ -78,7 +97,7 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     if c.paused()? {
         return Ok(vec![]);
     }
-    mentions(c, text)?.iter().map(|e| c.post_pending(&channel, &e.id)).collect()
+    mentions(c, &channel, text)?.iter().map(|e| c.post_pending(&channel, &e.id)).collect()
 }
 
 /// A mentioned employee answers in the channel. Read-only in the repo and with no company tools,

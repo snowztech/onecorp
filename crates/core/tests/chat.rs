@@ -2,7 +2,7 @@
 //! founder's @mentions get replies. Runs on the stand-in runtime, so no AI is needed.
 
 use onecorp::store::Company;
-use onecorp::{chat, mcp, templates};
+use onecorp::{chat, mcp, templates, work};
 use serde_json::json;
 use std::process::Command;
 
@@ -48,12 +48,21 @@ fn channels_posts_and_replies() {
     assert!(!r.pending && r.author == "odile" && r.text.contains("can you check Maya's login?"), "{}", r.text);
     assert!(chat::say(&c, "general", "  ").is_err());
 
+    // @all calls the channel: the whole company in #general, the team in a department's channel.
+    assert_eq!(chat::say(&c, "engineering", "@all standup in 5").unwrap().len(), 2, "odile and maya");
+    assert_eq!(chat::say(&c, "general", "@everyone shipping Friday, @maya too").unwrap().len(), 4, "everyone once, even when named twice");
+
     // Before a ticket, an engineer reads #general and #engineering. Product's channel isn't theirs.
     c.post("product", "rui", "Pricing is $6", None).unwrap();
     let maya = c.employee("maya").unwrap().unwrap();
     let seen = chat::catch_up(&c, &maya).unwrap();
     assert!(seen.contains("Login uses magic links") && seen.contains("Shipping Friday") && seen.contains("can you check"));
     assert!(!seen.contains("Pricing is $6"));
+
+    // No brief yet: whoever writes the handbook drafts what we're building, so planning has it.
+    assert!(c.brief().unwrap().is_empty());
+    work::write_handbook(&c, None).unwrap();
+    assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, from the README.");
 
     let _ = std::fs::remove_dir_all(&root);
 }

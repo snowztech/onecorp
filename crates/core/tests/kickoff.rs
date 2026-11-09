@@ -73,6 +73,8 @@ fn an_idea_becomes_a_plan_becomes_work() {
     let t = c.ticket(hb).unwrap().unwrap();
     assert_eq!((t.kind.as_str(), t.status.as_str(), t.assignee.as_deref()), ("handbook", "done", Some("odile")), "the engineering lead writes it");
     assert!(c.handbook().unwrap().contains("## Codebase\n\n- A README"));
+    assert!(!c.handbook().unwrap().contains("What we're building"), "the brief lives on its own, not twice");
+    assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, with magic link login.", "a brief you wrote is never replaced");
     assert!(git_status_clean(&repo), "writing the handbook never touches your checkout");
 
     // Paused, nothing starts. Resuming lets queued work go.

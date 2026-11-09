@@ -35,7 +35,7 @@ const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>>
 const SKIN = ["#f3d5bd", "#e6b590", "#c88e64", "#9a6542", "#6b442b"];
 const HAIR = ["#1e1916", "#4b301e", "#8b5b2c", "#d0a660", "#b4442f", "#70747d"];
 function face(name, status) {
-  const h = hash(name), L = { skin: h % 5, hair: (h >> 3) % 6, style: (h >> 6) % 5, acc: (h >> 9) % 4 }, hue = h % 360;
+  const h = hash(name), L = { skin: h % 5, hair: (h >>> 3) % 6, style: (h >>> 6) % 5, acc: (h >>> 9) % 4 }, hue = h % 360;
   const mood = { working: "working", blocked: "blocked", idle: "sleep", queued: "neutral", done: "happy" }[status] || "neutral";
   const sk = SKIN[L.skin], hr = HAIR[L.hair], ink = "#2a211c", alt = (hue + 180) % 360;
   const cap = '<path d="M19 30q0-17 13-17t13 17q-3-9-13-9t-13 9z"/>';
@@ -412,12 +412,63 @@ function viewChat() {
       <header class="chat-h"><div><h3>#${esc(ch.name)}</h3><span class="muted">${sub}</span></div>
         <div class="faces">${people.slice(0, 8).map(e => `<button class="face-btn" data-mention="${esc(e.id)}" title="Mention ${esc(first(e.name))}">${face(e.name, e.status)}</button>`).join("")}</div></header>
       <ul class="msgs" id="msgs">${msgs === null ? `<li class="chat-empty muted">Loading…</li>` : rows || empty}</ul>
-      <form class="composer" id="say"><input id="say-text" placeholder="Message #${esc(ch.name)}. Use @name to ask someone" autocomplete="off"><button class="btn primary">Send</button></form>
+      <form class="composer" id="say"><div class="compose-box"><div class="mpop" id="mpop" role="listbox" hidden></div>
+        <input id="say-text" placeholder="Message #${esc(ch.name)}. Type @ to ask someone, @all for everyone" autocomplete="off" role="combobox" aria-controls="mpop">
+        <p class="calls" id="calls"></p></div><button class="btn primary">Send</button></form>
     </section></div>`;
 }
 // The database keeps UTC. Shown in your own time.
 const utc = at => new Date(String(at).replace(" ", "T") + "Z");
 const hhmm = at => { const d = utc(at); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+/* Mentions: type @ for a list of your team, and see who'll reply before you send. */
+const fold = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+// Everyone in the channel you're in: the whole company in #general, a department's people in theirs.
+function channelPeople() {
+  const ch = (S.snap.channels || []).find(c => c.name === S.channel), dept = S.snap.departments.find(d => d.id === ch?.department);
+  return (dept ? dept.members.map(byId) : S.snap.employees).filter(Boolean);
+}
+// Who a message calls, the same way the core reads it: @firstname, or @all for the channel.
+function calledBy(text) {
+  const team = S.snap.employees, out = [];
+  for (const [, w] of String(text).matchAll(/@([\p{L}\d]+)/gu)) {
+    const id = fold(w);
+    const add = ["all", "everyone", "channel"].includes(id) ? channelPeople() : team.filter(e => e.id === id);
+    for (const e of add) if (!out.includes(e)) out.push(e);
+  }
+  return out;
+}
+function mentionAt(input) {
+  const m = input.value.slice(0, input.selectionStart).match(/(^|\s)@([\p{L}\d]*)$/u);
+  return m ? fold(m[2]) : null;
+}
+function updateMentions(input) {
+  const pop = $("#mpop"), calls = $("#calls");
+  if (!pop) return;
+  const q = mentionAt(input), here = channelPeople();
+  if (q === null) { pop.hidden = true; S.mention = null; }
+  else {
+    const people = [...here, ...S.snap.employees.filter(e => !here.includes(e))].filter(e => fold(first(e.name)).startsWith(q) || e.id.startsWith(q));
+    const all = "all".startsWith(q) ? [{ all: true }] : [];
+    const opts = [...people, ...all].slice(0, 7);
+    S.mention = opts.length ? { opts, i: Math.min(S.mention?.i || 0, opts.length - 1) } : null;
+    pop.hidden = !S.mention;
+    if (S.mention) pop.innerHTML = opts.map((o, k) => o.all
+      ? `<button type="button" class="mopt" data-mpick="${k}" aria-selected="${k === S.mention.i}"><span class="all-ic">@</span><span><b>all</b><small>Everyone in #${esc(S.channel)}, ${here.length} ${here.length === 1 ? "person" : "people"}</small></span></button>`
+      : `<button type="button" class="mopt" data-mpick="${k}" aria-selected="${k === S.mention.i}"><span class="with-agent">${face(o.name, o.status)}${agentBadge(o.runtime)}</span><span><b>${esc(first(o.name))}</b><small>${esc(o.role)}${here.includes(o) ? "" : " · not in this channel"}</small></span></button>`).join("");
+  }
+  // Who'll reply, before you send. Each one is a paid AI reply, so the count is said out loud.
+  const who = calledBy(input.value);
+  const names = who.length > 3 ? `${who.length} people` : who.map(e => esc(first(e.name))).join(who.length === 2 ? " and " : ", ");
+  calls.innerHTML = who.length ? `<span class="calls-faces">${who.slice(0, 4).map(e => face(e.name, "neutral")).join("")}</span><span>${names} will reply here</span>` : "";
+}
+function pickMention(k) {
+  const input = $("#say-text"), o = S.mention?.opts[k];
+  if (!o) return;
+  const at = input.selectionStart, before = input.value.slice(0, at).replace(/@[\p{L}\d]*$/u, "@" + (o.all ? "all" : first(o.name)) + " ");
+  input.value = before + input.value.slice(at);
+  input.setSelectionRange(before.length, before.length);
+  S.mention = null; input.focus(); updateMentions(input);
+}
 const sameMinutes = (a, b, n) => Math.abs(utc(b) - utc(a)) <= n * 60000;
 // Mentions and ticket keys stand out, and a ticket key opens the ticket.
 function chatText(text) {
@@ -1059,6 +1110,10 @@ async function refresh(force) {
 }
 
 /* Actions */
+document.addEventListener("mousedown", e => {
+  const o = e.target.closest?.("[data-mpick]");
+  if (o) { e.preventDefault(); pickMention(Number(o.dataset.mpick)); }
+});
 document.addEventListener("click", async e => {
   if (S.pop && !e.target.closest("#pop, [data-profile], [data-pop]")) { S.pop = false; renderPop(); }
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
@@ -1326,8 +1381,8 @@ document.addEventListener("submit", async e => {
   if (f.id === "say") {
     const input = $("#say-text"), text = input.value.trim();
     if (!text) return input.focus();
-    input.value = "";
-    await call("say", { company: S.company, channel: S.channel, text }).catch(() => (input.value = text));
+    input.value = ""; updateMentions(input);
+    await call("say", { company: S.company, channel: S.channel, text }).catch(() => { input.value = text; updateMentions(input); });
     return $("#say-text")?.focus();
   }
   if (f.id === "dept-form") {
@@ -1364,6 +1419,7 @@ document.addEventListener("submit", async e => {
 // The drawn face follows your name as you type it.
 const faceLater = {};
 document.addEventListener("input", e => {
+  if (e.target.id === "say-text") updateMentions(e.target);
   if (e.target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (e.target.value.trim() || "?")[0].toUpperCase(); }
   if (e.target.id === "hb-text") $("#hb-preview").innerHTML = md(e.target.value).html;
   if (e.target.id === "pf-n" && S.drawer?.type === "hire") {
@@ -1389,6 +1445,12 @@ document.addEventListener("change", async e => {
   }
 });
 document.addEventListener("keydown", e => {
+  if (e.target.id === "say-text" && S.mention) {
+    const n = S.mention.opts.length;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); S.mention.i = (S.mention.i + (e.key === "ArrowDown" ? 1 : n - 1)) % n; return updateMentions(e.target); }
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); return pickMention(S.mention.i); }
+    if (e.key === "Escape") { e.preventDefault(); S.mention = null; $("#mpop").hidden = true; return; }
+  }
   if ((e.metaKey || e.ctrlKey) && (e.code === "Backslash" || e.key === "\\" || e.key.toLowerCase() === "b") && !e.target.closest?.("input, textarea")) { e.preventDefault(); return toggleRail(); }
   if (e.key === "Escape" && S.sheet) { S.sheet = null; return renderSheet(); }
   if (e.key === "Escape" && S.switching) { S.switching = false; return renderSide(); }

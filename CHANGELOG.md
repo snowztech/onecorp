@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Chat: type @ for a list of your team, with their faces and agents, and pick with the arrows and Enter. A line under the box says who will reply before you send. @all (or @everyone) calls everyone in the channel: the whole company in #general, the team in a department's channel.
+- When your lead writes the handbook and you haven't said what you're building, they draft that too, from the repo. Planning starts from it, and Getting started ticks it off. A brief you wrote is never replaced.
+- Some employees were drawn without their hair or accessories. Every face is complete now.
 - Starting teams by situation, not size: Solo builder, Startup, Indie maker, Open source, Agency, or Start empty.
 - Each agent has its own mark everywhere it appears: a spark for Claude Code, a prompt for Codex, so two employees on different agents never look alike.
 - Getting started counts only real tickets, so the handbook your lead writes at launch no longer ticks "Approve the plan".

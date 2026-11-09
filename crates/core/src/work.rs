@@ -395,6 +395,7 @@ fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
          new hire learns this codebase. Read the repo as much as you need, but don't change any files.\n\n\
          Reply with the handbook in Markdown and nothing else. Start with \"# {company} handbook\", then these sections:\n\
          ## Mission: {mission}\n\
+         {building}\
          ## Codebase: what this is, the stack, and where things live, folder by folder.\n\
          ## Build and test: the exact commands, and what to run before calling work done.\n\
          ## Conventions: what you can see the code already does (naming, structure, style, testing). Only what's really there.\n\
@@ -404,6 +405,11 @@ fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
         role = e.role,
         company = c.name,
         bio = e.bio,
+        building = if c.brief()?.trim().is_empty() {
+            "## What we're building: the product, who it's for and what it does today, in a short paragraph. The team plans from it.\n"
+        } else {
+            ""
+        },
         mission = if mission.is_empty() { "one or two sentences on what the company is for, from the README.".to_string() } else { format!("keep exactly this: {mission}") },
         knowledge = company_knowledge(c)?,
     );
@@ -413,7 +419,14 @@ fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
     let doc = said.trim().trim_start_matches("```markdown").trim_start_matches("```md").trim_start_matches("```").trim_end_matches("```").trim();
     let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
     if t.status == "review" && doc.starts_with('#') && doc.contains("\n## ") {
-        c.write_handbook(&format!("{doc}\n"))?;
+        // What we're building is the brief, kept on its own: planning starts from it. Yours, if
+        // you wrote one, always wins.
+        let building = handbook_section(doc, "What we're building");
+        if !building.is_empty() && c.brief()?.trim().is_empty() {
+            c.write_brief(&building)?;
+        }
+        let doc = without_section(doc, "What we're building");
+        c.write_handbook(&format!("{}\n", doc.trim_end()))?;
         c.set_status(id, "done")?;
         c.add_event(id, "handbook", "wrote the handbook", "")?;
         out(&format!("{key}  the handbook is written. Read it: onecorp handbook"));
@@ -422,6 +435,21 @@ fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
         c.add_event(id, "error", "the reply wasn't a handbook, so nothing was changed", "")?;
     }
     Ok(())
+}
+
+/// A Markdown document without one `## name` section.
+fn without_section(doc: &str, name: &str) -> String {
+    let mut out = vec![];
+    let mut skipping = false;
+    for line in doc.lines() {
+        if let Some(h) = line.strip_prefix("## ") {
+            skipping = h.trim().eq_ignore_ascii_case(name);
+        }
+        if !skipping {
+            out.push(line);
+        }
+    }
+    out.join("\n")
 }
 
 /// The text of one `## name` section of a Markdown document.

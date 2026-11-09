@@ -19,6 +19,7 @@ window.__TAURI__ = { core: { invoke: (cmd, args) => { requests++; return command
 ` + src + `
 (async () => {
   await refresh(true);
+  for (const n of ["Odile Martin", "Rui Alves", "Lina Park", "Sam Duarte", "Maya Okafor", "Tomás Reis", "Ada Lovelace"]) if (face(n, "neutral").includes("undefined")) throw new Error("broken face for " + n);
   const assert = require("node:assert/strict");
   assert.equal(intervals.size, 1, "company workspace starts one polling timer");
   const workspaceTimer = [...intervals.keys()][0];
