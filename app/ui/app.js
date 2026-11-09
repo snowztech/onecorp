@@ -889,7 +889,7 @@ function personFields(f) {
     <div class="field"><label for="pf-r">Role</label><input id="pf-r" value="${esc(f.role)}" placeholder="Engineer, Designer, Writer…" autocomplete="off"></div>
     ${agentPicker({ ...f, runtime: runtimes.includes(f.runtime) ? f.runtime : runtimes[0] })}
     ${voicePicker(f)}
-    <div class="field"><label for="pf-b">Instructions <span class="muted">(optional)</span></label><textarea id="pf-b" rows="3" placeholder="Replies in French. Bullet points in summaries. Always adds tests.">${esc(f.bio || "")}</textarea></div>`;
+    <div class="field"><label for="pf-b">How they work <span class="muted">(instructions, optional)</span></label><textarea id="pf-b" rows="3" placeholder="Replies in French. Bullet points in summaries. Always adds tests.">${esc(f.bio || "")}</textarea></div>`;
 }
 // Personality as chips, with a reply in that voice underneath, so you hear it before you pick.
 // A new hire can keep the one that fits their role.
@@ -898,7 +898,8 @@ function voicePicker(f) {
   const opts = [...(auto ? [{ key: "", label: "Fits role", sample: "Picked to fit their role. Change it any time." }] : []), ...list];
   const sample = opts.find(v => v.key === cur)?.sample || "";
   return `<div class="field"><span class="flabel">Personality</span><div class="models">${opts.map(v => `<button type="button" class="mchip vchip" data-vpick="${v.key}" aria-pressed="${v.key === cur}">${esc(v.label)}</button>`).join("")}</div>
-    <p class="vsample" id="pf-vs">${esc(sample)}</p><input type="hidden" id="pf-v" value="${esc(cur || "")}"></div>`;
+    <div class="vsample"><span class="vs-who">${face(f.face || f.name || "New hire", "neutral")}<b>${esc(first(f.name) || "They")}</b><span>in chat</span></span><p id="pf-vs">${esc(sample)}</p></div>
+    <input type="hidden" id="pf-v" value="${esc(cur || "")}"></div>`;
 }
 const readPerson = () => ({ name: $("#pf-n").value.trim(), role: $("#pf-r").value.trim() || "Engineer", runtime: $("#pf-rt").value, model: $("#pf-m").value.trim() || null, bio: $("#pf-b").value.trim(), voice: $("#pf-v")?.value || null });
 function drawerHire() {
