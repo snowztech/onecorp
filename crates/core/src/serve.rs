@@ -31,7 +31,7 @@ pub fn serve(max: usize) -> Result<()> {
     std::fs::create_dir_all(store::home())?;
     let companies = store::list()?;
     for name in &companies {
-        let c = Company::open(name)?;
+        let Ok(c) = Company::open(name) else { continue };
         for key in c.recover_interrupted()? {
             println!("{key} was interrupted when serve last stopped. It's marked failed: onecorp retry {key}");
         }
@@ -61,7 +61,8 @@ pub fn serve(max: usize) -> Result<()> {
 
         // New companies show up without a restart.
         'claim: for name in store::list()? {
-            let c = Company::open(&name)?;
+            // A company deleted from the app vanishes between the listing and here.
+            let Ok(c) = Company::open(&name) else { continue };
             for key in c.recover_interrupted()? {
                 println!("{key} stopped before it finished. It's marked failed: onecorp retry {key}");
             }

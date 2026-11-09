@@ -132,6 +132,47 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
+/// What the Settings page shows about a company.
+#[tauri::command(async)]
+fn settings(company: String) -> Res<Value> {
+    let c = open(&company)?;
+    let repo = c.repo().map_err(err)?;
+    let detected = onecorp::forge::Forge::detect(&repo);
+    Ok(json!({
+        "name": c.name, "repo": repo, "data": c.dir, "home": store::home(),
+        "ship": c.ship_mode().map_err(err)?, "forge": detected.map(|f| f.mode()), "forge_name": detected.map(|f| f.name()),
+        "origin": onecorp::git::remote_url(&repo, "origin"),
+        "tickets": c.tickets().map_err(err)?.len(), "people": c.employees().map_err(err)?.len(),
+        "version": env!("CARGO_PKG_VERSION"),
+    }))
+}
+
+#[tauri::command(async)]
+fn set_ship(company: String, mode: String) -> Res<()> {
+    onecorp::ship::set_mode(&open(&company)?, &mode).map_err(err)
+}
+
+/// The same checks as `onecorp doctor`.
+#[tauri::command(async)]
+fn health() -> Res<Value> {
+    let level = |l: &onecorp::doctor::Level| match l {
+        onecorp::doctor::Level::Ok => "ok",
+        onecorp::doctor::Level::Warn => "warn",
+        onecorp::doctor::Level::Fail => "fail",
+    };
+    Ok(json!(onecorp::doctor::run().iter().map(|c| json!({"level": level(&c.level), "what": c.what, "detail": c.detail, "fix": c.fix})).collect::<Vec<_>>()))
+}
+
+#[tauri::command(async)]
+fn delete_company(name: String) -> Res<()> {
+    onecorp::setup::delete_company(&name).map_err(err)
+}
+
+#[tauri::command(async)]
+fn forget_founder() -> Res<()> {
+    onecorp::founder::remove().map_err(err)
+}
+
 #[tauri::command(async)]
 fn setup_info() -> Res<Value> {
     let runtimes = onecorp::doctor::installed_runtimes();
@@ -379,6 +420,11 @@ fn main() {
             use_company,
             chat,
             say,
+            settings,
+            set_ship,
+            health,
+            delete_company,
+            forget_founder,
             snapshot,
             person,
             review,

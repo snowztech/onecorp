@@ -1,6 +1,6 @@
 //! The founder profile: saving, keeping and removing the photo.
 
-use onecorp::founder::{Photo, load, name, save};
+use onecorp::founder::{Photo, load, name, remove, save};
 use std::fs;
 
 #[test]
@@ -25,5 +25,10 @@ fn a_bad_photo_never_loses_the_one_you_had() {
     save("Lucas", Photo::Remove).unwrap();
     assert!(load().unwrap().photo.is_none());
     assert_eq!(name(), "Lucas");
+
+    save("Lucas", Photo::Use(&good)).unwrap();
+    remove().unwrap();
+    assert!(load().is_none() && !dir.join("home/founder-photo.png").exists(), "removing you takes the photo too");
+    remove().unwrap();
     let _ = fs::remove_dir_all(&dir);
 }

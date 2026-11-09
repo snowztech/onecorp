@@ -45,7 +45,7 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 | `ship.rs` | How approved work lands: a local merge, or a pull request on GitHub or GitLab. Publishing, approving, and noticing PRs merged or closed on the forge. |
 | `forge.rs` | The only code that talks to `gh` and `glab`: open, look at and merge a pull request, check the login. |
 | `founder.rs` | You: a name and an optional photo in `~/.onecorp/founder.json`, shared by every company. Prompts use the name. No account. |
-| `setup.rs` | Creating a company in one step: a new repo if you start from nothing (optionally on GitHub), the company, its team as you edited it, how it ships, and the first plan. |
+| `setup.rs` | Deleting a company safely (stops work, removes OneCorp's worktrees, never the repo or its branches), and creating one in one step: a new repo if you start from nothing (optionally on GitHub), the company, its team as you edited it, how it ships, and the first plan. |
 | `git.rs` | Worktrees, commits under an employee's name, diffs, merges and conflicts. |
 | `templates.rs` | Role presets (engineer, reviewer, designer, product manager, writer) and starting teams. A template becomes a list of `Person` you can edit, checked for duplicates before anyone is hired. |
 | `doctor.rs` | The checks behind `onecorp doctor`: git, agent CLIs, home folder, each company's repo and team. |

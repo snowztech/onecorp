@@ -35,7 +35,6 @@ button { cursor: pointer; }
 
 /* Sidebar */
 .side { background: var(--surface-2); border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: auto; }
-.cos { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
 .cobtn { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; padding: 5px 8px; border-radius: 8px; text-align: left; color: var(--muted); }
 .cobtn:hover { background: var(--surface); color: var(--fg); }
 .cobtn[aria-current="true"] { color: var(--fg); font-weight: 600; }
@@ -476,3 +475,88 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .panel h3 { border-bottom: 0; padding-bottom: 2px; font: 700 15px var(--display); letter-spacing: -.01em; }
 .panel h3 small { font: 400 12px var(--body); }
 .hb > .link-btn { margin: 0 14px 14px; }
+
+/* Documents: the Handbook and Settings read like pages, not forms */
+.doc-wrap { display: grid; grid-template-columns: minmax(0, 680px) 180px; gap: 56px; justify-content: center; padding: 12px 0 64px; }
+.doc { min-width: 0; }
+.doc h1 { margin: 6px 0 8px; font: 700 32px/1.15 var(--display); letter-spacing: -.025em; }
+.doc-lede { margin: 0 0 8px; font-size: 15px; color: var(--muted); }
+.doc-sec { padding-top: 28px; scroll-margin-top: 16px; }
+.doc-sec h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font: 700 20px var(--display); letter-spacing: -.015em; }
+.doc-sec h2 .link-btn { margin: 0; font: 400 12px var(--body); }
+.doc-sec > p { margin: 0 0 8px; font-size: 15px; line-height: 1.65; }
+.doc-rules { margin: 0; padding: 0; list-style: none; }
+.doc-rules li { position: relative; display: flex; gap: 10px; padding: 6px 28px 6px 18px; font-size: 15px; line-height: 1.55; border-radius: var(--r-sm); }
+.doc-rules li::before { content: ""; position: absolute; left: 4px; top: 15px; width: 5px; height: 5px; border-radius: 99px; background: var(--muted); }
+.doc-rules li .x { position: absolute; right: 4px; top: 6px; opacity: 0; transition: opacity .15s; }
+.doc-rules li:hover { background: var(--surface-2); }
+.doc-rules li:hover .x, .doc-rules li .x:focus-visible { opacity: 1; }
+.doc-edit .acts { margin-top: 8px; }
+.doc-props { margin-top: 20px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.doc-props .props { margin-top: 8px; }
+.doc-foot { display: flex; gap: 18px; align-items: baseline; flex-wrap: wrap; margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); }
+.doc-foot .link-btn { margin: 0; }
+.doc-foot .reply { flex: 1 1 100%; }
+.toc { position: sticky; top: 12px; align-self: start; display: flex; flex-direction: column; gap: 2px; padding-top: 6px; }
+.toc .label { margin-bottom: 6px; }
+.toc button { border: 0; background: none; text-align: left; padding: 4px 0; font-size: 13px; color: var(--muted); }
+.toc button:hover { color: var(--fg); }
+@media (max-width: 1180px) { .doc-wrap { grid-template-columns: minmax(0, 680px); } .toc { display: none; } }
+
+/* Settings rows: what it is on the left, the control on the right */
+.settings .doc-sec { padding-top: 32px; }
+.row-set { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.row-set > div:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row-set span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.row-set .mono { font-size: 12px; }
+.row-set .link-btn { margin: 0; white-space: nowrap; }
+.who-row { flex-direction: row !important; align-items: center; gap: 12px !important; }
+.who-row .av { width: 36px; height: 36px; }
+.seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-2); border-radius: 10px; }
+.seg button { border: 0; background: none; padding: 5px 10px; border-radius: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
+.health { list-style: none; margin: 0; padding: 0; }
+.hc { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.hc i { width: 20px; height: 20px; border-radius: 99px; display: grid; place-items: center; font: 700 11px var(--body); font-style: normal; background: var(--good-soft); color: var(--good); }
+.hc.lvl-warn i { background: var(--surface-2); color: var(--muted); }
+.hc.lvl-fail i { background: var(--signal-soft); color: var(--signal); }
+.hc div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hc span { color: var(--muted); overflow-wrap: anywhere; }
+.hc code { font: 12px var(--mono); color: var(--fg); background: var(--surface-2); padding: 3px 6px; border-radius: 5px; align-self: flex-start; overflow-wrap: anywhere; }
+.danger-zone .row-set:last-child { border-bottom: 0; }
+.btn.danger { background: #c23b32; border-color: #c23b32; color: #fff; }
+.btn.danger-ghost { color: #d4483e; }
+.btn.danger-ghost:hover { border-color: #d4483e; }
+.confirm { padding: 14px 16px; margin: 8px 0; border: 1px solid #d4483e; border-radius: var(--r-md); }
+.confirm p { margin: 0 0 10px; font-size: 13px; }
+.settings > .fine { margin-top: 32px; }
+
+/* Company switcher: one row at the top, the rest in a menu */
+.switch { position: relative; margin-bottom: 10px; }
+.co-switch { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 0; background: none; border-radius: var(--r-sm); text-align: left; font-weight: 600; }
+.co-switch:hover, .co-switch[aria-expanded="true"] { background: var(--surface); }
+.co-switch .logo { background: var(--fg); color: var(--surface); }
+.co-switch .chev { margin-left: auto; color: var(--muted); font-size: 12px; }
+.menu { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: 0 14px 40px rgb(0 0 0 / .25); }
+.menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; width: auto; }
+.menu .cobtn { color: var(--fg); }
+.menu .cobtn:hover { background: var(--surface-2); }
+.menu .tick { margin-left: auto; color: var(--accent); }
+.logo.add { background: none; border: 1px dashed var(--muted); color: var(--muted); }
+
+/* The plan card */
+.kick { flex-direction: column; align-items: stretch; gap: 12px; }
+.kick-h { display: flex; gap: 12px; align-items: flex-start; }
+.kick-h > div { display: flex; flex-direction: column; gap: 2px; }
+.kick-h b { font: 700 16px var(--display); letter-spacing: -.01em; }
+.kick-h .muted { font-size: 13px; }
+.kick-step { width: 26px; height: 26px; flex: none; border-radius: 99px; display: grid; place-items: center; font: 700 12px var(--display); background: var(--accent-soft); color: var(--accent); }
+.kick textarea { background: var(--bg); border-color: transparent; font-size: 14px; line-height: 1.55; resize: none; }
+.kick textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.kick-foot { display: flex; align-items: center; gap: 10px; }
+.kick-foot .btn { margin-left: auto; }
+.planner { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.planner .av { width: 22px; height: 22px; }
+.kick .planner select { border: 0; background: none; font-weight: 600; padding: 2px 0; }
+.who-row > div { display: flex; flex-direction: column; gap: 2px; }
+.navbtn[data-view="settings"] { margin-top: 8px; }

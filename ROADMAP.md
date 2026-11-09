@@ -60,6 +60,8 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Handbook page: read, edit and accept proposals in the app
 - [x] New company flow in the app: pick the repo, name it, pick a starting team
 - [x] Questions go to the department lead before they reach you, and you can step in anytime
+- [x] Settings: ship mode, health checks, delete a company, forget your profile
+- [x] Handbook as a readable company doc
 - [ ] ⌘K command bar for everything
 
 ## Next

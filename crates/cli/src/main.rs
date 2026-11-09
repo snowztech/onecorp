@@ -252,6 +252,16 @@ enum Cmd {
         /// Go back to the generated face
         #[arg(long, conflicts_with = "photo")]
         no_photo: bool,
+        /// Forget your name and photo. Your companies stay
+        #[arg(long, conflicts_with_all = ["name", "photo", "no_photo"])]
+        forget: bool,
+    },
+    /// Delete a company and everything OneCorp kept for it. Your repo and its branches stay
+    Delete {
+        name: String,
+        /// Don't ask to type the name first
+        #[arg(long)]
+        yes: bool,
     },
     /// How approved work lands: local merges, or pull requests on github or gitlab
     Ship {
@@ -704,7 +714,24 @@ fn run(cmd: Cmd) -> Result<()> {
             }
         }
         Cmd::Serve { max } => onecorp::serve::serve(max)?,
-        Cmd::Founder { name, photo, no_photo } => {
+        Cmd::Founder { forget: true, .. } => {
+            onecorp::founder::remove()?;
+            println!("Forgot your profile. The app asks who you are next time.");
+        }
+        Cmd::Delete { name, yes } => {
+            let c = store::Company::open(&name)?;
+            let tickets = c.tickets()?.len();
+            drop(c);
+            if !yes {
+                println!("This deletes {name}: its team, {tickets} tickets, chat, handbook and memory. Your repo and its branches stay.");
+                if ask(&format!("Type {name} to delete it"), "")? != name {
+                    bail!("not deleted");
+                }
+            }
+            onecorp::setup::delete_company(&name)?;
+            println!("Deleted {name}.");
+        }
+        Cmd::Founder { name, photo, no_photo, .. } => {
             use onecorp::founder::Photo;
             let current = onecorp::founder::load();
             if name.is_some() || photo.is_some() || no_photo {

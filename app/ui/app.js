@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, pop: false };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, pop: false, settings: null, health: null, confirm: null };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -79,19 +79,20 @@ const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S
 
 /* Sidebar and top bar */
 function renderSide() {
-  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
+  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook", settings: "Settings" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
-    <div class="cos">${S.companies.map(c => `<button class="cobtn" data-co="${esc(c)}" aria-current="${!S.setup && c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span></button>`).join("")}
-      <button class="cobtn add" data-new-co="1" aria-current="${!!S.setup}"><span class="logo">+</span><span class="coname">New company</span></button></div>
-    ${S.company ? `<h6>${esc(S.company)}</h6>${Object.entries(pages).map(([k, v]) =>
+    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `<span class="logo">${esc(S.company[0].toUpperCase())}</span><span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}<span class="chev">⌄</span></button>
+      ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : ""}</button>`).join("")}
+        <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
+    ${S.company ? `${Object.entries(pages).map(([k, v]) =>
       `<button class="navbtn" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${v}${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
     ${S.snap ? `<div class="serve ${S.snap.serve ? "" : "off"}"><i></i>${S.snap.serve ? "Your team is working" : "Nobody is running work"}</div>` : ""}
     <button class="side-foot" data-profile="1" title="Edit your profile">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div></button>`;
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board", chat: "Chat" }[S.view] || S.company || "OneCorp";
+  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Handbook", board: "Board", chat: "Chat", settings: "Settings" }[S.view] || S.company || "OneCorp";
   const depts = s ? s.departments.filter(d => d.id !== null).length : 0;
   const ships = s?.ship?.forge ? ` · ships to ${s.ship.forge}` : s ? " · merges locally" : "";
   $("#sub").textContent = s ? `${s.employees.length} ${s.employees.length === 1 ? "person" : "people"} · ${depts} ${depts === 1 ? "department" : "departments"}${ships}` : "";
@@ -138,6 +139,43 @@ function viewCompany() {
       <section class="side-sec"><h3 class="label">Live <span class="live ${s.serve ? "" : "off"}">${s.serve ? "On" : "Paused"}</span></h3><ul class="feed">${feed(s.feed)}</ul></section>
     </aside></div>`;
 }
+/* Settings: the company, you, whether everything OneCorp needs is in place, and the danger zone */
+function viewSettings() {
+  const st = S.settings;
+  if (!st || st.name !== S.company) return `<p class="muted">Opening settings…</p>`;
+  const modes = [["local", "On this Mac"], ["github", "GitHub pull requests"], ["gitlab", "GitLab merge requests"]].filter(([m]) => m === "local" || m === st.forge || m === st.ship);
+  const reveal = path => window.__TAURI__?.opener ? `<button class="link-btn" data-reveal="${esc(path)}">Show in Finder</button>` : "";
+  const icon = { ok: "✓", warn: "!", fail: "×" };
+  const health = S.health === null ? `<p class="muted">Checking…</p>` : (S.health || []).map(h => `<li class="hc lvl-${h.level}"><i>${icon[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("");
+  const del = S.confirm === "delete"
+    ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, handbook and memory. Running work stops. Your repo and its branches stay as they are.</p>
+        <div class="su-row"><input id="del-name" placeholder="Type ${esc(st.name)} to confirm" autocomplete="off" spellcheck="false"><button class="btn danger">Delete ${esc(st.name)}</button><button class="btn ghost" type="button" data-confirm="">Cancel</button></div></form>`
+    : `<div class="row-set"><div><b>Delete ${esc(st.name)}</b><span>Removes the company from OneCorp. Your repo is never touched.</span></div><button class="btn danger-ghost" data-confirm="delete">Delete…</button></div>`;
+  const forget = S.confirm === "forget"
+    ? `<div class="confirm"><p>OneCorp forgets your name and photo and asks again. Your companies stay.</p><div class="acts"><button class="btn danger" data-forget="1">Forget me</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
+    : `<div class="row-set"><div><b>Forget your profile</b><span>Your name and photo, on this Mac.</span></div><button class="btn danger-ghost" data-confirm="forget">Forget…</button></div>`;
+  return `<div class="doc-wrap"><article class="doc settings">
+    <span class="label">Settings</span><h1>${esc(st.name)}</h1>
+    <section class="doc-sec"><h2>Company</h2>
+      <div class="row-set"><div><b>Repo</b><span class="mono">${esc(st.repo)}</span></div>${reveal(st.repo)}</div>
+      <div class="row-set"><div><b>Finished work ships</b><span>${st.origin ? esc(st.origin) : "No remote yet. Add one to ship as pull requests."}</span></div>
+        <div class="seg">${modes.map(([m, n]) => `<button data-ship="${m}" aria-pressed="${m === st.ship}">${n}</button>`).join("")}</div></div>
+      <div class="row-set"><div><b>OneCorp's data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div></section>
+    <section class="doc-sec"><h2>You</h2>
+      <div class="row-set"><div class="who-row">${me()}<div><b>${esc(myName())}</b><span>Founder of every company here</span></div></div><button class="btn" data-profile="1">Edit profile</button></div></section>
+    <section class="doc-sec"><h2>Health <button class="link-btn" data-health="1">Check again</button></h2><ul class="health">${health}</ul></section>
+    <section class="doc-sec danger-zone"><h2>Danger zone</h2>${del}${forget}</section>
+    <p class="fine">OneCorp ${esc(st.version)} · Everything lives in ${esc(st.home)}</p>
+  </article></div>`;
+}
+async function openSettings() {
+  S.view = "settings"; S.confirm = null; S.health = null; render();
+  try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); }
+  render();
+  try { S.health = await invoke("health"); } catch (e) { S.health = []; toast(String(e), true); }
+  render();
+}
+
 /* Kickoff: from what you're building to a plan of tickets */
 function kickoffCard() {
   const k = S.snap.kickoff, team = S.snap.employees;
@@ -152,11 +190,14 @@ function kickoffCard() {
     const line = (k.brief || "").split(/(?<=[.!?])\s|\n/)[0];
     return line ? `<button class="building" data-view="handbook"><span class="label">Building</span><span class="what">${esc(line)}</span><span class="muted">Edit brief</span></button>` : "";
   }
-  return `<form class="kick" id="kick"><div class="kick-body"><b>What are you building?</b>
-      <span class="muted">The product, who it's for, what the first version needs. Your team plans it into tickets, and you start them when you're happy.</span>
-      <textarea id="ko-brief" rows="4" placeholder="A notes app for writers. Magic link login, notes that sync, and export to Markdown. Free to start, $6 a month for more.">${esc(k.brief)}</textarea>
-      <div class="acts"><select id="ko-by" aria-label="Who plans it">${team.map(e => `<option value="${esc(e.id)}" ${e.id === k.planner ? "selected" : ""}>${esc(first(e.name))}, ${esc(e.role)}</option>`).join("")}</select>
-        <button class="btn primary">Plan it</button></div></div></form>`;
+  const planner = byId(k.planner) || team[0];
+  return `<form class="kick" id="kick">
+      <div class="kick-h"><span class="kick-step">1</span><div><b>Plan your first version</b>
+        <span class="muted">Describe the product once. Your team turns it into a plan of tickets for you to review. For a single task, use New ticket.</span></div></div>
+      <textarea id="ko-brief" rows="3" placeholder="A notes app for writers. Magic link login, notes that sync, and export to Markdown. Free to start, $6 a month for more.">${esc(k.brief)}</textarea>
+      <div class="kick-foot"><label class="planner">${face(planner.name, "neutral")}<span class="muted">Planned by</span>
+          <select id="ko-by" aria-label="Who plans it">${team.map(e => `<option value="${esc(e.id)}" ${e.id === planner.id ? "selected" : ""}>${esc(first(e.name))}, ${esc(e.role)}</option>`).join("")}</select></label>
+        <button class="btn primary">Plan it</button></div></form>`;
 }
 
 function feed(items) {
@@ -286,7 +327,7 @@ function writeHandbook(book) {
 function viewHandbook() {
   if (S.handbook === null) return `<p class="muted">Opening the handbook…</p>`;
   const proposals = S.snap.inbox.filter(q => q.kind === "handbook");
-  const props = proposals.length ? `<section class="panel"><h3>Proposed by your team <span class="badge">${proposals.length}</span></h3><div class="props">${proposals.map(q => `
+  const props = proposals.length ? `<section class="doc-props"><span class="label">Proposed by your team</span><div class="props">${proposals.map(q => `
       <div class="prop">${face(q.name, "neutral")}<div><b>${esc(first(q.name))}</b> <span class="muted">for ${esc(q.section)}</span><p>${esc(q.question)}</p>
         <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div></div></div>`).join("")}</div></section>` : "";
   if (S.hbRaw) {
@@ -294,21 +335,30 @@ function viewHandbook() {
       <textarea id="hb-text" spellcheck="false">${esc(S.handbook)}</textarea>
       <div class="acts"><button class="btn primary">Save</button><button class="btn" type="button" data-hb-raw="0">Cancel</button></div></form></div>`;
   }
-  const book = parseHandbook(S.handbook);
-  const sections = book.sections.map((s, i) => `<section class="panel hb">
-      <h3>${esc(s.name)}<small class="muted">${s.items.length ? s.items.length + (s.items.length === 1 ? " rule" : " rules") : ""}</small></h3>
-      ${s.text.length ? `<p class="hb-text">${s.text.map(esc).join("<br>")}</p>` : ""}
-      ${s.items.length ? `<ul class="rules">${s.items.map((it, k) => `<li><span>${esc(it)}</span><button class="x" data-hb-del="${i}:${k}" aria-label="Remove">×</button></li>`).join("")}</ul>` : ""}
-      ${more(`hb-add-${i}`, `+ Add to ${esc(s.name)}`, `<form class="reply" data-hb-add="${esc(s.name)}"><input id="hb-add-${i}" placeholder="Add to ${esc(s.name)}…"><button class="btn">Add</button></form>`)}</section>`).join("");
-  const brief = `<form class="panel hb" id="brief-form"><h3>What we're building<small class="muted">Everyone reads it. Planning starts from it.</small></h3>
-      <textarea id="brief-text" class="brief-text" rows="3" placeholder="The product, who it's for, what the first version needs.">${esc(S.snap.kickoff.brief)}</textarea>
-      <div class="acts brief-acts"><button class="btn">Save</button><button class="btn" type="button" data-replan="1">Save and plan it</button></div></form>`;
-  return `<div class="book">
-    ${brief}
-    <p class="lede">Everyone reads this before every ticket. Decide something once, write it here, and the whole team follows it.</p>
-    ${props}${sections || `<div class="empty-state"><b>Empty handbook</b>Add a section below, like Decisions or Conventions.</div>`}
-    <form class="room-new" id="hb-section"><label for="hb-new"><b>+ New section</b></label><div class="row"><input id="hb-new" placeholder="Glossary, Tone of voice, Security…" autocomplete="off"><button class="btn">Add section</button></div></form>
-    <div class="acts"><button class="btn" data-hb-raw="1">Edit as text</button></div></div>`;
+  // Read first, like a company doc. Editing is there when you reach for it: hover a rule to remove it,
+  // and the add fields stay folded until asked for.
+  const book = parseHandbook(S.handbook), brief = S.snap.kickoff.brief;
+  const toc = [["hb-brief", "What we're building"], ...book.sections.map((x, i) => [`hb-s${i}`, x.name])];
+  const briefBody = S.open.brief
+    ? `<form id="brief-form" class="doc-edit"><textarea id="brief-text" class="brief-text" rows="5" placeholder="The product, who it's for, what the first version needs.">${esc(brief)}</textarea>
+        <div class="acts"><button class="btn primary">Save</button><button class="btn" type="button" data-replan="1">Save and plan it</button><button class="btn ghost" type="button" data-close-open="brief">Cancel</button></div></form>`
+    : brief ? `<p>${esc(brief).replace(/\n/g, "<br>")}</p>` : `<p class="muted">Nothing yet. Say what you're building and your team can plan it.</p>`;
+  const sections = book.sections.map((x, i) => `<section id="hb-s${i}" class="doc-sec"><h2>${esc(x.name)}</h2>
+      ${x.text.length ? `<p>${x.text.map(esc).join("<br>")}</p>` : ""}
+      ${x.items.length ? `<ul class="doc-rules">${x.items.map((it, k) => `<li><span>${esc(it)}</span><button class="x" data-hb-del="${i}:${k}" aria-label="Remove" title="Remove">×</button></li>`).join("")}</ul>` : ""}
+      ${!x.text.length && !x.items.length ? `<p class="muted">Nothing here yet.</p>` : ""}
+      ${more(`hb-add-${i}`, `+ Add to ${esc(x.name)}`, `<form class="reply" data-hb-add="${esc(x.name)}"><input id="hb-add-${i}" placeholder="One line everyone should follow"><button class="btn">Add</button></form>`)}</section>`).join("");
+  return `<div class="doc-wrap"><article class="doc">
+      <span class="label">Handbook</span>
+      <h1>${esc(book.title || S.company + " handbook")}</h1>
+      <p class="doc-lede">Everyone reads this before every ticket. Decide something once, write it here, and the whole team follows it.</p>
+      ${props}
+      <section id="hb-brief" class="doc-sec"><h2>What we're building ${S.open.brief ? "" : `<button class="link-btn" data-more="brief">Edit</button>`}</h2>${briefBody}</section>
+      ${sections}
+      <footer class="doc-foot">${more("hb-new", "+ New section", `<form class="reply" id="hb-section"><input id="hb-new" placeholder="Glossary, Tone of voice, Security…" autocomplete="off"><button class="btn">Add section</button></form>`)}
+        <button class="link-btn" data-hb-raw="1">Edit as text</button></footer>
+    </article>
+    <nav class="toc" aria-label="On this page"><span class="label">On this page</span>${toc.map(([id, n]) => `<button data-toc="${id}">${esc(n)}</button>`).join("")}</nav></div>`;
 }
 
 /* Board: every ticket by where it stands. Click one for its log and actions. */
@@ -658,7 +708,7 @@ function render() {
   } else if (!S.snap) {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
-    v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard, chat: viewChat }[S.view]?.() ?? viewCompany();
+    v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard, chat: viewChat, settings: viewSettings }[S.view]?.() ?? viewCompany();
     const m = $("#msgs"); if (m) m.scrollTop = m.scrollHeight;
   }
   renderDrawer();
@@ -700,8 +750,9 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (S.pop && !e.target.closest("#pop, [data-profile]")) { S.pop = false; renderPop(); }
+  if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -725,6 +776,23 @@ document.addEventListener("click", async e => {
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
   }
+  if (d.switch) { S.switching = !S.switching; return renderSide(); }
+  if (d.toc) return document.getElementById(d.toc)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (d.closeOpen) { S.open[d.closeOpen] = false; return render(); }
+  if (d.view === "settings") return openSettings();
+  if (d.ship) {
+    try { await invoke("set_ship", { company: S.company, mode: d.ship }); S.settings = await invoke("settings", { company: S.company }); toast(d.ship === "local" ? "Finished work merges on this Mac" : "Finished work opens pull requests"); }
+    catch (err) { toast(String(err), true); }
+    return refresh(true);
+  }
+  if (d.reveal) return window.__TAURI__.opener.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
+  if (d.health) { S.health = null; render(); S.health = await invoke("health").catch(() => []); return render(); }
+  if ("confirm" in d) { S.confirm = d.confirm || null; render(); return $("#del-name")?.focus(); }
+  if (d.forget) {
+    el.disabled = true;
+    try { await invoke("forget_founder"); } catch (err) { el.disabled = false; return toast(String(err), true); }
+    S.founder = null; S.confirm = null; S.pop = false; S.profile = { name: "" }; renderPop(); return render();
+  }
   if (d.more) { S.open[d.more] = true; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) { S.pop = !S.pop; renderPop(); return $("#pf-name")?.focus(); }
   if (d.pf) {
@@ -747,7 +815,7 @@ document.addEventListener("click", async e => {
     await call("stop", { company: S.company, key: d.stop }, `Stopped ${d.stop}. Retry it anytime.`).catch(() => (el.disabled = false));
     return;
   }
-  if (d.newCo) return startSetup();
+  if (d.newCo) { S.switching = false; return startSetup(); }
   if (d.tpl) { readSetup(); setTemplate(d.tpl); return render(); }
   if (d.su) {
     readSetup();
@@ -790,7 +858,7 @@ document.addEventListener("click", async e => {
     return render();
   }
   if (d.hideDiff) { delete S.diffs[d.hideDiff]; return render(); }
-  if (d.co) { S.setup = null; S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
+  if (d.co) { S.switching = false; S.setup = null; S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
   else if (d.view) { S.view = d.view; S.hbRaw = false; if (d.close) S.drawer = null; render(); if (d.view === "handbook") refresh(true); }
   else if (d.person) openPerson(d.person);
   else if (d.hire) { const dept = S.snap.departments.find(x => String(x.id) === d.hire); S.drawer = { type: "hire", dept: dept.id, role: /eng/i.test(dept.name) ? "Engineer" : dept.name + " specialist" }; renderDrawer(); }
@@ -820,7 +888,7 @@ document.addEventListener("submit", async e => {
     return;
   }
   if (f.id === "brief-form") {
-    await call("save_brief", { company: S.company, brief: $("#brief-text").value }, "Brief saved. Everyone reads it from their next ticket").catch(() => {});
+    await call("save_brief", { company: S.company, brief: $("#brief-text").value }, "Brief saved. Everyone reads it from their next ticket").then(() => { S.open.brief = false; render(); }).catch(() => {});
     return;
   }
   if (f.id === "profile") {
@@ -862,6 +930,15 @@ document.addEventListener("submit", async e => {
       await refresh(true);
     } catch (e) { toast(String(e), true); btn.disabled = false; btn.textContent = "Create the company"; }
     return;
+  }
+  if (f.id === "del-co") {
+    const name = S.settings.name;
+    if ($("#del-name").value.trim() !== name) { toast(`Type ${name} to confirm`, true); return $("#del-name").focus(); }
+    const btn = f.querySelector(".danger"); btn.disabled = true; btn.textContent = "Deleting…";
+    try { await invoke("delete_company", { name }); } catch (err) { btn.disabled = false; btn.textContent = `Delete ${name}`; return toast(String(err), true); }
+    toast(`Deleted ${name}. Your repo is untouched.`);
+    S.company = null; S.snap = null; S.last = ""; S.settings = null; S.confirm = null; S.view = "company";
+    return refresh(true);
   }
   if (f.id === "say") {
     const input = $("#say-text"), text = input.value.trim();
@@ -905,6 +982,7 @@ document.addEventListener("input", e => {
   if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) $(".welcome .pf-pic").innerHTML = face(e.target.value || "You", "neutral");
 });
 document.addEventListener("change", async e => {
+  if (e.target.id === "ko-by") { const p = byId(e.target.value); if (p) e.target.closest(".planner").querySelector(".av").outerHTML = face(p.name, "neutral"); return; }
   if (e.target.dataset?.planAssign) {
     const employee = e.target.value;
     if (employee) await call("assign", { company: S.company, key: e.target.dataset.planAssign, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
@@ -921,8 +999,10 @@ document.addEventListener("change", async e => {
   }
 });
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && S.switching) { S.switching = false; return renderSide(); }
   if (e.key === "Escape" && S.pop) { S.pop = false; return renderPop(); }
   if (e.key === "Escape") { if (S.drawer) { S.drawer = null; renderDrawer(); } else if (S.addingDept) { S.addingDept = false; render(); } }
+  if ((e.metaKey || e.ctrlKey) && e.key === "," && S.snap && !S.setup && !S.profile) { e.preventDefault(); return openSettings(); }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && S.snap && !S.setup && !S.profile) { e.preventDefault(); S.drawer = { type: "new-ticket" }; renderDrawer(); $("#nt-title")?.focus(); }
 });
 
@@ -931,6 +1011,9 @@ document.addEventListener("keydown", e => {
 async function previewScreen() {
   const screen = location.hash.slice(1);
   await refresh(true);
+  if (screen === "settings") await openSettings();
+  if (screen === "switcher") { S.switching = true; renderSide(); }
+  if (screen === "kickoff") { S.snap.kickoff.planned = false; render(); }
   if (["board", "inbox", "handbook", "chat"].includes(screen)) { S.view = screen; render(); }
   if (screen === "ticket") openTicket("SNO-11");
   if (screen === "person") openPerson("tomas");
@@ -984,6 +1067,10 @@ function preview(cmd) {
     ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
     new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
+    settings: { name: "snowztech", repo: "/Users/you/dev/snowztech", data: "/Users/you/.onecorp/companies/snowztech", home: "/Users/you/.onecorp", ship: "github", forge: "github", forge_name: "GitHub", origin: "git@github.com:snowztech/notes.git", tickets: 22, people: 6, version: "0.1.0" },
+    health: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4 (Claude Code)", fix: null },
+      { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex, then run codex once to sign in" },
+      { level: "ok", what: "company snowztech", detail: "opens pull requests on git@github.com:snowztech/notes.git (Logged in to github.com account you)", fix: null }],
     check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [], forge: "GitHub", pr_word: "pull request", signed_in: true, account: "Logged in to github.com account you" },
     founder: { name: "Lucas", photo: null },
     chat: { channel: "general", messages: [

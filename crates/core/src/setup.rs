@@ -26,6 +26,47 @@ pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], br
     Ok((c, hired))
 }
 
+/// Deletes a company: its tickets, chat, handbook and memory, everything OneCorp keeps for it.
+/// Your repo is never touched, and branches stay in it, since they may hold work you want.
+/// Running agents are stopped and the company's worktrees are removed through git first, so
+/// the repo isn't left pointing at folders that are gone.
+pub fn delete_company(name: &str) -> Result<()> {
+    let c = Company::open(name)?;
+    for t in c.tickets()? {
+        if ["doing", "queued"].contains(&t.status.as_str()) {
+            let _ = crate::work::stop(&c, &t);
+        }
+    }
+    let workspaces = c.dir.join("wt");
+    if let Ok(repo) = c.repo() {
+        for t in c.tickets()? {
+            let Some(wt) = t.worktree.as_deref().map(Path::new) else { continue };
+            // Same guard as git::discard: only folders inside this company's own wt/ are removed.
+            let inside = wt.canonicalize().ok().zip(workspaces.canonicalize().ok()).is_some_and(|(w, root)| w.starts_with(&root) && w != root);
+            if inside {
+                let _ = Command::new("git").arg("-C").arg(&repo).args(["worktree", "remove", "--force"]).arg(wt).output();
+            }
+        }
+        let _ = Command::new("git").arg("-C").arg(&repo).args(["worktree", "prune"]).output();
+    }
+    let dir = c.dir.clone();
+    drop(c);
+    // The company's folder sits in OneCorp's home. Checked anyway, since this deletes recursively.
+    if dir.parent() != Some(crate::store::home().join("companies").as_path()) {
+        bail!("{} isn't a company folder, so it was left alone", dir.display());
+    }
+    std::fs::remove_dir_all(&dir).with_context(|| format!("couldn't delete {}", dir.display()))?;
+    if crate::store::current().ok().as_deref() == Some(name) {
+        match crate::store::list()?.first() {
+            Some(other) => crate::store::set_current(other)?,
+            None => {
+                let _ = std::fs::remove_file(crate::store::home().join("current"));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Where new repos go by default: ~/dev when it exists, otherwise your home folder.
 pub fn default_parent() -> PathBuf {
     let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());

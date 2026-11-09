@@ -80,3 +80,14 @@ pub fn save(name: &str, photo: Photo) -> Result<Founder> {
     fs::write(file(), serde_json::to_string_pretty(&json!({"name": name, "photo": photo_name}))?)?;
     Ok(Founder { name: name.to_string(), photo: kept })
 }
+
+/// Forgets you: your name and photo. The next launch asks again. Companies stay.
+pub fn remove() -> Result<()> {
+    if let Some(p) = load().and_then(|f| f.photo) {
+        let _ = fs::remove_file(p);
+    }
+    match fs::remove_file(file()) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
+        _ => Ok(()),
+    }
+}
