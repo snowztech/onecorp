@@ -8,8 +8,8 @@ edition.workspace = true
 onecorp.workspace = true
 anyhow.workspace = true
 serde_json.workspace = true
-tauri = "2"
+tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 
 [build-dependencies]
-tauri-build = "2"
+tauri-build = { version = "2", features = [] }

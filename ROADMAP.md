@@ -37,7 +37,7 @@ The whole company loop works in the CLI, tested end to end on throwaway repos.
 - [x] Agents are found even when the app is opened from the Dock, with its bare PATH
 - [x] Workspace layout: `crates/core` holds the logic, `crates/cli` and `app` are thin shells
 
-## Now: the desktop app
+## Now: the desktop app (v0.1.0 shipped)
 
 Tauri 2, on top of the `onecorp` library and `serve`. Built from the prototype's design.
 
@@ -72,7 +72,8 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [ ] Replay a day, weekly report card, daily standup
 - [ ] Shareable company templates
 - [ ] Several repos per company
-- [ ] Install script and releases
+- [x] Install script (`scripts/install.sh`) and OneCorp.app
+- [ ] Signed releases you can download
 - [ ] Name and brand (onecorp.dev for now)
 
 ## How we work

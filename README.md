@@ -4,6 +4,17 @@ Run a company of AI employees. Hire a team, give them tickets, watch them work i
 
 Early days. Employees run on Claude Code or Codex, and everything happens in the CLI. The idea, product and brand notes live in [docs/vision](docs/vision). Where this is going and what is next: [ROADMAP.md](ROADMAP.md). How it works inside: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Install
+
+```sh
+git clone <this repo> && cd onecorp
+scripts/install.sh            # the onecorp command, and OneCorp.app in ~/Applications
+```
+
+It installs `onecorp` with `cargo install`, builds the app, copies it to `~/Applications` (`--system` for `/Applications`, `--cli` to skip the app), then runs `onecorp doctor`. You need Rust, plus Claude Code or Codex for real employees. Without them, pick **Try it for free** when you create a company.
+
+Open OneCorp from Spotlight. The first time, it walks you through creating a company.
+
 ## Layout
 
 ```
