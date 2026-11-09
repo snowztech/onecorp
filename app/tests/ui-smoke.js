@@ -18,6 +18,7 @@ eval(src + `
   await openPerson("tomas"); console.log("person drawer", document.querySelector("#drawer").innerHTML.length, "chars");
   S.drawer = null;
   S.profile = { name: "Lucas" }; render(); console.log("profile", document.querySelector("#view").innerHTML.length, "chars"); S.profile = null;
+  S.pop = true; renderPop(); console.log("profile popover", document.querySelector("#pop").innerHTML.length, "chars"); S.pop = false;
   await startSetup();
   await checkRepo("/Users/you/dev/snowztech");
   for (let step = 0; step < 4; step++) { S.setup.step = step; render(); console.log("setup step", step, document.querySelector("#view").innerHTML.length, "chars"); }

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A first launch that feels like a welcome, not a dashboard. Setting up your profile and creating a company are full screen, with nothing around them yet. Your drawn face follows your name as you type. Editing your profile later is a small popover from your name in the sidebar. On a Mac the title bar is gone and the window controls sit on the app. Fixed a blank window on a brand new install.
 - Team chat you can see and join. #general for the company and a channel per department, made for you as departments appear. Employees post to their own team by default and read recent chat before each ticket. Post from the Chat page or `onecorp say engineering "@maya how does login work?"`, and whoever you @mention replies, read-only, with the cost counted in your spend. Times now show in your own time zone.
 - A calmer app. One New ticket button (⌘K) replaces the busy top bar form. The Board has five columns, with everything that needs you in one, and only shows cost once something was spent. Inbox cards lead with their one-click answers and fold free text away. Desks drop their runtime chips and hire buttons, since the empty desk already does that.
 - Start from just an idea: the new company flow can create the repo, with git, a README and a first commit, and also create it on GitHub under you or one of your orgs (`onecorp new --init --github`). Starting teams are editable before you create the company: names, roles, departments and runtimes.

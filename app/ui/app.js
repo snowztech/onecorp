@@ -3,11 +3,12 @@
 // Opened in a plain browser (no Tauri), it runs on sample data so the design can be checked quickly.
 
 const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : preview;
+if (window.__TAURI__) document.documentElement.classList.add("native");
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbRaw: false, setup: null, founder: undefined, profile: null, pop: false };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -80,7 +81,7 @@ const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S
 function renderSide() {
   const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
-  $("#side").innerHTML = `
+  $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
     <div class="cos">${S.companies.map(c => `<button class="cobtn" data-co="${esc(c)}" aria-current="${!S.setup && c === S.company}"><span class="logo">${esc(c[0].toUpperCase())}</span><span class="coname">${esc(c)}</span></button>`).join("")}
       <button class="cobtn add" data-new-co="1" aria-current="${!!S.setup}"><span class="logo">+</span><span class="coname">New company</span></button></div>
     ${S.company ? `<h6>${esc(S.company)}</h6>${Object.entries(pages).map(([k, v]) =>
@@ -462,18 +463,35 @@ async function openPerson(id) {
   renderDrawer();
 }
 
-/* Your profile: a name and a photo, kept on this Mac. No account. */
+/* Your profile: a name and a photo, kept on this Mac. No account. The first launch asks full screen,
+   after that it's a small popover from your name in the sidebar. */
+const photoActs = () => `${window.__TAURI__?.dialog ? `<button class="link-btn" type="button" data-pf="pick">${S.founder?.photo ? "Change photo" : "Choose a photo"}</button>` : ""}
+  ${S.founder?.photo ? `<button class="link-btn" type="button" data-pf="face">Use a drawn face</button>` : ""}`.trim();
+const pfPic = name => (S.founder?.photo ? me() : face(name || "You", "neutral"));
+function focusTop(cancel) {
+  return `<div class="focus-top" data-tauri-drag-region><span class="brand"><span class="mark">1</span>OneCorp</span>${cancel ? `<button class="btn ghost" type="button" data-su="cancel">Cancel</button>` : ""}</div>`;
+}
 function viewProfile() {
-  const p = S.profile, first = !S.founder;
-  const preview = S.founder?.photo ? me() : face(p.name || "You", "neutral");
-  return `<form class="setup" id="profile">
-    <h2>${first ? "Who's running the company?" : "Your profile"}</h2>
-    <p class="muted">Your team sees your name and works for you. It stays on this Mac. There's no account.</p>
-    <div class="pf-row"><span class="pf-pic">${preview}</span><div class="acts">
-      ${window.__TAURI__?.dialog ? `<button class="btn" type="button" data-pf="pick">${S.founder?.photo ? "Change photo…" : "Choose a photo…"}</button>` : ""}
-      ${S.founder?.photo ? `<button class="btn" type="button" data-pf="face">Use a generated face</button>` : `<span class="muted">Or keep a face drawn from your name.</span>`}</div></div>
-    <div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(p.name)}" placeholder="Lucas" autocomplete="off"></div>
-    <div class="su-nav">${first ? "<span></span>" : `<button class="btn" type="button" data-pf="cancel">Cancel</button>`}<button class="btn primary">${first ? "Continue" : "Save"}</button></div></form>`;
+  return `<div class="focus-wrap">${focusTop(false)}
+    <form class="welcome" id="profile">
+      <span class="pf-pic big">${pfPic(S.profile.name)}</span>
+      <h1>Who's running the company?</h1>
+      <p class="muted">Your team works for you and knows you by name. Everything stays on this Mac. There's no account.</p>
+      <input class="big-input" id="pf-name" value="${esc(S.profile.name)}" placeholder="Your name" autocomplete="off" aria-label="Your name">
+      <div class="photo-acts">${photoActs() || `<span class="muted">This face is drawn from your name.</span>`}</div>
+      <button class="btn primary lg">Continue</button>
+      <p class="fine">Next: your first company.</p>
+    </form></div>`;
+}
+function renderPop() {
+  const p = $("#pop");
+  p.hidden = !S.pop;
+  if (!S.pop) return;
+  p.innerHTML = `<form id="profile" class="pop-form">
+    <div class="pop-head"><span class="pf-pic">${pfPic(myName())}</span><div class="acts">${photoActs()}</div></div>
+    <div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(S.founder?.name || "")}" autocomplete="off"></div>
+    <p class="fine">Your team knows you by this name. It stays on this Mac.</p>
+    <div class="acts end"><button class="btn" type="button" data-pf="cancel">Cancel</button><button class="btn primary">Save</button></div></form>`;
 }
 async function saveProfile(photo, removePhoto) {
   const name = ($("#pf-name")?.value ?? S.profile.name).trim();
@@ -550,7 +568,7 @@ function shipNote(r) {
 function viewSetup() {
   const s = S.setup, steps = ["Repo", "Name", "Team", "Review"];
   const dots = `<ol class="su-steps">${steps.map((n, i) => `<li class="${i === s.step ? "on" : i < s.step ? "done" : ""}">${n}</li>`).join("")}</ol>`;
-  const back = s.step ? `<button class="btn" type="button" data-su="back">Back</button>` : S.companies.length ? `<button class="btn" type="button" data-su="cancel">Cancel</button>` : "<span></span>";
+  const back = s.step ? `<button class="btn" type="button" data-su="back">Back</button>` : "<span></span>";
   const nav = (label, disabled) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
   const picker = window.__TAURI__?.dialog;
   let body = "";
@@ -614,7 +632,7 @@ function viewSetup() {
         <dt>Team</dt><dd>${s.people.length ? s.people.map(p => `${esc(p.name)} <span class="muted">${esc(p.role)}${p.dept ? ", " + esc(p.dept) : ""}</span>`).join("<br>") : "Nobody yet"}</dd></dl>
       ${nav("Create the company")}`;
   }
-  return `<form class="setup" id="setup">${dots}${body}</form>`;
+  return `<div class="focus-wrap">${focusTop(S.companies.length)}<form class="setup ${s.step === 2 ? "wide" : ""}" id="setup">${dots}${body}</form></div>`;
 }
 
 /* Rendering and polling */
@@ -624,6 +642,9 @@ function render() {
   if (S.profile && $("#pf-name")) S.profile.name = $("#pf-name").value;
   renderSide(); renderTop();
   const v = $("#view");
+  // Setting up is full screen: no sidebar or top bar for things that don't exist yet.
+  document.querySelector(".app").classList.toggle("focus", !!(S.profile || S.setup));
+  v.classList.toggle("flush", !S.profile && !S.setup && S.view === "chat");
   if (S.profile) {
     v.innerHTML = viewProfile();
   } else if (S.setup) {
@@ -634,7 +655,6 @@ function render() {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
     v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard, chat: viewChat }[S.view]?.() ?? viewCompany();
-    v.classList.toggle("flush", S.view === "chat");
     const m = $("#msgs"); if (m) m.scrollTop = m.scrollHeight;
   }
   renderDrawer();
@@ -654,7 +674,7 @@ async function refresh(force) {
     if (!S.company) {
       S.snap = null;
       if (!S.setup && !S.profile) return startSetup(); // No company yet: create one.
-      return;
+      return render();
     }
     const snap = await invoke("snapshot", { company: S.company });
     // The handbook is a small file and can change outside the app, so it's read with every refresh.
@@ -675,6 +695,7 @@ async function refresh(force) {
 
 /* Actions */
 document.addEventListener("click", async e => {
+  if (S.pop && !e.target.closest("#pop, [data-profile]")) { S.pop = false; renderPop(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
   const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
@@ -701,14 +722,14 @@ document.addEventListener("click", async e => {
     return input.focus();
   }
   if (d.more) { S.open[d.more] = true; render(); return document.getElementById(d.more)?.focus(); }
-  if (d.profile) { S.profile = { name: myName() === "You" ? "" : myName() }; S.drawer = null; return render(); }
+  if (d.profile) { S.pop = !S.pop; renderPop(); return $("#pf-name")?.focus(); }
   if (d.pf) {
-    if (d.pf === "cancel") { S.profile = null; return render(); }
-    if (d.pf === "face") { if (await saveProfile(null, true)) render(); return; }
+    if (d.pf === "cancel") { S.pop = false; return renderPop(); }
+    if (d.pf === "face") { if (await saveProfile(null, true)) { render(); renderPop(); } return; }
     if (d.pf === "pick") {
       const path = await window.__TAURI__.dialog.open({ multiple: false, title: "Pick a photo of you", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif", "heic"] }] }).catch(() => null);
       // Saved straight away, so the preview shows the copy OneCorp keeps.
-      if (path && await saveProfile(String(path))) render();
+      if (path && await saveProfile(String(path))) { render(); renderPop(); }
       return;
     }
   }
@@ -799,10 +820,11 @@ document.addEventListener("submit", async e => {
     return;
   }
   if (f.id === "profile") {
-    const firstTime = !S.founder;
+    const firstTime = !!S.profile;
     if (!(await saveProfile())) return;
+    if (!firstTime) { S.pop = false; renderPop(); render(); return toast("Saved"); }
     S.profile = null;
-    toast(firstTime ? `Welcome, ${myName()}.` : "Saved");
+    toast(`Welcome, ${myName()}.`);
     if (!S.companies.length) return startSetup();
     return refresh(true);
   }
@@ -874,6 +896,10 @@ document.addEventListener("submit", async e => {
     await call("request_changes", { company: S.company, key: f.dataset.changes, feedback }, "Sent back. It's saved to their memory too.").catch(() => {});
   }
 });
+// The drawn face follows your name as you type it.
+document.addEventListener("input", e => {
+  if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) $(".welcome .pf-pic").innerHTML = face(e.target.value || "You", "neutral");
+});
 document.addEventListener("change", async e => {
   if (e.target.dataset?.planAssign) {
     const employee = e.target.value;
@@ -891,6 +917,7 @@ document.addEventListener("change", async e => {
   }
 });
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && S.pop) { S.pop = false; return renderPop(); }
   if (e.key === "Escape") { if (S.drawer) { S.drawer = null; renderDrawer(); } else if (S.addingDept) { S.addingDept = false; render(); } }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && S.snap && !S.setup && !S.profile) { e.preventDefault(); S.drawer = { type: "new-ticket" }; renderDrawer(); $("#nt-title")?.focus(); }
 });
@@ -906,7 +933,8 @@ async function previewScreen() {
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
   if (screen === "setup") await startSetup();
   if (screen.startsWith("setup-")) { await startSetup(); await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
-  if (screen === "profile") { S.profile = { name: "Lucas" }; render(); }
+  if (screen === "profile") { S.founder = null; S.profile = { name: "" }; render(); }
+  if (screen === "popover") { S.pop = true; renderPop(); }
 }
 if (window.__TAURI__) refresh(true); else previewScreen();
 setInterval(() => refresh(false), 1500);

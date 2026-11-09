@@ -10,14 +10,15 @@
   <div class="app">
     <nav class="side" id="side" aria-label="Companies and pages"></nav>
     <main>
-      <header class="topbar">
+      <header class="topbar" data-tauri-drag-region>
         <div class="titles"><h1 id="title">OneCorp</h1><span class="sub" id="sub"></span></div>
         <div class="spend" id="spend"></div>
-        <button class="btn primary new-ticket" id="new-ticket" data-new-ticket="1">New ticket <kbd>⌘K</kbd></button>
+        <button class="btn primary new-ticket" id="new-ticket" data-new-ticket="1" hidden>New ticket <kbd>⌘K</kbd></button>
       </header>
       <div class="view" id="view"></div>
     </main>
   </div>
+  <div class="pop" id="pop" hidden></div>
   <div class="scrim" id="scrim"></div>
   <aside class="drawer" id="drawer" aria-hidden="true"></aside>
   <div class="toast" id="toast" role="status"></div>
