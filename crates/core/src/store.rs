@@ -79,6 +79,23 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 ";
 
+/// Ids are the lowercased first name: "Maya Okafor" becomes maya.
+/// Accents fold to plain letters so "Tomás" becomes tomas, which is what people will type.
+pub fn slug(name: &str) -> String {
+    let fold = |c: char| match c {
+        'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' => 'a',
+        'é' | 'è' | 'ê' | 'ë' => 'e',
+        'í' | 'ì' | 'î' | 'ï' => 'i',
+        'ó' | 'ò' | 'ô' | 'ö' | 'õ' | 'ø' => 'o',
+        'ú' | 'ù' | 'û' | 'ü' => 'u',
+        'ç' => 'c',
+        'ñ' => 'n',
+        c => c,
+    };
+    let first = name.split_whitespace().next().unwrap_or("").to_lowercase();
+    first.chars().map(fold).filter(char::is_ascii_alphanumeric).collect()
+}
+
 /// Everything lives under ~/.onecorp, or $ONECORP_HOME when set (handy for tests).
 pub fn home() -> PathBuf {
     match std::env::var("ONECORP_HOME") {
@@ -635,6 +652,15 @@ pub fn add_to_section(doc: &str, section: &str, text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slug_folds_accents_and_keeps_the_first_name() {
+        assert_eq!(slug("Tomás Reis"), "tomas");
+        assert_eq!(slug("  Inês "), "ines");
+        assert_eq!(slug("JOÃO"), "joao");
+        assert_eq!(slug("Maya-Okafor"), "mayaokafor");
+        assert_eq!(slug("李"), "");
+    }
 
     #[test]
     fn claims_one_ticket_per_employee_at_a_time() {

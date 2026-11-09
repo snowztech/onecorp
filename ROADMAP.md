@@ -29,23 +29,30 @@ The whole company loop works in the CLI, tested end to end on throwaway repos.
 - [x] Company handbook everyone reads before each ticket, with agent proposals (`handbook`)
 - [x] Personal memory per employee, learned from your reviews (`memory`)
 - [x] `serve` runs queued tickets in parallel, one ticket per employee at a time
+- [x] Departments with leads (`dept`, `hire --dept`)
+- [x] Workspace layout: `crates/core` holds the logic, `crates/cli` and `app` are thin shells
 
 ## Now: the desktop app
 
 Tauri 2, on top of the `onecorp` library and `serve`. Built from the prototype's design.
 
-- [ ] Tauri shell that starts `serve` in the background and reads the company database
-- [ ] Office floor: desks, live status, speech bubbles
-- [ ] Inbox: answer, approve and review in one click
-- [ ] Board, Chat, and the employee drawer with the live terminal
-- [ ] New company and hiring flows
-- [ ] Company switcher (`Cmd+1` to `Cmd+9`)
+One Company page instead of separate Office, Team and Org screens: you on top, departments beneath as rooms of live desks. Concept: [docs/vision/hq-concept.html](docs/vision/hq-concept.html).
+
+- [x] Tauri shell that runs `serve` in the background, on the core library
+- [x] Company page: founder card, departments, desks with live status and bubbles
+- [x] Inbox: answer, approve, send back and handbook proposals in one click
+- [x] Hire into a department, add a department, move someone between departments
+- [x] Person drawer: what they're doing now, memory, tickets
+- [x] Company switcher in the sidebar
+- [ ] Board and Chat pages
+- [ ] New company flow in the app (today it's `onecorp new`)
+- [ ] Questions go to the department lead before they reach you
+- [ ] ⌘K command bar for everything
 
 ## Next
 
 - [ ] Faces and personality from the prototype (generated avatars, moods, voice in chat)
 - [ ] Budgets and payroll: a daily cap per employee and per company, pause at the cap
-- [ ] Org chart, where questions go up to leads before they reach you
 - [ ] Pi runtime
 - [ ] Let Claude employees build and test, in a sandbox
 - [ ] `whats_happening` tool, so employees see what teammates are working on

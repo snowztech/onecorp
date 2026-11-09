@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use onecorp::runtime::RUNTIMES;
 use onecorp::work::{self, Job, spend};
-use onecorp::store::{self, Employee};
+use onecorp::store::{self, Employee, slug};
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 
@@ -500,22 +500,6 @@ fn run(cmd: Cmd) -> Result<()> {
     Ok(())
 }
 
-/// Ids are the lowercased first name: "Maya Okafor" becomes maya.
-/// Accents fold to plain letters so "Tomás" becomes tomas, which is what people will type.
-fn slug(name: &str) -> String {
-    let fold = |c: char| match c {
-        'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' => 'a',
-        'é' | 'è' | 'ê' | 'ë' => 'e',
-        'í' | 'ì' | 'î' | 'ï' => 'i',
-        'ó' | 'ò' | 'ô' | 'ö' | 'õ' | 'ø' => 'o',
-        'ú' | 'ù' | 'û' | 'ü' => 'u',
-        'ç' => 'c',
-        'ñ' => 'n',
-        c => c,
-    };
-    let first = name.split_whitespace().next().unwrap_or("").to_lowercase();
-    first.chars().map(fold).filter(char::is_ascii_alphanumeric).collect()
-}
 
 
 /// Fills in whatever the flags left out: from a preset, from questions when we're in a terminal, or from defaults.
@@ -618,14 +602,3 @@ fn find_ticket(c: &store::Company, key: &str) -> Result<store::Ticket> {
     c.ticket(c.parse_key(key)?)?.ok_or_else(|| anyhow::anyhow!("no ticket {key} in {}. See: onecorp status", c.name))
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn slug_folds_accents_and_keeps_the_first_name() {
-        assert_eq!(super::slug("Tomás Reis"), "tomas");
-        assert_eq!(super::slug("  Inês "), "ines");
-        assert_eq!(super::slug("JOÃO"), "joao");
-        assert_eq!(super::slug("Maya-Okafor"), "mayaokafor");
-        assert_eq!(super::slug("李"), "");
-    }
-}

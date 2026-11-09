@@ -1,1 +1,30 @@
-<!doctype html><title>OneCorp</title><p>Loading</p>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OneCorp</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="side" id="side" aria-label="Companies and pages"></nav>
+    <main>
+      <header class="topbar">
+        <div class="titles"><h1 id="title">OneCorp</h1><span class="sub" id="sub"></span></div>
+        <form class="give" id="give" autocomplete="off">
+          <input id="give-task" placeholder="What needs doing?" aria-label="New ticket">
+          <select id="give-to" aria-label="Who does it"></select>
+          <button class="btn primary">Give it</button>
+        </form>
+        <div class="spend" id="spend"></div>
+      </header>
+      <div class="view" id="view"></div>
+    </main>
+  </div>
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true"></aside>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

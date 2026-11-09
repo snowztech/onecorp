@@ -15,7 +15,7 @@ crates/core/     the `onecorp` library: everything that runs a company
   src/git.rs       worktrees, merges, commits under each employee's name
   src/runtime/     the agent CLIs: shared stream loop, Claude Code, Codex
 crates/cli/      the `onecorp` command: parses arguments and prints, nothing else
-app/             the desktop app (in progress), on the same library
+app/             the desktop app: plain HTML/CSS/JS in app/ui, Rust commands in app/src
 docs/vision/     product, architecture, brand and the clickable prototype
 ```
 
@@ -60,6 +60,16 @@ Each agent gets the company's MCP server (`onecorp mcp`, started by the agent ov
 - `update_ticket` marks the ticket blocked, with a reason.
 - `remember` saves a one-line note to the employee's own memory.
 - `propose_handbook` suggests a decision or convention. It lands in your inbox, and `onecorp answer N yes` (or `no`, or your own wording) settles it.
+
+## Desktop app
+
+```sh
+cargo run -p onecorp-app
+```
+
+It opens your current company: you on top, departments and their desks beneath, everything that needs you in the Inbox. The team keeps working while the window is open, since the app runs `serve` for you. Create companies with `onecorp new` for now.
+
+To tweak the design without the app, open `app/ui/index.html` in a browser. It runs on sample data.
 
 ## Running in the background
 

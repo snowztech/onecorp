@@ -68,6 +68,38 @@ fn request_changes(company: String, key: String, feedback: String) -> Res<()> {
     work::request_changes(&c, &t, &feedback).map_err(err)
 }
 
+#[tauri::command(async)]
+fn person(company: String, id: String) -> Res<Value> {
+    onecorp::view::person(&open(&company)?, &id).map_err(err)
+}
+
+#[tauri::command(async)]
+fn add_department(company: String, name: String) -> Res<i64> {
+    Ok(open(&company)?.add_department(&name).map_err(err)?.id)
+}
+
+#[tauri::command(async)]
+fn move_to_department(company: String, employee: String, department: i64) -> Res<()> {
+    open(&company)?.set_department(&employee, department).map_err(err)
+}
+
+/// Hires from the app's candidate cards. Returns the new employee's id.
+#[tauri::command(async)]
+#[allow(clippy::too_many_arguments)]
+fn hire(company: String, name: String, role: String, bio: String, runtime: String, model: Option<String>, department: Option<i64>) -> Res<String> {
+    let c = open(&company)?;
+    let id = store::slug(&name);
+    if id.is_empty() {
+        return Err("A name needs at least one letter or digit.".into());
+    }
+    if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
+        return Err(format!("{runtime} isn't supported yet."));
+    }
+    let model = model.filter(|m| !m.trim().is_empty());
+    c.hire(&store::Employee { id: id.clone(), name, role, runtime, model, bio, department }).map_err(err)?;
+    Ok(id)
+}
+
 fn ticket(c: &Company, key: &str) -> Res<store::Ticket> {
     let id = c.parse_key(key).map_err(err)?;
     c.ticket(id).map_err(err)?.ok_or_else(|| format!("No ticket {key}."))
@@ -93,7 +125,19 @@ fn main() {
     });
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![companies, use_company, snapshot, new_ticket, answer, approve, request_changes])
+        .invoke_handler(tauri::generate_handler![
+            companies,
+            use_company,
+            snapshot,
+            person,
+            new_ticket,
+            answer,
+            approve,
+            request_changes,
+            add_department,
+            move_to_department,
+            hire
+        ])
         .run(tauri::generate_context!())
         .expect("couldn't start the OneCorp window");
 }

@@ -109,6 +109,26 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     }))
 }
 
+/// One employee, for the person drawer: their tickets, what they're doing, what they've learned.
+pub fn person(c: &Company, id: &str) -> Result<Value> {
+    let e = c.employee(id)?.ok_or_else(|| anyhow::anyhow!("nobody called {id} works at {}", c.name))?;
+    let mine: Vec<Ticket> = c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(id)).collect();
+    let current = mine.iter().rev().find(|t| ["doing", "blocked", "queued", "review"].contains(&t.status.as_str()));
+    let activity: Vec<Value> = match current {
+        Some(t) => c.events(t.id)?.into_iter().rev().take(40).rev().map(|(at, kind, summary)| json!({"at": at, "kind": kind, "summary": summary})).collect(),
+        None => vec![],
+    };
+    let memory = c.memory(id)?;
+    let notes: Vec<&str> = memory.lines().filter(|l| !l.trim().is_empty()).map(|l| l.trim_start_matches("- ")).collect();
+    Ok(json!({
+        "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "bio": e.bio, "department": e.department,
+        "current": current.map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status})),
+        "activity": activity,
+        "tickets": mine.iter().rev().map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status, "spend": spend(t.cost_usd, t.tokens)})).collect::<Vec<_>>(),
+        "memory": notes,
+    }))
+}
+
 /// The latest thing a working employee said or did, short enough for a speech bubble.
 fn last_activity(c: &Company, ticket: i64) -> Option<String> {
     let events = c.events(ticket).ok()?;
