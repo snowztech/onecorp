@@ -844,10 +844,9 @@ input.big { font-size: 15px; padding: 8px 11px; }
 .launch-team .av { width: 26px; height: 26px; margin-right: -6px; box-shadow: 0 0 0 2px var(--surface); }
 .welcome .su-steps { width: 100%; margin-bottom: 18px; }
 
-/* The OneCorp badge, our mascot */
-.mascot { display: block; width: 100%; height: 100%; color: var(--fg); }
-.brand .mascot { width: 22px; height: 22px; }
-.empty-mascot { display: block; width: 56px; height: 56px; margin: 0 auto 14px; opacity: .9; animation: float 3.2s ease-in-out infinite; }
+/* The OneCorp mark */
+.logomark { display: block; width: 100%; height: 100%; color: var(--fg); }
+.brand .logomark { width: 20px; height: 20px; }
 
 .field-err { margin: -4px 0 0; font-size: 12px; color: var(--signal); }
 .shake { animation: shake .32s var(--ease); border-color: var(--signal) !important; }
@@ -886,7 +885,6 @@ h1, h2, h3, .titles h1 { letter-spacing: -.02em; }
 .welcome .photo-acts { justify-content: flex-start; }
 .welcome .su-nav { align-items: center; }
 .su-nav .fine { margin-right: auto; }
-.brand .mascot { width: 20px; height: 20px; }
 .brand { font: 600 14px var(--display); letter-spacing: -.01em; }
 
 /* Connect AI */

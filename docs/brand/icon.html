@@ -1,9 +1,9 @@
 <!doctype html>
 <!-- The app icon. Re-render: open in headless Chrome at 1024x1024 with a transparent background, then cargo tauri icon. -->
 <meta charset="utf-8"><body style="margin:0;background:transparent">
-<script src="../../app/ui/mascot.js"></script>
+<script src="../../app/ui/brand.js"></script>
 <div class="tile"><div class="light"></div><div class="m"></div></div>
-<script>document.querySelector(".m").innerHTML = mascot("happy");</script>
+<script>document.querySelector(".m").innerHTML = logo();</script>
 <style>
   html, body { width: 1024px; height: 1024px; background: transparent; }
   /* macOS icon grid: an 824px tile, room for its shadow. Monochrome, like the app. */
@@ -11,6 +11,6 @@
     background: linear-gradient(180deg, #1c1c1f 0%, #09090b 100%);
     box-shadow: 0 24px 50px rgba(0,0,0,.35), inset 0 0 0 2px rgba(255,255,255,.09), inset 0 3px 0 rgba(255,255,255,.07); }
   .light { position: absolute; left: -10%; right: -10%; top: -45%; height: 80%; background: radial-gradient(closest-side, rgba(255,255,255,.10), transparent); }
-  .m { position: absolute; left: 192px; top: 178px; width: 440px; height: 440px; color: #fafafa; filter: drop-shadow(0 18px 28px rgba(0,0,0,.6)); }
-  .mascot { width: 100%; height: 100%; display: block; }
+  .m { position: absolute; left: 222px; top: 212px; width: 380px; height: 380px; color: #fafafa; filter: drop-shadow(0 14px 24px rgba(0,0,0,.55)); }
+  .logomark { width: 100%; height: 100%; display: block; }
 </style>

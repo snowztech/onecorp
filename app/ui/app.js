@@ -304,7 +304,7 @@ function viewInbox() {
   const plans = s.reviews.filter(r => r.kind === "plan"), work = s.reviews.filter(r => r.kind !== "plan");
   const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(handbook)];
   const leads = (s.with_leads || []).map(q => question(q, true));
-  const zero = `<div class="empty-state calm"><span class="empty-mascot">${mascot("wink")}</span><b>You're all caught up</b><span>Questions, plans and reviews from your team land here when they need you.</span></div>`;
+  const zero = `<div class="empty-state calm"><span class="empty-ic">${icon("check")}</span><b>You're all caught up</b><span>Questions, plans and reviews from your team land here when they need you.</span></div>`;
   return `<div class="inbox">${cards.length ? cards.join("") : zero}
     ${leads.length ? `<h2 class="section">With your leads <small class="muted">They decide what they can and pass up the rest. Step in anytime.</small></h2>${leads.join("")}` : ""}</div>`;
 }
@@ -483,7 +483,7 @@ const PILL = { blocked: ["Question", "warn"], review: ["Review", "info"], failed
 const spent = t => t.spend && !/^(\$0\.00|0 tok)$/.test(t.spend);
 function viewBoard() {
   const s = S.snap;
-  if (!s.tickets.length) return `<div class="empty-state"><span class="empty-mascot">${mascot("sleep")}</span><b>No tickets yet</b>Plan a project and your team breaks it into tickets, or add a single one with New ticket.<div class="acts center"><button class="btn primary" data-plan-new="1">Plan a project</button></div></div>`;
+  if (!s.tickets.length) return `<div class="empty-state"><span class="empty-ic">${icon("board")}</span><b>No tickets yet</b>Plan a project and your team breaks it into tickets, or add a single one with New ticket.<div class="acts center"><button class="btn primary" data-plan-new="1">Plan a project</button></div></div>`;
   const nameOf = id => byId(id)?.name || id || "";
   const projects = s.projects || [], current = projects.find(p => p.key === S.project);
   if (S.project && !current) S.project = null;
@@ -699,7 +699,7 @@ const photoActs = () => `${window.__TAURI__?.dialog ? `<button class="link-btn" 
   ${S.founder?.photo ? `<button class="link-btn" type="button" data-pf="face">Use a drawn face</button>` : ""}`.trim();
 const pfPic = name => (S.founder?.photo ? me() : face(name || "You", "neutral"));
 function focusTop(cancel) {
-  return `<div class="focus-top" data-tauri-drag-region><span class="brand">${mascot()}OneCorp</span>${cancel ? `<button class="btn ghost" type="button" data-su="cancel">Cancel</button>` : ""}</div>`;
+  return `<div class="focus-top" data-tauri-drag-region><span class="brand">${logo()}OneCorp</span>${cancel ? `<button class="btn ghost" type="button" data-su="cancel">Cancel</button>` : ""}</div>`;
 }
 function viewProfile() {
   const next = S.companies.length ? `Next: back to ${esc(S.companies[0])}` : "Next: connect your AI";

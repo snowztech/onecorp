@@ -8,7 +8,7 @@ A developer tool first: neutral zinc greys, one crisp blue, tight type, mono lab
 
 ## Brand
 
-Our mascot is the OneCorp badge: an employee ID badge on its lanyard loop, with a face cut out of it. One color (`currentColor`), geometric, no gradients, so it sits in the monochrome UI like it belongs. It has moods like the team: happy, asleep, wink. It's the app icon (`docs/brand/icon.html`, rendered to `app/icons`), the mark next to the name, and the face of empty states. One source: `app/ui/mascot.js`. Use it where a moment deserves warmth, never as decoration on busy screens.
+The OneCorp mark is one node directing three: you, and the agents who work for you. Abstract, geometric, one color (`currentColor`), so it reads as a developer tool and sits on any theme. It's the app icon (`docs/brand/icon.html`, rendered to `app/icons`) and the mark beside the name. One source: `logo()` in `app/ui/brand.js`. No mascots or faces in the brand: the faces belong to your team.
 
 ## System
 
