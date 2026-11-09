@@ -189,6 +189,19 @@ fn checks(list: Vec<onecorp::doctor::Check>) -> Value {
     json!(list.iter().map(|c| json!({"level": level(&c.level), "what": c.what, "detail": c.detail, "fix": c.fix})).collect::<Vec<_>>())
 }
 
+/// What waits on you in every company: questions, plans, reviews and stopped runs. Drives the
+/// Dock badge and notifications, so another company's question doesn't go unnoticed.
+#[tauri::command(async)]
+fn attention() -> Res<Value> {
+    let mut out = vec![];
+    for name in store::list().map_err(err)? {
+        let Ok(c) = Company::open(&name) else { continue };
+        let Ok(s) = onecorp::view::snapshot(&c) else { continue };
+        out.push(json!({ "company": name, "inbox": s["inbox"], "reviews": s["reviews"], "failed": s["failed"] }));
+    }
+    Ok(json!(out))
+}
+
 /// The same checks as `onecorp doctor`.
 #[tauri::command(async)]
 fn health() -> Res<Value> {
@@ -522,6 +535,7 @@ fn main() {
             set_ship,
             health,
             readiness,
+            attention,
             delete_company,
             forget_founder,
             snapshot,

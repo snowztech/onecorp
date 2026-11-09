@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, needs: {}, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -109,8 +109,8 @@ function renderSide() {
   const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Handbook" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
-    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `${badge(S.company, S.looks?.[S.company])}<span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}<span class="chev">${icon("chevrons")}</span></button>
-      ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}">${badge(c, S.looks?.[c])}<span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : ""}</button>`).join("")}
+    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `${badge(S.company, S.looks?.[S.company])}<span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}${Object.entries(S.needs).some(([c, n]) => c !== S.company && n) ? '<i class="dot" title="Another company needs you"></i>' : ""}<span class="chev">${icon("chevrons")}</span></button>
+      ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}">${badge(c, S.looks?.[c])}<span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : S.needs[c] ? `<span class="badge">${S.needs[c]}</span>` : ""}</button>`).join("")}
         <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
     ${S.company ? `${Object.entries(pages).map(([k, v]) =>
       `<button class="navbtn" data-view="${k}" title="${v}" ${S.view === k ? 'aria-current="page"' : ""}>${icon(k)}<span>${v}</span>${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
@@ -230,14 +230,32 @@ function needItems(s) {
 // gets a notification when the app isn't in front. What was already waiting at launch stays quiet.
 const notified = {};
 function alertNew(snap) {
-  const T = window.__TAURI__;
-  if (!T) return;
+  if (!window.__TAURI__) return;
   const items = needItems(snap);
-  T.window?.getCurrentWindow?.().setBadgeCount(items.length || undefined).catch(() => {});
+  S.needs[snap.company] = items.length;
   const seen = notified[snap.company];
   notified[snap.company] = new Set(items.map(i => i.to));
-  if (!seen || document.hasFocus()) return;
-  for (const i of items.filter(i => !seen.has(i.to)).slice(0, 3)) notify(`${first(i.name)} · ${snap.company}`, i.text);
+  // The company you're looking at needs no pop-up while the app is in front.
+  if (seen && !document.hasFocus()) for (const i of items.filter(i => !seen.has(i.to)).slice(0, 3)) notify(`${first(i.name)} · ${snap.company}`, i.text);
+  badgeAll();
+}
+// Every company, every few seconds: the badge counts them all, and a question in another company
+// gets a notification even when you're in this one.
+async function watchAll() {
+  const all = await invoke("attention").catch(() => null);
+  if (!all) return;
+  for (const a of all) {
+    if (a.company === S.company) continue;
+    const items = needItems(a), seen = notified[a.company];
+    notified[a.company] = new Set(items.map(i => i.to));
+    S.needs[a.company] = items.length;
+    if (seen) for (const i of items.filter(i => !seen.has(i.to)).slice(0, 3)) notify(`${first(i.name)} · ${a.company}`, i.text);
+  }
+  badgeAll(); renderSide();
+}
+function badgeAll() {
+  const total = Object.values(S.needs).reduce((a, b) => a + b, 0);
+  window.__TAURI__?.window?.getCurrentWindow?.().setBadgeCount(total || undefined).catch(() => {});
 }
 async function notify(title, body) {
   const n = window.__TAURI__?.notification;
@@ -946,14 +964,14 @@ function viewSetup() {
 }
 
 /* Rendering and polling */
-let pollTimer = null;
+let pollTimer = null, ticks = 0;
 function syncPolling() {
   const inWorkspace = S.company && !S.profile && !S.setup;
   if (!inWorkspace && pollTimer !== null) {
     clearInterval(pollTimer);
     pollTimer = null;
   } else if (inWorkspace && pollTimer === null) {
-    pollTimer = setInterval(() => refresh(false), 1500);
+    pollTimer = setInterval(() => { refresh(false); if (ticks++ % 4 === 0) watchAll(); }, 1500);
   }
 }
 function render() {

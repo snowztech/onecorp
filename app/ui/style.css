@@ -938,3 +938,6 @@ h1, h2, h3, .titles h1 { letter-spacing: -.02em; }
 .seat .agent-badge { width: 20px; height: 20px; font-size: 11px; border-radius: 6px; box-shadow: 0 0 0 2px var(--floor); }
 .dhead .agent-badge { width: 18px; height: 18px; font-size: 10px; }
 .tpl-cards { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.co-switch .dot { margin-left: auto; }
+.co-switch .dot + .chev { margin-left: 6px; }
+.menu .cobtn .badge { margin-left: auto; }
