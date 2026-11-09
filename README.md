@@ -43,6 +43,7 @@ onecorp founder --name Lucas --photo ~/me.jpg  # who your team works for
 
 onecorp new snowztech --repo ~/dev/some-repo --mission "Open source tools for AI agents"
 onecorp new acme --repo ~/dev/other --team small   # starting team: solo, small, demo (free, no AI) or empty
+onecorp new notes --repo ~/dev/notes --init --github snowztech   # start a new repo, here and on GitHub
 onecorp hire                                  # asks name, job, how they work, model
 onecorp hire "Maya Okafor" --as engineer --model sonnet
 onecorp hire "Tomás Reis" --as engineer --runtime codex

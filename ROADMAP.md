@@ -50,6 +50,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Person drawer: what they're doing now, memory, tickets
 - [x] Company switcher in the sidebar
 - [x] Board: every ticket by status, with a ticket drawer for its log and actions
+- [x] Editable starting teams, and starting a new repo (optionally on GitHub) from the new company flow
 - [x] Kickoff from an idea: a brief, a plan of tickets from your PM, review and start it
 - [x] Real tickets: details, a backlog, tickets that wait for others, and `create_ticket` for the team
 - [x] Founder profile: your name and photo, no account, and your team knows who they work for

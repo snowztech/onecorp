@@ -18,8 +18,18 @@ enum Cmd {
     /// Create a company around a local git repo
     New {
         name: String,
+        /// The company's git repo. With --init, a new folder to start one in
         #[arg(long)]
         repo: PathBuf,
+        /// Start a new repo there: git init, a README and a first commit
+        #[arg(long)]
+        init: bool,
+        /// With --init, also create it on GitHub under this account or org, like snowztech
+        #[arg(long, requires = "init")]
+        github: Option<String>,
+        /// With --github, make it public. Private by default
+        #[arg(long, requires = "github")]
+        public: bool,
         /// Start with a team: solo, small, demo (no AI, free) or empty
         #[arg(long)]
         team: Option<String>,
@@ -301,7 +311,7 @@ fn open(company: Option<String>) -> Result<store::Company> {
 
 fn run(cmd: Cmd) -> Result<()> {
     match cmd {
-        Cmd::New { name, repo, mission, team, runtime, brief } => {
+        Cmd::New { name, repo, init, github, public, mission, team, runtime, brief } => {
             let template = match team.as_deref() {
                 Some(key) => Some(onecorp::templates::template(key).ok_or_else(|| {
                     let keys: Vec<_> = onecorp::templates::TEMPLATES.iter().map(|t| t.key).collect();
@@ -312,7 +322,22 @@ fn run(cmd: Cmd) -> Result<()> {
             if !RUNTIMES.contains(&runtime.as_str()) {
                 bail!("{runtime} isn't supported yet. Available: {}", RUNTIMES.join(", "));
             }
-            let (c, hired) = onecorp::setup::new_company(&name, &repo, mission.as_deref().unwrap_or(""), template, &runtime, brief.as_deref().unwrap_or(""))?;
+            let people = template.map(|t| t.people(&runtime)).unwrap_or_default();
+            onecorp::templates::check(&people)?;
+            let mission_text = mission.as_deref().unwrap_or("");
+            let repo = if init {
+                let full = github.as_ref().map(|owner| format!("{owner}/{}", onecorp::templates::suggest_name(&name)));
+                let remote = full.as_deref().map(|f| onecorp::setup::Remote { full_name: f, private: !public });
+                let made = onecorp::setup::create_repo(&repo, &name, mission_text, remote)?;
+                match &full {
+                    Some(f) => println!("Started a new repo at {}, and on GitHub as {f}.", made.display()),
+                    None => println!("Started a new repo at {}.", made.display()),
+                }
+                made
+            } else {
+                repo
+            };
+            let (c, hired) = onecorp::setup::new_company(&name, &repo, mission_text, &people, brief.as_deref().unwrap_or(""))?;
             println!("Created {} around {}. It's now your current company.", c.name, c.repo()?.display());
             for e in &hired {
                 println!("  hired {} as {} ({})", e.name, e.role, e.runtime);

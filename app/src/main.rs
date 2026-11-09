@@ -140,10 +140,7 @@ fn setup_info() -> Res<Value> {
         .map(|t| {
             json!({
                 "key": t.key, "name": t.name, "description": t.description, "runtime": t.runtime,
-                "hires": t.hires.iter().map(|h| {
-                    let p = onecorp::templates::preset(h.preset);
-                    json!({"name": h.name, "role": h.role.or(p.map(|p| p.role)), "dept": h.dept})
-                }).collect::<Vec<_>>(),
+                "hires": t.people("claude").iter().map(|p| json!({"name": p.name, "role": p.role, "dept": p.department})).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -179,14 +176,45 @@ fn check_repo(path: String) -> Res<Value> {
     }))
 }
 
+/// `people` is the team as you edited it: name, role, runtime, department.
 #[tauri::command(async)]
-fn create_company(name: String, repo: String, mission: String, template: String, runtime: String, brief: Option<String>) -> Res<String> {
-    let t = onecorp::templates::template(&template).ok_or_else(|| format!("No starting team called {template}."))?;
-    if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
-        return Err(format!("{runtime} isn't supported yet."));
-    }
-    let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, Some(t), &runtime, brief.as_deref().unwrap_or("")).map_err(err)?;
+fn create_company(name: String, repo: String, mission: String, people: Vec<Value>, brief: Option<String>) -> Res<String> {
+    let s = |v: &Value, k: &str| v[k].as_str().unwrap_or("").trim().to_string();
+    let people: Vec<onecorp::templates::Person> = people
+        .iter()
+        .map(|p| onecorp::templates::Person {
+            name: s(p, "name"),
+            role: s(p, "role"),
+            bio: onecorp::templates::bio_for(&s(p, "role")).into(),
+            runtime: s(p, "runtime"),
+            model: None,
+            department: Some(s(p, "dept")).filter(|d| !d.is_empty()),
+        })
+        .collect();
+    let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, &people, brief.as_deref().unwrap_or("")).map_err(err)?;
     Ok(c.name)
+}
+
+/// Where a new repo would go, and where you could also create it on GitHub.
+#[tauri::command(async)]
+fn new_repo_info() -> Res<Value> {
+    let gh = onecorp::forge::Forge::GitHub;
+    let owners = gh.owners().unwrap_or_default();
+    Ok(json!({ "parent": onecorp::setup::default_parent(), "owners": owners }))
+}
+
+/// Starts a new repo. `owner` set: also create it on GitHub under that account or org.
+#[tauri::command(async)]
+fn create_repo(parent: String, folder: String, mission: String, owner: Option<String>, private: bool) -> Res<String> {
+    let folder = folder.trim();
+    if folder.is_empty() || folder.contains('/') {
+        return Err("Name the folder, like notes-app.".into());
+    }
+    let path = std::path::Path::new(parent.trim()).join(folder);
+    let full = owner.filter(|o| !o.is_empty()).map(|o| format!("{o}/{}", onecorp::templates::suggest_name(folder)));
+    let remote = full.as_deref().map(|f| onecorp::setup::Remote { full_name: f, private });
+    let made = onecorp::setup::create_repo(&path, folder, &mission, remote).map_err(err)?;
+    Ok(made.to_string_lossy().into_owned())
 }
 
 /// Saves the brief and has someone plan it. Returns the plan ticket.
@@ -347,6 +375,8 @@ fn main() {
             save_founder,
             check_repo,
             create_company,
+            new_repo_info,
+            create_repo,
             new_ticket,
             start_ticket,
             assign,

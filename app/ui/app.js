@@ -447,20 +447,38 @@ async function saveProfile(photo, removePhoto) {
 /* New company: repo, name, starting team, review. Four short steps, nothing needs the terminal. */
 async function startSetup() {
   try {
-    const info = await invoke("setup_info");
+    const [info, repoInfo] = await Promise.all([invoke("setup_info"), invoke("new_repo_info").catch(() => ({ parent: "", owners: [] }))]);
     const real = info.runtimes.filter(r => r !== "fake");
-    S.setup = { step: 0, path: "", repo: null, name: "", mission: "", template: real.length ? "small" : "demo", runtime: real[0] || "fake", info };
+    S.setup = { step: 0, mode: "existing", path: "", repo: null, name: "", mission: "", runtime: real[0] || "fake", info, repoInfo,
+      folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [] };
+    setTemplate(real.length ? "small" : "demo");
   } catch (e) { return toast(String(e), true); }
   S.drawer = null;
   render();
+}
+// Picking a template fills the team with its people, which you then edit freely.
+function setTemplate(key) {
+  const s = S.setup, t = s.info.templates.find(x => x.key === key);
+  s.template = key;
+  s.people = t.hires.map(h => ({ name: h.name, role: h.role, dept: h.dept || "", runtime: t.runtime || s.runtime }));
 }
 function readSetup() {
   const s = S.setup, val = id => document.getElementById(id)?.value;
   if (val("su-path") !== undefined) s.path = val("su-path").trim();
   if (val("su-name") !== undefined) s.name = val("su-name").trim();
   if (val("su-mission") !== undefined) s.mission = val("su-mission").trim();
-  if (val("su-runtime") !== undefined) s.runtime = val("su-runtime");
   if (val("su-brief") !== undefined) s.brief = val("su-brief").trim();
+  if (val("su-folder") !== undefined) s.folder = val("su-folder").trim();
+  if (val("su-parent") !== undefined) s.parent = val("su-parent").trim();
+  if (val("su-owner") !== undefined) s.owner = val("su-owner");
+  const priv = document.getElementById("su-private");
+  if (priv) s.private = priv.checked;
+  s.people.forEach((p, i) => {
+    for (const k of ["name", "role", "dept", "runtime"]) {
+      const v = val(`su-p${i}-${k}`);
+      if (v !== undefined) p[k] = v.trim();
+    }
+  });
 }
 async function checkRepo(path) {
   const s = S.setup;
@@ -469,6 +487,17 @@ async function checkRepo(path) {
   try { s.repo = await invoke("check_repo", { path }); } catch (e) { s.repo = { ok: false, problem: String(e) }; }
   if (s.repo.ok && !s.name) s.name = s.repo.suggested;
   render();
+}
+async function makeRepo() {
+  const s = S.setup;
+  if (!s.folder) { toast("Name the folder for the new repo", true); return $("#su-folder")?.focus(); }
+  s.creating = true; render();
+  try {
+    const path = await invoke("create_repo", { parent: s.parent, folder: s.folder, mission: s.mission, owner: s.owner || null, private: s.private });
+    s.creating = false; s.mode = "existing";
+    toast(s.owner ? `Created ${s.folder}, here and on GitHub` : `Created ${s.folder}`);
+    await checkRepo(path);
+  } catch (e) { s.creating = false; render(); toast(String(e), true); }
 }
 const RUNTIME_NAMES = { claude: "Claude Code", codex: "Codex", fake: "Stand-in, no AI" };
 function shipNote(r) {
@@ -482,15 +511,33 @@ function viewSetup() {
   const dots = `<ol class="su-steps">${steps.map((n, i) => `<li class="${i === s.step ? "on" : i < s.step ? "done" : ""}">${n}</li>`).join("")}</ol>`;
   const back = s.step ? `<button class="btn" type="button" data-su="back">Back</button>` : S.companies.length ? `<button class="btn" type="button" data-su="cancel">Cancel</button>` : "<span></span>";
   const nav = (label, disabled) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
+  const picker = window.__TAURI__?.dialog;
   let body = "";
   if (s.step === 0) {
-    const r = s.repo, picker = window.__TAURI__?.dialog ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : "";
-    const result = !r ? "" : r.ok
-      ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>.</p>${shipNote(r)}${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
-      : `<p class="su-bad">${esc(r.problem)}</p>`;
-    body = `<h2>Which repo does this company work on?</h2><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>
-      <div class="su-row">${picker}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="check">Check</button></div>
-      ${result}${nav("Continue", !(r && r.ok))}`;
+    const tabs = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-su="mode-existing" aria-selected="${s.mode === "existing"}">Use an existing repo</button>
+      <button type="button" role="tab" data-su="mode-new" aria-selected="${s.mode === "new"}">Start a new one</button></div>`;
+    if (s.mode === "new") {
+      const owners = s.repoInfo.owners || [];
+      const github = owners.length
+        ? `<label class="su-check" for="su-gh"><input type="checkbox" id="su-gh" data-su="toggle-gh" ${s.owner ? "checked" : ""}> Also create it on GitHub</label>
+           ${s.owner ? `<div class="su-row"><select id="su-owner" aria-label="GitHub account or org">${owners.map(o => `<option ${o === s.owner ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>
+             <span class="mono muted">/${esc((s.folder || "your-repo").toLowerCase())}</span>
+             <label class="su-check" for="su-private"><input type="checkbox" id="su-private" ${s.private ? "checked" : ""}> Private</label></div>` : ""}`
+        : `<p class="su-warn">Sign in to GitHub with <code>gh auth login</code> to also create the repo there. You can add a remote later too.</p>`;
+      body = `<h2>Start from just an idea</h2><p class="muted">A new folder with git, a README and a first commit, ready for your team.</p>${tabs}
+        <div class="field"><label for="su-folder">Folder name</label><input id="su-folder" value="${esc(s.folder)}" placeholder="notes-app" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="su-parent">Inside</label><div class="su-row">${picker ? `<button class="btn" type="button" data-su="parent">Choose…</button>` : ""}<input id="su-parent" value="${esc(s.parent)}" autocomplete="off" spellcheck="false"></div></div>
+        ${github}
+        <div class="su-nav">${back}<button class="btn primary" type="button" data-su="create-repo" ${s.creating ? "disabled" : ""}>${s.creating ? "Creating…" : "Create the repo"}</button></div>`;
+    } else {
+      const r = s.repo;
+      const result = !r ? "" : r.ok
+        ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>.</p>${shipNote(r)}${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
+        : `<p class="su-bad">${esc(r.problem)}</p>`;
+      body = `<h2>Which repo does this company work on?</h2><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>${tabs}
+        <div class="su-row">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="check">Check</button></div>
+        ${result}${nav("Continue", !(r && r.ok))}`;
+    }
   } else if (s.step === 1) {
     body = `<h2>Name your company</h2><p class="muted">Tickets are numbered from its first letters, like ${esc((s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM")}-1.</p>
       <div class="field"><label for="su-name">Name</label><input id="su-name" value="${esc(s.name)}" placeholder="snowztech" autocomplete="off" spellcheck="false"></div>
@@ -499,24 +546,31 @@ function viewSetup() {
       ${nav("Continue")}`;
   } else if (s.step === 2) {
     const real = s.info.runtimes.filter(x => x !== "fake");
-    const t = s.info.templates.find(x => x.key === s.template);
-    const runtimes = real.length ? `<div class="field"><label for="su-runtime">They work on</label><select id="su-runtime">${real.map(x => `<option value="${x}" ${x === s.runtime ? "selected" : ""}>${RUNTIME_NAMES[x] || x}</option>`).join("")}</select></div>`
-      : `<p class="su-warn">Neither Claude Code nor Codex is installed here, so only the free stand-in is available. Install one later and hire on it.</p>`;
-    body = `<h2>Who's on the team to start?</h2><p class="muted">You can hire, move and add departments anytime.</p>
-      <div class="tpls">${s.info.templates.map(x => {
+    const runtimeOptions = sel => s.info.runtimes.map(x => `<option value="${x}" ${x === sel ? "selected" : ""}>${RUNTIME_NAMES[x] || x}</option>`).join("");
+    const rows = s.people.map((p, i) => `<li class="person-row">${face(p.name || "?", "neutral")}
+      <input id="su-p${i}-name" value="${esc(p.name)}" placeholder="Name" aria-label="Name" autocomplete="off">
+      <input id="su-p${i}-role" value="${esc(p.role)}" placeholder="Role" aria-label="Role" autocomplete="off">
+      <input id="su-p${i}-dept" value="${esc(p.dept)}" placeholder="Department" aria-label="Department" list="su-depts" autocomplete="off">
+      <select id="su-p${i}-runtime" aria-label="Works on">${runtimeOptions(p.runtime)}</select>
+      <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
+    const depts = [...new Set(s.people.map(p => p.dept).filter(Boolean).concat(["Engineering", "Product", "Design", "Growth"]))];
+    body = `<h2>Who's on the team to start?</h2><p class="muted">Start from a template, then change anything: names, roles, departments. The first person in a department leads it.</p>
+      <div class="tpl-chips">${s.info.templates.map(x => {
         const off = !real.length && !x.runtime && x.hires.length;
-        return `<button type="button" class="tpl" data-tpl="${x.key}" aria-pressed="${x.key === s.template}" ${off ? "disabled" : ""}><b>${esc(x.name)}</b><span>${esc(x.description)}</span>
-          ${x.hires.length ? `<span class="faces">${x.hires.map(h => face(h.name, "neutral")).join("")}</span><small>${x.hires.map(h => `${esc(first(h.name))}, ${esc(h.role)}${h.dept ? " in " + esc(h.dept) : ""}`).join(" · ")}</small>` : ""}</button>`;
+        return `<button type="button" class="chip-btn" data-tpl="${x.key}" aria-pressed="${x.key === s.template}" ${off ? "disabled" : ""} title="${esc(x.description)}">${esc(x.name)}</button>`;
       }).join("")}</div>
-      ${t && !t.runtime && t.hires.length ? runtimes : ""}${nav("Continue")}`;
+      ${!real.length ? `<p class="su-warn">Neither Claude Code nor Codex is installed here, so only the free stand-in works. Install one later and rehire on it.</p>` : ""}
+      <ul class="people">${rows || `<li class="muted">Nobody yet. Add someone, or start empty and hire later.</li>`}</ul>
+      <datalist id="su-depts">${depts.map(d => `<option value="${esc(d)}">`).join("")}</datalist>
+      <button class="btn" type="button" data-su="add-person">+ Add someone</button>
+      ${nav("Continue")}`;
   } else {
-    const t = s.info.templates.find(x => x.key === s.template), rt = t.runtime || s.runtime;
     body = `<h2>Ready to open ${esc(s.name)}</h2>
       <dl class="kv su-sum"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
         <dt>Mission</dt><dd>${esc(s.mission || "None yet")}</dd>
         <dt>Ships</dt><dd>${s.repo.forge && s.repo.signed_in ? `As ${esc(s.repo.pr_word)}s on ${esc(s.repo.forge)}` : "By merging on your Mac"}</dd>
-        ${s.brief && t.hires.length ? `<dt>First plan</dt><dd>Planning starts as soon as it's created</dd>` : ""}
-        <dt>Team</dt><dd>${t.hires.length ? t.hires.map(h => esc(h.name)).join(", ") + ` <span class="muted">on ${RUNTIME_NAMES[rt] || rt}</span>` : "Nobody yet"}</dd></dl>
+        ${s.brief && s.people.length ? `<dt>First plan</dt><dd>Planning starts as soon as it's created</dd>` : ""}
+        <dt>Team</dt><dd>${s.people.length ? s.people.map(p => `${esc(p.name)} <span class="muted">${esc(p.role)}${p.dept ? ", " + esc(p.dept) : ""}</span>`).join("<br>") : "Nobody yet"}</dd></dl>
       ${nav("Create the company")}`;
   }
   return `<form class="setup" id="setup">${dots}${body}</form>`;
@@ -622,13 +676,23 @@ document.addEventListener("click", async e => {
     return;
   }
   if (d.newCo) return startSetup();
-  if (d.tpl) { readSetup(); S.setup.template = d.tpl; return render(); }
+  if (d.tpl) { readSetup(); setTemplate(d.tpl); return render(); }
   if (d.su) {
     readSetup();
     const s = S.setup;
     if (d.su === "cancel") { S.setup = null; S.view = "company"; return refresh(true); }
     if (d.su === "back") { s.step--; return render(); }
     if (d.su === "check") return checkRepo(s.path);
+    if (d.su === "mode-existing" || d.su === "mode-new") { s.mode = d.su.slice(5); return render(); }
+    if (d.su === "create-repo") return makeRepo();
+    if (d.su === "toggle-gh") { s.owner = s.owner ? "" : (s.repoInfo.owners[0] || ""); return render(); }
+    if (d.su === "add-person") { s.people.push({ name: "", role: "Engineer", dept: "Engineering", runtime: s.runtime }); render(); return document.getElementById(`su-p${s.people.length - 1}-name`)?.focus(); }
+    if (d.su.startsWith("del-")) { s.people.splice(Number(d.su.slice(4)), 1); return render(); }
+    if (d.su === "parent") {
+      const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Where should the new repo go?" }).catch(() => null);
+      if (path) { s.parent = String(path); render(); }
+      return;
+    }
     if (d.su === "pick") {
       const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Pick the company's repo" }).catch(() => null);
       if (path) checkRepo(String(path));
@@ -708,11 +772,18 @@ document.addEventListener("submit", async e => {
       if (S.companies.includes(s.name)) return toast(`There's already a company called ${s.name}`, true);
       s.step = 2; return render();
     }
-    if (s.step === 2) { s.step = 3; return render(); }
+    if (s.step === 2) {
+      // The same check the core makes, early, so you fix it here and not after a failed create.
+      const ids = s.people.filter(p => p.name.trim()).map(p => p.name.trim().split(/\s+/)[0].toLowerCase());
+      const twice = ids.find((id, i) => ids.indexOf(id) !== i);
+      if (twice) return toast(`Two people would both be ${twice}. Give one of them a different first name`, true);
+      s.step = 3; return render();
+    }
     const btn = f.querySelector(".btn.primary");
     btn.disabled = true; btn.textContent = "Creating…";
     try {
-      const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, template: s.template, runtime: s.runtime, brief: s.brief || null });
+      const people = s.people.filter(p => p.name.trim());
+      const name = await invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, people, brief: s.brief || null });
       S.setup = null; S.company = name; S.view = "company"; S.snap = null; S.last = "";
       toast(`${name} is open. Give someone a ticket up top.`);
       await refresh(true);
@@ -816,6 +887,7 @@ function preview(cmd) {
       { key: "empty", name: "Start empty", description: "No one yet.", runtime: null, hires: [] }] },
     ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
+    new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
     check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [], forge: "GitHub", pr_word: "pull request", signed_in: true, account: "Logged in to github.com account you" },
     founder: { name: "Lucas", photo: null },
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },

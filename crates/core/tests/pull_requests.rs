@@ -28,6 +28,9 @@ case "$1 $2" in
     echo "https://github.com/acme/notes/pull/$n" ;;
   "pr merge") read head base < "$state/pr-$3"; git push -q origin "$head:$base" && echo MERGED > "$state/state-$3" ;;
   "pr view") echo "{\"state\":\"$(cat "$state/state-$3")\"}" ;;
+  "repo create")
+    bare="$(dirname "$0")/github/$3.git"; mkdir -p "$(dirname "$bare")"; git init -q --bare -b main "$bare"
+    git remote add origin "$bare" && git push -q -u origin main && echo "https://github.com/$3" ;;
   *) echo "fake gh: unexpected $*" >&2; exit 1 ;;
 esac
 "#;
@@ -56,7 +59,7 @@ fn work_ships_as_pull_requests() {
     git(&repo, &["remote", "add", "origin", &origin.to_string_lossy()]);
     git(&repo, &["push", "-q", "-u", "origin", "main"]);
 
-    let (c, _) = setup::new_company("acme", &repo, "", None, "fake", "").unwrap();
+    let (c, _) = setup::new_company("acme", &repo, "", &[], "").unwrap();
     assert_eq!(c.ship_mode().unwrap(), "local", "a remote that isn't on GitHub ships locally by default");
     ship::set_mode(&c, "github").unwrap();
     let maya = Employee { id: "maya".into(), name: "Maya Okafor".into(), role: "Engineer".into(), runtime: "fake".into(), model: None, bio: String::new(), department: None };
@@ -98,6 +101,13 @@ fn work_ships_as_pull_requests() {
     std::fs::write(root.join("gh-state/state-3"), "CLOSED").unwrap();
     ship::sync(&c).unwrap();
     assert_eq!(ticket(d).status, "failed");
+
+    // Starting from nothing: a new repo on your Mac, and the same repo on "GitHub".
+    let fresh = setup::create_repo(&root.join("ideas"), "Ideas", "Notes for later", Some(setup::Remote { full_name: "snowztech/ideas", private: true })).unwrap();
+    assert!(std::fs::read_to_string(fresh.join("README.md")).unwrap().contains("Notes for later"));
+    let pushed = root.join("github/snowztech/ideas.git");
+    assert!(git(&pushed, &["log", "--oneline", "main"]).contains("Start"));
+    assert!(setup::create_repo(&fresh, "Again", "", None).is_err(), "never overwrites a folder with files in it");
 
     let _ = std::fs::remove_dir_all(&root);
 }

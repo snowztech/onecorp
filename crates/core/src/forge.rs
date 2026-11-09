@@ -139,6 +139,29 @@ impl Forge {
         })
     }
 
+    /// Where you can create repos: your own account, then the organizations you belong to.
+    pub fn owners(self) -> Result<Vec<String>> {
+        let here = std::env::temp_dir();
+        match self {
+            Forge::GitHub => {
+                let me = self.run(&here, &["api", "user", "--jq", ".login"], None)?;
+                let orgs = self.run(&here, &["api", "user/orgs", "--jq", ".[].login"], None).unwrap_or_default();
+                Ok(std::iter::once(me).chain(orgs.lines().map(String::from)).filter(|o| !o.is_empty()).collect())
+            }
+            Forge::GitLab => bail!("creating repos on GitLab isn't supported yet"),
+        }
+    }
+
+    /// Creates `full_name` (owner/name) from the local repo at `dir`, sets it as origin and pushes.
+    pub fn create_repo(self, dir: &Path, full_name: &str, private: bool) -> Result<String> {
+        if self != Forge::GitHub {
+            bail!("creating repos on {} isn't supported yet. Create it there and add it as origin", self.name());
+        }
+        let visibility = if private { "--private" } else { "--public" };
+        let out = self.run(dir, &["repo", "create", full_name, visibility, "--source", ".", "--remote", "origin", "--push"], None)?;
+        Ok(out.lines().find(|l| l.starts_with("http")).unwrap_or(full_name).trim().to_string())
+    }
+
     /// Merges with a merge commit, not a squash, so each employee's commits keep their name.
     pub fn merge(self, repo: &Path, number: i64) -> Result<()> {
         let n = number.to_string();

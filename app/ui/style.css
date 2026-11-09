@@ -263,6 +263,23 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .cobtn[aria-current="true"].add .logo { background: var(--accent); color: #fff; border-color: var(--accent); }
 .cobtn.add .logo { background: transparent; border: 1.5px dashed var(--muted); color: var(--muted); }
 
+/* New company: repo modes and the editable team */
+.su-tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 10px; }
+.su-tabs button { flex: 1; border: 0; background: transparent; padding: 7px 10px; border-radius: 7px; color: var(--muted); font-weight: 500; }
+.su-tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
+.su-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.su-row select { border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: var(--surface-2); }
+.tpl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 5px 12px; font-size: 13px; }
+.chip-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chip-btn:disabled { opacity: .45; cursor: not-allowed; }
+.people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.person-row { display: grid; grid-template-columns: 30px 1.1fr 1.1fr 1fr auto auto; gap: 6px; align-items: center; }
+.person-row .av { width: 30px; height: 30px; }
+.person-row input, .person-row select { min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: var(--surface-2); font-size: 13px; }
+.person-row .x { border: 0; background: transparent; color: var(--muted); font-size: 17px; padding: 2px 6px; border-radius: 6px; }
+.person-row .x:hover { background: var(--line); color: var(--fg); }
+
 /* Handbook */
 .book { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
 .lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 62ch; }

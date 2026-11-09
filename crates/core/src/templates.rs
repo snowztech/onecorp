@@ -97,14 +97,83 @@ pub fn template(key: &str) -> Option<&'static Template> {
     TEMPLATES.iter().find(|t| t.key.eq_ignore_ascii_case(key.trim()))
 }
 
-/// Hires a template's people into a fresh company, creating their departments. `runtime` is
-/// used unless the template insists on its own.
-pub fn apply(c: &Company, t: &Template, runtime: &str) -> Result<Vec<Employee>> {
-    let runtime = t.runtime.unwrap_or(runtime);
+/// Someone to hire: what a template suggests, after you've edited it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Person {
+    pub name: String,
+    pub role: String,
+    pub bio: String,
+    pub runtime: String,
+    pub model: Option<String>,
+    pub department: Option<String>,
+}
+
+impl Template {
+    /// The template's people, as a list you can change before hiring. `runtime` is used unless
+    /// the template insists on its own, like the free demo.
+    pub fn people(&self, runtime: &str) -> Vec<Person> {
+        let runtime = self.runtime.unwrap_or(runtime);
+        self.hires
+            .iter()
+            .map(|h| {
+                let p = preset(h.preset);
+                Person {
+                    name: h.name.into(),
+                    role: h.role.or(p.map(|p| p.role)).unwrap_or("Engineer").into(),
+                    bio: p.map(|p| p.bio).unwrap_or(PRESETS[0].bio).into(),
+                    runtime: runtime.into(),
+                    model: None,
+                    department: h.dept.map(String::from),
+                }
+            })
+            .collect()
+    }
+}
+
+/// A bio for a role you typed yourself, from the preset it sounds most like.
+pub fn bio_for(role: &str) -> &'static str {
+    let r = role.to_lowercase();
+    let key = if r.contains("design") {
+        "designer"
+    } else if r.contains("product") || r.contains("pm") {
+        "pm"
+    } else if r.contains("review") || r.contains("cto") || r.contains("lead") {
+        "reviewer"
+    } else if ["writ", "doc", "market", "content", "growth"].iter().any(|w| r.contains(w)) {
+        "writer"
+    } else {
+        "engineer"
+    };
+    preset(key).map(|p| p.bio).unwrap_or(PRESETS[0].bio)
+}
+
+/// Problems with a team before anything is created: missing names, two people who would get
+/// the same id, runtimes that don't exist.
+pub fn check(people: &[Person]) -> Result<()> {
+    let mut ids: Vec<(String, &str)> = vec![];
+    for p in people {
+        let id = slug(&p.name);
+        if id.is_empty() {
+            anyhow::bail!("everyone needs a name with at least one letter or digit");
+        }
+        if let Some((_, other)) = ids.iter().find(|(i, _)| *i == id) {
+            anyhow::bail!("{other} and {} would both be {id}. Give one of them a different first name", p.name);
+        }
+        if !crate::runtime::RUNTIMES.contains(&p.runtime.as_str()) {
+            anyhow::bail!("{} works on {}, which isn't supported. Pick one of: {}", p.name, p.runtime, crate::runtime::RUNTIMES.join(", "));
+        }
+        ids.push((id, &p.name));
+    }
+    Ok(())
+}
+
+/// Hires everyone into a company, creating their departments. The first person into a
+/// department leads it.
+pub fn hire(c: &Company, people: &[Person]) -> Result<Vec<Employee>> {
+    check(people)?;
     let mut hired = vec![];
-    for h in t.hires {
-        let p = preset(h.preset).ok_or_else(|| anyhow::anyhow!("no preset called {}", h.preset))?;
-        let department = match h.dept {
+    for p in people {
+        let department = match p.department.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
             Some(name) => Some(match c.department(name)? {
                 Some(d) => d.id,
                 None => c.add_department(name)?.id,
@@ -112,18 +181,23 @@ pub fn apply(c: &Company, t: &Template, runtime: &str) -> Result<Vec<Employee>> 
             None => None,
         };
         let e = Employee {
-            id: slug(h.name),
-            name: h.name.into(),
-            role: h.role.unwrap_or(p.role).into(),
-            runtime: runtime.into(),
-            model: None,
-            bio: p.bio.into(),
+            id: slug(&p.name),
+            name: p.name.trim().into(),
+            role: if p.role.trim().is_empty() { "Engineer".into() } else { p.role.trim().into() },
+            runtime: p.runtime.clone(),
+            model: p.model.clone().filter(|m| !m.trim().is_empty()),
+            bio: if p.bio.trim().is_empty() { bio_for(&p.role).into() } else { p.bio.clone() },
             department,
         };
         c.hire(&e)?;
         hired.push(e);
     }
     Ok(hired)
+}
+
+/// Hires a template as it is.
+pub fn apply(c: &Company, t: &Template, runtime: &str) -> Result<Vec<Employee>> {
+    hire(c, &t.people(runtime))
 }
 
 /// A company name from a folder name: "My Notes App" becomes my-notes-app.
@@ -157,6 +231,15 @@ mod tests {
         assert_eq!(eng.lead.as_deref(), Some("odile"));
         assert_eq!(c.employee("odile").unwrap().unwrap().role, "CTO");
         assert_eq!(c.department("product").unwrap().unwrap().lead.as_deref(), Some("rui"));
+
+        // An edited team: duplicates are caught before anything is created.
+        let mut team = template("small").unwrap().people("claude");
+        team[1].name = "Odile Two".into();
+        assert!(check(&team).unwrap_err().to_string().contains("would both be odile"));
+        team[1].name = "Inês".into();
+        team[1].role = "Growth writer".into();
+        assert!(check(&team).is_ok());
+        assert_eq!(bio_for("Growth writer"), preset("writer").unwrap().bio);
 
         assert_eq!(suggest_name("My Notes App"), "my-notes-app");
         assert_eq!(suggest_name("  snowztech.com "), "snowztech-com");
