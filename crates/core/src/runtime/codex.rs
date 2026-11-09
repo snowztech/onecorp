@@ -18,7 +18,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         // The user's config (and their own MCP servers) stays out. Login still works.
         .arg("--ignore-user-config")
         // Writes stay inside the worktree. .git is read-only there, which is why OneCorp commits for the agent.
-        .args(["--sandbox", "workspace-write", "--cd"])
+        .args(["--sandbox", if o.read_only { "read-only" } else { "workspace-write" }, "--cd"])
         .arg(o.cwd)
         .args(["-c", &format!("mcp_servers.onecorp.command={}", q(&o.mcp.command))])
         .args(["-c", &format!("mcp_servers.onecorp.args={}", serde_json::to_string(&o.mcp.args)?)])

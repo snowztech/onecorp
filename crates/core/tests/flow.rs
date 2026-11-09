@@ -2,9 +2,11 @@
 //! an AI agent. If this passes, starting, committing under the employee's name, review, changes,
 //! conflicts and merging all still work together.
 
+use onecorp::mcp;
 use onecorp::store::{Company, Employee};
 use onecorp::work::{self, Job};
 use std::path::Path;
+use serde_json::{Value, json};
 use std::process::Command;
 
 fn git(dir: &Path, args: &[&str]) -> String {
@@ -91,6 +93,45 @@ fn a_ticket_goes_from_start_to_merged() {
     work::retry(&c, &c.ticket(r).unwrap().unwrap()).unwrap();
     assert_eq!(status(r), "review");
     assert!(work::retry(&c, &c.ticket(r).unwrap().unwrap()).is_err(), "only failed tickets can be retried");
+
+    // Questions go to the department lead before they reach the founder.
+    hire(&c, "odile", "Odile Martin");
+    let eng = c.add_department("Engineering").unwrap();
+    c.set_department("odile", eng.id).unwrap(); // first one in leads it
+    c.set_department("maya", eng.id).unwrap();
+    let q = c.add_ticket("pick a token expiry", "maya").unwrap();
+    work::dispatch(&c, q, Job::Start).unwrap();
+    let ask = |args: Value| {
+        let ctx = mcp::Ctx { ticket: q, employee: "maya".into() };
+        let call = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "ask_human", "arguments": args}});
+        mcp::handle(&c, &ctx, &call).unwrap()
+    };
+
+    // The lead settles it. It never reaches the founder, and the work carries on.
+    ask(json!({"question": "15 or 60 minutes?", "options": ["15", "60"], "default": "15"}));
+    assert!(c.inbox().unwrap().is_empty());
+    assert_eq!(c.with_leads().unwrap().len(), 1);
+    work::drain_consults(&c).unwrap();
+    assert!(c.with_leads().unwrap().is_empty() && c.inbox().unwrap().is_empty());
+    assert_eq!(status(q), "review");
+
+    // A founder call is passed up, with the lead's reason.
+    ask(json!({"question": "Should we charge for this? [founder]"}));
+    work::drain_consults(&c).unwrap();
+    let mine = c.inbox().unwrap();
+    assert_eq!((mine.len(), mine[0].via.as_deref()), (1, Some("odile")));
+    assert!(mine[0].note.as_deref().unwrap_or("").contains("product"));
+
+    // A blocking question the lead answers resumes the work with the lead's answer.
+    ask(json!({"question": "Which hash for the tokens?", "default": "sha2", "blocking": true}));
+    assert_eq!(status(q), "blocked");
+    work::drain_consults(&c).unwrap();
+    assert_eq!(status(q), "review");
+    let wt = c.ticket(q).unwrap().unwrap().worktree.unwrap();
+    assert!(std::fs::read_to_string(Path::new(&wt).join("WORK.md")).unwrap().contains("sha2"));
+
+    // The lead's own questions go straight to the founder.
+    assert!(c.lead_of("odile").unwrap().is_none());
 
     let _ = std::fs::remove_dir_all(&root);
 }

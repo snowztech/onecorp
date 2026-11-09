@@ -132,9 +132,11 @@ function feed(items) {
 function viewInbox() {
   const s = S.snap;
   const blocking = s.inbox.filter(q => q.kind !== "handbook" && q.blocking), other = s.inbox.filter(q => q.kind !== "handbook" && !q.blocking), books = s.inbox.filter(q => q.kind === "handbook");
-  const cards = [...(s.failed || []).map(stopped), ...blocking.map(question), ...s.reviews.map(review), ...other.map(question), ...books.map(handbook)];
-  if (!cards.length) return `<div class="empty-state"><b>Inbox zero</b>Your team puts questions, reviews and handbook ideas here when they need you.</div>`;
-  return `<div class="inbox">${cards.join("")}</div>`;
+  const cards = [...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...s.reviews.map(review), ...other.map(q => question(q)), ...books.map(handbook)];
+  const leads = (s.with_leads || []).map(q => question(q, true));
+  const zero = `<div class="empty-state"><b>Inbox zero</b>Your team puts questions, reviews and handbook ideas here when they need you.</div>`;
+  return `<div class="inbox">${cards.length ? cards.join("") : zero}
+    ${leads.length ? `<h2 class="section">With your leads <small class="muted">They decide what they can and pass up the rest. Step in anytime.</small></h2>${leads.join("")}` : ""}</div>`;
 }
 function stopped(t) {
   return `<article class="ask stopped">${face(t.name, "blocked")}<div>
@@ -142,12 +144,14 @@ function stopped(t) {
     <p>${esc(first(t.name))}'s run didn't finish${t.why ? `: ${esc(t.why)}` : "."}</p>
     <div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button></div></div></article>`;
 }
-function question(q) {
+function question(q, withLead) {
   const opts = q.options.map(o => `<button class="btn primary" data-answer="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join("");
   const def = q.default && !q.options.includes(q.default) ? `<button class="btn" data-answer="${q.id}" data-val="${esc(q.default)}">Go with ${esc(q.default)}</button>` : "";
-  return `<article class="ask ${q.blocking ? "blocking" : ""}">${face(q.name, q.blocking ? "blocked" : "neutral")}<div>
-    <span class="kind">${q.blocking ? "Blocking" : "Question"} · ${esc(q.key || "")}</span><h4>${esc(q.question)}</h4>
-    <p>${esc(first(q.name))} ${q.blocking ? "stopped until you answer." : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
+  const kind = withLead ? `With ${esc(first(q.lead_name || "their lead"))}` : q.blocking ? "Blocking" : "Question";
+  const via = q.via_name ? `<p class="via"><b>${esc(first(q.via_name))}</b> passed this to you${q.note ? `: ${esc(q.note)}` : "."}</p>` : "";
+  return `<article class="ask ${q.blocking ? "blocking" : ""} ${withLead ? "lead" : ""}">${face(q.name, q.blocking ? "blocked" : "neutral")}<div>
+    <span class="kind">${kind} · ${esc(q.key || "")}</span><h4>${esc(q.question)}</h4>${via}
+    <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
     <div class="acts">${opts}${def}</div>
     <form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Or write your own answer…"><button class="btn">Send</button></form></div></article>`;
 }
@@ -431,7 +435,8 @@ function preview(cmd) {
     snapshot: {
       company: "snowztech", serve: true, employees: team, tickets: [],
       departments: [{ id: 1, name: "Engineering", lead: "odile", members: ["odile", "maya", "tomas"] }, { id: 2, name: "Product", lead: "rui", members: ["rui", "lina"] }, { id: 3, name: "Growth", lead: "sam", members: ["sam"] }],
-      inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true },
+      with_leads: [{ id: 5, kind: "question", key: "SNO-15", employee: "tomas", name: "Tomás Reis", lead_name: "Odile Martin", question: "Retry webhooks 3 or 5 times?", section: "", options: ["3", "5"], default: "3", blocking: false }],
+      inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
         { id: 3, kind: "handbook", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
       failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished. Retry it: onecorp retry" }],
       reviews: [{ key: "SNO-11", title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31" }],

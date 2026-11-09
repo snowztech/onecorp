@@ -84,6 +84,10 @@ Without `onecorp serve`, every command runs its work right there in your termina
 - Every line serve prints is tagged with the ticket and the employee, like `SNO-3 tomas`.
 - If serve is stopped mid-ticket, the next start marks that ticket failed instead of leaving it stuck.
 
+## Leads answer first
+
+Questions from someone in a department go to their lead first. The lead decides what the handbook and the code settle, and passes up the rest with a reason. Product, money, anything public and security come to you. Set a lead with `onecorp dept lead Engineering odile`.
+
 ## Shared knowledge
 
 Each company has a handbook at `~/.onecorp/companies/<name>/handbook.md`: mission, decisions, conventions. It's plain markdown, so edit it however you like. Every ticket starts with the handbook and a list of who works here, generated from the team, so a decision made once is known by everyone. Approved work lands on the base branch, so the next ticket starts from everyone's merged code too.

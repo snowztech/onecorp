@@ -52,7 +52,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Reviews in the Inbox show the real changes: commits, files, diff
 - [x] Handbook page: read, edit and accept proposals in the app
 - [ ] New company flow in the app (today it's `onecorp new`)
-- [ ] Questions go to the department lead before they reach you
+- [x] Questions go to the department lead before they reach you, and you can step in anytime
 - [ ] ⌘K command bar for everything
 
 ## Next

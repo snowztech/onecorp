@@ -41,10 +41,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         })
         .collect();
 
-    let inbox: Vec<Value> = c
-        .inbox()?
-        .iter()
-        .map(|q| {
+    let question = |q: &crate::store::Question| {
             let options: Vec<&str> = q.options.split(", ").filter(|o| !o.is_empty()).collect();
             json!({
                 "id": q.id, "kind": q.kind, "key": q.ticket_id.map(|t| c.key(t)),
@@ -53,7 +50,18 @@ pub fn snapshot(c: &Company) -> Result<Value> {
                 "section": if q.kind == "handbook" { q.options.clone() } else { String::new() },
                 "options": if q.kind == "handbook" { vec![] } else { options },
                 "default": q.default_answer, "blocking": q.blocking,
+                "via": q.via, "via_name": q.via.as_deref().map(name_of), "note": q.note,
             })
+    };
+    let inbox: Vec<Value> = c.inbox()?.iter().map(question).collect();
+    // Questions a lead is still looking at. You can step in and answer them yourself.
+    let with_leads: Vec<Value> = c
+        .with_leads()?
+        .iter()
+        .map(|q| {
+            let mut v = question(q);
+            v["lead_name"] = json!(c.lead_of(&q.employee).ok().flatten().map(|l| l.name));
+            v
         })
         .collect();
 
@@ -115,6 +123,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             "spend": spend(t.cost_usd, t.tokens),
         })).collect::<Vec<_>>(),
         "inbox": inbox,
+        "with_leads": with_leads,
         "reviews": reviews,
         "failed": failed,
         "feed": feed,

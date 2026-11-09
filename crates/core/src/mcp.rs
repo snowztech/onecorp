@@ -4,6 +4,7 @@
 //! MCP over stdio is newline-delimited JSON-RPC 2.0. We only need four methods, so it's done by hand.
 
 use crate::store::{Company, Question};
+use crate::work::Job;
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::io::{BufRead, Write};
@@ -152,22 +153,31 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
                 .map(|o| o.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
                 .unwrap_or_default();
             let blocking = args["blocking"] == true;
+            // Someone with a lead asks them first. The lead decides or passes it up to the founder.
+            let lead = c.lead_of(&ctx.employee)?;
             let n = c.ask(&Question {
-                id: 0,
                 ticket_id: Some(ctx.ticket),
                 employee: ctx.employee.clone(),
                 question,
                 options,
                 default_answer: s("default"),
                 blocking,
-                answer: None,
                 kind: "question".into(),
+                stage: if lead.is_some() { "lead" } else { "founder" }.into(),
+                ..Default::default()
             })?;
+            let to = match &lead {
+                Some(l) => {
+                    c.enqueue(ctx.ticket, &Job::Consult { question: n })?;
+                    format!("{}, your lead", l.name)
+                }
+                None => "the founder".into(),
+            };
             if blocking {
                 c.set_status(ctx.ticket, "blocked")?;
-                Ok(format!("Question #{n} is in the founder's inbox and the ticket is marked blocked. Stop here and summarize where you are."))
+                Ok(format!("Question #{n} went to {to}, and the ticket is marked blocked. Stop here and summarize where you are."))
             } else {
-                Ok(format!("Question #{n} is in the founder's inbox. Carry on with your default and mention it in your summary."))
+                Ok(format!("Question #{n} went to {to}. Carry on with your default and mention it in your summary."))
             }
         }
         "post_message" => {
@@ -184,15 +194,12 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
             anyhow::ensure!(!text.is_empty(), "text is required");
             let section = if s("section").eq_ignore_ascii_case("conventions") { "Conventions" } else { "Decisions" };
             let n = c.ask(&Question {
-                id: 0,
                 ticket_id: Some(ctx.ticket),
                 employee: ctx.employee.clone(),
                 question: text,
                 options: section.into(),
-                default_answer: String::new(),
-                blocking: false,
-                answer: None,
                 kind: "handbook".into(),
+                ..Default::default()
             })?;
             Ok(format!("Proposal #{n} is in the founder's inbox. Carry on, it doesn't block your ticket."))
         }

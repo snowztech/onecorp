@@ -14,7 +14,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     let mcp = json!({"mcpServers": {"onecorp": {"command": o.mcp.command, "args": o.mcp.args, "env": env}}});
 
     let mut cmd = Command::new("claude");
-    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"])
+    // Without acceptEdits, edits need a permission nobody can give in headless mode, so they're refused.
+    let mode = if o.read_only { "default" } else { "acceptEdits" };
+    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode])
         // Only the company server loads. The user's own MCP servers stay out.
         .args(["--mcp-config", &mcp.to_string(), "--strict-mcp-config"])
         .args(["--allowedTools", ALLOWED])

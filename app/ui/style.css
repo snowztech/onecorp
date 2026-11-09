@@ -156,6 +156,10 @@ button.room-new:hover { border-color: var(--accent); color: var(--fg); }
 .ask.blocking .kind { color: var(--signal); }
 .ask.review .kind { color: var(--accent); }
 .ask.stopped { border-color: var(--signal); }
+.ask.lead { opacity: .85; border-style: dashed; }
+.ask .via { margin: -2px 0 8px; font-size: 13px; color: var(--fg); background: var(--accent-soft); border-radius: 6px; padding: 5px 8px; }
+.section { font: 700 14px var(--display); margin: 18px 0 0; display: flex; flex-direction: column; gap: 2px; }
+.section small { font: 400 12px var(--body); }
 .ask.stopped .kind { color: var(--signal); }
 .ask h4 { margin: 2px 0 4px; font-size: 15px; }
 .ask p { margin: 0 0 10px; color: var(--muted); white-space: pre-wrap; }

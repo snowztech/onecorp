@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS inbox (
   default_answer TEXT NOT NULL DEFAULT '',
   blocking INTEGER NOT NULL DEFAULT 0,
   kind TEXT NOT NULL DEFAULT 'question',
+  stage TEXT NOT NULL DEFAULT 'founder',
+  via TEXT,
+  note TEXT,
+  answered_by TEXT,
   answer TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   answered_at TEXT
@@ -153,6 +157,7 @@ pub struct Claimed {
     pub job: Job,
 }
 
+#[derive(Default)]
 pub struct Question {
     pub id: i64,
     pub ticket_id: Option<i64>,
@@ -165,6 +170,13 @@ pub struct Question {
     pub answer: Option<String>,
     /// "question", or "handbook" for a proposed handbook addition (then `options` holds the section).
     pub kind: String,
+    /// "lead" while the asker's department lead looks at it, "founder" once it's yours.
+    pub stage: String,
+    /// The lead who passed it up to you, and why.
+    pub via: Option<String>,
+    pub note: Option<String>,
+    /// Who answered: "founder", or the id of the lead who decided.
+    pub answered_by: Option<String>,
 }
 
 pub struct Ticket {
@@ -380,8 +392,10 @@ impl Company {
 
     pub fn enqueue(&self, ticket: i64, job: &Job) -> Result<()> {
         let (kind, why, prompt, label) = match job {
-            Job::Start => ("start", "", "", ""),
-            Job::Resume { why, prompt, label } => ("resume", why.as_str(), prompt.as_str(), label.as_str()),
+            Job::Start => ("start", "", "", String::new()),
+            Job::Resume { why, prompt, label } => ("resume", why.as_str(), prompt.as_str(), label.clone()),
+            // The question id rides in `label`.
+            Job::Consult { question } => ("consult", "", "", question.to_string()),
         };
         self.db.execute(
             "INSERT INTO jobs (ticket_id, kind, why, prompt, label) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -393,19 +407,29 @@ impl Company {
     /// Takes the oldest queued job whose ticket and employee are both free. Each employee works
     /// one ticket at a time, like a person, which also keeps their runtime's rate limits sane.
     pub fn claim_job(&self) -> Result<Option<Claimed>> {
+        self.claim(None)
+    }
+
+    /// Like `claim_job`, for one kind of job only.
+    pub fn claim_job_of(&self, kind: &str) -> Result<Option<Claimed>> {
+        self.claim(Some(kind))
+    }
+
+    fn claim(&self, kind: Option<&str>) -> Result<Option<Claimed>> {
         let next = self
             .db
             .query_row(
                 "SELECT j.id, j.ticket_id, j.kind, j.why, j.prompt, j.label FROM jobs j JOIN tickets t ON t.id = j.ticket_id
-                 WHERE j.started_at IS NULL AND NOT EXISTS (
+                 WHERE j.started_at IS NULL AND (?1 IS NULL OR j.kind = ?1) AND NOT EXISTS (
                    SELECT 1 FROM jobs r JOIN tickets rt ON rt.id = r.ticket_id
                    WHERE r.started_at IS NOT NULL AND r.finished_at IS NULL
                      AND (r.ticket_id = j.ticket_id OR rt.assignee = t.assignee))
                  ORDER BY j.id LIMIT 1",
-                [],
+                [kind],
                 |r| {
                     let job = match r.get::<_, String>(2)?.as_str() {
                         "start" => Job::Start,
+                        "consult" => Job::Consult { question: r.get::<_, String>(5)?.parse().unwrap_or(0) },
                         _ => Job::Resume { why: r.get(3)?, prompt: r.get(4)?, label: r.get(5)? },
                     };
                     Ok(Claimed { id: r.get(0)?, ticket: r.get(1)?, job })
@@ -506,34 +530,78 @@ impl Company {
 
     pub fn ask(&self, q: &Question) -> Result<i64> {
         self.db.execute(
-            "INSERT INTO inbox (ticket_id, employee, question, options, default_answer, blocking, kind)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![q.ticket_id, q.employee, q.question, q.options, q.default_answer, q.blocking, q.kind],
+            "INSERT INTO inbox (ticket_id, employee, question, options, default_answer, blocking, kind, stage)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![q.ticket_id, q.employee, q.question, q.options, q.default_answer, q.blocking, q.kind, if q.stage.is_empty() { "founder" } else { &q.stage }],
         )?;
         Ok(self.db.last_insert_rowid())
     }
 
-    /// Open questions, oldest first.
+    /// Open questions waiting on you, oldest first. Ones a lead is still looking at aren't here.
     pub fn inbox(&self) -> Result<Vec<Question>> {
-        let mut st = self.db.prepare(
-            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer, kind
-             FROM inbox WHERE answer IS NULL ORDER BY id",
-        )?;
+        self.questions("answer IS NULL AND stage = 'founder'")
+    }
+
+    /// Open questions a department lead is looking at before they'd reach you.
+    pub fn with_leads(&self) -> Result<Vec<Question>> {
+        self.questions("answer IS NULL AND stage = 'lead'")
+    }
+
+    pub fn question(&self, id: i64) -> Result<Option<Question>> {
+        Ok(self.questions(&format!("id = {id}"))?.pop())
+    }
+
+    fn questions(&self, filter: &str) -> Result<Vec<Question>> {
+        let mut st = self.db.prepare(&format!("SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer, kind, stage, via, note, answered_by FROM inbox WHERE {filter} ORDER BY id"))?;
         let rows = st.query_map([], row_to_question)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    /// Saves the answer and returns the answered question.
+    /// Hands a question to a lead first, or up to you with the lead's reason.
+    pub fn route(&self, id: i64, stage: &str, via: Option<&str>, note: Option<&str>) -> Result<()> {
+        self.db.execute("UPDATE inbox SET stage = ?2, via = ?3, note = ?4 WHERE id = ?1", params![id, stage, via, note])?;
+        Ok(())
+    }
+
+    /// The person whose questions go to someone before they reach you: their department's lead,
+    /// unless they lead it themselves.
+    pub fn lead_of(&self, employee: &str) -> Result<Option<Employee>> {
+        let lead: Option<String> = self
+            .db
+            .query_row(
+                "SELECT d.lead FROM employees e JOIN departments d ON d.id = e.department WHERE e.id = ?1 AND d.lead IS NOT NULL AND d.lead != e.id",
+                [employee],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match lead {
+            Some(id) => self.employee(&id),
+            None => Ok(None),
+        }
+    }
+
+    /// Adds the cost of a run that isn't the ticket's own work, like a lead answering a question.
+    pub fn add_cost(&self, ticket: i64, cost: f64, tokens: u64) -> Result<()> {
+        self.db.execute("UPDATE tickets SET cost_usd = cost_usd + ?2, tokens = tokens + ?3 WHERE id = ?1", params![ticket, cost, tokens as i64])?;
+        Ok(())
+    }
+
+    /// Saves your answer and returns the answered question.
     pub fn answer(&self, id: i64, answer: &str) -> Result<Question> {
+        self.answer_as(id, answer, "founder")
+    }
+
+    /// Saves an answer from `by`, the founder or a lead.
+    pub fn answer_as(&self, id: i64, answer: &str, by: &str) -> Result<Question> {
         let n = self.db.execute(
-            "UPDATE inbox SET answer = ?2, answered_at = datetime('now') WHERE id = ?1 AND answer IS NULL",
-            params![id, answer],
+            "UPDATE inbox SET answer = ?2, answered_at = datetime('now'), answered_by = ?3 WHERE id = ?1 AND answer IS NULL",
+            params![id, answer, by],
         )?;
         if n == 0 {
             bail!("no open question #{id}. See: onecorp inbox");
         }
         Ok(self.db.query_row(
-            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer, kind FROM inbox WHERE id = ?1",
+            "SELECT id, ticket_id, employee, question, options, default_answer, blocking, answer, kind, stage, via, note, answered_by FROM inbox WHERE id = ?1",
             [id],
             row_to_question,
         )?)
@@ -630,6 +698,10 @@ fn row_to_question(r: &rusqlite::Row) -> rusqlite::Result<Question> {
         blocking: r.get(6)?,
         answer: r.get(7)?,
         kind: r.get(8)?,
+        stage: r.get(9)?,
+        via: r.get(10)?,
+        note: r.get(11)?,
+        answered_by: r.get(12)?,
     })
 }
 
@@ -649,6 +721,10 @@ fn migrate(db: &Connection) -> Result<()> {
         ("tickets", "base", "TEXT"),
         ("inbox", "kind", "TEXT NOT NULL DEFAULT 'question'"),
         ("jobs", "pid", "INTEGER"),
+        ("inbox", "stage", "TEXT NOT NULL DEFAULT 'founder'"),
+        ("inbox", "via", "TEXT"),
+        ("inbox", "note", "TEXT"),
+        ("inbox", "answered_by", "TEXT"),
     ];
     for (table, column, decl) in ADDED {
         let has: bool = db.query_row(

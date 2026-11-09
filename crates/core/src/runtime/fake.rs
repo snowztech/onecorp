@@ -14,6 +14,17 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
     let session = o.resume.map(str::to_string).unwrap_or_else(|| format!("fake-{}", std::process::id()));
     on("", Event::Init { session, model: "no AI".into() })?;
 
+    // Asked to decide as a lead: pass up anything marked [founder], otherwise go with the default.
+    if prompt.contains("End your reply with exactly one of these lines") {
+        let field = |name: &str| prompt.lines().find_map(|l| l.strip_prefix(name)).map(str::trim).unwrap_or("").to_string();
+        let question = field("Question: ");
+        let pick = [field("Their default: "), field("Options: ").split(", ").next().unwrap_or("").to_string()].into_iter().find(|x| !x.is_empty()).unwrap_or_else(|| "yes".into());
+        let text = if question.contains("[founder]") { "FOUNDER: this is a product call.".to_string() } else { format!("Looks fine to me.\nDECISION: {pick}") };
+        on("", Event::Say(text.clone()))?;
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
+        return Ok(());
+    }
+
     let first_try = o.cwd.join(".fake-tried");
     if prompt.contains("[fail once]") && !first_try.exists() {
         fs::write(&first_try, "")?;

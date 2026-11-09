@@ -80,6 +80,18 @@ The main tables: `employees` (with `department` and `fired_at`), `departments` (
 - **You ask for changes.** `work::request_changes` sends your feedback back to the same session and also saves it to that employee's memory, so they learn how you like things.
 - **You approve.** `work::approve` first merges the base branch into the ticket branch. If that conflicts, the ticket goes back to its employee with the list of files, they fix the markers and you approve again. Then the base fast-forwards to the ticket branch, the ticket becomes `done`, and its worktree and branch are removed.
 
+## Leads answer first
+
+When someone in a department asks a question with `ask_human`, it goes to their department's lead, not to you (`store::lead_of`). The question is stored with stage `lead`, and a `consult` job is queued for it.
+
+`work::consult` runs the lead's runtime **read-only** in the asker's worktree: Claude Code without accepting edits, Codex in its read-only sandbox. The prompt has the question, the asker's default, the handbook and the team, and asks the lead to end with `DECISION: …` or `FOUNDER: why`. `work::verdict` reads that line, and anything unclear goes up to you, the safe side.
+
+- A decision is saved as the lead's answer, and `work::follow_up` resumes the asker exactly like your own answer would. Their prompt says the answer came from their lead.
+- A pass-up moves the question to stage `founder`, with the lead's reason. It shows in your inbox as "Odile passed this to you: …".
+- Leads, people without a department and handbook proposals go straight to you. Questions still with a lead show under "With your leads", and you can answer them yourself.
+
+The consult job waits until the asker's own run is done. Without `serve`, `work::drain_consults` runs them right after the ticket finishes.
+
 ## Shared knowledge
 
 What employees know comes from four places, all assembled in `work::start`:
@@ -114,8 +126,9 @@ Each test covers the risky logic in one module:
 - merges, fast-forwards and conflicts against a real throwaway git repo
 - the job queue claim rules and recovery after a crash
 - departments, handbook section editing and the screen snapshot
+- reading a lead's verdict, including markdown like `**DECISION:**`
 
-On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, and a retry. It takes under a second.
+On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, a retry, and questions answered by a lead, passed up by a lead, and unblocking a ticket. It takes under a second.
 
 Run everything with `cargo test`. Real agents are tested by hand on a throwaway repo, with `ONECORP_HOME` pointing somewhere temporary.
 

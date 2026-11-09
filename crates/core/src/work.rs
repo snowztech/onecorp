@@ -33,6 +33,8 @@ pub enum Job {
     Start,
     /// Continue the ticket's session with new instructions.
     Resume { why: String, prompt: String, label: String },
+    /// Ask the asker's department lead to answer an inbox question, or pass it up to the founder.
+    Consult { question: i64 },
 }
 
 /// Queues the job when `onecorp serve` is running, otherwise runs it right here.
@@ -42,7 +44,9 @@ pub fn dispatch(c: &Company, ticket: i64, job: Job) -> Result<()> {
         let id = c.run_now(ticket, &job)?;
         let result = execute(c, ticket, &job);
         c.finish_job(id, result.as_ref().err().map(|e| format!("{e:#}")).as_deref())?;
-        return result;
+        result?;
+        // Questions the agent asked its lead were queued during the run. With nobody to pick them up, do it now.
+        return drain_consults(c);
     }
     let key = c.key(ticket);
     c.enqueue(ticket, &job)?;
@@ -56,7 +60,126 @@ pub fn execute(c: &Company, ticket: i64, job: &Job) -> Result<()> {
     match job {
         Job::Start => start(c, &t),
         Job::Resume { why, prompt, label } => pick_up(c, &t, why, prompt, label),
+        Job::Consult { question } => consult(c, *question),
     }
+}
+
+/// Runs queued lead consultations here, for when serve isn't running.
+pub fn drain_consults(c: &Company) -> Result<()> {
+    while let Some(job) = c.claim_job_of("consult")? {
+        let result = execute(c, job.ticket, &job.job);
+        c.finish_job(job.id, result.as_ref().err().map(|e| format!("{e:#}")).as_deref())?;
+        result?;
+    }
+    Ok(())
+}
+
+/// A lead's verdict on a question from someone in their department.
+#[derive(Debug, PartialEq)]
+pub enum Verdict {
+    Decide(String),
+    Escalate(String),
+}
+
+/// Reads the last DECISION: or FOUNDER: line. Anything unclear goes up to the founder, which is the safe side.
+pub fn verdict(text: &str) -> Verdict {
+    for line in text.lines().rev() {
+        let l = line.trim().trim_start_matches(['*', '_', '`']).trim();
+        let upper = l.to_ascii_uppercase();
+        if let Some(rest) = upper.strip_prefix("DECISION:").map(|_| &l["DECISION:".len()..]) {
+            let answer = rest.trim_matches(|ch: char| ch.is_whitespace() || matches!(ch, '*' | '_' | '`'));
+            if !answer.is_empty() {
+                return Verdict::Decide(answer.to_string());
+            }
+        }
+        if upper.starts_with("FOUNDER:") {
+            let why = l["FOUNDER:".len()..].trim_matches(|ch: char| ch.is_whitespace() || matches!(ch, '*' | '_' | '`'));
+            return Verdict::Escalate(why.to_string());
+        }
+    }
+    Verdict::Escalate(first_line(text))
+}
+
+/// The lead looks at a question from their report, read-only in the asker's worktree, and either
+/// answers it, which resumes the asker like a founder answer would, or passes it up to the founder.
+fn consult(c: &Company, id: i64) -> Result<()> {
+    let Some(q) = c.question(id)? else { return Ok(()) };
+    if q.answer.is_some() || q.stage != "lead" {
+        return Ok(()); // The founder already stepped in.
+    }
+    let Some(lead) = c.lead_of(&q.employee)? else {
+        c.route(id, "founder", None, None)?;
+        return Ok(());
+    };
+    let Some(t) = q.ticket_id.map(|tid| c.ticket(tid)).transpose()?.flatten() else { return Ok(()) };
+    let key = c.key(t.id);
+    let asker = c.employee(&q.employee)?.map(|e| e.name).unwrap_or_else(|| q.employee.clone());
+    let dept = c.departments()?.into_iter().find(|d| d.lead.as_deref() == Some(lead.id.as_str())).map(|d| d.name).unwrap_or_else(|| "your department".into());
+    let mut details = format!("Question: {}", q.question);
+    if !q.options.is_empty() {
+        details.push_str(&format!("\nOptions: {}", q.options));
+    }
+    if !q.default_answer.is_empty() {
+        details.push_str(&format!("\nTheir default: {}", q.default_answer));
+    }
+    let prompt = format!(
+        "You are {name}, {role} at {company}, and you lead {dept}. {bio}\n\n\
+         {asker}, who reports to you, asked a question while working on {key}: {title}\n\n{details}\n\n\
+         Decide it yourself when the handbook, the code in this worktree or sound judgment settle it. Pass it to the founder \
+         when it's about product direction, money, anything public, security, or something the handbook says is theirs. \
+         Look at the code if it helps, but don't change any files.\n\n\
+         End your reply with exactly one of these lines:\nDECISION: the answer, in a few words\nFOUNDER: why the founder should decide\n\n{knowledge}",
+        name = lead.name,
+        role = lead.role,
+        company = c.name,
+        bio = lead.bio,
+        title = t.title,
+        knowledge = company_knowledge(c)?,
+    );
+    out(&format!("{key}  {} asked {}: {}", first_line(&asker), lead.name, q.question));
+
+    let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
+    let mcp = company_tools(c, t.id, &lead.id)?;
+    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: &mcp, resume: None, env: &[], read_only: true };
+    let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
+        match ev {
+            Event::Say(text) => said = text,
+            Event::Done { cost: c2, tokens: t2, text, .. } => {
+                (cost, tokens) = (c2, t2);
+                if !text.is_empty() {
+                    said = text;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    })?;
+    c.add_cost(t.id, cost, tokens)?;
+
+    match verdict(&said) {
+        Verdict::Decide(answer) => {
+            c.add_event(t.id, "lead", &format!("{} answered #{id}: {answer}", lead.name), "")?;
+            out(&format!("{key}  {} answered: {answer}", lead.name));
+            let q = c.answer_as(id, &answer, &lead.id)?;
+            follow_up(c, &q, &answer)
+        }
+        Verdict::Escalate(why) => {
+            c.route(id, "founder", Some(&lead.id), Some(&why))?;
+            c.add_event(t.id, "lead", &format!("{} passed #{id} to you: {why}", lead.name), "")?;
+            out(&format!("{key}  {} passed it to you: {}. See: onecorp inbox", lead.name, why.trim_end_matches('.')));
+            Ok(())
+        }
+    }
+}
+
+/// The company MCP server for one ticket and employee: this same binary, started by the agent.
+fn company_tools(c: &Company, ticket: i64, employee: &str) -> Result<runtime::Mcp> {
+    Ok(runtime::Mcp {
+        command: std::env::current_exe()?.to_string_lossy().into_owned(),
+        args: ["mcp", "--company", &c.name, "--ticket", &ticket.to_string(), "--employee", employee].map(String::from).to_vec(),
+        env: vec![("ONECORP_HOME".into(), store::home().to_string_lossy().into_owned())],
+    })
 }
 
 /// Dollars when the runtime reports them, tokens otherwise (Codex on a subscription has no bill per run).
@@ -157,8 +280,13 @@ fn own_notes(c: &Company, employee: &str) -> Result<String> {
 /// Sends the founder's answer back to the ticket's session.
 pub fn resume(c: &Company, q: &Question) -> Result<()> {
     let Some(ticket) = q.ticket_id else { return Ok(()) };
+    // Who answered, so the asker knows whether it came from their lead or the founder.
+    let by = match q.answered_by.as_deref() {
+        Some(id) if id != "founder" => c.employee(id)?.map(|e| format!("{}, your lead,", e.name)).unwrap_or_else(|| "Your lead".into()),
+        _ => "The founder".into(),
+    };
     let prompt = format!(
-        "The founder answered your question #{n}: \"{question}\"\n\nTheir answer: {answer}\n\n\
+        "{by} answered your question #{n}: \"{question}\"\n\nTheir answer: {answer}\n\n\
          Pick the ticket back up from where you left off and apply this answer. Same rules as before: \
          don't commit, and end with two or three sentences on what changed.",
         n = q.id,
@@ -190,20 +318,26 @@ pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
         return Ok(());
     }
     out(&format!("Answered #{id}."));
+    follow_up(c, &q, text)
+}
+
+/// What an answer sets in motion, whoever gave it: it resumes the ticket when it unblocks it,
+/// or when the employee already went ahead with a different default.
+fn follow_up(c: &Company, q: &Question, text: &str) -> Result<()> {
     let Some(tid) = q.ticket_id else { return Ok(()) };
     let (key, status) = (c.key(tid), c.ticket(tid)?.map(|t| t.status).unwrap_or_default());
 
     if q.blocking && status == "blocked" {
         match c.open_blocking(tid)? {
-            0 => resume(c, &q)?,
+            0 => resume(c, q)?,
             n => out(&format!("{key} is still waiting on {n} more: onecorp inbox")),
         }
     } else if !q.blocking && status == "review" && !q.default_answer.eq_ignore_ascii_case(text) {
         // They went ahead with their default. A different answer means the work needs a change.
         let went_with = if q.default_answer.is_empty() { "their own call".to_string() } else { format!("\"{}\"", q.default_answer) };
         let who = c.employee(&q.employee)?.map(|e| e.name).unwrap_or_else(|| q.employee.clone());
-        out(&format!("{who} went with {went_with}, so {key} goes back to apply your answer.\n"));
-        resume(c, &q)?;
+        out(&format!("{who} went with {went_with}, so {key} goes back to apply the answer.\n"));
+        resume(c, q)?;
     }
     Ok(())
 }
@@ -317,13 +451,9 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
 fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, prompt: &str, label: &str) -> Result<()> {
     let key = c.key(id);
     // The agent starts this same binary as the company's MCP server, scoped to this ticket.
-    let mcp = runtime::Mcp {
-        command: std::env::current_exe()?.to_string_lossy().into_owned(),
-        args: ["mcp", "--company", &c.name, "--ticket", &id.to_string(), "--employee", &e.id].map(String::from).to_vec(),
-        env: vec![("ONECORP_HOME".into(), store::home().to_string_lossy().into_owned())],
-    };
+    let mcp = company_tools(c, id, &e.id)?;
     let identity = git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name));
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity, read_only: false };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
@@ -395,6 +525,18 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
 
 #[cfg(test)]
 mod tests {
+    use super::{Verdict, verdict};
+
+    #[test]
+    fn reads_a_leads_verdict() {
+        assert_eq!(verdict("Checked the auth code.\nDECISION: 15 minutes"), Verdict::Decide("15 minutes".into()));
+        assert_eq!(verdict("**DECISION:** use sha2"), Verdict::Decide("use sha2".into()));
+        assert_eq!(verdict("decision: Keep it"), Verdict::Decide("Keep it".into()));
+        assert_eq!(verdict("FOUNDER: pricing is your call"), Verdict::Escalate("pricing is your call".into()));
+        assert_eq!(verdict("**FOUNDER:** it touches billing"), Verdict::Escalate("it touches billing".into()));
+        assert_eq!(verdict("Not sure what to do here."), Verdict::Escalate("Not sure what to do here.".into()));
+    }
+
     #[test]
     fn short_cuts_at_a_word() {
         assert_eq!(super::short("SNO-1: fix it", 72), "SNO-1: fix it");

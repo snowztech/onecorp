@@ -462,7 +462,19 @@ fn run(cmd: Cmd) -> Result<()> {
                 if !extra.is_empty() {
                     println!("     {}", extra.join("   "));
                 }
+                if let Some(via) = &q.via {
+                    let lead = c.employee(via)?.map(|e| e.name).unwrap_or_else(|| via.clone());
+                    println!("     {lead} passed it to you: {}", q.note.as_deref().unwrap_or(""));
+                }
                 println!();
+            }
+            let leads = c.with_leads()?;
+            if !leads.is_empty() {
+                let n = leads.len();
+                println!("{n} more {} with department leads. You can answer them too: onecorp answer <number>", if n == 1 { "question is" } else { "questions are" });
+                for q in leads {
+                    println!("  #{:<3} {}: {}", q.id, q.employee, q.question);
+                }
             }
         }
         Cmd::Answer { question, answer, company } => {

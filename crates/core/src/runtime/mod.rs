@@ -42,6 +42,8 @@ pub struct Opts<'a> {
     pub resume: Option<&'a str>,
     /// Extra env for the agent process, like the employee's git identity.
     pub env: &'a [(String, String)],
+    /// Look, don't touch: no file edits. Used when a lead answers a question.
+    pub read_only: bool,
 }
 
 pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
