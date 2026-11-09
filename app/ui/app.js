@@ -137,6 +137,15 @@ function renderTop() {
   const s = S.snap;
   $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", wiki: "Wiki", board: "Board", chat: "Chat" }[S.view] || (S.company ? "Company" : "OneCorp");
   $("#new-ticket").hidden = !!S.setup || !!S.profile || !s;
+  // Today's spend, a glance from every page: the amount, a meter, the budget. Words only on hover.
+  const sp = $("#top-spend");
+  sp.hidden = $("#new-ticket").hidden;
+  if (!sp.hidden) {
+    const b = s.spend.budget, pct = b > 0 ? Math.min(100, (s.spend.today / b) * 100) : 0;
+    sp.className = `top-spend ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}`;
+    sp.title = b > 0 ? `Spent today, of a ${money(b)} daily budget` : "Spent today. Set a daily budget in Spend";
+    sp.innerHTML = `<span>${money(s.spend.today)}</span>${b > 0 ? `<span class="meter"><i style="width:${pct}%"></i></span><span class="of">${money(b)}</span>` : ""}`;
+  }
 }
 
 /* Company page: you on top, departments beneath as rooms of desks */
@@ -170,11 +179,7 @@ function viewCompany() {
     ? `<li><form class="room-new" id="dept-form"><label for="dept-name"><b>Name the department</b></label><div class="row"><input id="dept-name" placeholder="Engineering, Design, Growth…" autocomplete="off"><button class="btn primary">Add</button><button class="btn ghost" type="button" data-dept-cancel="1">Cancel</button></div></form></li>`
     : `<li><button class="dept-add" data-add-dept="1">+ New department</button></li>`;
   const working = s.employees.filter(e => e.status === "working").length;
-  const depts = s.departments.filter(d => d.id !== null).length;
-  const facts = [`${s.employees.length} ${s.employees.length === 1 ? "person" : "people"}`, `${depts} ${depts === 1 ? "department" : "departments"}`,
-    s.ship?.forge ? `ships to ${s.ship.forge}` : "merges locally", ...(working ? [`<span class="ok">${working} working now</span>`] : [])];
-  const b = s.spend.budget, pct = b > 0 ? Math.min(100, (s.spend.today / b) * 100) : 0;
-  const spendLine = `<button class="spend-line ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}" data-settings-tab="spend" title="See where it goes">${money(s.spend.today)}${b > 0 ? ` of ${money(b)}` : ""} today${b > 0 ? `<span class="meter"><i style="width:${pct}%"></i></span>` : ` <span class="muted">· set a budget</span>`}</button>`;
+  const facts = [`${s.employees.length} ${s.employees.length === 1 ? "person" : "people"}`, ...(working ? [`<span class="ok">${working} working</span>`] : [])];
   const items = needItems(s);
   const needs = items.slice(0, 3).map(i => `<button class="need" data-goto="${esc(i.to)}">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   const needsCard = `<section class="side-sec needs-sec"><h3 class="label">Needs you ${items.length ? `<span class="badge">${items.length}</span>` : ""}</h3>
@@ -186,7 +191,7 @@ function viewCompany() {
     ? `<p class="idle">Your team is free · <button class="link-btn" data-plan-new="1">Start a project</button> · <button class="link-btn" data-new-ticket="${esc(free.id)}">Give ${esc(first(free.name))} a ticket</button></p>` : "";
   return `<div class="hq"><div>
       ${kickoffCard()}
-      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span>${spendLine}${idle}</div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
+      <div class="founder"><button class="me-btn" data-profile="1" title="Edit your profile">${me()}</button><div><b>${esc(myName())}</b><span>Founder · ${facts.join(" · ")}</span>${idle}</div><button class="btn ghost" data-add-dept="1">+ Department</button></div>
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
       ${needsCard}

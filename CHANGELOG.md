@@ -2,8 +2,9 @@
 
 ## Unreleased
 
+- A lighter Company page: your line reads Founder, people, and who's working.
 - Budgets. Set a daily budget for a company: a heads-up at 80%, and at 100% it pauses until tomorrow, with Raise budget or Keep going today. Give anyone their own daily cap: they stop picking up work at it, and the rest of the team carries on.
-- Spend, in Settings: today against the budget, the last two weeks, and where it goes by person, project and agent. Claude Code reports its own cost; Codex is estimated from its tokens at a rate you can change. Your menu shows what all your companies spent today, and the Company page shows today against the budget.
+- Spend, in Settings: today against the budget, the last two weeks, and where it goes by person, project and agent. Claude Code reports its own cost; Codex is estimated from its tokens at a rate you can change. Your menu shows what all your companies spent today, and the top bar shows today's spend against the budget on every page, amber near it and red at it.
 - The Live feed only shows the moments that matter, each on one short line.
 - The Handbook is now the Wiki: the team's shared knowledge, edited by you, proposed to by your team, read by everyone before every ticket. `onecorp wiki` (`onecorp handbook` still works).
 - What we're building is a section of the wiki, written by your lead from the repo, instead of a separate brief. Getting started asks you to read your wiki.
