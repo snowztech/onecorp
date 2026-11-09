@@ -39,6 +39,13 @@ pub enum Job {
 
 /// Queues the job when `onecorp serve` is running, otherwise runs it right here.
 pub fn dispatch(c: &Company, ticket: i64, job: Job) -> Result<()> {
+    if c.paused()? {
+        let key = c.key(ticket);
+        c.enqueue(ticket, &job)?;
+        c.set_status(ticket, "queued")?;
+        out(&format!("{key} is queued. {} is paused, so it starts when you resume: onecorp resume", c.name));
+        return Ok(());
+    }
     if !serve::running() {
         // Recorded as a job too, so a Ctrl-C mid-run gets noticed instead of leaving the ticket "doing".
         let id = c.run_now(ticket, &job)?;
@@ -64,8 +71,21 @@ pub fn execute(c: &Company, ticket: i64, job: &Job) -> Result<()> {
     }
 }
 
+/// Runs everything queued, here, for when serve isn't running. Used after resuming a paused company.
+pub fn run_queued(c: &Company) -> Result<()> {
+    while let Some(job) = c.claim_job()? {
+        let result = execute(c, job.ticket, &job.job);
+        c.finish_job(job.id, result.as_ref().err().map(|e| format!("{e:#}")).as_deref())?;
+        result?;
+    }
+    Ok(())
+}
+
 /// Runs queued lead consultations here, for when serve isn't running.
 pub fn drain_consults(c: &Company) -> Result<()> {
+    if c.paused()? {
+        return Ok(());
+    }
     while let Some(job) = c.claim_job_of("consult")? {
         let result = execute(c, job.ticket, &job.job);
         c.finish_job(job.id, result.as_ref().err().map(|e| format!("{e:#}")).as_deref())?;

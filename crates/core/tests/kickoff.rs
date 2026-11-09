@@ -68,6 +68,14 @@ fn an_idea_becomes_a_plan_becomes_work() {
     assert_eq!((status(second), c.plan_tickets(second).unwrap().len()), ("review".into(), 3));
     assert!(repo.join("README.md").exists());
 
+    // Paused, nothing starts. Resuming lets queued work go.
+    c.set_paused(true).unwrap();
+    let waiting = work::plan_project(&c, "Search", "Full-text search over notes", Some("rui")).unwrap();
+    assert_eq!(status(waiting), "queued");
+    assert!(onecorp::chat::say(&c, "general", "@rui how is search going?").unwrap().is_empty(), "no paid replies while paused");
+    c.set_paused(false).unwrap();
+    work::delete(&c, &c.ticket(waiting).unwrap().unwrap()).unwrap_err();
+
     // A later project plans from its own goal, and shows up with its progress.
     let billing = work::plan_project(&c, "Stripe billing", "Pro plan at $6 a month, with a free tier", Some("rui")).unwrap();
     let b = c.ticket(billing).unwrap().unwrap();

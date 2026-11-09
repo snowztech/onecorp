@@ -74,6 +74,10 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     ensure!(!text.is_empty(), "say something first");
     let channel = resolve(c, channel)?;
     c.post(&channel, "founder", text, None)?;
+    // Replies cost money. A paused company reads your message later, with its next ticket.
+    if c.paused()? {
+        return Ok(vec![]);
+    }
     mentions(c, text)?.iter().map(|e| c.post_pending(&channel, &e.id)).collect()
 }
 

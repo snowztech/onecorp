@@ -418,6 +418,11 @@ fn update_employee(company: String, id: String, name: String, role: String, runt
 }
 
 #[tauri::command(async)]
+fn set_paused(company: String, paused: bool) -> Res<()> {
+    open(&company)?.set_paused(paused).map_err(err)
+}
+
+#[tauri::command(async)]
 fn fire(company: String, id: String) -> Res<()> {
     open(&company)?.fire(&id).map_err(err)
 }
@@ -479,6 +484,7 @@ fn main() {
             remove_ticket,
             update_employee,
             fire,
+            set_paused,
             make_lead,
             save_brief,
             dismiss_plan,

@@ -163,6 +163,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     Ok(json!({
         "kickoff": kickoff,
         "projects": projects,
+        "paused": c.paused()?,
         "ship": {"mode": c.ship_mode()?, "forge": forge.map(|f| f.name()), "pr_word": forge.map(|f| f.pr_word())},
         "departments": departments,
         "company": c.name,

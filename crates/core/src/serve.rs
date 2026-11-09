@@ -66,6 +66,9 @@ pub fn serve(max: usize) -> Result<()> {
             for key in c.recover_interrupted()? {
                 println!("{key} stopped before it finished. It's marked failed: onecorp retry {key}");
             }
+            if c.paused()? {
+                continue;
+            }
             while workers.len() < max {
                 let Some(job) = c.claim_job()? else { continue 'claim };
                 let key = c.key(job.ticket);

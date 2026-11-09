@@ -261,6 +261,16 @@ enum Cmd {
         #[arg(long, conflicts_with_all = ["name", "photo", "no_photo"])]
         forget: bool,
     },
+    /// Stop starting new work: running tickets finish, nothing new starts, nobody replies in chat
+    Pause {
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Start work again after a pause
+    Resume {
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Delete a ticket that's merged, stopped or never started. Merged work stays in your repo
     Rm {
         ticket: String,
@@ -731,6 +741,19 @@ fn run(cmd: Cmd) -> Result<()> {
         Cmd::Founder { forget: true, .. } => {
             onecorp::founder::remove()?;
             println!("Forgot your profile. The app asks who you are next time.");
+        }
+        Cmd::Pause { company } => {
+            let c = open(company)?;
+            c.set_paused(true)?;
+            println!("{} is paused. Running work finishes, nothing new starts. Resume: onecorp resume", c.name);
+        }
+        Cmd::Resume { company } => {
+            let c = open(company)?;
+            c.set_paused(false)?;
+            println!("{} is back at work.", c.name);
+            if !onecorp::serve::running() {
+                work::run_queued(&c)?;
+            }
         }
         Cmd::Rm { ticket, company } => {
             let c = open(company)?;

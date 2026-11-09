@@ -288,6 +288,20 @@ impl Company {
         Ok(self.db.query_row("SELECT value FROM meta WHERE key = 'ship'", [], |r| r.get(0)).optional()?.unwrap_or_else(|| "local".into()))
     }
 
+    /// A paused company starts nothing new: no tickets, no lead consults, no chat replies. Work
+    /// already running finishes. Your off switch for spending.
+    pub fn paused(&self) -> Result<bool> {
+        Ok(self.db.query_row("SELECT value FROM meta WHERE key = 'paused'", [], |r| r.get::<_, String>(0)).optional()?.is_some_and(|v| v == "1"))
+    }
+
+    pub fn set_paused(&self, paused: bool) -> Result<()> {
+        self.db.execute(
+            "INSERT INTO meta (key, value) VALUES ('paused', ?1) ON CONFLICT (key) DO UPDATE SET value = ?1",
+            [if paused { "1" } else { "0" }],
+        )?;
+        Ok(())
+    }
+
     pub fn set_ship_mode(&self, mode: &str) -> Result<()> {
         self.db.execute("INSERT INTO meta (key, value) VALUES ('ship', ?1) ON CONFLICT (key) DO UPDATE SET value = ?1", [mode])?;
         Ok(())

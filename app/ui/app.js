@@ -89,6 +89,7 @@ const ICON = {
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   chevrons: '<path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4"/>',
+  pause: '<path d="M9 5v14M15 5v14"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/>',
 };
@@ -167,7 +168,7 @@ function viewCompany() {
       <ul class="depts">${rooms}${add}</ul></div>
     <aside class="sidecol">
       ${needsCard}
-      <section class="side-sec"><h3 class="label">Live <span class="live ${s.serve ? "" : "off"}">${s.serve ? "On" : "Paused"}</span></h3><ul class="feed">${feed(s.feed)}</ul></section>
+      <section class="side-sec"><h3 class="label">Live <button class="live ${s.paused ? "off" : ""}" data-pause="${s.paused ? "0" : "1"}" title="${s.paused ? "Resume work" : "Pause: running work finishes, nothing new starts"}">${s.paused ? "Paused · Resume" : "Working · Pause"}</button></h3><ul class="feed">${feed(s.feed)}</ul></section>
     </aside></div>`;
 }
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
@@ -796,6 +797,9 @@ function render() {
   if (S.profile && $("#pf-name")) S.profile.name = $("#pf-name").value;
   renderSide(); renderTop();
   const v = $("#view");
+  const banner = $("#paused");
+  banner.hidden = !(S.snap?.paused && !S.profile && !S.setup);
+  if (!banner.hidden) banner.innerHTML = `<span>${icon("pause")}<b>${esc(S.company)} is paused.</b> Running work finishes, nothing new starts, and nobody replies in chat.</span><button class="btn" data-pause="0">Resume</button>`;
   // Setting up is full screen: no sidebar or top bar for things that don't exist yet.
   document.querySelector(".app").classList.toggle("focus", !!(S.profile || S.setup));
   v.classList.toggle("flush", !S.profile && !S.setup && S.view === "chat");
@@ -860,7 +864,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -883,6 +887,11 @@ document.addEventListener("click", async e => {
     const input = $("#say-text"), name = first(byId(d.mention)?.name || d.mention);
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
+  }
+  if (d.pause) {
+    const on = d.pause === "1";
+    await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});
+    return;
   }
   if (d.pickFill) {
     const keep = readPerson(), c = candidates(keep.role)[Number(d.pickFill)];
@@ -1162,6 +1171,7 @@ async function previewScreen() {
   if (screen === "switcher") { S.switching = true; renderSide(); }
   if (screen === "plan") { S.view = "board"; S.drawer = { type: "plan" }; render(); }
   if (screen === "rail") toggleRail(true);
+  if (screen === "paused") { S.snap.paused = true; render(); }
   if (screen === "hire") openHire(1);
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
   if (screen === "idle") { S.snap.employees.forEach(e => (e.status = "idle")); S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; render(); }
