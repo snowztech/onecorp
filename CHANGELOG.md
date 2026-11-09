@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Onboarding is tested end to end: `make check` and CI walk through it in Chrome like a first user, typing and clicking Continue from the welcome to the company page.
 - Starting teams that fit how founders work: Solo builder, Product team, Startup, Open source project, or Start empty. The stand-in team with no AI is gone from the app, since an employee without AI can't do any work. Connect AI asks for Claude Code or Codex before going on.
 - Every employee wears a small badge on their avatar for the agent they run on.
 - Onboarding fixes found by clicking through it end to end: Continue on the repo step checks the path itself, so typing or pasting one works without a separate Check; switching starting templates, removing someone or changing their agent no longer gets overwritten by what was on screen before.

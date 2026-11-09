@@ -11,7 +11,7 @@ help:
 	@echo "make demo-reset   wipe the throwaway home, to see first-launch setup again"
 	@echo "make serve        run queued work in this terminal, without the app"
 	@echo "make doctor       check git, Claude Code, Codex and your companies"
-	@echo "make test         Rust tests, the end-to-end test, and the UI smoke test"
+	@echo "make test         Rust tests, the UI smoke test, and a walk through onboarding in Chrome"
 	@echo "make lint         clippy, warnings as errors"
 	@echo "make check        lint and test, what CI runs"
 	@echo "make install      install the onecorp command and OneCorp.app"
@@ -41,6 +41,7 @@ doctor:
 test:
 	cargo test -p onecorp -p onecorp-cli
 	node app/tests/ui-smoke.js
+	node app/tests/onboarding.mjs
 
 lint:
 	cargo clippy -p onecorp -p onecorp-cli -p onecorp-app --all-targets -- -D warnings

@@ -78,7 +78,8 @@ Everything a solo founder needs from download to merged work, with no dead ends.
 - [x] Handbook as a Markdown wiki, started from what's in the repo
 - [x] Delete finished tickets; delete a company without touching the repo
 - [x] Our mascot, the OneCorp badge, and an app icon
-- [ ] Signed and notarized releases, so the app opens without the right-click step
+- [x] An automated walk through onboarding in Chrome, in `make check` and CI
+- [ ] Signed and notarized releases, so the app opens without the right-click step (the very last step before announcing)
 - [ ] Notifications and the badge for every company, not only the one you're in
 
 ## Next

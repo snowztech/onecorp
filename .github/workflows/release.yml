@@ -18,7 +18,11 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
       - run: cargo test -p onecorp -p onecorp-cli
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: node app/tests/ui-smoke.js
+      - run: node app/tests/onboarding.mjs
       - run: cargo install tauri-cli --version "^2" --locked
       - run: cd app && cargo tauri build --target universal-apple-darwin --bundles app,dmg
       - uses: softprops/action-gh-release@v2

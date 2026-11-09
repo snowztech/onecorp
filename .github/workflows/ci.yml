@@ -21,4 +21,9 @@ jobs:
       - run: cargo clippy -p onecorp -p onecorp-cli --all-targets -- -D warnings
       - run: cargo test -p onecorp -p onecorp-cli
       # Renders every screen of the app's UI with sample data, to catch runtime errors.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: node app/tests/ui-smoke.js
+      # Walks the whole onboarding in Chrome like a first user. The runners come with Chrome.
+      - run: node app/tests/onboarding.mjs
