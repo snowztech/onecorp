@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      # The desktop app needs WebKit system packages to build on Linux, so CI covers the
+      # library and the CLI. The end-to-end test uses the fake runtime: no AI account needed.
+      - run: cargo clippy -p onecorp -p onecorp-cli --all-targets -- -D warnings
+      - run: cargo test -p onecorp -p onecorp-cli
