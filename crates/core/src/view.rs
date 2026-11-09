@@ -35,7 +35,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             let tokens: i64 = theirs.iter().map(|t| t.tokens).sum();
             json!({
                 "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model,
-                "status": status, "bubble": bubble, "spend": spend(cost, tokens),
+                "status": status, "bubble": bubble, "spend": spend(cost, tokens), "department": e.department,
                 "ticket": ticket.map(|t| json!({"key": c.key(t.id), "title": t.title})),
             })
         })
@@ -77,9 +77,24 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         })
         .collect();
 
+    // The org chart: departments with their people, plus anyone not in one yet.
+    let mut departments: Vec<Value> = c
+        .departments()?
+        .iter()
+        .map(|d| {
+            let members: Vec<&str> = team.iter().filter(|e| e.department == Some(d.id)).map(|e| e.id.as_str()).collect();
+            json!({"id": d.id, "name": d.name, "lead": d.lead, "members": members})
+        })
+        .collect();
+    let loose: Vec<&str> = team.iter().filter(|e| e.department.is_none()).map(|e| e.id.as_str()).collect();
+    if !loose.is_empty() {
+        departments.push(json!({"id": null, "name": "No department yet", "lead": null, "members": loose}));
+    }
+
     let cost = tickets.iter().fold(0.0, |s, t| s + t.cost_usd);
     let tokens: i64 = tickets.iter().map(|t| t.tokens).sum();
     Ok(json!({
+        "departments": departments,
         "company": c.name,
         "serve": crate::serve::running(),
         "employees": employees,
@@ -119,7 +134,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let c = Company::open_dir("snowztech", dir.clone()).unwrap();
         for (id, name) in [("maya", "Maya Okafor"), ("tomas", "Tomás Reis"), ("lina", "Lina Park")] {
-            let e = Employee { id: id.into(), name: name.into(), role: "Engineer".into(), runtime: "claude".into(), model: None, bio: String::new() };
+            let e = Employee { id: id.into(), name: name.into(), role: "Engineer".into(), runtime: "claude".into(), model: None, bio: String::new(), department: None };
             c.hire(&e).unwrap();
         }
         let m = c.add_ticket("magic links", "maya").unwrap();
@@ -135,6 +150,12 @@ mod tests {
         assert_eq!(by("tomas")["bubble"], "Need you on SNO-2");
         assert_eq!(by("lina")["status"], "idle");
         assert_eq!(v["feed"][0]["name"], "Maya Okafor");
+        // Nobody is in a department yet, so they show up together until you place them.
+        assert_eq!(v["departments"][0]["name"], "No department yet");
+        let eng = c.add_department("Engineering").unwrap();
+        c.set_department("maya", eng.id).unwrap();
+        let v = snapshot(&c).unwrap();
+        assert_eq!((v["departments"][0]["name"].as_str(), v["departments"][0]["lead"].as_str()), (Some("Engineering"), Some("maya")));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

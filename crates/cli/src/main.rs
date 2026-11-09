@@ -47,6 +47,16 @@ enum Cmd {
         /// Model for the runtime, like sonnet or opus. Defaults to the runtime's own default
         #[arg(long)]
         model: Option<String>,
+        /// Department to join, like Engineering. Created if it doesn't exist yet
+        #[arg(long)]
+        dept: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Departments: list them, add one, set a lead, move someone
+    Dept {
+        #[command(subcommand)]
+        action: Option<DeptCmd>,
         #[arg(short, long)]
         company: Option<String>,
     },
@@ -160,6 +170,16 @@ enum Cmd {
 }
 
 #[derive(Subcommand)]
+enum DeptCmd {
+    /// Add a department, like Engineering or Growth
+    Add { name: String },
+    /// Make someone the lead. Their team's questions reach them before you
+    Lead { dept: String, employee: String },
+    /// Move someone into a department
+    Move { employee: String, dept: String },
+}
+
+#[derive(Subcommand)]
 enum HandbookCmd {
     /// Add a line, like "No ORMs" or "Tokens are hashed at rest"
     Add {
@@ -236,12 +256,66 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{} {name}", if name == current { "*" } else { " " });
             }
         }
-        Cmd::Hire { name, preset, role, bio, runtime, model, company } => {
+        Cmd::Hire { name, preset, role, bio, runtime, model, dept, company } => {
             let c = open(company)?;
-            let e = hire_form(name, preset, role, bio, runtime, model)?;
+            let mut e = hire_form(name, preset, role, bio, runtime, model)?;
+            if let Some(d) = dept {
+                e.department = Some(match c.department(&d)? {
+                    Some(found) => found.id,
+                    None => {
+                        let made = c.add_department(&d)?;
+                        println!("Created the {} department.", made.name);
+                        made.id
+                    }
+                });
+            }
             c.hire(&e)?;
             println!("Hired {} as {} at {}.", e.name, e.role, c.name);
             println!("Give them a ticket: onecorp run \"<task>\" --to {}", e.id);
+        }
+        Cmd::Dept { action, company } => {
+            let c = open(company)?;
+            let find = |name: &str| -> Result<store::Department> {
+                c.department(name)?.ok_or_else(|| anyhow::anyhow!("no department called {name}. Add it: onecorp dept add \"{name}\""))
+            };
+            let person = |name: &str| -> Result<Employee> {
+                c.employee(&slug(name))?.ok_or_else(|| anyhow::anyhow!("nobody called {name} works at {}. See: onecorp team", c.name))
+            };
+            match action {
+                None => {
+                    let team = c.employees()?;
+                    let depts = c.departments()?;
+                    if depts.is_empty() {
+                        println!("No departments yet. Add one: onecorp dept add Engineering");
+                    }
+                    for d in &depts {
+                        let members: Vec<&str> = team.iter().filter(|e| e.department == Some(d.id)).map(|e| e.name.as_str()).collect();
+                        let lead = d.lead.as_deref().and_then(|l| team.iter().find(|e| e.id == l)).map(|e| e.name.as_str()).unwrap_or("nobody yet");
+                        println!("{:<16} lead: {lead:<20} {}", d.name, members.join(", "));
+                    }
+                    let loose: Vec<&str> = team.iter().filter(|e| e.department.is_none()).map(|e| e.name.as_str()).collect();
+                    if !loose.is_empty() {
+                        println!("{:<16} {}", "(no department)", loose.join(", "));
+                    }
+                }
+                Some(DeptCmd::Add { name }) => {
+                    let d = c.add_department(&name)?;
+                    println!("Added {}. Hire into it: onecorp hire --dept \"{}\"", d.name, d.name);
+                }
+                Some(DeptCmd::Lead { dept, employee }) => {
+                    let (d, e) = (find(&dept)?, person(&employee)?);
+                    if e.department != Some(d.id) {
+                        c.set_department(&e.id, d.id)?;
+                    }
+                    c.set_lead(d.id, &e.id)?;
+                    println!("{} now leads {}.", e.name, d.name);
+                }
+                Some(DeptCmd::Move { employee, dept }) => {
+                    let (d, e) = (find(&dept)?, person(&employee)?);
+                    c.set_department(&e.id, d.id)?;
+                    println!("{} is now in {}.", e.name, d.name);
+                }
+            }
         }
         Cmd::Fire { name, company } => {
             let c = open(company)?;
@@ -500,7 +574,7 @@ fn hire_form(
         None => None,
     };
 
-    Ok(Employee { id: slug(&name), name, role, runtime, model, bio })
+    Ok(Employee { id: slug(&name), name, role, runtime, model, bio, department: None })
 }
 
 fn ask(label: &str, default: &str) -> Result<String> {

@@ -231,6 +231,7 @@ mod tests {
             runtime: "claude".into(),
             model: None,
             bio: String::new(),
+            department: None,
         };
         c.hire(&maya).unwrap();
         let t = c.add_ticket("magic links", "maya").unwrap();

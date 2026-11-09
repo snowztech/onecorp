@@ -14,7 +14,14 @@ CREATE TABLE IF NOT EXISTS employees (
   model TEXT,
   bio TEXT NOT NULL DEFAULT '',
   hired_at TEXT NOT NULL DEFAULT (datetime('now')),
-  fired_at TEXT
+  fired_at TEXT,
+  department INTEGER REFERENCES departments(id)
+);
+CREATE TABLE IF NOT EXISTS departments (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  lead TEXT REFERENCES employees(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS tickets (
   id INTEGER PRIMARY KEY,
@@ -106,6 +113,13 @@ pub struct Employee {
     pub runtime: String,
     pub model: Option<String>,
     pub bio: String,
+    pub department: Option<i64>,
+}
+
+pub struct Department {
+    pub id: i64,
+    pub name: String,
+    pub lead: Option<String>,
 }
 
 /// (time, ticket, employee, kind, summary)
@@ -191,6 +205,7 @@ impl Company {
         db.busy_timeout(std::time::Duration::from_secs(5))?;
         db.execute_batch("PRAGMA journal_mode = WAL;")?;
         db.execute_batch(SCHEMA)?;
+        migrate(&db)?;
         Ok(Company { name: name.to_string(), dir, db })
     }
 
@@ -217,11 +232,55 @@ impl Company {
             bail!("{} already works at {}", e.id, self.name);
         }
         self.db.execute(
-            "INSERT INTO employees (id, name, role, runtime, model, bio) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT (id) DO UPDATE SET name = ?2, role = ?3, runtime = ?4, model = ?5, bio = ?6,
+            "INSERT INTO employees (id, name, role, runtime, model, bio, department) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT (id) DO UPDATE SET name = ?2, role = ?3, runtime = ?4, model = ?5, bio = ?6, department = ?7,
                fired_at = NULL, hired_at = datetime('now')",
-            params![e.id, e.name, e.role, e.runtime, e.model, e.bio],
+            params![e.id, e.name, e.role, e.runtime, e.model, e.bio, e.department],
         )?;
+        // The first person in a department leads it.
+        if let Some(d) = e.department {
+            self.db.execute("UPDATE departments SET lead = ?2 WHERE id = ?1 AND lead IS NULL", params![d, e.id])?;
+        }
+        Ok(())
+    }
+
+    pub fn add_department(&self, name: &str) -> Result<Department> {
+        let name = name.trim();
+        if name.is_empty() {
+            bail!("a department needs a name, like Engineering");
+        }
+        if let Some(d) = self.department(name)? {
+            bail!("there's already a department called {}", d.name);
+        }
+        self.db.execute("INSERT INTO departments (name) VALUES (?1)", [name])?;
+        Ok(Department { id: self.db.last_insert_rowid(), name: name.to_string(), lead: None })
+    }
+
+    /// Finds a department by name, ignoring case.
+    pub fn department(&self, name: &str) -> Result<Option<Department>> {
+        Ok(self
+            .db
+            .query_row("SELECT id, name, lead FROM departments WHERE name = ?1 COLLATE NOCASE", [name.trim()], |r| {
+                Ok(Department { id: r.get(0)?, name: r.get(1)?, lead: r.get(2)? })
+            })
+            .optional()?)
+    }
+
+    pub fn departments(&self) -> Result<Vec<Department>> {
+        let mut st = self.db.prepare("SELECT id, name, lead FROM departments ORDER BY id")?;
+        let rows = st.query_map([], |r| Ok(Department { id: r.get(0)?, name: r.get(1)?, lead: r.get(2)? }))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Moves someone into a department. They lead it if it had no lead yet.
+    pub fn set_department(&self, employee: &str, department: i64) -> Result<()> {
+        self.db.execute("UPDATE employees SET department = ?2 WHERE id = ?1", params![employee, department])?;
+        self.db.execute("UPDATE departments SET lead = ?2 WHERE id = ?1 AND lead IS NULL", params![department, employee])?;
+        Ok(())
+    }
+
+    pub fn set_lead(&self, department: i64, employee: &str) -> Result<()> {
+        self.db.execute("UPDATE departments SET lead = ?2 WHERE id = ?1", params![department, employee])?;
         Ok(())
     }
 
@@ -243,7 +302,7 @@ impl Company {
         Ok(self
             .db
             .query_row(
-                "SELECT id, name, role, runtime, model, bio FROM employees WHERE id = ?1 AND fired_at IS NULL",
+                "SELECT id, name, role, runtime, model, bio, department FROM employees WHERE id = ?1 AND fired_at IS NULL",
                 [id],
                 row_to_employee,
             )
@@ -253,7 +312,7 @@ impl Company {
     pub fn employees(&self) -> Result<Vec<Employee>> {
         let mut st = self
             .db
-            .prepare("SELECT id, name, role, runtime, model, bio FROM employees WHERE fired_at IS NULL ORDER BY hired_at")?;
+            .prepare("SELECT id, name, role, runtime, model, bio, department FROM employees WHERE fired_at IS NULL ORDER BY hired_at")?;
         let rows = st.query_map([], row_to_employee)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -526,8 +585,31 @@ fn row_to_question(r: &rusqlite::Row) -> rusqlite::Result<Question> {
     })
 }
 
+/// Columns added after the first release. CREATE TABLE IF NOT EXISTS skips tables that already
+/// exist, so older company files get these added here instead.
+fn migrate(db: &Connection) -> Result<()> {
+    const ADDED: &[(&str, &str, &str)] = &[
+        ("employees", "fired_at", "TEXT"),
+        ("employees", "department", "INTEGER REFERENCES departments(id)"),
+        ("tickets", "tokens", "INTEGER NOT NULL DEFAULT 0"),
+        ("tickets", "base", "TEXT"),
+        ("inbox", "kind", "TEXT NOT NULL DEFAULT 'question'"),
+    ];
+    for (table, column, decl) in ADDED {
+        let has: bool = db.query_row(
+            &format!("SELECT count(*) > 0 FROM pragma_table_info('{table}') WHERE name = ?1"),
+            [column],
+            |r| r.get(0),
+        )?;
+        if !has {
+            db.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn row_to_employee(r: &rusqlite::Row) -> rusqlite::Result<Employee> {
-    Ok(Employee { id: r.get(0)?, name: r.get(1)?, role: r.get(2)?, runtime: r.get(3)?, model: r.get(4)?, bio: r.get(5)? })
+    Ok(Employee { id: r.get(0)?, name: r.get(1)?, role: r.get(2)?, runtime: r.get(3)?, model: r.get(4)?, bio: r.get(5)?, department: r.get(6)? })
 }
 
 /// Adds `text` as a bullet at the end of the `## section`, creating the section if it's missing.
@@ -561,7 +643,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let c = Company::open_dir("snowztech", dir.clone()).unwrap();
         for id in ["maya", "tomas"] {
-            let e = Employee { id: id.into(), name: id.into(), role: "Engineer".into(), runtime: "claude".into(), model: None, bio: String::new() };
+            let e = Employee { id: id.into(), name: id.into(), role: "Engineer".into(), runtime: "claude".into(), model: None, bio: String::new(), department: None };
             c.hire(&e).unwrap();
         }
         let m1 = c.add_ticket("one", "maya").unwrap();
@@ -578,6 +660,13 @@ mod tests {
 
         c.finish_job(a.id, None).unwrap();
         assert_eq!(c.claim_job().unwrap().unwrap().ticket, m2);
+
+        // Departments: the first hire leads, names are unique ignoring case.
+        let eng = c.add_department("Engineering").unwrap();
+        assert!(c.add_department("engineering").is_err());
+        c.set_department("tomas", eng.id).unwrap();
+        c.set_department("maya", eng.id).unwrap();
+        assert_eq!(c.department("ENGINEERING").unwrap().unwrap().lead.as_deref(), Some("tomas"));
 
         // Serve died with t1 and m2 running: both come back failed instead of stuck.
         assert_eq!(c.recover_interrupted().unwrap(), vec![c.key(m2), c.key(t1)]);
