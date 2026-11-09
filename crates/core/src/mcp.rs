@@ -33,6 +33,22 @@ pub fn serve(c: &Company, ctx: &Ctx) -> Result<()> {
     Ok(())
 }
 
+/// Lets any OneCorp binary act as the company MCP server when started as
+/// `<binary> mcp --company <name> --ticket <id> --employee <id>`, which is how agents launch it.
+/// Returns None when the arguments are something else. The desktop app calls this first thing.
+pub fn from_args(args: &[String]) -> Option<Result<()>> {
+    if args.get(1).map(String::as_str) != Some("mcp") {
+        return None;
+    }
+    let get = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).cloned();
+    Some((|| {
+        let company = get("--company").ok_or_else(|| anyhow::anyhow!("mcp needs --company"))?;
+        let ticket = get("--ticket").and_then(|t| t.parse().ok()).ok_or_else(|| anyhow::anyhow!("mcp needs --ticket"))?;
+        let employee = get("--employee").ok_or_else(|| anyhow::anyhow!("mcp needs --employee"))?;
+        serve(&Company::open(&company)?, &Ctx { ticket, employee })
+    })())
+}
+
 /// Returns None for notifications, which get no reply.
 pub fn handle(c: &Company, ctx: &Ctx, msg: &Value) -> Option<Value> {
     let id = msg.get("id")?.clone();
