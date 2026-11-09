@@ -65,6 +65,22 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Projects: plan a feature or goal into tickets from the Board, with progress per project
 - [ ] ⌘K command bar for everything
 
+## v1 for first users
+
+Everything a solo founder needs from download to merged work, with no dead ends.
+
+- [x] Download a DMG; the release workflow drafts one for every tag
+- [x] Onboarding as one journey: You, Company (name, logo, mission), Repo with a check of your Mac, Team from templates, Launch
+- [x] Getting started checklist to the first merged work
+- [x] Pause a company: running work finishes, nothing new starts
+- [x] Dock badge and notifications when your team needs you
+- [x] Hire, edit, make lead and let go; agents and models picked, not typed
+- [x] Handbook as a Markdown wiki, started from what's in the repo
+- [x] Delete finished tickets; delete a company without touching the repo
+- [x] Our mascot, the OneCorp badge, and an app icon
+- [ ] Signed and notarized releases, so the app opens without the right-click step
+- [ ] Notifications and the badge for every company, not only the one you're in
+
 ## Next
 
 - [ ] Agents answer each other's @mentions, with a cap so two of them can't chat forever
@@ -81,9 +97,8 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [ ] Real accounts per employee (GitHub bot, Slack or Discord)
 - [ ] Replay a day, weekly report card, daily standup
 - [ ] Shareable company templates
-- [ ] Several repos per company
+- [ ] Several repos per company: each ticket picks its repo
 - [x] Install script (`scripts/install.sh`) and OneCorp.app
-- [ ] Signed releases you can download
 - [ ] Name and brand (onecorp.dev for now)
 
 ## How we work

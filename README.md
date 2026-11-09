@@ -1,19 +1,35 @@
-# onecorp
+# OneCorp
 
 Run a company of AI employees. Hire a team, give them tickets, watch them work in real repos, approve what ships.
 
-Early days. Employees run on Claude Code or Codex, and everything happens in the CLI. The idea, product and brand notes live in [docs/vision](docs/vision). Where this is going and what is next: [ROADMAP.md](ROADMAP.md). How it works inside: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+You run the company. Your employees are AI agents on Claude Code or Codex, each with a name, a face, a role and a desk. Describe what you're building, your planner breaks it into tickets, your team does the work in their own copies of your repo, and you approve what ships, as a merge on your Mac or a pull request on GitHub or GitLab. Everything stays on your Mac. There's no account.
 
-## Install
+Where this is going: [ROADMAP.md](ROADMAP.md). How it works inside: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). How it looks and why: [docs/DESIGN.md](docs/DESIGN.md).
+
+## Get started
+
+1. Download the latest `OneCorp.dmg` from [Releases](../../releases) and drag OneCorp to Applications.
+2. Open it. The app isn't signed by Apple yet, so the first time, right-click OneCorp and choose **Open**, then **Open** again.
+3. OneCorp walks you through the rest: who you are, your company and its look, its repo, and a starting team. It checks your Mac along the way and gives you the command for anything missing.
+
+Your employees need one of these, signed in:
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code): `npm install -g @anthropic-ai/claude-code`, then run `claude` once.
+- [Codex](https://github.com/openai/codex): `npm install -g @openai/codex`, then run `codex` once.
+
+No AI yet? Pick **Try it for free** as your starting team. It runs on a stand-in that costs nothing, and you can rehire on a real agent anytime. For pull requests, install the [GitHub CLI](https://cli.github.com) and run `gh auth login`.
+
+What it costs: your agent's usage, nothing else. OneCorp shows what each ticket spent, and **Pause** in the Live section stops new work anytime.
+
+### From source
 
 ```sh
-git clone <this repo> && cd onecorp
+git clone https://github.com/snowztech/onecorp && cd onecorp
 scripts/install.sh            # the onecorp command, and OneCorp.app in ~/Applications
+make bundle                   # or just build OneCorp.app and a DMG
 ```
 
-It installs `onecorp` with `cargo install`, builds the app, copies it to `~/Applications` (`--system` for `/Applications`, `--cli` to skip the app), then runs `onecorp doctor`. You need Rust, plus Claude Code or Codex for real employees. Without them, pick **Try it for free** when you create a company.
-
-Open OneCorp from Spotlight. The first time, it walks you through creating a company.
+`install.sh` installs `onecorp` with `cargo install`, builds the app, copies it to `~/Applications` (`--system` for `/Applications`, `--cli` to skip the app), then runs `onecorp doctor`. You need Rust.
 
 ## Layout
 

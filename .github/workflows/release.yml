@@ -1,0 +1,27 @@
+name: release
+
+# Pushing a tag like v0.2.0 builds OneCorp for Apple silicon and Intel Macs and drafts a GitHub
+# release with the DMG. The draft waits for you to read it and publish it.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p onecorp -p onecorp-cli
+      - run: node app/tests/ui-smoke.js
+      - run: cargo install tauri-cli --version "^2" --locked
+      - run: cd app && cargo tauri build --target universal-apple-darwin --bundles app,dmg
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: target/universal-apple-darwin/release/bundle/dmg/*.dmg
