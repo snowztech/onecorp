@@ -702,7 +702,7 @@ function focusTop(cancel) {
   return `<div class="focus-top" data-tauri-drag-region><span class="brand">${logo()}OneCorp</span>${cancel ? `<button class="btn ghost" type="button" data-su="cancel">Cancel</button>` : ""}</div>`;
 }
 function viewProfile() {
-  const next = S.companies.length ? `Next: back to ${esc(S.companies[0])}` : "Next: connect your AI";
+  const skip = S.companies.length ? `<button class="link-btn" type="button" data-skip-setup="1">Skip, go to ${esc(S.companies[0])}</button>` : `<span class="fine">Next: connect your AI</span>`;
   return onboarding("You", false, `<form class="onb-main welcome" id="profile">
       <h1>Who's running the company?</h1>
       <p class="muted">Your team works for you and knows you by name. Everything stays on this Mac. There's no account.</p>
@@ -710,7 +710,7 @@ function viewProfile() {
         <input id="pf-name" value="${esc(S.profile.name)}" placeholder="Lucas" autocomplete="off">
         <p class="field-err" id="pf-err" hidden>Say what your team should call you.</p></div></div>
       <div class="photo-acts">${photoActs() || `<span class="fine">Your face is drawn from your name. Add a photo anytime.</span>`}</div>
-      <div class="su-nav"><span class="fine">${next}</span><button class="btn primary">Continue</button></div>
+      <div class="su-nav">${skip}<button class="btn primary">Continue</button></div>
     </form>`);
 }
 function renderPop() {
@@ -823,7 +823,7 @@ function badge(name, look, cls = "") {
 }
 // The whole journey, shown on every step. A first launch also counts you.
 function journey(at) {
-  const steps = [...(S.companies.length && at !== "You" ? [] : ["You"]), "Connect AI", "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
+  const steps = [...(S.companies.length && !S.onboarding && at !== "You" ? [] : ["You"]), "Connect AI", "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
   return `<ol class="onb-steps">${steps.map((n, k) => `<li class="${k === i ? "on" : k < i ? "done" : ""}"><span class="n">${k < i ? icon("check") : k + 1}</span>${n}</li>`).join("")}</ol>`;
 }
 // Setup screens: the steps on the left, the step itself on the right, over a faint grid.
@@ -1007,7 +1007,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1031,6 +1031,7 @@ document.addEventListener("click", async e => {
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
   }
+  if (d.skipSetup) { if (await saveProfile()) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
   if (d.hideStart) { try { localStorage.setItem("onecorp.started." + S.company, "hide"); } catch {} return render(); }
   if (d.brief) { S.view = "handbook"; S.open.brief = true; render(); await refresh(true); return $("#brief-text")?.focus(); }
   if (d.pause) {
@@ -1123,7 +1124,7 @@ document.addEventListener("click", async e => {
   if (d.su) {
     readSetup();
     const s = S.setup;
-    if (d.su === "cancel") { S.setup = null; S.view = "company"; return refresh(true); }
+    if (d.su === "cancel") { S.setup = null; S.onboarding = false; S.view = "company"; return refresh(true); }
     if (d.su === "back") { s.step--; return render(); }
     if (d.su === "check") return checkRepo(s.path);
     if (d.su.startsWith("color-")) { s.color = d.su.slice(6); s.logo = s.logoUrl = null; return render(); }
@@ -1195,8 +1196,9 @@ document.addEventListener("submit", async e => {
     if (!(await saveProfile())) return;
     if (!firstTime) { S.pop = false; renderPop(); render(); return toast("Saved"); }
     S.profile = null;
-    if (!S.companies.length) return startSetup();
-    toast(`Welcome back, ${myName()}.`);
+    // Continue follows the steps on screen, whether or not you already have a company.
+    S.onboarding = true;
+    return startSetup();
     return refresh(true);
   }
   if (f.id === "setup") {
@@ -1234,7 +1236,7 @@ document.addEventListener("submit", async e => {
       const [name] = await Promise.all([invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo }), pace]);
       clearInterval(tick); s.launch.done = s.launch.steps.length; render();
       await new Promise(r => setTimeout(r, 450));
-      S.setup = null; S.company = name; S.view = "company"; S.snap = null; S.last = "";
+      S.setup = null; S.onboarding = false; S.company = name; S.view = "company"; S.snap = null; S.last = "";
       await refresh(true);
     } catch (e) { clearInterval(tick); s.launch = null; render(); toast(String(e), true); }
     return;
@@ -1402,6 +1404,7 @@ function preview(cmd) {
       { level: "ok", what: "company snowztech", detail: "opens pull requests on git@github.com:snowztech/notes.git (Logged in to github.com account you)", fix: null }],
     check_repo: { ok: true, path: "/Users/you/dev/snowztech", branch: "main", suggested: "snowztech", used_by: [], forge: "GitHub", pr_word: "pull request", signed_in: true, account: "Logged in to github.com account you" },
     founder: { name: "Lucas", photo: null },
+    save_founder: null,
     chat: { channel: "general", messages: [
       { id: 1, at: "2026-11-09 09:12:00", author: "founder", name: "Lucas", founder: true, text: "Morning team. Goal this week: magic link login and the pricing page live.", key: null, pending: false },
       { id: 2, at: "2026-11-09 09:40:00", author: "rui", name: "Rui Alves", text: "Plan is in your inbox as SNO-20. Setup first, then login and sync in parallel.", key: "SNO-20", pending: false },

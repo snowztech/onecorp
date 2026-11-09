@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Continue on the welcome follows the steps it shows, into Connect AI and the rest, even when you already have a company. Skip takes you straight back.
 - A dev-tool look: neutral zinc greys in both themes, one crisp blue, tighter type and mono labels.
 - Onboarding is a real setup flow, with the steps beside it: You, Connect AI (Claude Code, Codex and the GitHub CLI, each shown as Connected, Not signed in or Not installed, with the command to fix it), Company, Repo, Team, Launch. Launching shows the company being set up step by step. `make fresh` opens the app on an empty home to see it as a first user does.
 - Your team writes the handbook: at launch, your engineering lead reads the repo (read-only) and writes the mission, codebase, build and test commands and the conventions the code already follows. You land in a company that already knows its codebase. With the free stand-in, a quick local scan fills in the Codebase section instead.
