@@ -22,11 +22,11 @@ The whole company loop works in the CLI, tested end to end on throwaway repos.
 - [x] Tickets in their own git worktree and branch, every event and cost logged (`run`, `status`, `logs`)
 - [x] Claude Code and Codex runtimes behind one small agent layer
 - [x] Work committed under the employee's name, like `Tomás Reis <tomas@snowztech.onecorp>`
-- [x] Company MCP server: `ask_human`, `post_message`, `update_ticket`, `propose_handbook`, `remember`
+- [x] Company MCP server: `ask_human`, `post_message`, `update_ticket`, `propose_wiki`, `remember`
 - [x] Inbox, and answering resumes the same agent session (`inbox`, `answer`)
 - [x] Review: `diff`, `changes`, `approve`. Conflicts go back to the employee to fix
 - [x] Team chat: #general and a channel per department, agents read it before each ticket, @mentions get replies (`chat`, `say`)
-- [x] Company handbook everyone reads before each ticket, with agent proposals (`handbook`)
+- [x] Company wiki everyone reads before each ticket, with agent proposals (`wiki`)
 - [x] Personal memory per employee, learned from your reviews (`memory`)
 - [x] `serve` runs queued tickets in parallel, one ticket per employee at a time
 - [x] Departments with leads (`dept`, `hire --dept`)
@@ -45,7 +45,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 
 - [x] Tauri shell that runs `serve` in the background, on the core library
 - [x] Company page: founder card, departments, desks with live status and bubbles
-- [x] Inbox: answer, approve, send back and handbook proposals in one click
+- [x] Inbox: answer, approve, send back and wiki proposals in one click
 - [x] Hire into a department, add a department, move someone between departments
 - [x] Person drawer: what they're doing now, memory, tickets
 - [x] Company switcher in the sidebar
@@ -57,11 +57,11 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Ship as pull requests on GitHub or GitLab, merged on approve
 - [x] Chat page: channels, live typing, @mention anyone to ask them
 - [x] Reviews in the Inbox show the real changes: commits, files, diff
-- [x] Handbook page: read, edit and accept proposals in the app
+- [x] Wiki page: read, edit and accept proposals in the app
 - [x] New company flow in the app: pick the repo, name it, pick a starting team
 - [x] Questions go to the department lead before they reach you, and you can step in anytime
 - [x] Settings: ship mode, health checks, delete a company, forget your profile
-- [x] Handbook as a readable company doc
+- [x] Wiki as a readable company doc
 - [x] Projects: plan a feature or goal into tickets from the Board, with progress per project
 - [ ] ⌘K command bar for everything
 
@@ -75,7 +75,7 @@ Everything a solo founder needs from download to merged work, with no dead ends.
 - [x] Pause a company: running work finishes, nothing new starts
 - [x] Dock badge and notifications when your team needs you
 - [x] Hire, edit, make lead and let go; agents and models picked, not typed
-- [x] Handbook as a Markdown wiki, started from what's in the repo
+- [x] Wiki as a Markdown wiki, started from what's in the repo
 - [x] Delete finished tickets; delete a company without touching the repo
 - [x] Our mascot, the OneCorp badge, and an app icon
 - [x] An automated walk through onboarding in Chrome, in `make check` and CI

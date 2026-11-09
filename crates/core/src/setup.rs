@@ -16,12 +16,12 @@ pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], br
     let c = Company::create(name, repo, mission)?;
     c.set_ship_mode(ship::default_mode(&c.repo()?))?;
     if let Some(notes) = repo_notes(&c.repo()?) {
-        c.set_handbook_section("Codebase", &notes)?;
+        c.set_wiki_section("Codebase", &notes)?;
     }
     let hired = templates::hire(&c, people)?;
     crate::store::set_current(&c.name)?;
     if hired.iter().any(|e| e.runtime != "fake") {
-        crate::work::write_handbook(&c, None)?;
+        crate::work::write_wiki(&c, None)?;
     }
     if !brief.trim().is_empty() {
         c.write_brief(brief)?;
@@ -32,7 +32,7 @@ pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], br
     Ok((c, hired))
 }
 
-/// Deletes a company: its tickets, chat, handbook and memory, everything OneCorp keeps for it.
+/// Deletes a company: its tickets, chat, wiki and memory, everything OneCorp keeps for it.
 /// Your repo is never touched, and branches stay in it, since they may hold work you want.
 /// Running agents are stopped and the company's worktrees are removed through git first, so
 /// the repo isn't left pointing at folders that are gone.

@@ -21,7 +21,7 @@ The OneCorp mark is one node directing three: you, and the agents who work for y
 - **Icons.** One inline stroke set (`ICON` in app.js), 16px, 1.8 stroke. Add new ones in the same style, never mix icon families.
 - **Every object can be undone or removed where you see it.** People, tickets and companies each have their own quiet delete or let-go at the bottom of their drawer or sheet, behind an inline confirm that says what stays and what goes.
 - **Where things live.** The sidebar holds pages only. Anything about you or the app (profile, settings, forgetting your profile) is in your menu at the bottom. Settings is a sheet over the app, never a page. The top bar says where you are and holds New ticket, nothing else.
-- **What goes where.** The Company page is the office: your team, what needs you, what's happening. Planning and tickets live on the Board, decisions in the Inbox, knowledge in the Handbook.
+- **What goes where.** The Company page is the office: your team, what needs you, what's happening. Planning and tickets live on the Board, decisions in the Inbox, knowledge in the Wiki.
 - **Reassure, don't hide.** A summary that can be empty says so in a calm way ("All clear") instead of disappearing. Absence reads as broken; a check reads as good news.
 - **Empty states.** A soft icon, a short headline that feels good ("You're all caught up"), one line on what shows up here. No dashed placeholder boxes.
 - **Motion.** Quick and small, with one easing (`--ease`). Pages ease in when you switch to them, menus and popovers scale in, sheets rise, buttons press. Nothing animates on a background refresh, and everything turns off with Reduce Motion.

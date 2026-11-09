@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, handbook: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, needs: {}, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, wiki: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, needs: {}, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -103,7 +103,7 @@ const ICON = {
   board: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',
   inbox: '<path d="M3 13h5l1.5 3h5l1.5-3h5"/><path d="M5.5 5h13l2.5 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5z"/>',
   chat: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 20 12z"/>',
-  handbook: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19M9 7h6"/>',
+  wiki: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19M9 7h6"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
@@ -123,7 +123,7 @@ function toggleRail(on = !S.rail) {
   renderSide();
 }
 function renderSide() {
-  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", handbook: "Wiki" };
+  const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", wiki: "Wiki" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
     <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `${badge(S.company, S.looks?.[S.company])}<span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}${Object.entries(S.needs).some(([c, n]) => c !== S.company && n) ? '<i class="dot" title="Another company needs you"></i>' : ""}<span class="chev">${icon("chevrons")}</span></button>
@@ -135,7 +135,7 @@ function renderSide() {
 }
 function renderTop() {
   const s = S.snap;
-  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", handbook: "Wiki", board: "Board", chat: "Chat" }[S.view] || (S.company ? "Company" : "OneCorp");
+  $("#title").textContent = S.profile ? (S.founder ? "Your profile" : "Welcome") : S.setup ? "New company" : { inbox: "Inbox", wiki: "Wiki", board: "Board", chat: "Chat" }[S.view] || (S.company ? "Company" : "OneCorp");
   $("#new-ticket").hidden = !!S.setup || !!S.profile || !s;
 }
 
@@ -241,7 +241,7 @@ function needItems(s) {
     ...s.inbox.filter(q => q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.question })),
     ...(s.failed || []).map(t => ({ to: t.key, name: t.name, text: `${t.key} stopped. Retry it?` })),
     ...s.reviews.filter(r => r.kind !== "plan").map(r => ({ to: r.key, name: r.name, text: `${r.title} is ready for review` })),
-    ...s.inbox.filter(q => !q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "handbook" ? `proposes: ${q.question}` : q.question }))];
+    ...s.inbox.filter(q => !q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "wiki" ? `proposes: ${q.question}` : q.question }))];
 }
 // Your team works while you're elsewhere, so the dock shows how much waits on you, and anything new
 // gets a notification when the app isn't in front. What was already waiting at launch stays quiet.
@@ -307,7 +307,7 @@ function gettingStarted() {
   const steps = [
     { done: s.employees.length > 0, title: "Hire your team", sub: "Who works here, and on which AI.", act: firstDept ? `<button class="btn primary" data-hire="${firstDept.id}">Hire someone</button>` : `<button class="btn primary" data-add-dept="1">Add a department</button>` },
     { done: !!s.kickoff.brief, title: "Read your wiki", sub: "What we're building, the codebase and its conventions, written from your repo. Fix anything that's off.",
-      act: s.tickets.some(t => t.kind === "handbook" && ["todo", "queued", "doing"].includes(t.status)) ? `<span class="muted">Being written…</span>` : `<button class="btn primary" data-view="handbook">Open the wiki</button>` },
+      act: s.tickets.some(t => t.kind === "wiki" && ["todo", "queued", "doing"].includes(t.status)) ? `<span class="muted">Being written…</span>` : `<button class="btn primary" data-view="wiki">Open the wiki</button>` },
     { done: !!plan, title: "Start your first project", sub: "Say what you want. Your planner breaks it into tickets with owners.", act: `<button class="btn primary" data-plan-new="1">New project</button>` },
     { done: work.some(t => !["backlog"].includes(t.status)) || plan?.status === "done", title: "Approve the plan", sub: "Change owners, remove tickets, then start it.", act: plan?.status === "review" ? `<button class="btn primary" data-goto="${esc(plan.key)}">Review the plan</button>` : `<span class="muted">Waiting for the plan</span>` },
     { done: work.some(t => t.status === "done"), title: "Merge your first work", sub: "Read the changes in your Inbox and approve them.", act: `<button class="btn" data-view="inbox">Open Inbox</button>` },
@@ -345,9 +345,9 @@ function feed(items) {
 /* Inbox: everything that needs you, answerable in one click */
 function viewInbox() {
   const s = S.snap;
-  const blocking = s.inbox.filter(q => q.kind !== "handbook" && q.blocking), other = s.inbox.filter(q => q.kind !== "handbook" && !q.blocking), books = s.inbox.filter(q => q.kind === "handbook");
+  const blocking = s.inbox.filter(q => q.kind !== "wiki" && q.blocking), other = s.inbox.filter(q => q.kind !== "wiki" && !q.blocking), books = s.inbox.filter(q => q.kind === "wiki");
   const plans = s.reviews.filter(r => r.kind === "plan"), work = s.reviews.filter(r => r.kind !== "plan");
-  const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(handbook)];
+  const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(wiki)];
   const leads = (s.with_leads || []).map(q => question(q, true));
   const zero = `<div class="empty-state calm"><span class="empty-ic">${icon("check")}</span><b>You're all caught up</b><span>Questions, plans and reviews from your team land here when they need you.</span></div>`;
   return `<div class="inbox">${cards.length ? cards.join("") : zero}
@@ -395,7 +395,7 @@ function review(r) {
     ${changes(r.key)}
     ${more(`chg-${r.key}`, "Ask for changes", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>`)}</div></article>`;
 }
-function handbook(q) {
+function wiki(q) {
   return `<article class="ask" id="in-q${q.id}">${face(q.name, "neutral")}<div>
     <span class="kind">Wiki · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the wiki</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
@@ -550,9 +550,9 @@ function md(text) {
   flush();
   return { html: out.join(""), toc };
 }
-function viewHandbook() {
-  if (S.handbook === null) return `<p class="muted">Opening the handbook…</p>`;
-  const proposals = S.snap.inbox.filter(q => q.kind === "handbook");
+function viewWiki() {
+  if (S.wiki === null) return `<p class="muted">Opening the wiki…</p>`;
+  const proposals = S.snap.inbox.filter(q => q.kind === "wiki");
   const props = proposals.length ? `<section class="doc-props"><span class="label">Proposed by your team</span><div class="props">${proposals.map(q => `
       <div class="prop">${face(q.name, "neutral")}<div><b>${esc(first(q.name))}</b> <span class="muted">for ${esc(q.section)}</span><p>${esc(q.question)}</p>
         <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div></div></div>`).join("")}</div></section>` : "";
@@ -561,11 +561,11 @@ function viewHandbook() {
     return `<form class="wiki-edit" id="hb-raw">
       <header><div><span class="label">Editing the wiki</span><span class="muted">Markdown. ## starts a section. Everyone reads it from their next ticket.</span></div>
         <div class="acts"><button class="btn ghost" type="button" data-hb-edit="0">Cancel</button><button class="btn primary">Save</button></div></header>
-      <div class="wiki-split"><textarea id="hb-text" spellcheck="false">${esc(S.handbook)}</textarea><article class="doc wiki" id="hb-preview">${md(S.handbook).html}</article></div></form>`;
+      <div class="wiki-split"><textarea id="hb-text" spellcheck="false">${esc(S.wiki)}</textarea><article class="doc wiki" id="hb-preview">${md(S.wiki).html}</article></div></form>`;
   }
   // The page's own # title leads, then the page.
-  const title = (S.handbook.match(/^#\s+(.*)$/m) || [])[1] || `${S.company} wiki`;
-  const page = md(S.handbook.replace(/^#\s+.*$/m, ""));
+  const title = (S.wiki.match(/^#\s+(.*)$/m) || [])[1] || `${S.company} wiki`;
+  const page = md(S.wiki.replace(/^#\s+.*$/m, ""));
   return `<div class="doc-wrap"><article class="doc">
       <div class="wiki-top"><span class="label">Wiki · everyone reads it before every ticket</span><button class="btn" data-hb-edit="1">Edit</button></div>
       <div class="wiki"><h1>${inline(title)}</h1></div>
@@ -1094,7 +1094,7 @@ function render() {
   } else if (!S.snap) {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
-    v.innerHTML = { inbox: viewInbox, handbook: viewHandbook, board: viewBoard, chat: viewChat }[S.view]?.() ?? viewCompany();
+    v.innerHTML = { inbox: viewInbox, wiki: viewWiki, board: viewBoard, chat: viewChat }[S.view]?.() ?? viewCompany();
     const m = $("#msgs"); if (m) m.scrollTop = m.scrollHeight;
   }
   renderDrawer();
@@ -1123,12 +1123,12 @@ async function refresh(force) {
       return render();
     }
     const snap = await invoke("snapshot", { company: S.company });
-    // The handbook is a small file and can change outside the app, so it's read with every refresh.
-    const book = S.view === "handbook" ? await invoke("handbook", { company: S.company }) : S.handbook;
+    // The wiki is a small file and can change outside the app, so it's read with every refresh.
+    const book = S.view === "wiki" ? await invoke("wiki", { company: S.company }) : S.wiki;
     if (S.view === "chat") S.chat = await invoke("chat", { company: S.company, channel: S.channel }).catch(() => S.chat);
     const json = JSON.stringify(snap) + (book ?? "") + (S.view === "chat" ? JSON.stringify(S.chat) : "");
     if (!force && (json === S.last || typing() || S.profile || S.setup)) return;
-    S.snap = snap; S.last = json; S.handbook = book;
+    S.snap = snap; S.last = json; S.wiki = book;
     alertNew(snap);
     // Channels count as read the first time they're seen, so opening the app doesn't light up every dot.
     for (const ch of snap.channels || []) if (!(ch.name in S.seen)) S.seen[ch.name] = ch.last || 0;
@@ -1178,7 +1178,7 @@ document.addEventListener("click", async e => {
   }
   if (d.skipSetup) { if (await saveProfile(S.profile.photo, S.profile.noPhoto)) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
   if (d.hideStart) { try { localStorage.setItem("onecorp.started." + S.company, "hide"); } catch {} return render(); }
-  if (d.brief) { S.view = "handbook"; S.open.brief = true; render(); await refresh(true); return $("#brief-text")?.focus(); }
+  if (d.brief) { S.view = "wiki"; S.open.brief = true; render(); await refresh(true); return $("#brief-text")?.focus(); }
   if (d.pause) {
     const on = d.pause === "1";
     await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});
@@ -1335,7 +1335,7 @@ document.addEventListener("click", async e => {
   }
   if (d.hideDiff) { delete S.diffs[d.hideDiff]; return render(); }
   if (d.co) { S.switching = false; S.setup = null; S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
-  else if (d.view) { S.view = d.view; S.hbEdit = false; if (d.close) S.drawer = null; render(); if (d.view === "handbook") refresh(true); }
+  else if (d.view) { S.view = d.view; S.hbEdit = false; if (d.close) S.drawer = null; render(); if (d.view === "wiki") refresh(true); }
   else if (d.person) openPerson(d.person);
   else if (d.hire) { openHire(Number(d.hire)); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
@@ -1438,7 +1438,7 @@ document.addEventListener("submit", async e => {
     const id = await call("add_department", { company: S.company, name }, `${name} is set up. Hire its first person.`).catch(() => null);
     if (id !== null) { S.addingDept = false; render(); openHire(id); }
   } else if (f.id === "hb-raw") {
-    await call("save_handbook", { company: S.company, text: $("#hb-text").value }, "Saved. Everyone reads it from their next ticket").then(() => { S.hbEdit = false; render(); }).catch(() => {});
+    await call("save_wiki", { company: S.company, text: $("#hb-text").value }, "Saved. Everyone reads it from their next ticket").then(() => { S.hbEdit = false; render(); }).catch(() => {});
   } else if (f.id === "hire-form" || f.id === "emp-form") {
     const p = readPerson();
     if (!p.name) { toast("Give them a name", true); return $("#pf-n").focus(); }
@@ -1509,7 +1509,7 @@ document.addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && S.snap && !S.setup && !S.profile) { e.preventDefault(); S.drawer = { type: "new-ticket" }; renderDrawer(); $("#nt-title")?.focus(); }
 });
 
-// In a plain browser, #board, #inbox, #handbook, #ticket, #person, #new-ticket, #setup or #profile opens
+// In a plain browser, #board, #inbox, #wiki, #ticket, #person, #new-ticket, #setup or #profile opens
 // straight onto that screen, so each one can be looked at and screenshotted. Never used in the app.
 async function previewScreen() {
   const screen = location.hash.slice(1);
@@ -1519,7 +1519,7 @@ async function previewScreen() {
   if (screen === "plan") { S.view = "board"; S.drawer = { type: "plan" }; render(); }
   if (screen === "rail") toggleRail(true);
   if (screen === "start") { S.snap.tickets = []; S.snap.projects = []; S.snap.kickoff.brief = ""; render(); }
-  if (screen === "wiki-edit") { S.view = "handbook"; S.hbEdit = true; await refresh(true); render(); }
+  if (screen === "wiki-edit") { S.view = "wiki"; S.hbEdit = true; await refresh(true); render(); }
   if (screen === "inbox-zero") { S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; S.snap.with_leads = []; S.view = "inbox"; render(); }
   if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the wiki"] }; render(); }
   if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
@@ -1529,7 +1529,7 @@ async function previewScreen() {
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
   if (screen === "idle") { S.snap.employees.forEach(e => (e.status = "idle")); S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; render(); }
   if (screen === "project") { S.view = "board"; S.project = "SNO-20"; render(); }
-  if (["board", "inbox", "handbook", "chat"].includes(screen)) { S.view = screen; render(); }
+  if (["board", "inbox", "wiki", "chat"].includes(screen)) { S.view = screen; render(); }
   if (screen === "ticket") openTicket("SNO-11");
   if (screen === "person") openPerson("tomas");
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
@@ -1566,7 +1566,7 @@ function preview(cmd, args) {
       departments: [{ id: 1, name: "Engineering", lead: "odile", members: ["odile", "maya", "tomas"] }, { id: 2, name: "Product", lead: "rui", members: ["rui", "lina"] }, { id: 3, name: "Growth", lead: "sam", members: ["sam"] }],
       with_leads: [{ id: 5, kind: "question", key: "SNO-15", employee: "tomas", name: "Tomás Reis", lead_name: "Odile Martin", question: "Retry webhooks 3 or 5 times?", section: "", options: ["3", "5"], default: "3", blocking: false }],
       inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
-        { id: 3, kind: "handbook", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
+        { id: 3, kind: "wiki", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
       failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished" }],
       reviews: [{ key: "SNO-20", title: "First version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",
           tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
@@ -1577,7 +1577,7 @@ function preview(cmd, args) {
       dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
-    handbook: "# snowztech wiki\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
+    wiki: "# snowztech wiki\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
     setup_info: { runtimes: ["claude", "fake"], templates: [
       { key: "solo", name: "Solo builder", description: "One engineer who ships. Hire more when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
       { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", role: "Product manager", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth writer", dept: "Growth" }] },

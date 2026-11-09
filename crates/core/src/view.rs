@@ -49,9 +49,9 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             json!({
                 "id": q.id, "kind": q.kind, "key": q.ticket_id.map(|t| c.key(t)),
                 "employee": q.employee, "name": name_of(&q.employee), "question": q.question,
-                // For a handbook proposal, `options` holds the section it goes under.
-                "section": if q.kind == "handbook" { q.options.clone() } else { String::new() },
-                "options": if q.kind == "handbook" { vec![] } else { options },
+                // For a wiki proposal, `options` holds the section it goes under.
+                "section": if q.kind == "wiki" { q.options.clone() } else { String::new() },
+                "options": if q.kind == "wiki" { vec![] } else { options },
                 "default": q.default_answer, "blocking": q.blocking,
                 "via": q.via, "via_name": q.via.as_deref().map(name_of), "note": q.note,
             })

@@ -32,8 +32,8 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         return Ok(());
     }
 
-    // Writing the handbook: a short one, from the prompt's company name.
-    if company_ticket(o).is_some_and(|(c, t)| c.ticket(t).ok().flatten().is_some_and(|t| t.kind == "handbook")) {
+    // Writing the wiki: a short one, from the prompt's company name.
+    if company_ticket(o).is_some_and(|(c, t)| c.ticket(t).ok().flatten().is_some_and(|t| t.kind == "wiki")) {
         let name = prompt.split("Start with \"# ").nth(1).and_then(|r| r.split(" wiki").next()).unwrap_or("the company");
         let building = "## What we're building\n\nA notes app for writers, from the README.\n\n";
         let text = format!("# {name} wiki\n\n## Mission\n\nNotes for writers.\n\n{building}## Codebase\n\n- A README, and not much else yet.\n\n## Decisions\n");

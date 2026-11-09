@@ -145,8 +145,8 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     let prompt = format!(
         "You are {name}, {role} at {company}, and you lead {dept}. {bio}\n\n\
          {asker}, who reports to you, asked a question while working on {key}: {title}\n\n{details}\n\n\
-         Decide it yourself when the handbook, the code in this worktree or sound judgment settle it. Pass it to the founder \
-         when it's about product direction, money, anything public, security, or something the handbook says is theirs. \
+         Decide it yourself when the wiki, the code in this worktree or sound judgment settle it. Pass it to the founder \
+         when it's about product direction, money, anything public, security, or something the wiki says is theirs. \
          Look at the code if it helps, but don't change any files.\n\n\
          End your reply with exactly one of these lines:\nDECISION: the answer, in a few words\nFOUNDER: why the founder should decide\n\n{knowledge}",
         name = lead.name,
@@ -225,8 +225,8 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     if t.kind == "plan" {
         return run_plan(c, t);
     }
-    if t.kind == "handbook" {
-        return run_handbook(c, t);
+    if t.kind == "wiki" {
+        return run_wiki(c, t);
     }
     let (id, key, title) = (t.id, c.key(t.id), t.title.as_str());
     let e = employee_of(c, t)?;
@@ -257,7 +257,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
          You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
          or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
          If something outside your control stops you, use update_ticket to mark the ticket blocked. \
-         If you learn or decide something every teammate should know from now on, propose it with propose_handbook. \
+         If you learn or decide something every teammate should know from now on, propose it with propose_wiki. \
          If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
          save it with remember: one line per note.\n\n\
          {knowledge}{notes}{chat}",
@@ -363,9 +363,9 @@ pub fn delete(c: &Company, t: &Ticket) -> Result<()> {
     Ok(())
 }
 
-/// Has someone read the repo and write the company handbook, so the team starts out knowing the
+/// Has someone read the repo and write the company wiki, so the team starts out knowing the
 /// codebase. Your engineering lead by default. Runs read-only, like a plan.
-pub fn write_handbook(c: &Company, by: Option<&str>) -> Result<i64> {
+pub fn write_wiki(c: &Company, by: Option<&str>) -> Result<i64> {
     let writer = match by {
         Some(id) => c.employee(id)?.ok_or_else(|| anyhow!("nobody called {id} works here"))?,
         None => {
@@ -378,17 +378,17 @@ pub fn write_handbook(c: &Company, by: Option<&str>) -> Result<i64> {
         }
     };
     let id = c.new_ticket(&crate::store::NewTicket { title: "Write the wiki".into(), assignee: Some(writer.id.clone()), ..Default::default() }, "todo")?;
-    c.set_kind(id, "handbook")?;
+    c.set_kind(id, "wiki")?;
     out(&format!("{} writes the wiki: {}.", c.key(id), writer.name));
     dispatch(c, id, Job::Start)?;
     Ok(id)
 }
 
-fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
+fn run_wiki(c: &Company, t: &Ticket) -> Result<()> {
     let (id, key) = (t.id, c.key(t.id));
     let e = employee_of(c, t)?;
     c.start_plan_ticket(id)?;
-    let mission = handbook_section(&c.handbook()?, "Mission");
+    let mission = wiki_section(&c.wiki()?, "Mission");
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          Your ticket is {key}: write the company wiki. Every teammate reads it before every ticket, so it's how a \
@@ -413,19 +413,19 @@ fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
         knowledge = company_knowledge(c)?,
     );
     drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)?;
-    // The reply is the handbook. Only a reply that looks like one replaces what's there.
-    let said = c.events(id)?.into_iter().rev().find(|(_, kind, _)| kind == "handbook-text").map(|(_, _, s)| s).unwrap_or_default();
+    // The reply is the wiki. Only a reply that looks like one replaces what's there.
+    let said = c.events(id)?.into_iter().rev().find(|(_, kind, _)| kind == "wiki-text").map(|(_, _, s)| s).unwrap_or_default();
     let doc = said.trim().trim_start_matches("```markdown").trim_start_matches("```md").trim_start_matches("```").trim_end_matches("```").trim();
     let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
     if t.status == "review" && doc.starts_with('#') && doc.contains("\n## ") {
         // What you wrote about what we're building always wins over the draft.
         let yours = c.brief()?;
-        c.write_handbook(&format!("{doc}\n"))?;
+        c.write_wiki(&format!("{doc}\n"))?;
         if !yours.is_empty() {
             c.write_brief(&yours)?;
         }
         c.set_status(id, "done")?;
-        c.add_event(id, "handbook", "wrote the wiki", "")?;
+        c.add_event(id, "wiki", "wrote the wiki", "")?;
         out(&format!("{key}  the wiki is written. Read it: onecorp wiki"));
     } else if t.status == "review" {
         c.set_status(id, "failed")?;
@@ -435,7 +435,7 @@ fn run_handbook(c: &Company, t: &Ticket) -> Result<()> {
 }
 
 /// The text of one `## name` section of a Markdown document.
-fn handbook_section(doc: &str, name: &str) -> String {
+fn wiki_section(doc: &str, name: &str) -> String {
     let mut lines = doc.lines().skip_while(|l| !l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case(name)));
     lines.next();
     lines.take_while(|l| !l.starts_with("## ")).collect::<Vec<_>>().join("\n").trim().to_string()
@@ -535,11 +535,11 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
     Ok(())
 }
 
-/// What every employee should know before starting: the handbook, and who does what.
+/// What every employee should know before starting: the wiki, and who does what.
 pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
-    // Keeps a runaway handbook from eating the whole context window.
+    // Keeps a runaway wiki from eating the whole context window.
     const MAX: usize = 12_000;
-    let mut doc = c.handbook()?.trim().to_string();
+    let mut doc = c.wiki()?.trim().to_string();
     if doc.len() > MAX {
         let cut = (0..=MAX).rev().find(|&i| doc.is_char_boundary(i)).unwrap_or(0);
         doc.truncate(cut);
@@ -591,7 +591,7 @@ pub fn resume(c: &Company, q: &Question) -> Result<()> {
     dispatch(c, ticket, Job::Resume { why: "with your answer".into(), prompt, label })
 }
 
-/// Settles an inbox item. A handbook proposal is accepted with "yes", dropped with "no", or replaced
+/// Settles an inbox item. A wiki proposal is accepted with "yes", dropped with "no", or replaced
 /// by your own wording. A question's answer resumes the ticket when it unblocks it, or when the
 /// employee already went with a different default.
 pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
@@ -600,12 +600,12 @@ pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
         bail!("what's the answer? For example: onecorp answer {id} \"go with 15 minutes\"");
     }
     let q = c.answer(id, text)?;
-    if q.kind == "handbook" {
+    if q.kind == "wiki" {
         match text.to_lowercase().as_str() {
             "no" | "n" => out("Left out of the wiki."),
             yes => {
                 let line = if matches!(yes, "yes" | "y") { q.question.as_str() } else { text };
-                c.add_to_handbook(&q.options, line)?;
+                c.add_to_wiki(&q.options, line)?;
                 out(&format!("Added to {}: {line}", q.options));
             }
         }
@@ -763,7 +763,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         let _ = c.set_agent_pid(id, Some(pid));
     };
     // A plan only reads the repo and creates tickets. It must never change your checkout.
-    let planning = c.ticket(id)?.is_some_and(|t| t.kind == "plan" || t.kind == "handbook");
+    let planning = c.ticket(id)?.is_some_and(|t| t.kind == "plan" || t.kind == "wiki");
     let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid) };
 
     let wt_prefix = format!("{}/", wt.display());
@@ -817,8 +817,8 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     let text = if text.is_empty() { last_say } else { text };
     // A writing ticket's whole reply is its work, kept in full for whoever reads it next.
-    if c.ticket(id)?.is_some_and(|t| t.kind == "handbook") {
-        c.add_event(id, "handbook-text", &text, "")?;
+    if c.ticket(id)?.is_some_and(|t| t.kind == "wiki") {
+        c.add_event(id, "wiki-text", &text, "")?;
     }
     if ok && !planning {
         let msg = short(&format!("{key}: {label}"), 72);

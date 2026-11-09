@@ -364,8 +364,8 @@ fn remove_ticket(company: String, key: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
-fn handbook(company: String) -> Res<String> {
-    open(&company)?.handbook().map_err(err)
+fn wiki(company: String) -> Res<String> {
+    open(&company)?.wiki().map_err(err)
 }
 
 #[tauri::command(async)]
@@ -389,16 +389,16 @@ fn say(company: String, channel: String, text: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
-fn save_handbook(company: String, text: String) -> Res<()> {
-    open(&company)?.write_handbook(&text).map_err(err)
+fn save_wiki(company: String, text: String) -> Res<()> {
+    open(&company)?.write_wiki(&text).map_err(err)
 }
 
 #[tauri::command(async)]
-fn add_to_handbook(company: String, section: String, text: String) -> Res<()> {
+fn add_to_wiki(company: String, section: String, text: String) -> Res<()> {
     if text.trim().is_empty() {
         return Err("Write the rule first.".into());
     }
-    open(&company)?.add_to_handbook(section.trim(), text.trim()).map_err(err)
+    open(&company)?.add_to_wiki(section.trim(), text.trim()).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -474,12 +474,12 @@ fn update_employee(company: String, id: String, name: String, role: String, runt
     c.update_employee(&store::Employee { name, role, runtime, model: model.filter(|m| !m.trim().is_empty()), bio, ..e }).map_err(err)
 }
 
-/// Rewrites the handbook's Codebase section from what's in the repo now.
+/// Rewrites the wiki's Codebase section from what's in the repo now.
 #[tauri::command(async)]
 fn learn_repo(company: String) -> Res<()> {
     let c = open(&company)?;
     let notes = onecorp::setup::repo_notes(&c.repo().map_err(err)?).ok_or("The repo has nothing to read yet: no README, build files or folders.")?;
-    c.set_handbook_section("Codebase", &notes).map_err(err)
+    c.set_wiki_section("Codebase", &notes).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -565,7 +565,7 @@ fn main() {
             retry,
             stop,
             ticket_detail,
-            handbook,
+            wiki,
             kickoff,
             plan_project,
             remove_ticket,
@@ -581,8 +581,8 @@ fn main() {
             save_brief,
             dismiss_plan,
             delete_ticket,
-            save_handbook,
-            add_to_handbook,
+            save_wiki,
+            add_to_wiki,
             setup_info,
             founder,
             save_founder,

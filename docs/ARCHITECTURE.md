@@ -4,7 +4,7 @@ This is the map of the code as it is today. For why OneCorp exists and where it'
 
 ## The idea in one paragraph
 
-You run companies. Each company has a repo, a team of AI employees grouped into departments, a handbook and an inbox. An employee is a name, a role and a bio on top of a **runtime**, the agent CLI that does the work (Claude Code or Codex). When you give someone a ticket, OneCorp makes them a private git worktree, starts their runtime in it with a prompt built from who they are and what the company knows, and gives them company tools to ask you things and talk to the team. When they finish, OneCorp commits the work under their name and puts it in your inbox for review. Approving merges it, and the next ticket starts from there.
+You run companies. Each company has a repo, a team of AI employees grouped into departments, a wiki and an inbox. An employee is a name, a role and a bio on top of a **runtime**, the agent CLI that does the work (Claude Code or Codex). When you give someone a ticket, OneCorp makes them a private git worktree, starts their runtime in it with a prompt built from who they are and what the company knows, and gives them company tools to ask you things and talk to the team. When they finish, OneCorp commits the work under their name and puts it in your inbox for review. Approving merges it, and the next ticket starts from there.
 
 ## The pieces
 
@@ -36,13 +36,13 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 
 | Module | What it owns |
 |---|---|
-| `store.rs` | The company database: employees, departments, tickets, events, inbox, chat, jobs. Also the handbook and memory files. |
+| `store.rs` | The company database: employees, departments, tickets, events, inbox, chat, jobs. Also the wiki and memory files. |
 | `work.rs` | The ticket lifecycle: start, resume, answer, request changes, approve. Builds the prompts. |
 | `serve.rs` | Runs queued jobs in parallel. |
 | `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. `fake.rs` is a stand-in with no AI, for tests and trying things out. |
-| `setup.rs` › `repo_notes` | Reads a repo like a newcomer would (stack, commands, layout, README) for the handbook's Codebase section. No AI. |
+| `setup.rs` › `repo_notes` | Reads a repo like a newcomer would (stack, commands, layout, README) for the wiki's Codebase section. No AI. |
 | `chat.rs` | Team chat: #general plus a channel per department. Resolves channel names, finds @mentions, runs a mentioned employee's reply (read-only, no company tools), and builds the recent chat that goes into each ticket prompt. |
-| `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the handbook, remember, mark blocked. |
+| `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the wiki, remember, mark blocked. |
 | `ship.rs` | How approved work lands: a local merge, or a pull request on GitHub or GitLab. Publishing, approving, and noticing PRs merged or closed on the forge. |
 | `forge.rs` | The only code that talks to `gh` and `glab`: open, look at and merge a pull request, check the login. |
 | `founder.rs` | You: a name and an optional photo in `~/.onecorp/founder.json`, shared by every company. Prompts use the name. No account. |
@@ -61,24 +61,24 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 └── companies/
     └── snowztech/
         ├── company.db         SQLite, WAL mode
-        ├── handbook.md        mission, decisions, conventions
+        ├── wiki.md        mission, decisions, conventions
         ├── memory/maya.md     one file per employee
         └── wt/sno-12/         one git worktree per ticket
 ```
 
 Several processes write `company.db` at once: the CLI, `serve`, the app and every agent's MCP server. WAL mode and a five second busy timeout let them take turns. Columns added after a release get created on open by `migrate()` in `store.rs`, so older company files keep working.
 
-The main tables: `employees` (with `department` and `fired_at`), `departments` (with `lead`), `tickets` (status, branch, base, worktree, session id, cost, tokens), `events` (everything an agent did, with its raw JSON), `inbox` (questions and handbook proposals), `messages` (team chat) and `jobs` (the queue).
+The main tables: `employees` (with `department` and `fired_at`), `departments` (with `lead`), `tickets` (status, branch, base, worktree, session id, cost, tokens), `events` (everything an agent did, with its raw JSON), `inbox` (questions and wiki proposals), `messages` (team chat) and `jobs` (the queue).
 
 ## Life of a ticket
 
 1. **You give the ticket.** `onecorp run "add a --version flag" --to maya`, or the box in the app's top bar. A ticket has a title, optional details, who created it (you, or an employee through `create_ticket`), and optionally another ticket it waits for. Saved for later, it sits in `backlog`. `work::start` starts it: it needs someone to do it, and if it waits for a ticket that isn't merged yet, it goes to `waiting` and `work::release_waiting` starts it once that one lands.
 2. **Now or later.** `work::dispatch` checks whether `serve` is running. If not, it runs the ticket right there. If it is, it adds a row in `jobs`, marks the ticket `queued` and returns straight away.
 3. **A private workspace.** `work::start` records the base branch (usually `main`) and has `git` create a worktree on a fresh branch, `onecorp/snowztech/sno-12`. Your own checkout is never touched.
-4. **The prompt.** It's built from the employee's name, role and bio, the ticket, what their runtime can do, who the founder is, the company handbook, the list of who works here, and their own memory.
+4. **The prompt.** It's built from the employee's name, role and bio, the ticket, what their runtime can do, who the founder is, the company wiki, the list of who works here, and their own memory.
 5. **The runtime starts.** `runtime::run` picks `claude.rs`, `codex.rs` or `fake.rs`, which start the agent CLI headless in the worktree. It runs with `runtime::path()`: your current PATH plus your login shell's PATH and the usual install folders, because an app opened from the Dock gets a bare PATH and wouldn't find `claude` or `codex`. They pass it two things: the git identity of the employee, so any commit is theirs, and an MCP config pointing at `onecorp mcp --company snowztech --ticket 12 --employee maya`. Only that MCP server loads. Your personal ones stay out.
 6. **Watching it work.** The runtime prints JSON lines. Each runtime's `parse` turns them into a small set of `Event`s: start, say, tool, error, done. `work::drive` stores every event, prints it, and keeps the session id so the ticket can be picked back up later.
-7. **Company tools.** While it works, the agent can call the MCP tools. `ask_human` puts a question in your inbox, and a blocking one marks the ticket `blocked`. `post_message` posts to chat. `propose_handbook` suggests a rule. `remember` adds to its own memory. `create_ticket` puts a follow-up or a piece of a plan in the backlog, for the founder to start.
+7. **Company tools.** While it works, the agent can call the MCP tools. `ask_human` puts a question in your inbox, and a blocking one marks the ticket `blocked`. `post_message` posts to chat. `propose_wiki` suggests a rule. `remember` adds to its own memory. `create_ticket` puts a follow-up or a piece of a plan in the backlog, for the founder to start.
 8. **Done.** `git::commit_all` commits whatever the agent left, as `Maya Okafor <maya@snowztech.onecorp>`. The ticket becomes `review`, unless the agent marked itself blocked.
 
 ### Shipping
@@ -122,11 +122,11 @@ Ticket ids use `AUTOINCREMENT`, so a removed ticket's key is never given to a ne
 
 When someone in a department asks a question with `ask_human`, it goes to their department's lead, not to you (`store::lead_of`). The question is stored with stage `lead`, and a `consult` job is queued for it.
 
-`work::consult` runs the lead's runtime **read-only** in the asker's worktree: Claude Code without accepting edits, Codex in its read-only sandbox. The prompt has the question, the asker's default, the handbook and the team, and asks the lead to end with `DECISION: …` or `FOUNDER: why`. `work::verdict` reads that line, and anything unclear goes up to you, the safe side.
+`work::consult` runs the lead's runtime **read-only** in the asker's worktree: Claude Code without accepting edits, Codex in its read-only sandbox. The prompt has the question, the asker's default, the wiki and the team, and asks the lead to end with `DECISION: …` or `FOUNDER: why`. `work::verdict` reads that line, and anything unclear goes up to you, the safe side.
 
 - A decision is saved as the lead's answer, and `work::follow_up` resumes the asker exactly like your own answer would. Their prompt says the answer came from their lead.
 - A pass-up moves the question to stage `founder`, with the lead's reason. It shows in your inbox as "Odile passed this to you: …".
-- Leads, people without a department and handbook proposals go straight to you. Questions still with a lead show under "With your leads", and you can answer them yourself.
+- Leads, people without a department and wiki proposals go straight to you. Questions still with a lead show under "With your leads", and you can answer them yourself.
 
 The consult job waits until the asker's own run is done. Without `serve`, `work::drain_consults` runs them right after the ticket finishes.
 
@@ -135,7 +135,7 @@ The consult job waits until the asker's own run is done. Without `serve`, `work:
 What employees know comes from four places, all assembled in `work::start`:
 
 - **Merged code.** Approved work is on the base branch, and every ticket starts from it.
-- **The handbook**, one markdown file per company, read in full at the start of every ticket (cut at 12,000 characters). You edit it with `onecorp handbook`, on the app's Handbook page, or by accepting a proposal.
+- **The wiki**, one markdown file per company, read in full at the start of every ticket (cut at 12,000 characters). You edit it with `onecorp wiki`, on the app's Wiki page, or by accepting a proposal.
 - **The team list**, generated from the employees table, so it never goes stale.
 - **Personal memory**, one file per employee, newest notes kept when it gets long. Agents add with `remember`, and review feedback goes in automatically.
 
@@ -151,7 +151,7 @@ The desktop app runs serve on a background thread while it's open.
 
 ## The desktop app
 
-`app/` is a Tauri 2 app. `app/src/main.rs` exposes one command per action (`snapshot`, `answer`, `approve`, `hire`, `review`, `save_handbook` and so on), each a few lines that open the company and call the library. Commands run off the main thread, so the window never freezes.
+`app/` is a Tauri 2 app. `app/src/main.rs` exposes one command per action (`snapshot`, `answer`, `approve`, `hire`, `review`, `save_wiki` and so on), each a few lines that open the company and call the library. Commands run off the main thread, so the window never freezes.
 
 `app/ui/` is plain HTML, CSS and JavaScript, with no build step. In the company workspace, `app.js` polls `snapshot` every 1.5 seconds, re-renders only when something changed, and never re-renders over a field you're typing in. Onboarding has no polling timer: actions and completed setup checks update its screens. Entering setup stops workspace polling; leaving it starts a single timer again. Opened in a normal browser, it runs on built-in sample data, which is the quickest way to work on the design.
 
@@ -165,7 +165,7 @@ Each test covers the risky logic in one module:
 - the MCP protocol and every tool, against a temporary company
 - merges, fast-forwards and conflicts against a real throwaway git repo
 - the job queue claim rules and recovery after a crash
-- departments, handbook section editing and the screen snapshot
+- departments, wiki section editing and the screen snapshot
 - reading a lead's verdict, including markdown like `**DECISION:**`
 
 On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, a retry, and questions answered by a lead, passed up by a lead, and unblocking a ticket. `crates/core/tests/kickoff.rs` goes from a brief to a plan, plans again, starts the plan in order, and dismisses and retries one, checking your checkout is never touched. It takes under a second.

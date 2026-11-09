@@ -287,7 +287,7 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .person-row .x { border: 0; background: transparent; color: var(--muted); font-size: 17px; padding: 2px 6px; border-radius: 6px; }
 .person-row .x:hover { background: var(--line); color: var(--fg); }
 
-/* Handbook */
+/* Wiki */
 .book { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
 .lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 62ch; }
 .hb h3 small { margin-left: auto; font-weight: 400; }
@@ -344,7 +344,7 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .dbody { overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 18px; }
 .dbody h5 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .term { background: var(--term-bg); color: var(--term-fg); font: 12px/1.65 var(--mono); border-radius: 8px; padding: 10px 12px; max-height: 260px; overflow: auto; }
-.term .k-tool { color: var(--term-cmd); } .term .k-commit, .term .k-done, .term .k-merge, .term .k-handbook { color: var(--term-ok); } .term .k-error, .term .k-block { color: #ff8a7a; } .term .at { color: var(--term-dim); margin-right: 8px; }
+.term .k-tool { color: var(--term-cmd); } .term .k-commit, .term .k-done, .term .k-merge, .term .k-wiki { color: var(--term-ok); } .term .k-error, .term .k-block { color: #ff8a7a; } .term .at { color: var(--term-dim); margin-right: 8px; }
 .notes, .tlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .notes li { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
 .tlist li { display: flex; gap: 8px; align-items: center; font-size: 13px; }
@@ -482,7 +482,7 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .panel h3 small { font: 400 12px var(--body); }
 .hb > .link-btn { margin: 0 14px 14px; }
 
-/* Documents: the Handbook and Settings read like pages, not forms */
+/* Documents: the Wiki and Settings read like pages, not forms */
 .doc-wrap { display: grid; grid-template-columns: minmax(0, 680px) 180px; gap: 56px; justify-content: center; padding: 12px 0 64px; }
 .doc { min-width: 0; }
 .doc h1 { margin: 6px 0 8px; font: 600 32px/1.15 var(--display); letter-spacing: -.025em; }
@@ -765,7 +765,7 @@ button.live:hover { background: var(--surface-2); color: var(--fg); }
 .ready li span { color: var(--muted); }
 .ready code { font: 12px var(--mono); color: var(--fg); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 
-/* The handbook as a wiki page */
+/* The wiki as a wiki page */
 .wiki-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
 .wiki h1 { margin: 6px 0 4px; font: 600 32px/1.15 var(--display); letter-spacing: -.025em; }
 .wiki h2 { margin: 30px 0 8px; font: 600 20px var(--display); letter-spacing: -.015em; scroll-margin-top: 16px; }

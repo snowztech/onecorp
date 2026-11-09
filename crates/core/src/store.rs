@@ -111,7 +111,7 @@ pub fn slug(name: &str) -> String {
 }
 
 /// Everything lives under ~/.onecorp, or $ONECORP_HOME when set (handy for tests).
-/// The handbook section that says what the company is building.
+/// The wiki section that says what the company is building.
 pub const BUILDING: &str = "What we're building";
 
 pub fn home() -> PathBuf {
@@ -191,7 +191,7 @@ pub struct Question {
     pub default_answer: String,
     pub blocking: bool,
     pub answer: Option<String>,
-    /// "question", or "handbook" for a proposed handbook addition (then `options` holds the section).
+    /// "question", or "wiki" for a proposed wiki addition (then `options` holds the section).
     pub kind: String,
     /// "lead" while the asker's department lead looks at it, "founder" once it's yours.
     pub stage: String,
@@ -263,7 +263,7 @@ impl Company {
         let c = Self::open_dir(name, dir)?;
         c.db.execute("INSERT INTO meta (key, value) VALUES ('repo', ?1)", [repo.to_string_lossy()])?;
         let mission = if mission.trim().is_empty() { "What the company is for, in a sentence or two." } else { mission.trim() };
-        fs::write(c.handbook_path(), format!("# {name} wiki\n\n## Mission\n\n{mission}\n\n## Decisions\n\n## Conventions\n"))?;
+        fs::write(c.wiki_path(), format!("# {name} wiki\n\n## Mission\n\n{mission}\n\n## Decisions\n\n## Conventions\n"))?;
         Ok(c)
     }
 
@@ -602,10 +602,10 @@ impl Company {
         Ok(())
     }
 
-    /// Puts a section in the handbook, replacing one with the same name. Used for notes OneCorp
+    /// Puts a section in the wiki, replacing one with the same name. Used for notes OneCorp
     /// writes itself, like what it learned from the repo.
-    pub fn set_handbook_section(&self, name: &str, body: &str) -> Result<()> {
-        let doc = self.handbook()?;
+    pub fn set_wiki_section(&self, name: &str, body: &str) -> Result<()> {
+        let doc = self.wiki()?;
         let mut out = String::new();
         let (mut skipping, mut heading) = (false, name.to_string());
         for line in doc.lines() {
@@ -622,34 +622,20 @@ impl Company {
             }
         }
         let out = format!("{}\n\n## {heading}\n\n{}\n", out.trim_end(), body.trim());
-        self.write_handbook(&out)
+        self.write_wiki(&out)
     }
 
-    pub fn brief_path(&self) -> PathBuf {
-        self.dir.join("brief.md")
-    }
-
-    /// What you're building: the handbook's "What we're building" section. Companies from before
-    /// it moved into the handbook still have it in brief.md, read until it's written again.
+    /// What you're building: the wiki's "What we're building" section.
     pub fn brief(&self) -> Result<String> {
-        let doc = self.handbook()?;
+        let doc = self.wiki()?;
         let mut lines = doc.lines().skip_while(|l| !l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case(BUILDING)));
-        if lines.next().is_some() {
-            let text = lines.take_while(|l| !l.starts_with("## ")).collect::<Vec<_>>().join("\n");
-            if !text.trim().is_empty() {
-                return Ok(text.trim().to_string());
-            }
-        }
-        match fs::read_to_string(self.brief_path()) {
-            Ok(s) => Ok(s.trim().to_string()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-            Err(e) => Err(e.into()),
-        }
+        lines.next();
+        Ok(lines.take_while(|l| !l.starts_with("## ")).collect::<Vec<_>>().join("\n").trim().to_string())
     }
 
-    /// Writes what you're building into the handbook, right after the mission.
+    /// Writes what you're building into the wiki, right after the mission.
     pub fn write_brief(&self, text: &str) -> Result<()> {
-        let doc = self.handbook()?;
+        let doc = self.wiki()?;
         let mut out: Vec<String> = vec![];
         let (mut skipping, mut placed) = (false, false);
         for line in doc.lines() {
@@ -672,8 +658,7 @@ impl Company {
         if !placed {
             doc = format!("{}\n\n## {BUILDING}\n\n{}\n", doc.trim_end(), text.trim());
         }
-        self.write_handbook(&format!("{}\n", doc.trim_end()))?;
-        let _ = fs::remove_file(self.brief_path());
+        self.write_wiki(&format!("{}\n", doc.trim_end()))?;
         Ok(())
     }
 
@@ -870,30 +855,30 @@ impl Company {
         Ok(())
     }
 
-    pub fn handbook_path(&self) -> PathBuf {
-        self.dir.join("handbook.md")
+    pub fn wiki_path(&self) -> PathBuf {
+        self.dir.join("wiki.md")
     }
 
-    /// The handbook's text, or empty if there isn't one yet.
-    pub fn handbook(&self) -> Result<String> {
-        match fs::read_to_string(self.handbook_path()) {
+    /// The wiki's text, or empty if there isn't one yet.
+    pub fn wiki(&self) -> Result<String> {
+        match fs::read_to_string(self.wiki_path()) {
             Ok(s) => Ok(s),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
             Err(e) => Err(e.into()),
         }
     }
 
-    /// Replaces the whole handbook, for editing it as text.
-    pub fn write_handbook(&self, text: &str) -> Result<()> {
+    /// Replaces the whole wiki, for editing it as text.
+    pub fn write_wiki(&self, text: &str) -> Result<()> {
         let text = text.trim_end();
-        fs::write(self.handbook_path(), format!("{text}\n"))?;
+        fs::write(self.wiki_path(), format!("{text}\n"))?;
         Ok(())
     }
 
-    pub fn add_to_handbook(&self, section: &str, text: &str) -> Result<()> {
-        let doc = self.handbook()?;
+    pub fn add_to_wiki(&self, section: &str, text: &str) -> Result<()> {
+        let doc = self.wiki()?;
         let doc = if doc.is_empty() { format!("# {} wiki\n", self.name) } else { doc };
-        fs::write(self.handbook_path(), add_to_section(&doc, section, text))?;
+        fs::write(self.wiki_path(), add_to_section(&doc, section, text))?;
         Ok(())
     }
 
@@ -1063,7 +1048,7 @@ impl Company {
         let mut st = self.db.prepare(
             "SELECT e.at, e.ticket_id, coalesce(t.assignee, ''), e.kind, e.summary, t.title
              FROM events e JOIN tickets t ON t.id = e.ticket_id
-             WHERE e.kind NOT IN ('tool', 'say', 'error', 'commit', 'handbook-text') ORDER BY e.id DESC LIMIT ?1",
+             WHERE e.kind NOT IN ('tool', 'say', 'error', 'commit', 'wiki-text') ORDER BY e.id DESC LIMIT ?1",
         )?;
         let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -1247,9 +1232,9 @@ mod tests {
 
     #[test]
     fn adds_bullets_to_the_right_section() {
-        let doc = "# acme handbook\n\n## Mission\n\nNotes.\n\n## Decisions\n\n## Conventions\n";
+        let doc = "# acme wiki\n\n## Mission\n\nNotes.\n\n## Decisions\n\n## Conventions\n";
         let one = add_to_section(doc, "Decisions", "No ORMs");
-        assert_eq!(one, "# acme handbook\n\n## Mission\n\nNotes.\n\n## Decisions\n\n- No ORMs\n\n## Conventions\n");
+        assert_eq!(one, "# acme wiki\n\n## Mission\n\nNotes.\n\n## Decisions\n\n- No ORMs\n\n## Conventions\n");
         let two = add_to_section(&one, "decisions", "Hash tokens at rest");
         assert!(two.contains("- No ORMs\n- Hash tokens at rest\n\n## Conventions"));
         let three = add_to_section(&two, "Conventions", "Small PRs");

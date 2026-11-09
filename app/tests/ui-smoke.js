@@ -23,7 +23,7 @@ window.__TAURI__ = { core: { invoke: (cmd, args) => { requests++; return command
   const assert = require("node:assert/strict");
   assert.equal(intervals.size, 1, "company workspace starts one polling timer");
   const workspaceTimer = [...intervals.keys()][0];
-  for (const v of ["company", "board", "inbox", "chat", "handbook"]) { S.view = v; await refresh(true); console.log(v, document.querySelector("#view").innerHTML.length, "chars"); }
+  for (const v of ["company", "board", "inbox", "chat", "wiki"]) { S.view = v; await refresh(true); console.log(v, document.querySelector("#view").innerHTML.length, "chars"); }
   assert.deepEqual([...intervals.keys()], [workspaceTimer], "renders reuse the workspace timer");
   await openTicket("SNO-11"); console.log("ticket drawer", document.querySelector("#drawer").innerHTML.length, "chars");
   S.drawer = { type: "new-ticket" }; renderDrawer(); console.log("new ticket drawer", document.querySelector("#drawer").innerHTML.length, "chars");

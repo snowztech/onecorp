@@ -39,7 +39,7 @@ enum Cmd {
         /// What you're building. With a team, planning starts right away
         #[arg(long)]
         brief: Option<String>,
-        /// What the company is for. Goes at the top of the handbook
+        /// What the company is for. Goes at the top of the wiki
         #[arg(long)]
         mission: Option<String>,
     },
@@ -176,10 +176,9 @@ enum Cmd {
         company: Option<String>,
     },
     /// The company wiki every employee reads before each ticket
-    #[command(name = "wiki", alias = "handbook")]
-    Handbook {
+    Wiki {
         #[command(subcommand)]
-        action: Option<HandbookCmd>,
+        action: Option<WikiCmd>,
         #[arg(short, long)]
         company: Option<String>,
     },
@@ -323,7 +322,7 @@ enum DeptCmd {
 }
 
 #[derive(Subcommand)]
-enum HandbookCmd {
+enum WikiCmd {
     /// Add a line, like "No ORMs" or "Tokens are hashed at rest"
     Add {
         text: String,
@@ -388,7 +387,7 @@ fn run(cmd: Cmd) -> Result<()> {
                 Some(f) => println!("Finished work opens {}s on {}. Change it with: onecorp ship local", f.pr_word(), f.name()),
                 None => println!("Approved work merges into your local repo. To open pull requests instead: onecorp ship github"),
             }
-            println!("Its handbook is at {}. Everyone reads it before each ticket.", c.handbook_path().display());
+            println!("Its wiki is at {}. Everyone reads it before each ticket.", c.wiki_path().display());
             match hired.first() {
                 Some(e) => println!("Next, give someone a ticket: onecorp run \"<task>\" --to {}", e.id),
                 None => println!("Next, hire someone: onecorp hire"),
@@ -516,12 +515,13 @@ fn run(cmd: Cmd) -> Result<()> {
             let c = open(company)?;
             if let Some(text) = set {
                 c.write_brief(&text)?;
-                println!("Brief saved. Everyone reads it from their next ticket. Plan it: onecorp plan");
+                println!("Saved in the wiki. Everyone reads it from their next ticket. Plan it: onecorp plan");
             } else if edit {
-                if !c.brief_path().exists() {
+                // It's a section of the wiki now, so editing it opens the wiki.
+                if c.brief()?.is_empty() {
                     c.write_brief("What you're building, who it's for, and what the first version needs.")?;
                 }
-                open_in_editor(&c.brief_path())?;
+                open_in_editor(&c.wiki_path())?;
             } else {
                 match c.brief()? {
                     b if b.is_empty() => println!("No brief yet. Write one: onecorp brief --set \"A notes app for writers...\""),
@@ -617,28 +617,28 @@ fn run(cmd: Cmd) -> Result<()> {
                 print!("{notes}");
             }
         }
-        Cmd::Handbook { action, company } => {
+        Cmd::Wiki { action, company } => {
             let c = open(company)?;
             match action {
                 None => {
-                    let doc = c.handbook()?;
+                    let doc = c.wiki()?;
                     if doc.trim().is_empty() {
-                        println!("No handbook yet. Start one: onecorp handbook add \"<a decision everyone should know>\"");
+                        println!("No wiki yet. Start one: onecorp wiki add \"<a decision everyone should know>\"");
                     } else {
                         print!("{doc}");
                     }
                 }
-                Some(HandbookCmd::Add { text, section }) => {
+                Some(WikiCmd::Add { text, section }) => {
                     if text.trim().is_empty() {
-                        bail!("what should everyone know? For example: onecorp handbook add \"No new dependencies without asking\"");
+                        bail!("what should everyone know? For example: onecorp wiki add \"No new dependencies without asking\"");
                     }
-                    c.add_to_handbook(section.trim(), &text)?;
+                    c.add_to_wiki(section.trim(), &text)?;
                     println!("Added to {}. Everyone sees it from their next ticket.", section.trim());
                 }
-                Some(HandbookCmd::Edit) => {
-                    let path = c.handbook_path();
+                Some(WikiCmd::Edit) => {
+                    let path = c.wiki_path();
                     if !path.exists() {
-                        c.add_to_handbook("Decisions", "")?;
+                        c.add_to_wiki("Decisions", "")?;
                     }
                     open_in_editor(&path)?;
                 }
@@ -652,8 +652,8 @@ fn run(cmd: Cmd) -> Result<()> {
             }
             for q in qs {
                 let ticket = q.ticket_id.map(|t| c.key(t)).unwrap_or_default();
-                if q.kind == "handbook" {
-                    println!("#{:<3} {ticket:<7} {}  [handbook]\n     Add to {}: {}", q.id, q.employee, q.options, q.question);
+                if q.kind == "wiki" {
+                    println!("#{:<3} {ticket:<7} {}  [wiki]\n     Add to {}: {}", q.id, q.employee, q.options, q.question);
                     println!("     onecorp answer {} yes   (or no, or your own wording)\n", q.id);
                     continue;
                 }
@@ -765,7 +765,7 @@ fn run(cmd: Cmd) -> Result<()> {
             let tickets = c.tickets()?.len();
             drop(c);
             if !yes {
-                println!("This deletes {name}: its team, {tickets} tickets, chat, handbook and memory. Your repo and its branches stay.");
+                println!("This deletes {name}: its team, {tickets} tickets, chat, wiki and memory. Your repo and its branches stay.");
                 if ask(&format!("Type {name} to delete it"), "")? != name {
                     bail!("not deleted");
                 }

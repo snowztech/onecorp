@@ -80,9 +80,9 @@ fn channels_posts_and_replies() {
     c.set_photo("rui", None).unwrap();
     assert!(c.avatar("rui").unwrap().1.is_none());
 
-    // No brief yet: whoever writes the handbook drafts what we're building, so planning has it.
+    // No brief yet: whoever writes the wiki drafts what we're building, so planning has it.
     assert!(c.brief().unwrap().is_empty());
-    work::write_handbook(&c, None).unwrap();
+    work::write_wiki(&c, None).unwrap();
     assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, from the README.");
 
     let _ = std::fs::remove_dir_all(&root);

@@ -82,9 +82,9 @@ onecorp retry SNO-4                           # try a ticket that stopped or fai
 onecorp inbox                                 # questions your team is waiting on
 onecorp answer 1 "go with 15 minutes"
 onecorp chat eng                              # what the team posted
-onecorp handbook                              # what every employee reads before a ticket
-onecorp handbook add "No ORMs"                # under Decisions, or --section Conventions
-onecorp handbook edit                         # open it in $EDITOR
+onecorp wiki                              # what every employee reads before a ticket
+onecorp wiki add "No ORMs"                # under Decisions, or --section Conventions
+onecorp wiki edit                         # open it in $EDITOR
 onecorp memory maya                           # what Maya has learned (--edit to change it)
 onecorp fire maya
 onecorp serve                                 # run queued work, several employees at a time
@@ -101,7 +101,7 @@ Each agent gets the company's MCP server (`onecorp mcp`, started by the agent ov
 - `update_ticket` marks the ticket blocked, with a reason.
 - `remember` saves a one-line note to the employee's own memory.
 - `create_ticket` puts a follow-up or a piece of a plan in the backlog, for you to start.
-- `propose_handbook` suggests a decision or convention. It lands in your inbox, and `onecorp answer N yes` (or `no`, or your own wording) settles it.
+- `propose_wiki` suggests a decision or convention. It lands in your inbox, and `onecorp answer N yes` (or `no`, or your own wording) settles it.
 
 ## Desktop app
 
@@ -130,11 +130,11 @@ When your repo's `origin` is on GitHub or GitLab and you're signed in with `gh` 
 
 ## Leads answer first
 
-Questions from someone in a department go to their lead first. The lead decides what the handbook and the code settle, and passes up the rest with a reason. Product, money, anything public and security come to you. Set a lead with `onecorp dept lead Engineering odile`.
+Questions from someone in a department go to their lead first. The lead decides what the wiki and the code settle, and passes up the rest with a reason. Product, money, anything public and security come to you. Set a lead with `onecorp dept lead Engineering odile`.
 
 ## Shared knowledge
 
-Each company has a handbook at `~/.onecorp/companies/<name>/handbook.md`: mission, decisions, conventions. It's plain markdown, so edit it however you like. Every ticket starts with the handbook and a list of who works here, generated from the team, so a decision made once is known by everyone. Approved work lands on the base branch, so the next ticket starts from everyone's merged code too.
+Each company has a wiki at `~/.onecorp/companies/<name>/wiki.md`: mission, decisions, conventions. It's plain markdown, so edit it however you like. Every ticket starts with the wiki and a list of who works here, generated from the team, so a decision made once is known by everyone. Approved work lands on the base branch, so the next ticket starts from everyone's merged code too.
 
 Each employee also has their own memory at `~/.onecorp/companies/<name>/memory/<id>.md`: one dated line per note, read at the start of each of their tickets. They add to it with `remember`, and when you ask for changes, your feedback goes in automatically, so they pick up how you like things done. Firing someone keeps the file, so rehiring brings their memory back.
 

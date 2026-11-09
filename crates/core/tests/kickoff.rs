@@ -32,7 +32,7 @@ fn an_idea_becomes_a_plan_becomes_work() {
     // No brief, no kickoff.
     assert!(work::kickoff(&c, None).unwrap_err().to_string().contains("brief"));
     c.write_brief("A notes app for writers, with magic link login.").unwrap();
-    let book = c.handbook().unwrap();
+    let book = c.wiki().unwrap();
     let (mission, building, decisions) = (book.find("## Mission").unwrap(), book.find("## What we're building").unwrap(), book.find("## Decisions").unwrap());
     assert!(mission < building && building < decisions, "what we're building sits right after the mission");
 
@@ -71,14 +71,14 @@ fn an_idea_becomes_a_plan_becomes_work() {
     assert_eq!((status(second), c.plan_tickets(second).unwrap().len()), ("review".into(), 3));
     assert!(repo.join("README.md").exists());
 
-    // Someone reads the repo and writes the handbook, read-only, and it lands as the handbook.
-    let hb = work::write_handbook(&c, None).unwrap();
+    // Someone reads the repo and writes the wiki, read-only, and it lands as the wiki.
+    let hb = work::write_wiki(&c, None).unwrap();
     let t = c.ticket(hb).unwrap().unwrap();
-    assert_eq!((t.kind.as_str(), t.status.as_str(), t.assignee.as_deref()), ("handbook", "done", Some("odile")), "the engineering lead writes it");
-    assert!(c.handbook().unwrap().contains("## Codebase\n\n- A README"));
-    assert_eq!(c.handbook().unwrap().matches("## What we're building").count(), 1, "what we're building is one section of the handbook");
+    assert_eq!((t.kind.as_str(), t.status.as_str(), t.assignee.as_deref()), ("wiki", "done", Some("odile")), "the engineering lead writes it");
+    assert!(c.wiki().unwrap().contains("## Codebase\n\n- A README"));
+    assert_eq!(c.wiki().unwrap().matches("## What we're building").count(), 1, "what we're building is one section of the wiki");
     assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, with magic link login.", "a brief you wrote is never replaced");
-    assert!(git_status_clean(&repo), "writing the handbook never touches your checkout");
+    assert!(git_status_clean(&repo), "writing the wiki never touches your checkout");
 
     // Paused, nothing starts. Resuming lets queued work go.
     c.set_paused(true).unwrap();

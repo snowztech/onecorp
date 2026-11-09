@@ -103,7 +103,7 @@ fn tools() -> Value {
             }
         },
         {
-            "name": "propose_handbook",
+            "name": "propose_wiki",
             "description": "Propose adding something to the company wiki that every employee reads: a decision, a convention, \
                             a fact about the codebase. Only things that should outlive this ticket. The founder approves it from their inbox.",
             "inputSchema": {
@@ -133,7 +133,7 @@ fn tools() -> Value {
         {
             "name": "remember",
             "description": "Save a one-line note for your future self: where things live in the code, how the founder likes things done, \
-                            a trap you hit. Only you read these, at the start of every ticket. Rules for the whole team go to propose_handbook instead.",
+                            a trap you hit. Only you read these, at the start of every ticket. Rules for the whole team go to propose_wiki instead.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -208,7 +208,7 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
             c.post(&channel, &ctx.employee, &text, Some(ctx.ticket))?;
             Ok(format!("Posted in #{channel}."))
         }
-        "propose_handbook" => {
+        "propose_wiki" => {
             let text = s("text");
             anyhow::ensure!(!text.is_empty(), "text is required");
             let section = if s("section").eq_ignore_ascii_case("conventions") { "Conventions" } else { "Decisions" };
@@ -217,7 +217,7 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
                 employee: ctx.employee.clone(),
                 question: text,
                 options: section.into(),
-                kind: "handbook".into(),
+                kind: "wiki".into(),
                 ..Default::default()
             })?;
             Ok(format!("Proposal #{n} is in the founder's inbox. Carry on, it doesn't block your ticket."))
@@ -305,9 +305,9 @@ mod tests {
         handle(&c, &ctx, &req(4, "tools/call", post)).unwrap();
         assert_eq!(c.messages(Some("general")).unwrap()[0].text, "hashing tokens at rest");
 
-        let prop = json!({"name": "propose_handbook", "arguments": {"text": "Tokens are hashed at rest", "section": "conventions"}});
+        let prop = json!({"name": "propose_wiki", "arguments": {"text": "Tokens are hashed at rest", "section": "conventions"}});
         handle(&c, &ctx, &req(7, "tools/call", prop)).unwrap();
-        let p = c.inbox().unwrap().into_iter().find(|q| q.kind == "handbook").unwrap();
+        let p = c.inbox().unwrap().into_iter().find(|q| q.kind == "wiki").unwrap();
         assert_eq!((p.question.as_str(), p.options.as_str(), p.blocking), ("Tokens are hashed at rest", "Conventions", false));
 
         let note = json!({"name": "remember", "arguments": {"text": "  auth lives in\n src/auth  "}});
