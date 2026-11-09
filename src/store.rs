@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   worktree TEXT,
   session_id TEXT,
   cost_usd REAL NOT NULL DEFAULT 0,
+  tokens INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS events (
@@ -114,6 +115,7 @@ pub struct Ticket {
     pub status: String,
     pub branch: Option<String>,
     pub cost_usd: f64,
+    pub tokens: i64,
     pub worktree: Option<String>,
     pub session_id: Option<String>,
 }
@@ -244,12 +246,12 @@ impl Company {
     }
 
     /// A ticket the agent marked blocked stays blocked when the run ends cleanly.
-    pub fn finish_ticket(&self, id: i64, status: &str, cost: f64) -> Result<()> {
+    pub fn finish_ticket(&self, id: i64, status: &str, cost: f64, tokens: u64) -> Result<()> {
         self.db.execute(
-            "UPDATE tickets SET cost_usd = cost_usd + ?3,
+            "UPDATE tickets SET cost_usd = cost_usd + ?3, tokens = tokens + ?4,
                status = CASE WHEN status = 'blocked' AND ?2 = 'review' THEN 'blocked' ELSE ?2 END
              WHERE id = ?1",
-            params![id, status, cost],
+            params![id, status, cost, tokens as i64],
         )?;
         Ok(())
     }
@@ -331,12 +333,12 @@ impl Company {
     pub fn ticket(&self, id: i64) -> Result<Option<Ticket>> {
         Ok(self
             .db
-            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id FROM tickets WHERE id = ?1", [id], row_to_ticket)
+            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens FROM tickets WHERE id = ?1", [id], row_to_ticket)
             .optional()?)
     }
 
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
-        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id FROM tickets ORDER BY id")?;
+        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -359,6 +361,7 @@ fn row_to_ticket(r: &rusqlite::Row) -> rusqlite::Result<Ticket> {
         cost_usd: r.get(5)?,
         worktree: r.get(6)?,
         session_id: r.get(7)?,
+        tokens: r.get(8)?,
     })
 }
 

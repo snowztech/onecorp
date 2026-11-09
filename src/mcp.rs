@@ -187,7 +187,7 @@ mod tests {
         assert_eq!(c.ticket(t).unwrap().unwrap().status, "blocked");
 
         // A clean finish must not unblock a ticket the agent marked blocked.
-        c.finish_ticket(t, "review", 0.1).unwrap();
+        c.finish_ticket(t, "review", 0.1, 0).unwrap();
         assert_eq!(c.ticket(t).unwrap().unwrap().status, "blocked");
 
         let post = json!({"name": "post_message", "arguments": {"channel": "#eng", "text": "hashing tokens at rest"}});

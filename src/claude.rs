@@ -1,80 +1,33 @@
-//! Runs Claude Code headless and turns its stream-json output into events.
+//! Claude Code, run headless with stream-json output.
 
-use anyhow::{Context, Result, bail};
-use serde_json::Value;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::path::Path;
-use std::process::{Command, Stdio};
+use crate::agent::{Event, Opts, first_line, stream};
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::process::Command;
 
-#[derive(Debug, PartialEq)]
-pub enum Event {
-    Init { session: String, model: String },
-    Say(String),
-    Tool { name: String, detail: String },
-    ToolResult { error: bool, text: String },
-    Done { ok: bool, cost: f64, turns: u64, text: String },
-}
+// Edits are auto-accepted inside the worktree. Bash is limited to read-only git, and OneCorp
+// commits the work when the agent finishes. The company tools are always allowed.
+const ALLOWED: &str = "Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__onecorp";
 
-// Edits are auto-accepted inside the worktree. Bash is denied except for git basics,
-// so the agent can commit but can't run arbitrary commands yet. The company tools are always allowed.
-const ALLOWED: &str = "Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__onecorp";
+pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
+    let env: serde_json::Map<String, Value> = o.mcp.env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
+    let mcp = json!({"mcpServers": {"onecorp": {"command": o.mcp.command, "args": o.mcp.args, "env": env}}});
 
-pub struct Opts<'a> {
-    pub cwd: &'a Path,
-    pub model: Option<&'a str>,
-    /// JSON for --mcp-config. Only that server loads: the user's own MCP servers stay out.
-    pub mcp_config: &'a str,
-    /// Continue this session instead of starting a new one. Must run in the same cwd.
-    pub resume: Option<&'a str>,
-}
-
-pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     let mut cmd = Command::new("claude");
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"])
-        .args(["--mcp-config", o.mcp_config, "--strict-mcp-config"])
-        .args(["--allowedTools", ALLOWED]);
+        // Only the company server loads. The user's own MCP servers stay out.
+        .args(["--mcp-config", &mcp.to_string(), "--strict-mcp-config"])
+        .args(["--allowedTools", ALLOWED])
+        .current_dir(o.cwd)
+        .envs(o.env.iter().map(|(k, v)| (k, v)));
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
     }
     if let Some(s) = o.resume {
         cmd.args(["--resume", s]);
     }
-    let cwd = o.cwd;
-    let mut child = cmd
-        .current_dir(cwd)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("could not start claude. Is Claude Code installed and on PATH?")?;
-
-    // The prompt goes on stdin: --allowedTools takes a list and would swallow a trailing prompt argument.
-    // Dropping the handle closes stdin so claude starts.
-    child.stdin.take().unwrap().write_all(prompt.as_bytes())?;
-
-    // Drain stderr on a thread so a chatty stderr can't block stdout.
-    let mut stderr = child.stderr.take().unwrap();
-    let err_thread = std::thread::spawn(move || {
-        let mut s = String::new();
-        let _ = stderr.read_to_string(&mut s);
-        s
-    });
-
-    let mut finished = false;
-    for line in BufReader::new(child.stdout.take().unwrap()).lines() {
-        let line = line?;
-        for ev in parse(&line) {
-            finished |= matches!(ev, Event::Done { .. });
-            on(&line, ev)?;
-        }
-    }
-
-    let status = child.wait()?;
-    let stderr = err_thread.join().unwrap_or_default();
-    if !finished {
-        bail!("claude exited ({status}) without a result: {}", stderr.trim());
-    }
-    Ok(())
+    // The prompt goes on stdin: --allowedTools takes a list and would swallow a trailing argument.
+    stream(cmd, prompt, parse, on)
 }
 
 pub fn parse(line: &str) -> Vec<Event> {
@@ -97,12 +50,19 @@ pub fn parse(line: &str) -> Vec<Event> {
             .filter(|b| b["type"] == "tool_result")
             .map(|b| Event::ToolResult { error: b["is_error"] == true, text: result_text(&b["content"]) })
             .collect(),
-        Some("result") => vec![Event::Done {
-            ok: v["subtype"] == "success" && v["is_error"] != true,
-            cost: v["total_cost_usd"].as_f64().unwrap_or(0.0),
-            turns: v["num_turns"].as_u64().unwrap_or(0),
-            text: s(&v, "result"),
-        }],
+        Some("result") => {
+            let u = &v["usage"];
+            let tokens = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"]
+                .iter()
+                .map(|k| u[k].as_u64().unwrap_or(0))
+                .sum();
+            vec![Event::Done {
+                ok: v["subtype"] == "success" && v["is_error"] != true,
+                cost: v["total_cost_usd"].as_f64().unwrap_or(0.0),
+                tokens,
+                text: s(&v, "result"),
+            }]
+        }
         _ => vec![],
     }
 }
@@ -131,10 +91,6 @@ fn result_text(content: &Value) -> String {
     }
 }
 
-pub fn first_line(s: &str) -> String {
-    s.lines().find(|l| !l.trim().is_empty()).unwrap_or("").chars().take(120).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,8 +109,8 @@ mod tests {
         let res = r#"{"type":"user","message":{"content":[{"type":"tool_result","is_error":true,"content":"permission denied\nx"}]}}"#;
         assert_eq!(parse(res), vec![Event::ToolResult { error: true, text: "permission denied".into() }]);
 
-        let done = r#"{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0.42,"num_turns":7,"result":"Done"}"#;
-        assert_eq!(parse(done), vec![Event::Done { ok: true, cost: 0.42, turns: 7, text: "Done".into() }]);
+        let done = r#"{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0.42,"num_turns":7,"result":"Done","usage":{"input_tokens":10,"cache_read_input_tokens":90,"output_tokens":5}}"#;
+        assert_eq!(parse(done), vec![Event::Done { ok: true, cost: 0.42, tokens: 105, text: "Done".into() }]);
 
         assert!(parse("not json").is_empty());
     }
