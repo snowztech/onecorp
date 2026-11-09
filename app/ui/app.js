@@ -31,7 +31,8 @@ async function call(cmd, args, done) {
 }
 
 /* Faces: drawn from the name, so everyone keeps the same face. The mood follows what they're doing.
-   Ink on the app's neutral tile, so the only colour in a face is the person. */
+   Each person gets one of eight hues, soft in light and deep in dark, so the team has colour that sits with the UI. */
+const HUES = [215, 12, 158, 262, 38, 330, 192, 95];
 const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const SKIN = ["#f3d5bd", "#e6b590", "#c88e64", "#9a6542", "#6b442b"];
 const HAIR = ["#1e1916", "#4b301e", "#8b5b2c", "#d0a660", "#b4442f", "#70747d"];
@@ -53,7 +54,7 @@ function loadPhoto(e) {
   return null;
 }
 function drawFace(name, status) {
-  const h = hash(name), L = { skin: h % 5, hair: (h >>> 3) % 6, style: (h >>> 6) % 5, acc: (h >>> 9) % 4 };
+  const h = hash(name), L = { skin: h % 5, hair: (h >>> 3) % 6, style: (h >>> 6) % 5, acc: (h >>> 9) % 4 }, hue = HUES[(h >>> 12) % 8];
   const mood = { working: "working", blocked: "blocked", idle: "sleep", queued: "neutral", done: "happy" }[status] || "neutral";
   const sk = SKIN[L.skin], hr = HAIR[L.hair], ink = "#18181b";
   const cap = '<path d="M19 30q0-17 13-17t13 17q-3-9-13-9t-13 9z"/>';
@@ -69,8 +70,8 @@ function drawFace(name, status) {
   const A = ["", `<g fill="none" stroke="${ink}" stroke-width="1.5"><circle cx="27" cy="30.5" r="4.2"/><circle cx="37" cy="30.5" r="4.2"/><path d="M31.2 30.5h1.6"/></g>`,
     '<path d="M18 31a14 14 0 0 1 28 0" fill="none" stroke="#2f3440" stroke-width="3"/><rect x="15" y="27" width="5" height="10" rx="2" fill="#2f3440"/><rect x="44" y="27" width="5" height="10" rx="2" fill="#2f3440"/>',
     `<path d="M18.5 27q0-15 13.5-15t13.5 15z" fill="#3f3f46"/><rect x="18" y="24" width="28" height="5" rx="2.5" fill="#27272a"/>`][L.acc];
-  return `<span class="av"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" style="fill:var(--av-tile)"/>
-    <g fill="${hr}">${back}</g><path d="M11 64q2-17 21-17t21 17z" style="fill:var(--av-shirt)" stroke="${ink}" stroke-width="1.6"/><rect x="28.5" y="40" width="7" height="9" rx="2" fill="${sk}"/>
+  return `<span class="av"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" style="fill:hsl(${hue} var(--av-tile))"/>
+    <g fill="${hr}">${back}</g><path d="M11 64q2-17 21-17t21 17z" style="fill:hsl(${hue} var(--av-shirt))" stroke="${ink}" stroke-width="1.6"/><rect x="28.5" y="40" width="7" height="9" rx="2" fill="${sk}"/>
     <circle cx="32" cy="30" r="13" fill="${sk}" stroke="${ink}" stroke-width="1.6"/><g fill="${hr}">${front}</g><g fill="${ink}" stroke="${ink}" stroke-linecap="round">${E[mood]}${M[mood]}</g>${A}</svg></span>`;
 }
 
@@ -217,6 +218,13 @@ function renderSheet() {
       <div class="sheet-body">${body}</div></div></div>`;
 }
 const saved = () => toast("Saved");
+const theme = () => { try { return localStorage.getItem("onecorp.theme") || "system"; } catch { return "system"; } };
+function setTheme(t) {
+  try { t === "system" ? localStorage.removeItem("onecorp.theme") : localStorage.setItem("onecorp.theme", t); } catch {}
+  if (t === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  // The title bar follows too, so the traffic lights sit on the right colour.
+  window.__TAURI__?.window?.getCurrentWindow().setTheme(t === "system" ? null : t).catch(() => {});
+}
 function companySection() {
   const st = S.settings;
   if (!st) return `<p class="muted">Opening…</p>`;
@@ -261,9 +269,10 @@ function youSection() {
     ? `<div class="confirm"><p>OneCorp forgets your name and photo and asks again. Your companies stay.</p><div class="acts"><button class="btn danger" data-forget="1">Forget me</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
     : `<div class="row-set"><div><b>Forget your profile</b><span>Your companies stay.</span></div><button class="btn danger-ghost" data-confirm="forget">Forget…</button></div>`;
   const pic = window.__TAURI__?.dialog ? `<button type="button" class="pf-pic pick-pic" data-you-photo="1" title="Change photo">${me()}</button>` : `<span class="pf-pic">${me()}</span>`;
-  return `<form id="you-form" class="row-set you-form"><div class="who-row">${pic}<div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(f?.name || "")}" autocomplete="off"></div></div>
+  return `<form id="you-form" class="row-set you-form"><div class="who-row">${pic}<div class="field"><label for="pf-name">Your name</label><input id="pf-name" value="${esc(f?.name || "")}" autocomplete="off"><span class="fine">Your team knows you by this name.</span></div></div>
       ${f?.photo ? `<button class="link-btn" type="button" data-you-nophoto="1">Remove photo</button>` : ""}</form>
-    <p class="fine">Your team knows you by this name. It stays on this Mac.</p>
+    <div class="row-set"><div><b>Theme</b><span>Follows your Mac unless you pick one.</span></div>
+      <div class="seg">${[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([k, n]) => `<button data-theme-pick="${k}" aria-pressed="${k === theme()}">${n}</button>`).join("")}</div></div>
     <h3 class="label danger-label">Danger zone</h3>${forget}`;
 }
 async function openSettings(tab = "company") {
@@ -1238,7 +1247,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1360,6 +1369,7 @@ document.addEventListener("click", async e => {
     if (path && await saveProfile(String(path))) { saved(); render(); renderSheet(); }
     return;
   }
+  if (d.themePick) { setTheme(d.themePick); return renderSheet(); }
   if (d.youNophoto) { if (await saveProfile(null, true)) { saved(); render(); renderSheet(); } return; }
   if (d.settingsTab) return openSettings(d.settingsTab);
   if (d.keepGoing) { await call("keep_going_today", { company: S.company }, "Going on for today. The budget applies again tomorrow").catch(() => {}); return; }

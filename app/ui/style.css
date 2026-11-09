@@ -8,26 +8,42 @@
   --floor: #f4f4f5; --floor-dot: #e4e4e7; --desk: #d4d4d8; --desk-edge: #a1a1aa;
   --term-bg: #09090b; --term-fg: #d4d4d8; --term-dim: #71717a; --term-ok: #4ade80; --term-cmd: #7cb4ff;
   --grid: rgba(9, 9, 11, .05);
-  --av-tile: #e4e4e7; --av-shirt: #3f3f46;
+  --av-tile: 55% 88%; --av-shirt: 38% 42%;  /* saturation and lightness; the hue is the person's */
   --display: "Geist", "Inter", -apple-system, "SF Pro Display", system-ui, sans-serif;
   --body: "Geist", "Inter", -apple-system, "SF Pro Text", system-ui, sans-serif;
   --mono: "Geist Mono", "SF Mono", ui-monospace, Menlo, monospace;
   /* Three radii for everything: controls, cards, big surfaces */
   --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Dark: from your Mac, or picked in Settings. data-theme wins over the system either way. */
+:root[data-theme="dark"] {
     --bg: #09090b; --surface: #111113; --surface-2: #18181b; --line: #27272a;
     --fg: #fafafa; --muted: #a1a1aa; --accent: #4c9aff; --accent-soft: #10223d;
     --signal: #f59e0b; --signal-soft: #2b1d08; --good: #4ade80; --good-soft: #0d2617;
     --floor: #0c0c0e; --floor-dot: #1f1f23; --desk: #3f3f46; --desk-edge: #27272a; --term-bg: #000;
     --grid: rgba(255, 255, 255, .045);
-    --av-tile: #52525b; --av-shirt: #a1a1aa;
+    --av-tile: 28% 30%; --av-shirt: 30% 52%;
+    color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #09090b; --surface: #111113; --surface-2: #18181b; --line: #27272a;
+    --fg: #fafafa; --muted: #a1a1aa; --accent: #4c9aff; --accent-soft: #10223d;
+    --signal: #f59e0b; --signal-soft: #2b1d08; --good: #4ade80; --good-soft: #0d2617;
+    --floor: #0c0c0e; --floor-dot: #1f1f23; --desk: #3f3f46; --desk-edge: #27272a; --term-bg: #000;
+    --grid: rgba(255, 255, 255, .045);
+    --av-tile: 28% 30%; --av-shirt: 30% 52%;
     color-scheme: dark;
   }
 }
 
 * { box-sizing: border-box; }
+/* Thin scrollbars that only show the thumb, like the rest of macOS. */
+::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) 16%, transparent); border: 3px solid transparent; border-radius: 99px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--fg) 28%, transparent); }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--body); -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -1053,6 +1069,7 @@ table.sp .who .av { width: 20px; height: 20px; }
 .money-in.inline input { width: 72px; }
 .you-form .field { display: flex; flex-direction: column; gap: 4px; }
 .you-form .field input { width: 240px; }
+.you-form .field .fine { margin: 0; }
 .you-form .pf-pic .av { width: 44px; height: 44px; }
 .set-main .fine { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
