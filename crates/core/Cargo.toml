@@ -3,6 +3,8 @@ name = "onecorp"
 description = "Everything that runs a OneCorp company: store, tickets, runtimes, git, the company MCP server"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true

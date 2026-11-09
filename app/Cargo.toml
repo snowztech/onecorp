@@ -3,6 +3,8 @@ name = "onecorp-app"
 description = "The OneCorp desktop app"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 onecorp.workspace = true

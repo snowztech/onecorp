@@ -30,7 +30,7 @@ enum Cmd {
         /// With --github, make it public. Private by default
         #[arg(long, requires = "github")]
         public: bool,
-        /// Start with a team: solo, small, startup, oss or empty. demo is a stand-in team with no AI, for trying the CLI
+        /// Start with a team: solo, startup, indie, oss, agency or empty. small is a product team. demo is a stand-in team with no AI, for trying the CLI
         #[arg(long)]
         team: Option<String>,
         /// Runtime for the starting team, like claude or codex

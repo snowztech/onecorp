@@ -3,7 +3,8 @@
 // Opened in a plain browser (no Tauri), it runs on sample data so the design can be checked quickly.
 
 const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : preview;
-if (window.__TAURI__) document.documentElement.classList.add("native");
+// Room for the window buttons in the app, and in screenshots that draw them (?native).
+if (window.__TAURI__ || /[?&]native\b/.test(location.search)) document.documentElement.classList.add("native");
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
@@ -1741,6 +1742,8 @@ document.addEventListener("keydown", e => {
 // straight onto that screen, so each one can be looked at and screenshotted. Never used in the app.
 async function previewScreen() {
   const screen = location.hash.slice(1);
+  // ?light or ?dark, for screenshots in either theme.
+  if (/[?&](light|dark)\b/.test(location.search)) document.documentElement.dataset.theme = location.search.includes("light") ? "light" : "dark";
   await refresh(true);
   if (screen === "settings") await openSettings();
   if (screen === "switcher") { S.switching = true; renderSide(); }
@@ -1816,13 +1819,16 @@ function preview(cmd, args) {
     github_repos: [["snowztech/vikusha", "A Go framework for building AI agents", false], ["snowztech/onecorp", "Run a company of AI employees", false], ["lucas/notes", "Notes app for writers", true], ["snowztech/website", "", false]].map(([name, description, priv]) => ({ name, description, private: priv })),
     setup_info: { runtimes: ["claude", "fake"], voices: VOICES, templates: [
       { key: "solo", name: "Solo builder", description: "One engineer who ships. Hire more when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
-      { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", voice: "calm", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", role: "Product manager", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth writer", dept: "Growth" }] },
+      { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", voice: "calm", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", voice: "upbeat", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", voice: "terse", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", voice: "curious", role: "Product manager", dept: "Product" }, { name: "Lina Park", voice: "warm", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", voice: "dry", role: "Growth writer", dept: "Growth" }] },
       { key: "indie", name: "Indie maker", description: "Build it and launch it yourself: an engineer, a designer, and a growth marketer.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth marketer", dept: "Growth" }] },
       { key: "agency", name: "Agency", description: "Client work: a PM who plans, two engineers, a designer, and a QA reviewer who checks every change.", runtime: null, hires: [{ name: "Rui Alves", role: "Project manager", dept: "Delivery" }, { name: "Maya Okafor", role: "Engineer", dept: "Delivery" }, { name: "Tomás Reis", role: "Engineer", dept: "Delivery" }, { name: "Lina Park", role: "Product designer", dept: "Delivery" }, { name: "Odile Martin", role: "QA reviewer", dept: "Delivery" }] },
       { key: "oss", name: "Open source", description: "A maintainer who reviews every change, an engineer, and a writer for docs and changelogs.", runtime: null, hires: [{ name: "Odile Martin", role: "Maintainer", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Sam Duarte", role: "Docs writer", dept: "Docs" }] },
       { key: "empty", name: "Start empty", description: "No one yet. Add departments and hire them yourself.", runtime: null, hires: [] }] },
     ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
-      log: [{ at: "2026-11-09 10:40:00", kind: "start", summary: "claude (opus), started" }, { at: "2026-11-09 10:58:00", kind: "commit", summary: "c3dbf20 SNO-11: Pricing page" }, { at: "2026-11-09 11:02:00", kind: "done", summary: "finished, $0.31" }] },
+      log: [["10:40", "start", "claude (opus), started"], ["10:40", "tool", "Read src/routes/mod.rs"], ["10:41", "say", "Pricing lives next to the landing page, reusing the plan cards from settings."],
+        ["10:44", "tool", "Write src/routes/pricing.rs"], ["10:47", "tool", "Edit templates/pricing.html"], ["10:49", "tool", "Bash cargo test pricing"], ["10:50", "error", "test pricing::pro_monthly ... FAILED"],
+        ["10:52", "tool", "Edit src/routes/pricing.rs"], ["10:54", "tool", "Bash cargo test"], ["10:55", "say", "All 48 tests pass. Pro shows $6 a month, yearly saves two months."],
+        ["10:56", "tool", "post_message Pricing page is up for review"], ["10:58", "commit", "c3dbf20 SNO-11: Pricing page"], ["11:02", "done", "finished, $0.31"]].map(([t, kind, summary]) => ({ at: `2026-11-09 ${t}:00`, kind, summary })) },
     new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
     readiness: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4", fix: null },
       { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex" }, { level: "warn", what: "GitHub CLI", detail: "installed but not signed in", fix: "gh auth login" }],
