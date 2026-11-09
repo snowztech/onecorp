@@ -2,7 +2,7 @@
 
 Run a company of AI employees. Hire a team, give them tickets, watch them work in real repos, approve what ships.
 
-Early days. Employees run on Claude Code or Codex, and everything happens in the CLI. The idea, product and brand notes live in [docs/vision](docs/vision). Where this is going and what is next: [ROADMAP.md](ROADMAP.md).
+Early days. Employees run on Claude Code or Codex, and everything happens in the CLI. The idea, product and brand notes live in [docs/vision](docs/vision). Where this is going and what is next: [ROADMAP.md](ROADMAP.md). How it works inside: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Layout
 

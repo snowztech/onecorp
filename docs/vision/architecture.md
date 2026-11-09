@@ -1,3 +1,5 @@
+> Early design notes, written before the code. For how OneCorp works today, see [../ARCHITECTURE.md](../ARCHITECTURE.md).
+
 # Architecture
 
 ## Stack
