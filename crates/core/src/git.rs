@@ -113,6 +113,49 @@ pub fn fast_forward(repo: &Path, base: &str, branch: &str) -> Result<()> {
     Ok(())
 }
 
+/// One file a ticket changed. Binary files count as 0 lines.
+pub struct Change {
+    pub path: String,
+    pub added: u32,
+    pub removed: u32,
+}
+
+/// What `branch` changed since it left `base`. Three dots: later work on base doesn't show up here.
+pub fn changes(repo: &Path, base: &str, branch: &str) -> Result<Vec<Change>> {
+    let out = git(repo, &["diff", "--numstat", &format!("{base}...{branch}")], &[])?;
+    Ok(out
+        .lines()
+        .filter_map(|l| {
+            let mut parts = l.splitn(3, '\t');
+            let (a, r, path) = (parts.next()?, parts.next()?, parts.next()?);
+            Some(Change { path: path.to_string(), added: a.parse().unwrap_or(0), removed: r.parse().unwrap_or(0) })
+        })
+        .collect())
+}
+
+/// (short hash, author, subject) for each commit on `branch` that isn't on `base`, oldest first.
+pub fn commits(repo: &Path, base: &str, branch: &str) -> Result<Vec<(String, String, String)>> {
+    let out = git(repo, &["log", "--reverse", "--format=%h%x09%an%x09%s", &format!("{base}..{branch}")], &[])?;
+    Ok(out
+        .lines()
+        .filter_map(|l| {
+            let mut p = l.splitn(3, '\t');
+            Some((p.next()?.to_string(), p.next()?.to_string(), p.next()?.to_string()))
+        })
+        .collect())
+}
+
+/// The full patch, cut at `max` bytes so a huge change can't freeze the window. True when cut.
+pub fn patch(repo: &Path, base: &str, branch: &str, max: usize) -> Result<(String, bool)> {
+    let mut out = git(repo, &["diff", "--no-color", &format!("{base}...{branch}")], &[])?;
+    if out.len() <= max {
+        return Ok((out, false));
+    }
+    let cut = (0..=max).rev().find(|&i| out.is_char_boundary(i)).unwrap_or(0);
+    out.truncate(cut);
+    Ok((out, true))
+}
+
 /// Removes a finished ticket's worktree and branch.
 pub fn clean_up(repo: &Path, wt: &Path, branch: &str) -> Result<()> {
     git(repo, &["worktree", "remove", &wt.to_string_lossy()], &[])?;
@@ -156,6 +199,14 @@ mod tests {
         commit_all(&wt2, "t2", &me).unwrap();
         write(&repo.join("a.txt"), "main\n");
         commit_all(&repo, "main moved", &me).unwrap();
+
+        // What the reviewer sees: only the ticket's own change, even though main moved since.
+        let ch = changes(&repo, "main", &b2).unwrap();
+        assert_eq!((ch.len(), ch[0].path.as_str(), ch[0].added, ch[0].removed), (1, "a.txt", 1, 1));
+        assert_eq!(commits(&repo, "main", &b2).unwrap().iter().map(|c| c.2.as_str()).collect::<Vec<_>>(), vec!["t2"]);
+        let (p, cut) = patch(&repo, "main", &b2, 1_000_000).unwrap();
+        assert!(p.contains("+ticket") && !cut);
+        assert!(patch(&repo, "main", &b2, 10).unwrap().1);
 
         let Merge::Conflicts(files) = merge_base_into(&wt2, "main", &me).unwrap() else { panic!("expected a conflict") };
         assert_eq!(files, vec!["a.txt".to_string()]);

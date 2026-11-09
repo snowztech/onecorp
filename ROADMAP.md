@@ -45,7 +45,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [x] Person drawer: what they're doing now, memory, tickets
 - [x] Company switcher in the sidebar
 - [ ] Board and Chat pages
-- [ ] Reviews in the Inbox show the real changes: files, diff, commits, cost
+- [x] Reviews in the Inbox show the real changes: commits, files, diff
 - [ ] Handbook page: read, edit and accept proposals in the app
 - [ ] New company flow in the app (today it's `onecorp new`)
 - [ ] Questions go to the department lead before they reach you
@@ -56,6 +56,7 @@ One Company page instead of separate Office, Team and Org screens: you on top, d
 - [ ] Faces and personality from the prototype (generated avatars, moods, voice in chat)
 - [ ] Budgets and payroll: a daily cap per employee and per company, pause at the cap
 - [ ] Pi runtime
+- [ ] Extra MCP servers per employee, picked at hiring (GitHub, Figma, Notion…), next to the company tools
 - [ ] Let Claude employees build and test, in a sandbox
 - [ ] `whats_happening` tool, so employees see what teammates are working on
 

@@ -7,7 +7,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
-const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false };
+const S = { companies: [], company: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, diffs: {} };
 
 function toast(msg, isError) {
   const t = $("#toast");
@@ -148,7 +148,8 @@ function question(q) {
 function review(r) {
   return `<article class="ask review">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)} · ${esc(r.spend)}</span><h4>${esc(r.title)}</h4><p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>
-    <div class="acts"><button class="btn good" data-approve="${esc(r.key)}">Approve and merge</button></div>
+    <div class="acts"><button class="btn good" data-approve="${esc(r.key)}">Approve and merge</button>${S.diffs[r.key] ? "" : `<button class="btn" data-diff="${esc(r.key)}">Show changes</button>`}</div>
+    ${changes(r.key)}
     <form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="Or ask for changes…"><button class="btn">Send back</button></form></div></article>`;
 }
 function handbook(q) {
@@ -156,6 +157,29 @@ function handbook(q) {
     <span class="kind">Handbook · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the handbook</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
     <form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Or add it in your own words…"><button class="btn">Add</button></form></div></article>`;
+}
+
+/* The changes behind a review: commits, files, then the diff file by file. Loaded on click. */
+function changes(key) {
+  const d = S.diffs[key];
+  if (!d) return "";
+  if (d === "loading") return `<div class="changes"><p class="muted">Loading the changes…</p></div>`;
+  const files = d.files.length;
+  const commits = d.commits.map(c => `<li><span class="mono">${esc(c.hash)}</span> ${esc(c.subject)} <span class="muted">· ${esc(c.author)}</span></li>`).join("");
+  const blocks = d.patch.split(/^(?=diff --git )/m).filter(b => b.startsWith("diff --git"));
+  const open = d.added + d.removed < 300;
+  const body = blocks.map(b => {
+    const path = (b.match(/^diff --git a\/(.+?) b\//) || [])[1] || "file";
+    const f = d.files.find(x => x.path === path) || { added: 0, removed: 0 };
+    const lines = b.replace(/\n$/, "").split("\n").slice(1).filter(l => !/^(index |--- |\+\+\+ |new file mode|deleted file mode|similarity|rename )/.test(l));
+    const html = lines.map(l => `<span class="${l.startsWith("@@") ? "hunk" : l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : ""}">${esc(l) || " "}</span>`).join("\n");
+    return `<details class="file" ${open ? "open" : ""}><summary><span class="mono">${esc(path)}</span><span class="n"><span class="ok">+${f.added}</span> <span class="del">−${f.removed}</span></span></summary><pre class="patch">${html}</pre></details>`;
+  }).join("");
+  return `<div class="changes">
+    <div class="diffsum"><b>${files} ${files === 1 ? "file" : "files"}</b> <span class="ok">+${d.added}</span> <span class="del">−${d.removed}</span> <span class="muted">· ${esc(d.branch)} into ${esc(d.base)}</span>
+      <button class="btn" data-hide-diff="${esc(key)}">Hide</button></div>
+    ${commits ? `<ul class="commits">${commits}</ul>` : ""}${body || `<p class="muted">No file changes on this branch.</p>`}
+    ${d.truncated ? `<p class="muted">This change is too big to show in full. See the rest with <code>onecorp diff ${esc(key)}</code>.</p>` : ""}</div>`;
 }
 
 /* Drawers: a person, or hiring into a department */
@@ -253,9 +277,16 @@ async function refresh(force) {
 /* Actions */
 document.addEventListener("click", async e => {
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
+  if (d.diff) {
+    S.diffs[d.diff] = "loading"; render();
+    try { S.diffs[d.diff] = await invoke("review", { company: S.company, key: d.diff }); }
+    catch (err) { delete S.diffs[d.diff]; toast(String(err), true); }
+    return render();
+  }
+  if (d.hideDiff) { delete S.diffs[d.hideDiff]; return render(); }
   if (d.co) { S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
   else if (d.view) { S.view = d.view; render(); }
   else if (d.person) openPerson(d.person);
@@ -334,6 +365,10 @@ function preview(cmd) {
       activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }],
       memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing"] },
   };
+  data.review = { key: "SNO-11", title: "Pricing page", base: "main", branch: "onecorp/snowztech/sno-11", added: 5, removed: 1,
+    files: [{ path: "web/src/pages/pricing.tsx", added: 4, removed: 1 }, { path: "README.md", added: 1, removed: 0 }],
+    commits: [{ hash: "c3dbf20", author: "Odile Martin", subject: "SNO-11: pricing page" }],
+    patch: "diff --git a/web/src/pages/pricing.tsx b/web/src/pages/pricing.tsx\nindex 1..2 100644\n--- a/web/src/pages/pricing.tsx\n+++ b/web/src/pages/pricing.tsx\n@@ -1,3 +1,6 @@\n export function Pricing() {\n-  return null\n+  return <>\n+    <Plan name=\"Free\" price={0} />\n+    <Plan name=\"Pro\" price={6} />\n+  </>\n }\ndiff --git a/README.md b/README.md\nindex 3..4 100644\n--- a/README.md\n+++ b/README.md\n@@ -1 +1,2 @@\n # Notes\n+Pricing: free, or $6 a month.\n", truncated: false };
   if (data[cmd]) return Promise.resolve(data[cmd]);
   return Promise.reject("This is a preview. Open the OneCorp app to make changes.");
 }

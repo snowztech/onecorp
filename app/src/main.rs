@@ -69,6 +69,13 @@ fn request_changes(company: String, key: String, feedback: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
+fn review(company: String, key: String) -> Res<Value> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    onecorp::view::review(&c, &t).map_err(err)
+}
+
+#[tauri::command(async)]
 fn person(company: String, id: String) -> Res<Value> {
     onecorp::view::person(&open(&company)?, &id).map_err(err)
 }
@@ -130,6 +137,7 @@ fn main() {
             use_company,
             snapshot,
             person,
+            review,
             new_ticket,
             answer,
             approve,

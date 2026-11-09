@@ -109,6 +109,26 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     }))
 }
 
+/// Everything a reviewer needs for one ticket: the files, the commits and the patch.
+pub fn review(c: &Company, ticket: &Ticket) -> Result<Value> {
+    let key = c.key(ticket.id);
+    let branch = ticket.branch.clone().ok_or_else(|| anyhow::anyhow!("{key} hasn't started, so there's nothing to review"))?;
+    let repo = c.repo()?;
+    let base = match &ticket.base {
+        Some(b) => b.clone(),
+        None => crate::git::current_branch(&repo)?,
+    };
+    let files = crate::git::changes(&repo, &base, &branch)?;
+    let (patch, cut) = crate::git::patch(&repo, &base, &branch, 200_000)?;
+    Ok(json!({
+        "key": key, "title": ticket.title, "base": base, "branch": branch,
+        "added": files.iter().map(|f| f.added).sum::<u32>(), "removed": files.iter().map(|f| f.removed).sum::<u32>(),
+        "files": files.iter().map(|f| json!({"path": f.path, "added": f.added, "removed": f.removed})).collect::<Vec<_>>(),
+        "commits": crate::git::commits(&repo, &base, &branch)?.iter().map(|(h, a, s)| json!({"hash": h, "author": a, "subject": s})).collect::<Vec<_>>(),
+        "patch": patch, "truncated": cut,
+    }))
+}
+
 /// One employee, for the person drawer: their tickets, what they're doing, what they've learned.
 pub fn person(c: &Company, id: &str) -> Result<Value> {
     let e = c.employee(id)?.ok_or_else(|| anyhow::anyhow!("nobody called {id} works at {}", c.name))?;
