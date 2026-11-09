@@ -140,7 +140,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
 
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
-    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: &mcp, resume: None, env: &[], read_only: true };
+    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: &mcp, resume: None, env: &[], read_only: true, on_spawn: None };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -364,6 +364,43 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
     dispatch(c, t.id, Job::Resume { why: "with your feedback".into(), prompt, label: "changes from review".into() })
 }
 
+/// Stops a ticket: ends its agent if it's working, or cancels it if it's waiting in the queue.
+/// Either way it ends up stopped (failed), and `retry` picks it back up, in the same session when there is one.
+pub fn stop(c: &Company, t: &Ticket) -> Result<()> {
+    let key = c.key(t.id);
+    match t.status.as_str() {
+        "doing" => {
+            c.add_event(t.id, "stop", "stopped by the founder", "")?;
+            // No pid means nothing to end: it's between steps, or on the stand-in runtime.
+            if let Some(pid) = c.agent_pid(t.id)? {
+                // Ask nicely first, so the agent can wrap up its session file.
+                let kill = |sig: &str| std::process::Command::new("kill").args([sig, &pid.to_string()]).status();
+                let _ = kill("-TERM");
+                for _ in 0..30 {
+                    if !store::alive(pid) {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                if store::alive(pid) {
+                    let _ = kill("-KILL");
+                }
+                c.set_agent_pid(t.id, None)?;
+            }
+            c.set_status(t.id, "failed")?;
+            out(&format!("Stopped {key}. Pick it back up anytime: onecorp retry {key}"));
+        }
+        "queued" => {
+            c.cancel_queued(t.id)?;
+            c.add_event(t.id, "stop", "cancelled before it started", "")?;
+            c.set_status(t.id, "failed")?;
+            out(&format!("Cancelled {key} before it started. Run it later: onecorp retry {key}"));
+        }
+        s => bail!("{key} is {s}, so there's nothing to stop"),
+    }
+    Ok(())
+}
+
 /// Tries a failed ticket again. With a session and a worktree to go back to, the same session picks
 /// up where it stopped, so finished work isn't redone. Without them, it starts over cleanly.
 pub fn retry(c: &Company, t: &Ticket) -> Result<()> {
@@ -453,12 +490,15 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     // The agent starts this same binary as the company's MCP server, scoped to this ticket.
     let mcp = company_tools(c, id, &e.id)?;
     let identity = git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name));
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity, read_only: false };
+    let remember_pid = |pid: u32| {
+        let _ = c.set_agent_pid(id, Some(pid));
+    };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: &mcp, resume, env: &identity, read_only: false, on_spawn: Some(&remember_pid) };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
     let mut last_say = String::new();
-    runtime::run(&e.runtime, &opts, prompt, |raw, ev| {
+    let run = runtime::run(&e.runtime, &opts, prompt, |raw, ev| {
         let (kind, summary) = match &ev {
             Event::Init { session, model } => {
                 c.set_session(id, session)?;
@@ -488,8 +528,20 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Ok(())
     })
     .inspect_err(|_| {
+        let _ = c.set_agent_pid(id, None);
         let _ = c.finish_ticket(id, "failed", 0.0, 0);
-    })?;
+    });
+    if let Err(err) = run {
+        // A stop you asked for ends the agent on purpose. That's not an error worth shouting about.
+        // The agent may print a few more lines after the stop, so look back to this run's start.
+        let stopped = c.events(id)?.iter().rev().take_while(|(_, kind, _)| kind != "start").any(|(_, kind, _)| kind == "stop");
+        if stopped {
+            out(&format!("{key} stopped. Pick it back up anytime: onecorp retry {key}"));
+            return Ok(());
+        }
+        return Err(err);
+    }
+    c.set_agent_pid(id, None)?;
 
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     let text = if text.is_empty() { last_say } else { text };

@@ -29,7 +29,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         cmd.args(["--resume", s]);
     }
     // The prompt goes on stdin: --allowedTools takes a list and would swallow a trailing argument.
-    stream(cmd, prompt, parse, on)
+    stream(cmd, prompt, parse, o.on_spawn, on)
 }
 
 pub fn parse(line: &str) -> Vec<Event> {

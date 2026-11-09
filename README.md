@@ -42,6 +42,7 @@ onecorp logs SNO-1
 onecorp diff SNO-1                            # what the ticket changed
 onecorp changes SNO-1 "use a match instead"   # send it back, same session picks it up
 onecorp approve SNO-1                         # merge into the branch it started from
+onecorp stop SNO-4                            # stop a run, or cancel a queued ticket
 onecorp retry SNO-4                           # try a ticket that stopped or failed again
 onecorp inbox                                 # questions your team is waiting on
 onecorp answer 1 "go with 15 minutes"

@@ -44,6 +44,8 @@ pub struct Opts<'a> {
     pub env: &'a [(String, String)],
     /// Look, don't touch: no file edits. Used when a lead answers a question.
     pub read_only: bool,
+    /// Called with the agent's process id once it starts, so the run can be stopped.
+    pub on_spawn: Option<&'a dyn Fn(u32)>,
 }
 
 pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
@@ -109,7 +111,13 @@ fn login_shell_path() -> Option<String> {
 
 /// Starts `cmd`, writes the prompt to its stdin, and feeds each parsed line to `on`.
 /// Fails if the process ends without a Done event.
-pub fn stream(mut cmd: Command, prompt: &str, parse: fn(&str) -> Vec<Event>, mut on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
+pub fn stream(
+    mut cmd: Command,
+    prompt: &str,
+    parse: fn(&str) -> Vec<Event>,
+    on_spawn: Option<&dyn Fn(u32)>,
+    mut on: impl FnMut(&str, Event) -> Result<()>,
+) -> Result<()> {
     let program = cmd.get_program().to_string_lossy().into_owned();
     // Setting PATH on the command also makes it the PATH used to find the program.
     let mut child = cmd
@@ -119,6 +127,9 @@ pub fn stream(mut cmd: Command, prompt: &str, parse: fn(&str) -> Vec<Event>, mut
         .stderr(Stdio::piped())
         .spawn()
         .with_context(|| format!("could not start {program}. Is it installed and on PATH?"))?;
+    if let Some(f) = on_spawn {
+        f(child.id());
+    }
 
     // Dropping the handle closes stdin, which tells the agent the prompt is complete.
     child.stdin.take().unwrap().write_all(prompt.as_bytes())?;

@@ -34,7 +34,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         cmd.args(["resume", s]);
     }
     // No prompt argument: codex reads it from stdin.
-    stream(cmd, prompt, parse, on)
+    stream(cmd, prompt, parse, o.on_spawn, on)
 }
 
 pub fn parse(line: &str) -> Vec<Event> {

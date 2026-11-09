@@ -141,6 +141,12 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// Stop a ticket that's running, or cancel one waiting in the queue
+    Stop {
+        ticket: String,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Try a ticket that stopped or failed again
     Retry {
         ticket: String,
@@ -495,6 +501,10 @@ fn run(cmd: Cmd) -> Result<()> {
         Cmd::Approve { ticket, company } => {
             let c = open(company)?;
             work::approve(&c, &find_ticket(&c, &ticket)?)?;
+        }
+        Cmd::Stop { ticket, company } => {
+            let c = open(company)?;
+            work::stop(&c, &find_ticket(&c, &ticket)?)?;
         }
         Cmd::Retry { ticket, company } => {
             let c = open(company)?;

@@ -108,6 +108,8 @@ What employees know comes from four places, all assembled in `work::start`:
 
 Every run is a row in `jobs` with the process id running it, inline runs included. `recover_interrupted` checks whether that process still exists, and when it's gone (Ctrl-C, a crash, the app closed mid-ticket) marks the job and its ticket failed. It runs in serve's loop, in `onecorp status` and on every app refresh, and never touches a run that's still alive. `work::retry` then picks the same session back up if there is one, or starts over in a clean worktree.
 
+Each run also records its agent's process id on the ticket (`tickets.agent_pid`, set through `runtime::Opts::on_spawn`). `work::stop` uses it to end a run you want to stop: a polite TERM, then KILL if the agent is still there after 3 seconds. A queued ticket just has its job cancelled. Either way it ends up failed, with a `stop` event, so `retry` resumes it later.
+
 The desktop app runs serve on a background thread while it's open.
 
 ## The desktop app

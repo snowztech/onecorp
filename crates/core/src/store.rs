@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   session_id TEXT,
   cost_usd REAL NOT NULL DEFAULT 0,
   tokens INTEGER NOT NULL DEFAULT 0,
+  agent_pid INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS events (
@@ -376,6 +377,24 @@ impl Company {
         Ok(())
     }
 
+    /// The process id of the agent working on a ticket right now, if any.
+    pub fn agent_pid(&self, ticket: i64) -> Result<Option<u32>> {
+        Ok(self.db.query_row("SELECT agent_pid FROM tickets WHERE id = ?1", [ticket], |r| r.get(0)).optional()?.flatten())
+    }
+
+    pub fn set_agent_pid(&self, ticket: i64, pid: Option<u32>) -> Result<()> {
+        self.db.execute("UPDATE tickets SET agent_pid = ?2 WHERE id = ?1", params![ticket, pid])?;
+        Ok(())
+    }
+
+    /// Drops a ticket's jobs that haven't started yet. Returns how many.
+    pub fn cancel_queued(&self, ticket: i64) -> Result<usize> {
+        Ok(self.db.execute(
+            "UPDATE jobs SET started_at = datetime('now'), finished_at = datetime('now'), error = 'cancelled' WHERE ticket_id = ?1 AND started_at IS NULL",
+            [ticket],
+        )?)
+    }
+
     /// Back to a fresh ticket: no branch, worktree or session.
     pub fn reset_ticket(&self, id: i64) -> Result<()> {
         self.db.execute(
@@ -706,7 +725,7 @@ fn row_to_question(r: &rusqlite::Row) -> rusqlite::Result<Question> {
 }
 
 /// Whether a process is still running. `kill -0` sends nothing, it only checks.
-fn alive(pid: u32) -> bool {
+pub(crate) fn alive(pid: u32) -> bool {
     pid == std::process::id()
         || std::process::Command::new("kill").args(["-0", &pid.to_string()]).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success())
 }
@@ -721,6 +740,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("tickets", "base", "TEXT"),
         ("inbox", "kind", "TEXT NOT NULL DEFAULT 'question'"),
         ("jobs", "pid", "INTEGER"),
+        ("tickets", "agent_pid", "INTEGER"),
         ("inbox", "stage", "TEXT NOT NULL DEFAULT 'founder'"),
         ("inbox", "via", "TEXT"),
         ("inbox", "note", "TEXT"),
