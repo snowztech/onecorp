@@ -8,7 +8,7 @@ A developer tool first: neutral zinc greys, one crisp blue, tight type, mono lab
 
 ## Brand
 
-The OneCorp mark is one node directing three: you, and the agents who work for you. Abstract, geometric, one color (`currentColor`), so it reads as a developer tool and sits on any theme. It's the app icon (`docs/brand/icon.html`, rendered to `app/icons`) and the mark beside the name. One source: `logo()` in `app/ui/brand.js`. No mascots or faces in the brand: the faces belong to your team.
+The OneCorp mark is one node directing three: you, and the agents who work for you. Abstract, geometric, one color (`currentColor`), so it reads as a developer tool and sits on any theme. It's the app icon (`docs/brand/icon.html`, rendered to `app/icons`) and the mark beside the name. One source: `logo()` in `app/ui/brand.js`. No mascots or faces in the brand: the faces belong to your team. You, the founder, are a photo or your initials, so you never look like one of your agents.
 
 ## System
 

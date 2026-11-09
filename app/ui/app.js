@@ -71,8 +71,11 @@ const mergeLabel = () => (S.snap?.ship?.forge ? `Merge ${S.snap.ship.pr_word}` :
 /* You, the founder: your photo, or a face generated from your name */
 function me() {
   const f = S.founder;
-  return f?.photo ? `<span class="av"><img src="${esc(f.photo)}" alt=""></span>` : face(f?.name || "You", "neutral");
+  return f?.photo ? `<span class="av"><img src="${esc(f.photo)}" alt=""></span>` : monogram(f?.name);
 }
+// You, without a photo: your initials. Drawn faces are for your AI team, so you never look like one of them.
+const initials = name => (String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("") || "?").toUpperCase();
+const monogram = name => `<span class="av mono-av">${String(name || "").trim() ? esc(initials(name)) : icon("user")}</span>`;
 const myName = () => S.founder?.name || "You";
 const byId = id => (S.snap?.employees || []).find(e => e.id === id);
 const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S.snap.failed || []).length : 0);
@@ -695,9 +698,15 @@ async function openPerson(id) {
 
 /* Your profile: a name and a photo, kept on this Mac. No account. The first launch asks full screen,
    after that it's a small popover from your name in the sidebar. */
-const photoActs = () => `${window.__TAURI__?.dialog ? `<button class="link-btn" type="button" data-pf="pick">${S.founder?.photo ? "Change photo" : "Choose a photo"}</button>` : ""}
-  ${S.founder?.photo ? `<button class="link-btn" type="button" data-pf="face">Use a drawn face</button>` : ""}`.trim();
-const pfPic = name => (S.founder?.photo ? me() : face(name || "You", "neutral"));
+// Onboarding keeps a picked photo aside until you continue; afterwards a photo saves right away.
+const hasPhoto = () => !!(S.profile?.photoUrl || (!S.profile && S.founder?.photo) || (S.profile && S.founder?.photo && !S.profile.noPhoto));
+const photoActs = () => `${window.__TAURI__?.dialog ? `<button class="link-btn" type="button" data-pf="pick">${hasPhoto() ? "Change photo" : "Add a photo"}</button>` : ""}
+  ${hasPhoto() ? `<button class="link-btn" type="button" data-pf="face">Remove photo</button>` : ""}`.trim();
+function pfPic(name) {
+  if (S.profile?.photoUrl) return `<span class="av"><img src="${esc(S.profile.photoUrl)}" alt=""></span>`;
+  if (S.founder?.photo && !S.profile?.noPhoto) return me();
+  return monogram(name);
+}
 function focusTop(cancel) {
   return `<div class="focus-top" data-tauri-drag-region><span class="brand">${logo()}OneCorp</span>${cancel ? `<button class="btn ghost" type="button" data-su="cancel">Cancel</button>` : ""}</div>`;
 }
@@ -706,10 +715,10 @@ function viewProfile() {
   return onboarding("You", false, `<form class="onb-main welcome" id="profile">
       <h1>Who's running the company?</h1>
       <p class="muted">Your team works for you and knows you by name. Everything stays on this Mac. There's no account.</p>
-      <div class="me-row"><span class="pf-pic">${pfPic(S.profile.name)}</span><div class="field grow"><label for="pf-name">Your name</label>
+      <div class="me-row"><button type="button" class="pf-pic pick-pic" data-pf="pick" title="Add a photo">${pfPic(S.profile.name)}<span class="pick-hint">${hasPhoto() ? "Change" : "Photo"}</span></button><div class="field grow"><label for="pf-name">Your name</label>
         <input id="pf-name" value="${esc(S.profile.name)}" placeholder="Lucas" autocomplete="off">
         <p class="field-err" id="pf-err" hidden>Say what your team should call you.</p></div></div>
-      <div class="photo-acts">${photoActs() || `<span class="fine">Your face is drawn from your name. Add a photo anytime.</span>`}</div>
+      <div class="photo-acts">${photoActs() || `<span class="fine">Add a photo anytime.</span>`}</div>
       <div class="su-nav">${skip}<button class="btn primary">Continue</button></div>
     </form>`);
 }
@@ -1031,7 +1040,7 @@ document.addEventListener("click", async e => {
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
   }
-  if (d.skipSetup) { if (await saveProfile()) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
+  if (d.skipSetup) { if (await saveProfile(S.profile.photo, S.profile.noPhoto)) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
   if (d.hideStart) { try { localStorage.setItem("onecorp.started." + S.company, "hide"); } catch {} return render(); }
   if (d.brief) { S.view = "handbook"; S.open.brief = true; render(); await refresh(true); return $("#brief-text")?.focus(); }
   if (d.pause) {
@@ -1101,11 +1110,21 @@ document.addEventListener("click", async e => {
   if (d.sheetClose) { S.sheet = null; return renderSheet(); }
   if (d.pf) {
     if (d.pf === "cancel") { S.pop = false; return renderPop(); }
-    if (d.pf === "face") { if (await saveProfile(null, true)) { render(); renderPop(); } return; }
+    if (d.pf === "face") {
+      if (S.profile) { S.profile.photo = S.profile.photoUrl = null; S.profile.noPhoto = true; return render(); }
+      if (await saveProfile(null, true)) { render(); renderPop(); }
+      return;
+    }
     if (d.pf === "pick") {
-      const path = await window.__TAURI__.dialog.open({ multiple: false, title: "Pick a photo of you", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif", "heic"] }] }).catch(() => null);
-      // Saved straight away, so the preview shows the copy OneCorp keeps.
-      if (path && await saveProfile(String(path))) { render(); renderPop(); }
+      if (!window.__TAURI__?.dialog) return;
+      const path = await window.__TAURI__.dialog.open({ multiple: false, title: "Pick a photo of you", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }] }).catch(() => null);
+      if (!path) return;
+      // During onboarding the photo comes first, before your name: shown now, saved when you continue.
+      if (S.profile) {
+        try { S.profile.photoUrl = await invoke("image_preview", { path: String(path) }); S.profile.photo = String(path); S.profile.noPhoto = false; } catch (err) { toast(String(err), true); }
+        return render();
+      }
+      if (await saveProfile(String(path))) { render(); renderPop(); }
       return;
     }
   }
@@ -1193,7 +1212,7 @@ document.addEventListener("submit", async e => {
   }
   if (f.id === "profile") {
     const firstTime = !!S.profile;
-    if (!(await saveProfile())) return;
+    if (!(await saveProfile(S.profile?.photo, S.profile?.noPhoto))) return;
     if (!firstTime) { S.pop = false; renderPop(); render(); return toast("Saved"); }
     S.profile = null;
     // Continue follows the steps on screen, whether or not you already have a company.
@@ -1297,11 +1316,7 @@ document.addEventListener("input", e => {
     clearTimeout(faceLater.t);
     faceLater.t = setTimeout(() => { const pic = $(".hire-face"); if (pic) { pic.innerHTML = face(e.target.value || "New hire", "neutral"); pic.classList.remove("swap"); void pic.offsetWidth; pic.classList.add("swap"); } }, 400);
   }
-  // Your drawn face follows your name, but only once you pause, so it doesn't reshuffle with every letter.
-  if (e.target.id === "pf-name" && S.profile && !S.founder?.photo) {
-    clearTimeout(faceLater.t);
-    faceLater.t = setTimeout(() => { const pic = $(".welcome .pf-pic"); if (pic) { pic.innerHTML = face(e.target.value || "You", "neutral"); pic.classList.remove("swap"); void pic.offsetWidth; pic.classList.add("swap"); } }, 400);
-  }
+  if (e.target.id === "pf-name" && S.profile && !hasPhoto()) { const m = $(".welcome .mono-av"); if (m) m.innerHTML = e.target.value.trim() ? esc(initials(e.target.value)) : icon("user"); }
 });
 document.addEventListener("change", async e => {
   if (e.target.dataset?.planAssign) {
