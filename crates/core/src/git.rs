@@ -61,6 +61,24 @@ pub fn delete_remote_branch(repo: &Path, branch: &str) {
     let _ = run(repo, &["push", "--quiet", "origin", "--delete", branch], &[]);
 }
 
+/// The branch new work starts from: the one origin points to, otherwise main or master, and only
+/// then whatever is checked out. A feature branch you happen to be on is never the base.
+pub fn default_branch(repo: &Path) -> Result<String> {
+    let local = |b: &str| ok(repo, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{b}")]).unwrap_or(false);
+    if let Ok(head) = git(repo, &["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], &[])
+        && let Some(b) = head.strip_prefix("origin/")
+        && local(b)
+    {
+        return Ok(b.to_string());
+    }
+    for b in ["main", "master"] {
+        if local(b) {
+            return Ok(b.to_string());
+        }
+    }
+    current_branch(repo)
+}
+
 pub fn current_branch(repo: &Path) -> Result<String> {
     match git(repo, &["symbolic-ref", "--quiet", "--short", "HEAD"], &[]) {
         Ok(b) => Ok(b),

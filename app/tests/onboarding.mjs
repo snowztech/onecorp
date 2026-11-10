@@ -114,7 +114,7 @@ try {
   await type("#su-add", "/Users/you/dev/acme");
   await click('[data-su="add-path"]');
   await until(`document.querySelector(".repo-row .pill-state")`, "the main repo in the list");
-  assert.equal(await js(`document.querySelector(".repo-row b").textContent`), "acme");
+  assert.equal(await js(`document.querySelector("#su-rmain-name").value`), "acme", "the primary repo can be renamed");
   await type("#su-add", "/Users/you/dev/acme-api");
   await click('[data-su="add-path"]');
   await until(`document.querySelector("#su-r0-name")`, "the second repo");

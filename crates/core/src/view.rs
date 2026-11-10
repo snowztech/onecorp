@@ -323,7 +323,7 @@ pub fn review(c: &Company, ticket: &Ticket) -> Result<Value> {
     let repo = c.repo_of(ticket)?;
     let base = match &ticket.base {
         Some(b) => b.clone(),
-        None => crate::git::current_branch(&repo)?,
+        None => crate::git::default_branch(&repo)?,
     };
     let files = crate::git::changes(&repo, &base, &branch)?;
     let (patch, cut) = crate::git::patch(&repo, &base, &branch, 200_000)?;

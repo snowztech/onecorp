@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- New tickets start from the repo's main branch (the one origin points to, or main, or master), not whatever you have checked out, and approving lands there too. Being on a feature branch in your own checkout no longer changes your team's base.
+- Name the primary repo in onboarding, like the others.
 - The Repo step is one list: add repos from a folder, from GitHub or by pasting a path, and the first is the primary one. Each shows its branch, with a warning when it isn't on main, since new tickets start from it. Your GitHub repos load in the background, cloning says what it's doing, and the new repo is highlighted when it lands.
 - A calm launch: only the OneCorp mark shows until the app knows where you land, then it fades in, so the sidebar never flashes before onboarding. The very first launch opens on a welcome screen.
 - Company colors are muted tones that sit with the app's theme, graphite first. A company with no name yet shows a small building, not a question mark.

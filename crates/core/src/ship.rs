@@ -108,7 +108,7 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
     let (repo, wt) = (c.repo_of(t)?, Path::new(wt_s));
     let base = match &t.base {
         Some(b) => b.clone(),
-        None => git::current_branch(&repo)?,
+        None => git::default_branch(&repo)?,
     };
     let forge = forge_for(c, &repo)?;
     let who = t.assignee.as_deref().and_then(|id| c.employee(id).ok().flatten());

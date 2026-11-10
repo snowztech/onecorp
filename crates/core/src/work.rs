@@ -235,7 +235,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     let e = employee_of(c, t)?;
     let wt = c.dir.join("wt").join(key.to_lowercase());
     let repo = c.repo_of(t)?;
-    let started = git::current_branch(&repo).and_then(|base| {
+    let started = git::default_branch(&repo).and_then(|base| {
         // With pull requests, start from what's on the forge, not whatever is checked out locally.
         let from = ship::start_point(c, &repo, &base)?;
         let branch = git::add_worktree(&repo, &wt, &format!("onecorp/{}/{}", c.name, key.to_lowercase()), &from)?;

@@ -335,7 +335,7 @@ fn check_repo(path: String) -> Res<Value> {
     if !full.join(".git").exists() {
         return problem("That folder isn't a git repo. Run git init in it first, or pick its top folder.");
     }
-    let branch = match onecorp::git::current_branch(&full) {
+    let branch = match onecorp::git::default_branch(&full) {
         Ok(b) => b,
         Err(_) => return problem("The repo is on a detached HEAD. Check out a branch, like main, then try again."),
     };
@@ -359,7 +359,7 @@ fn check_repo(path: String) -> Res<Value> {
 // Tauri maps each named field from the app to an argument, so the list is the form.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
-fn create_company(name: String, repo: String, mission: String, people: Vec<Value>, brief: Option<String>, color: Option<String>, logo: Option<String>, repos: Option<Vec<Value>>) -> Res<String> {
+fn create_company(name: String, repo: String, mission: String, people: Vec<Value>, brief: Option<String>, color: Option<String>, logo: Option<String>, repos: Option<Vec<Value>>, repo_name: Option<String>) -> Res<String> {
     let s = |v: &Value, k: &str| v[k].as_str().unwrap_or("").trim().to_string();
     let people: Vec<onecorp::templates::Person> = people
         .iter()
@@ -374,6 +374,10 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
         })
         .collect();
     let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, &people, brief.as_deref().unwrap_or("")).map_err(err)?;
+    // What tickets and the planner call the primary repo, when you named it yourself.
+    if let Some(n) = repo_name.map(|n| onecorp::templates::suggest_name(&n)).filter(|n| !n.is_empty()) {
+        let _ = c.set_setting("repo.name", &n);
+    }
     // The other repos were checked in the flow. One that went missing since is left out, and can
     // be added again from Settings.
     for r in repos.unwrap_or_default() {

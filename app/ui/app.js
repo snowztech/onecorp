@@ -1085,6 +1085,7 @@ function readSetup() {
   const priv = document.getElementById("su-private");
   if (priv) s.private = priv.checked;
   (s.extra || []).forEach((x, i) => { const v = val(`su-r${i}-name`); if (v !== undefined) x.name = v.trim(); });
+  if (val("su-rmain-name") !== undefined) s.mainName = val("su-rmain-name").trim();
   s.people.forEach((p, i) => {
     for (const k of ["name", "role", "dept", "runtime", "voice"]) {
       const v = val(`su-p${i}-${k}`);
@@ -1276,9 +1277,9 @@ function viewSetup() {
       const folder = p => p.split("/").pop();
       const odd = b => b && !["main", "master", "trunk", "develop"].includes(b);
       const row = (x, i) => `<li class="repo-row ${x.path === s.justAdded ? "just" : ""}">
-          <span class="repo-name">${x.main ? `<b>${esc(folder(x.path))}</b><span class="pill-state">primary</span>` : `<input id="su-r${i}-name" class="mono" value="${esc(x.name)}" aria-label="Name for ${esc(x.path)}" autocomplete="off" spellcheck="false">`}</span>
+          <span class="repo-name"><input id="${x.main ? "su-rmain-name" : `su-r${i}-name`}" class="mono" value="${esc(x.main ? (s.mainName ?? folder(x.path)) : x.name)}" aria-label="Name for ${esc(x.path)}" autocomplete="off" spellcheck="false">${x.main ? `<span class="pill-state">primary</span>` : ""}</span>
           <span class="mono muted repo-path" title="${esc(x.path)}">${esc(x.path)}</span>
-          ${x.branch ? `<span class="repo-branch ${odd(x.branch) ? "odd" : ""}" title="New tickets start from this branch">on ${esc(x.branch)}</span>` : "<span></span>"}
+          ${x.branch ? `<span class="repo-branch ${odd(x.branch) ? "odd" : ""}" title="New tickets start from this branch, whatever you have checked out">from ${esc(x.branch)}</span>` : "<span></span>"}
           <button class="x" type="button" data-su="rdel-${x.main ? "main" : i}" aria-label="Remove ${esc(folder(x.path))}">×</button></li>`;
       const rows = [main && { ...main, main: true }, ...s.extra].filter(Boolean);
       const offBranch = rows.filter(x => odd(x.branch));
@@ -1287,7 +1288,7 @@ function viewSetup() {
         <div class="su-row repo-add">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<button class="btn" type="button" data-su="mode-github">From GitHub…</button>
           <input id="su-add" placeholder="or paste a path, like /Users/you/dev/app" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="add-path">Add</button></div>
         ${r && !r.ok ? `<p class="su-bad">${esc(r.problem)}</p>` : ""}
-        ${offBranch.map(x => `<p class="su-warn"><b>${esc(x.main ? folder(x.path) : x.name)}</b> is on <code>${esc(x.branch)}</code>, so new tickets start from that branch. Switch it to your main branch first if that's not what you want.</p>`).join("")}
+        ${offBranch.map(x => `<p class="su-warn"><b>${esc(x.main ? (s.mainName ?? folder(x.path)) : x.name)}</b> has no main or master branch, so new tickets start from <code>${esc(x.branch)}</code>.</p>`).join("")}
         ${main ? `<p class="fine repo-ship">${shipLine(main)}</p>` : ""}
         ${main?.used_by?.length ? `<p class="fine">${esc(main.used_by.join(", "))} already works on this repo. They'll share it.</p>` : ""}
         <p class="fine"><button class="link-btn inline" type="button" data-su="mode-new">Start a new repo instead</button></p>
@@ -1682,6 +1683,7 @@ document.addEventListener("click", async e => {
     }
     if (d.su === "add-path") { const v = $("#su-add")?.value; await addRepo(v); return; }
     if (d.su === "rdel-main") {
+      s.mainName = undefined;
       // The next repo steps up as the main one.
       const next = s.extra.shift();
       if (next) return checkRepo(next.path);
@@ -1785,7 +1787,7 @@ document.addEventListener("submit", async e => {
     const tick = setInterval(() => { if (s.launch.done < s.launch.steps.length - 1) { s.launch.done++; render(); } }, 420);
     const pace = new Promise(r => setTimeout(r, 420 * s.launch.steps.length));
     try {
-      const [name] = await Promise.all([invoke("create_company", { name: s.name, repo: s.repo.path, repos: s.extra, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo }), pace]);
+      const [name] = await Promise.all([invoke("create_company", { name: s.name, repo: s.repo.path, repoName: s.mainName || null, repos: s.extra, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo }), pace]);
       clearInterval(tick); s.launch.done = s.launch.steps.length; render();
       await new Promise(r => setTimeout(r, 450));
       S.setup = null; S.onboarding = false; S.company = name; S.view = "company"; S.snap = null; S.last = "";

@@ -43,6 +43,12 @@ fn tickets_work_and_land_in_their_own_repo() {
     assert!(api.join("WORK.md").exists(), "merged into the api repo");
     assert!(!app.join("WORK.md").exists(), "the app repo is untouched");
 
+    // Being on a feature branch in your checkout doesn't change where new work starts.
+    assert!(Command::new("git").arg("-C").arg(&api).args(["checkout", "-q", "-b", "feat/wip"]).status().unwrap().success());
+    let t2 = c.new_ticket(&NewTicket { title: "Add tags".into(), assignee: Some("maya".into()), repo: Some("api".into()), ..Default::default() }, "todo").unwrap();
+    work::start(&c, &c.ticket(t2).unwrap().unwrap()).unwrap();
+    assert_eq!(c.ticket(t2).unwrap().unwrap().base.as_deref(), Some("main"), "starts from main, not feat/wip");
+
     // The planner names the repo for each ticket it creates.
     let plan = c.new_plan("Search", "Search across notes", "maya").unwrap();
     let call = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "create_ticket", "arguments": {"title": "Search endpoint", "assignee": "maya", "repo": "api"}}});
@@ -54,6 +60,11 @@ fn tickets_work_and_land_in_their_own_repo() {
     assert!(reply.to_string().contains("no repo called mobile"), "an unknown repo is refused with the list: {reply}");
 
     // A repo with work in progress can't be removed. Once it's done, it can.
+    assert!(c.remove_repo("api").is_err(), "Add tags is still in review there");
+    // Approving lands on main even while the checkout sits on feat/wip.
+    ship::approve(&c, &c.ticket(t2).unwrap().unwrap()).unwrap();
+    let on_main = Command::new("git").arg("-C").arg(&api).args(["show", "main:WORK.md"]).output().unwrap();
+    assert!(on_main.status.success(), "the work is on main");
     assert!(c.remove_repo("api").is_ok());
     let _ = std::fs::remove_dir_all(&root);
 }
