@@ -12,7 +12,8 @@ document.getElementById("boot")?.insertAdjacentHTML("afterbegin", logo());
 let version = "";
 (window.__TAURI__?.app?.getVersion?.() || Promise.resolve("0.1.0")).then(v => { version = v; if (isBooted && (S.welcome || S.sheet)) { render(); renderSheet(); } }).catch(() => {});
 // A bug report on GitHub, with the version already in it, so nobody has to look it up.
-const bugUrl = () => "https://github.com/snowztech/onecorp/issues/new?labels=bug&body=" + encodeURIComponent(
+const enc = t => encodeURIComponent(t).replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+const bugUrl = () => "https://github.com/snowztech/onecorp/issues/new?labels=bug&body=" + enc(
   `**What happened**\n\n\n**What you expected**\n\n\n**Steps to get there**\n1. \n\n---\nOneCorp ${version || "unknown version"} on macOS`);
 let isBooted = false;
 function booted() {
@@ -245,7 +246,7 @@ function renderSheet() {
   const body = { company: companySection, spend: spendTab, agents: agentsSection, appearance: appearanceSection, you: youSection }[tab]();
   el.innerHTML = `<div class="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
     <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}
-      <div class="set-foot"><button class="link-btn inline" data-open-url="${esc(bugUrl())}">Report a bug</button><span>OneCorp ${esc(version)}</span></div></nav>
+      <div class="set-foot"><button class="link-btn inline" data-open-url="${esc(bugUrl())}" title="Opens a GitHub issue with your version filled in">Report a bug ↗</button><span>OneCorp ${esc(version)}</span></div></nav>
     <div class="set-main"><header class="set-h"><h3>${SECTIONS.find(([k]) => k === tab)[1]}</h3><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
       <div class="sheet-body">${body}</div></div></div>`;
 }
@@ -1090,7 +1091,7 @@ function renderPop() {
       ${S.spendAll !== undefined && S.companies.length > 1 ? `<div class="pm-note">${money(S.spendAll)} spent today across your ${S.companies.length} companies</div>` : ""}
       <button class="pm-item" data-settings-tab="you">${icon("user")}Edit profile</button>
       ${S.company ? `<button class="pm-item" data-settings="1">${icon("settings")}Settings<kbd>⌘,</kbd></button>` : ""}
-      <button class="pm-item" data-open-url="${esc(bugUrl())}">${icon("bug")}Report a bug</button>
+      <button class="pm-item" data-open-url="${esc(bugUrl())}" title="Opens a GitHub issue with your version filled in">${icon("bug")}Report a bug <span class="ext">↗</span></button>
       <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button>
       ${version ? `<div class="pm-version">OneCorp ${esc(version)}</div>` : ""}</div>`;
     return;
@@ -1714,7 +1715,7 @@ document.addEventListener("click", async e => {
   }
   if (d.openUrl) {
     e.preventDefault();
-    return window.__TAURI__?.opener ? window.__TAURI__.opener.openUrl(d.openUrl).catch(err => toast(String(err), true)) : window.open(d.openUrl, "_blank");
+    return window.__TAURI__ ? invoke("open_link", { url: d.openUrl }).catch(err => toast(String(err), true)) : window.open(d.openUrl, "_blank");
   }
   if (d.ticket) return openTicket(d.ticket);
   if (d.stop) {

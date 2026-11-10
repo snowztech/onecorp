@@ -1247,3 +1247,4 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .q-text p { color: var(--fg); }
 .more-link { align-self: flex-start; font-size: 12px; }
 .acts > .fine { margin: 0; align-self: center; }
+.pm-item .ext { margin-left: auto; color: var(--muted); font-size: 12px; }

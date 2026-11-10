@@ -508,6 +508,17 @@ fn chat(company: String, channel: String) -> Res<Value> {
     onecorp::view::chat(&open(&company)?, &channel).map_err(err)
 }
 
+/// Opens a web link in your browser. Only http and https, so nothing else can be launched this way.
+/// The opener plugin's URL check refused long query strings like a prefilled bug report.
+#[tauri::command(async)]
+fn open_link(url: String) -> Res<()> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Only web links open from here.".into());
+    }
+    std::process::Command::new("open").arg(&url).status().map_err(|e| format!("couldn't open the link: {e}"))?;
+    Ok(())
+}
+
 /// Each agent's models, for the model picker.
 #[tauri::command(async)]
 fn models() -> Value {
@@ -741,6 +752,7 @@ fn main() {
             clone_target,
             voices,
             models,
+            open_link,
             set_tray_count,
             say,
             settings,

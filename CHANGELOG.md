@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Report a bug opens your browser. Links now open through OneCorp itself, which only accepts web links, so long ones like a prefilled issue aren't refused.
 - Closing the window no longer stops your team. OneCorp keeps working from the menu bar, with how many things wait on you next to its icon. Open it from there or the Dock, and quit from there or with ⌘Q.
 - New companies start with a $10 daily budget, so a team left running overnight can't surprise you. Change it in Settings, under Spending.
 - Models by their exact names: Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.1 for Claude Code, and Codex's current list read from Codex itself.
