@@ -21,7 +21,7 @@ Test on throwaway repos with `ONECORP_HOME` pointing somewhere temporary. The `f
 
 - Logic lives in `crates/core`. The CLI and the app only parse, call the library and show the result.
 - The UI is plain HTML, CSS and JS in `app/ui`, with no build step. Follow [docs/DESIGN.md](docs/DESIGN.md) for any screen change, and check it in both themes.
-- When you add a module, table or flow, update [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Add a line to [CHANGELOG.md](CHANGELOG.md) under Unreleased for anything a user would notice.
+- When you add a module, table or flow, update [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For anything a user would notice, add a line to [CHANGELOG.md](CHANGELOG.md) under Unreleased, in Added, Changed or Fixed. It follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Style
 
