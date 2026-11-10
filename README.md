@@ -86,7 +86,7 @@ For pull requests, install the [GitHub CLI](https://cli.github.com) and run `gh 
 
 - **Tickets run in worktrees.** Each ticket gets its own branch and git worktree, so your checkout is never touched. When the agent finishes, OneCorp commits the work under the employee's name, like `Tomás Reis <tomas@snowztech.onecorp>`.
 - **Agents run headless.** OneCorp starts `claude -p` or `codex exec` for each run, streams what they do, and resumes the same session when you answer a question or ask for changes.
-- **They build and test.** OneCorp reads your repo (cargo, npm, pnpm, bun, yarn, go, pytest, make) and lets employees run those commands, so work comes back tested. Change the list in Settings.
+- **They build and test.** OneCorp reads your repo (Rust, Node, Python, Go, Ruby, Java, .NET, Swift, Elixir, PHP, Flutter and more) and lets employees run its build and test commands, so work comes back tested. Change the list in Settings.
 - **Company tools over MCP.** Each run gets a small MCP server with the company's tools: ask the founder, post in chat, create a ticket, propose a wiki change, remember something. Your own MCP servers stay out.
 - **Leads answer first.** Questions go to the department lead, who settles what the wiki and the code already decide and passes the rest to you with a reason.
 - **A shared wiki and personal memory.** Every ticket starts with the company wiki and the employee's own notes, so a decision made once is known by everyone.

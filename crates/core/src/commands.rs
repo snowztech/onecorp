@@ -8,12 +8,17 @@ use crate::store::{Company, Repo, Ticket};
 use anyhow::Result;
 use std::path::Path;
 
-/// What the repo looks like it builds and tests with.
+/// What the repo looks like it builds and tests with, read from the files at its root.
+/// Each entry is a prefix: "cargo test" also allows "cargo test --lib".
 pub fn detect(repo: &Path) -> Vec<String> {
-    let has = |f: &str| repo.join(f).exists();
+    let names = names_in(repo);
+    let has = |f: &str| names.iter().any(|n| n == f);
+    let ends = |e: &str| names.iter().any(|n| n.ends_with(e));
     let mut out: Vec<String> = vec![];
+    let mut add = |cmds: &[&str]| out.extend(cmds.iter().map(|s| s.to_string()));
+
     if has("Cargo.toml") {
-        out.extend(["cargo build", "cargo test", "cargo check", "cargo clippy", "cargo fmt"].map(String::from));
+        add(&["cargo build", "cargo test", "cargo check", "cargo clippy", "cargo fmt"]);
     }
     if has("package.json") {
         let pm = if has("pnpm-lock.yaml") {
@@ -26,18 +31,114 @@ pub fn detect(repo: &Path) -> Vec<String> {
             "npm"
         };
         // A fresh worktree has no node_modules, so installing comes first.
-        out.extend(["install", "test", "run"].map(|s| format!("{pm} {s}")));
+        add(&[&format!("{pm} install"), &format!("{pm} test"), &format!("{pm} run")]);
+    }
+    if has("deno.json") || has("deno.jsonc") {
+        add(&["deno test", "deno task", "deno check", "deno lint", "deno fmt"]);
     }
     if has("go.mod") {
-        out.extend(["go build", "go test", "go vet"].map(String::from));
+        add(&["go build", "go test", "go vet"]);
     }
-    if has("pyproject.toml") || has("requirements.txt") || has("setup.py") {
-        out.extend(["pytest", "python -m pytest"].map(String::from));
+    if python(repo, &names) {
+        if has("uv.lock") {
+            add(&["uv sync", "uv run"]);
+        }
+        if has("poetry.lock") {
+            add(&["poetry install", "poetry run"]);
+        }
+        if has("Pipfile") {
+            add(&["pipenv install", "pipenv run"]);
+        }
+        if names.iter().any(|n| n.starts_with("requirements") && n.ends_with(".txt")) {
+            add(&["pip install -r", "python -m pip install -r", "python3 -m pip install -r"]);
+        }
+        if has("tox.ini") {
+            add(&["tox"]);
+        }
+        // macOS has python3 but no python, so both spellings.
+        add(&["pytest", "python -m pytest", "python3 -m pytest", "python -m unittest", "python3 -m unittest"]);
     }
-    if has("Makefile") {
-        out.push("make".into());
+    if has("Gemfile") {
+        add(&["bundle install", "bundle exec", "rake"]);
     }
+    if has("pom.xml") {
+        add(&[if has("mvnw") { "./mvnw" } else { "mvn" }]);
+    }
+    if ["build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"].iter().any(|f| has(f)) {
+        add(&[if has("gradlew") { "./gradlew" } else { "gradle" }]);
+    }
+    if has("build.sbt") {
+        add(&["sbt"]);
+    }
+    if ends(".sln") || ends(".csproj") || ends(".fsproj") {
+        add(&["dotnet restore", "dotnet build", "dotnet test", "dotnet format"]);
+    }
+    if has("Package.swift") {
+        add(&["swift build", "swift test"]);
+    }
+    if ends(".xcodeproj") || ends(".xcworkspace") {
+        add(&["xcodebuild"]);
+    }
+    if has("mix.exs") {
+        add(&["mix deps.get", "mix compile", "mix test", "mix format"]);
+    }
+    if has("rebar.config") {
+        add(&["rebar3"]);
+    }
+    if has("composer.json") {
+        add(&["composer install", "composer test", "vendor/bin/phpunit", "vendor/bin/pest"]);
+    }
+    if has("pubspec.yaml") {
+        let flutter = std::fs::read_to_string(repo.join("pubspec.yaml")).is_ok_and(|s| s.contains("flutter:"));
+        let tool = if flutter { "flutter" } else { "dart" };
+        add(&[&format!("{tool} pub get"), &format!("{tool} test"), &format!("{tool} analyze")]);
+    }
+    if has("build.zig") {
+        add(&["zig build"]);
+    }
+    if has("CMakeLists.txt") {
+        add(&["cmake", "ctest"]);
+    }
+    if has("meson.build") {
+        add(&["meson", "ninja"]);
+    }
+    if has("stack.yaml") {
+        add(&["stack build", "stack test"]);
+    } else if ends(".cabal") {
+        add(&["cabal build", "cabal test"]);
+    }
+    if has("dune-project") {
+        add(&["dune build", "dune test"]);
+    }
+    if has("deps.edn") {
+        add(&["clojure"]);
+    }
+    if has("project.clj") {
+        add(&["lein"]);
+    }
+    if has("Makefile") || has("makefile") || has("GNUmakefile") {
+        add(&["make"]);
+    }
+    if has("justfile") || has("Justfile") {
+        add(&["just"]);
+    }
+    if has("Taskfile.yml") || has("Taskfile.yaml") {
+        add(&["task"]);
+    }
+    let mut seen = vec![];
+    out.retain(|c| !seen.contains(c) && { seen.push(c.clone()); true });
     out
+}
+
+fn names_in(dir: &Path) -> Vec<String> {
+    std::fs::read_dir(dir).map(|d| d.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default()
+}
+
+// A Python project file, or just Python files: a repo of scripts with a test_x.py is still tested with pytest.
+fn python(repo: &Path, names: &[String]) -> bool {
+    let project = ["pyproject.toml", "setup.py", "setup.cfg", "Pipfile", "tox.ini", "uv.lock", "poetry.lock", "conftest.py"];
+    names.iter().any(|n| project.contains(&n.as_str()) || (n.starts_with("requirements") && n.ends_with(".txt")) || n.ends_with(".py"))
+        || ["tests", "test"].iter().any(|d| names_in(&repo.join(d)).iter().any(|n| n.ends_with(".py")))
 }
 
 // The main repo keeps the plain key, so lists saved before there were several repos still apply.
@@ -102,5 +203,36 @@ mod tests {
         assert_eq!(detect(&dir), ["pnpm install", "pnpm test", "pnpm run"]);
         assert_eq!(parse("cargo test,  npm  test\n\ncargo test"), ["cargo test", "npm test"]);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn knows_the_usual_ecosystems() {
+        let repo = |name: &str, files: &[&str]| {
+            let dir = std::env::temp_dir().join(format!("onecorp-detect-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            for f in files {
+                let path = dir.join(f);
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(path, if *f == "pubspec.yaml" { "dependencies:\n  flutter:\n" } else { "" }).unwrap();
+            }
+            let found = detect(&dir);
+            let _ = std::fs::remove_dir_all(&dir);
+            found
+        };
+        // Loose Python files with no project file, the case a first user hit.
+        assert!(repo("loose", &["calc.py", "test_calc.py"]).contains(&"pytest".to_string()));
+        assert!(repo("testsdir", &["tests/test_api.py"]).contains(&"pytest".to_string()));
+        assert!(repo("uv", &["pyproject.toml", "uv.lock"]).starts_with(&["uv sync".to_string(), "uv run".to_string()]));
+        assert_eq!(repo("gradle", &["build.gradle.kts", "gradlew"]), ["./gradlew"]);
+        assert_eq!(repo("maven", &["pom.xml"]), ["mvn"]);
+        assert!(repo("dotnet", &["App.csproj"]).contains(&"dotnet test".to_string()));
+        assert!(repo("ruby", &["Gemfile"]).contains(&"bundle exec".to_string()));
+        assert!(repo("elixir", &["mix.exs"]).contains(&"mix test".to_string()));
+        assert!(repo("php", &["composer.json"]).contains(&"vendor/bin/phpunit".to_string()));
+        assert!(repo("flutter", &["pubspec.yaml"]).contains(&"flutter test".to_string()));
+        assert!(repo("swift", &["Package.swift"]).contains(&"swift test".to_string()));
+        assert_eq!(repo("make", &["Makefile", "justfile"]), ["make", "just"]);
+        assert!(repo("empty", &["README.md"]).is_empty());
     }
 }

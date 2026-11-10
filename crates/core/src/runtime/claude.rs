@@ -8,7 +8,9 @@ use std::process::Command;
 // Edits are auto-accepted inside the worktree. Bash is limited to read-only git plus the
 // company's build and test commands, and OneCorp commits the work when the agent finishes.
 // The company tools are always allowed.
-const ALLOWED: &str = "Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__onecorp";
+// Read-only text tools too: agents pipe test output through tail or head, and one blocked
+// part of a pipe blocks the whole command.
+const ALLOWED: &str = "Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(grep:*),Bash(echo:*),Bash(which:*),Bash(pwd),mcp__onecorp";
 
 pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     let mut cmd = Command::new("claude");
