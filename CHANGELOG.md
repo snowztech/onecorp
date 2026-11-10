@@ -4,6 +4,14 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-10
+
+Your team builds and tests in many more kinds of repo.
+
+### Changed
+
+- Releases publish as soon as the build is signed and notarized, and the Homebrew cask follows in the same run.
+
 ### Fixed
 
 - Employees on Claude Code can build and test in many more repos: Python with only loose test files, uv, Poetry, Ruby, Java and Kotlin (Maven, Gradle), .NET, Swift, Elixir, PHP, Dart and Flutter, Deno, Zig, C and C++ (CMake, Meson), Haskell, OCaml, Clojure, just and Task. On a Mac, python3 works too, and test output can be piped through tail or grep.
@@ -29,4 +37,5 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.1]: https://github.com/snowztech/onecorp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/snowztech/onecorp/releases/tag/v0.1.0
