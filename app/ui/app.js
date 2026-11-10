@@ -1188,6 +1188,10 @@ function loadGithub() {
     if (S.setup === s && s.mode === "github") render();
   });
 }
+// A path you change by clicking it. The app opens the folder picker, the browser preview types.
+const pathField = (id, value, action, label) => window.__TAURI__?.dialog
+  ? `<button type="button" class="path-field" data-su="${action}" aria-label="${esc(label)}" title="Click to pick another folder"><span class="mono">${esc(value)}</span><span class="path-hint">Change</span></button>`
+  : `<input id="${id}" class="mono path-field" value="${esc(value)}" autocomplete="off" spellcheck="false" aria-label="${esc(label)}">`;
 // The first repo you add is the main one. Every one after joins it.
 async function addRepo(path) {
   path = String(path || "").trim();
@@ -1256,8 +1260,12 @@ function viewSetup() {
            <ul class="gh-list">${g.repos.map(r => `<li data-name="${esc(r.name.toLowerCase())} ${esc((r.description || "").toLowerCase())}"><button type="button" data-su="clone:${esc(r.name)}" ${s.cloning ? "disabled" : ""}>
              <b>${esc(r.name)}</b>${r.private ? `<span class="pill-state">Private</span>` : ""}<span>${esc(r.description || "")}</span>${s.cloning === r.name ? `<em>Cloning…</em>` : ""}</button></li>`).join("")}</ul>`;
       const status = s.cloning ? `<p class="gh-loading"><i class="spin"></i>Cloning <b>${esc(s.cloning)}</b> into ${esc(s.repoInfo?.parent || "your dev folder")}… It shows in your list when it's done.</p>` : "";
-      const where = `<p class="muted">Pick a repo. OneCorp clones it into <span class="mono where">${esc(s.repoInfo?.parent || "your projects folder")}</span>${picker ? ` <button class="link-btn inline" type="button" data-su="projects-dir">Change…</button>` : ""}, or uses it if it's already there.</p>`;
-      body = `<h1>Add from GitHub</h1>${where}${status}${list}
+      const where = `<p class="muted">Pick a repo, then choose where it goes. If it's already on this Mac, OneCorp uses that copy.</p>
+        <div class="projects-dir"><span>Your projects folder</span>${pathField("projects-path", s.repoInfo?.parent || "", "projects-dir", "Your projects folder")}</div>`;
+      const pick = s.pick ? `<div class="clone-pick"><b>Clone ${esc(s.pick.name)} into</b>
+          ${pathField("clone-path", s.pick.path, "clone-dir", `Where to clone ${s.pick.name}`)}
+          <div class="acts"><button class="btn primary" type="button" data-su="clone-go">Clone</button><button class="btn ghost" type="button" data-su="clone-cancel">Cancel</button></div></div>` : "";
+      body = `<h1>Add from GitHub</h1>${where}${pick}${status}${s.pick ? "" : list}
         <div class="su-nav">${toList}</div>`;
     } else if (s.mode === "new") {
       const owners = s.repoInfo.owners || [];
@@ -1661,15 +1669,31 @@ document.addEventListener("click", async e => {
       loadGithub(); render();
       return $("#gh-q")?.focus();
     }
+    // Picking a repo asks where it goes first. Clone does the rest.
     if (d.su.startsWith("clone:")) {
-      s.cloning = d.su.slice(6); render();
+      const name = d.su.slice(6);
+      s.pick = { name, path: await invoke("clone_target", { name }).catch(() => `${s.repoInfo?.parent || ""}/${name.split("/").pop()}`) };
+      render();
+      return $("[data-su='clone-go']")?.focus();
+    }
+    if (d.su === "clone-cancel") { s.pick = null; return render(); }
+    if (d.su === "clone-dir") {
+      const dir = await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: `Where should ${s.pick.name} go?`, defaultPath: s.repoInfo?.parent }).catch(() => null);
+      if (dir) { s.pick.path = `${String(dir).replace(/\/$/, "")}/${s.pick.name.split("/").pop()}`; render(); }
+      return;
+    }
+    if (d.su === "clone-go") {
+      const path = $("#clone-path")?.value.trim() || s.pick.path;
+      s.cloning = s.pick.name; s.pick = null; render();
       try {
-        const path = await invoke("clone_repo", { name: s.cloning }); s.cloning = null;
+        const name = s.cloning;
+        const done = await invoke("clone_repo", { name, path }); s.cloning = null;
+        const path2 = done;
         // The first pick is the main repo. Picks after that join it as more repos.
         // Back to the list either way, so you see it land there.
-        s.mode = "existing"; s.justAdded = path;
-        if (s.repo?.ok) await addExtraRepo(path);
-        else await checkRepo(path);
+        s.mode = "existing"; s.justAdded = path2;
+        if (s.repo?.ok) await addExtraRepo(path2);
+        else await checkRepo(path2);
         setTimeout(() => { if (S.setup === s) s.justAdded = null; }, 2500);
       }
       catch (e) { s.cloning = null; render(); toast(String(e), true); }
@@ -1880,6 +1904,10 @@ document.addEventListener("input", e => {
   if (e.target.id === "pf-name" && S.profile && !hasPhoto()) { const m = $(".welcome .mono-av"); if (m) m.innerHTML = e.target.value.trim() ? esc(initials(e.target.value)) : icon("user"); }
 });
 document.addEventListener("change", async e => {
+  if (e.target.id === "projects-path" && S.setup) {
+    try { const saved = await invoke("set_projects_folder", { path: e.target.value }); S.setup.repoInfo.parent = S.setup.parent = saved; toast("Clones go there from now on"); } catch (err) { toast(String(err), true); }
+    return render();
+  }
   if (e.target.dataset?.commands) {
     try { S.settings.repos = await invoke("set_commands", { company: S.company, repo: e.target.dataset.commands, text: e.target.value }); saved(); } catch (err) { toast(String(err), true); }
     return renderSheet();
@@ -1958,6 +1986,7 @@ async function previewScreen() {
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
   if (screen === "setup") await startSetup();
   if (screen === "repos") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/notes"); S.setup.extra = [{ path: "/Users/you/dev/notes-api", name: "notes-api", branch: "feat/search" }]; S.setup.step = 2; render(); }
+  if (screen === "github-pick") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; S.setup.pick = { name: "snowztech/notes-api", path: "/Users/you/dev/notes-api" }; render(); }
   if (screen === "github") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; render(); }
   if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.companies = []; S.profile = { name: "" }; render(); }
@@ -2064,6 +2093,7 @@ function preview(cmd, args) {
     ? [{ id: 13, at: "2026-11-09 11:40:00", author: "founder", name: "Lucas", founder: true, text: "How are the webhook retries going?", key: null, pending: false },
        { id: 14, at: "2026-11-09 11:41:00", author: "tomas", name: "Tomás Reis", text: "Close. Retries back off over 3 days now, and handlers are idempotent. Tests next, then it's in your Inbox as SNO-15.", key: "SNO-15", pending: false }] : [] });
   // Saving your name sticks for the rest of the preview, like it does in the app.
+  if (cmd === "clone_target") return Promise.resolve(`/Users/you/dev/${String(args.name).split("/").pop()}`);
   if (cmd === "save_founder") { previewFounder = { name: args.name, photo: null }; return Promise.resolve(null); }
   if (cmd === "founder" && previewFounder) return Promise.resolve(previewFounder);
   if (cmd === "check_repo" && args?.path) return Promise.resolve({ ...data.check_repo, path: args.path, suggested: args.path.split("/").pop() });

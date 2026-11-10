@@ -400,8 +400,15 @@ fn github_repos() -> Res<Value> {
 }
 
 #[tauri::command(async)]
-fn clone_repo(name: String) -> Res<String> {
-    onecorp::setup::clone_from_github(&name).map(|p| p.display().to_string()).map_err(err)
+fn clone_repo(name: String, path: Option<String>) -> Res<String> {
+    let path = path.map(|p| std::path::PathBuf::from(p.trim())).filter(|p| !p.as_os_str().is_empty());
+    onecorp::setup::clone_from_github(&name, path.as_deref()).map(|p| p.display().to_string()).map_err(err)
+}
+
+/// Where a clone of owner/name would go, to show before cloning.
+#[tauri::command]
+fn clone_target(name: String) -> String {
+    onecorp::setup::clone_target(&name).display().to_string()
 }
 
 /// Where clones and new repos go from now on.
@@ -699,6 +706,7 @@ fn main() {
             github_repos,
             clone_repo,
             set_projects_folder,
+            clone_target,
             voices,
             say,
             settings,

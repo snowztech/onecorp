@@ -144,13 +144,40 @@ pub fn repo_notes(repo: &Path) -> Option<String> {
 /// Where new repos go by default: ~/dev when it exists, otherwise your home folder.
 /// Clones one of your GitHub repos next to your other projects, or uses the folder if it's
 /// already there. Returns where it is.
-pub fn clone_from_github(full_name: &str) -> Result<PathBuf> {
-    let name = full_name.rsplit('/').next().unwrap_or(full_name);
-    let dest = default_parent().join(name);
-    if !dest.exists() {
-        crate::forge::Forge::GitHub.clone_repo(full_name, &dest)?;
+pub fn clone_from_github(full_name: &str, dest: Option<&Path>) -> Result<PathBuf> {
+    let dest = dest.map(Path::to_path_buf).unwrap_or_else(|| clone_target(full_name));
+    if dest.exists() {
+        // Only the same repo counts as already there. Anything else in that folder stays untouched.
+        if is_clone_of(&dest, full_name) {
+            return Ok(dest);
+        }
+        bail!("{} already exists and isn't {full_name}. Pick another folder", dest.display());
     }
+    crate::forge::Forge::GitHub.clone_repo(full_name, &dest)?;
     Ok(dest)
+}
+
+/// Where a clone goes by default: projects/app, or projects/owner-app when that folder holds
+/// something else.
+pub fn clone_target(full_name: &str) -> PathBuf {
+    clone_target_in(&default_parent(), full_name)
+}
+
+fn clone_target_in(parent: &Path, full_name: &str) -> PathBuf {
+    let (owner, name) = full_name.split_once('/').unwrap_or(("", full_name));
+    let plain = parent.join(name);
+    if !plain.exists() || is_clone_of(&plain, full_name) {
+        return plain;
+    }
+    parent.join(format!("{owner}-{name}"))
+}
+
+/// Whether a folder is a clone of owner/name, from its origin remote.
+fn is_clone_of(dir: &Path, full_name: &str) -> bool {
+    let want = full_name.to_lowercase();
+    crate::git::remote_url(dir, "origin")
+        .map(|u| u.to_lowercase().trim_end_matches(".git").trim_end_matches('/').ends_with(&want))
+        .unwrap_or(false)
 }
 
 /// Where new and cloned repos go: the folder you picked, or the one that already holds your projects.
@@ -230,6 +257,23 @@ pub fn create_repo(path: &Path, title: &str, mission: &str, remote: Option<Remot
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clones_never_land_on_another_repo() {
+        let dir = std::env::temp_dir().join(format!("onecorp-clone-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(clone_target_in(&dir, "tvcask/app"), dir.join("app"), "a free folder keeps the plain name");
+        let other = dir.join("app");
+        std::fs::create_dir_all(&other).unwrap();
+        let git = |args: &[&str]| assert!(Command::new("git").arg("-C").arg(&other).args(args).status().unwrap().success());
+        git(&["init", "-q"]);
+        git(&["remote", "add", "origin", "git@github.com:someone/app.git"]);
+        assert_eq!(clone_target_in(&dir, "tvcask/app"), dir.join("tvcask-app"), "someone else's app is left alone");
+        assert_eq!(clone_target_in(&dir, "someone/app"), dir.join("app"), "the same repo is used as it is");
+        assert!(clone_from_github("tvcask/app", Some(&other)).is_err(), "cloning onto another repo is refused");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn guesses_where_your_projects_live() {

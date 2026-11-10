@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Cloning from GitHub asks where first: the path is shown before anything happens, and clicking it picks another folder. A folder that already holds a different repo is never used: the default becomes owner-name, like tvcask-app, and cloning onto someone else's repo is refused. Your projects folder sits at the top of the screen, and clicking it changes it.
 - Clones and new repos go where your projects already are: OneCorp looks in ~/Developer, ~/dev, ~/code, ~/Projects and the like, and picks the one holding your repos. Change it from the GitHub screen, and it's remembered for next time.
 - New tickets start from the repo's main branch (the one origin points to, or main, or master), not whatever you have checked out, and approving lands there too. Being on a feature branch in your own checkout no longer changes your team's base.
 - Name the primary repo in onboarding, like the others.
