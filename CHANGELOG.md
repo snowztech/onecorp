@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Chat replies stay short, a few lines unless you ask for detail. When your own checkout is on a feature branch, replies know it's yours and look at main for where the team stands.
 - The wiki shows Markdown tables as tables, plus smaller headings and dividers. A skipped mission shows as a hint, not as text you wrote.
 - Chat reads Markdown like Slack: `code`, bold, italics, links and code blocks. Mentions and ticket links still work, and never inside code.
 - Report a bug from your menu or Settings: it opens a GitHub issue with the questions to answer and your OneCorp version filled in. The version also shows in your menu, in Settings and on the welcome screen.

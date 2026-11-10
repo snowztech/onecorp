@@ -145,8 +145,10 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         "You are {name}, {role} at {company}. {bio}\n\n\
          {founder} {place}. The conversation so far:\n\n{history}\n\n\
          They wrote: {asked}\n\n\
-         Reply like a colleague would in chat, in your own manner: plain words, no headings. \
-         Read the code in this repo if it helps you answer, but don't change any files. \
+         Reply like a colleague would in chat, in your own manner: plain words, no headings, and short. \
+         A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
+         Read the code if it helps you answer, but don't change any files or run commands that need approval. \
+         {checkout}\
          If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{notes}",
         name = e.name,
         role = e.role,
@@ -157,6 +159,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         history = history.join("\n"),
         knowledge = crate::work::company_knowledge(c)?,
         notes = crate::work::own_notes(c, &e.id)?,
+        checkout = checkout_note(c),
     );
     let repo = c.repo()?;
     let opts = runtime::Opts { cwd: &repo, model: e.model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &crate::work::other_repos(c)? };
@@ -190,6 +193,17 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let cost = crate::spend::record(c, &e.id, None, &e.runtime, e.model.as_deref(), cost, tokens)?;
     c.finish_message(id, &text, cost, tokens)
+}
+
+/// The repo a chat reply reads is the founder's own checkout, which may be on a branch of theirs.
+/// Said plainly, so a reply doesn't mistake the founder's work in progress for the team's.
+fn checkout_note(c: &Company) -> String {
+    let Ok(repo) = c.repo() else { return String::new() };
+    let (Ok(here), Ok(base)) = (crate::git::current_branch(&repo), crate::git::default_branch(&repo)) else { return String::new() };
+    if here == base {
+        return String::new();
+    }
+    format!("The checkout you're reading is the founder's own and is on {here}, their branch. The team's work starts from {base}, so read {base} for where things stand. ")
 }
 
 /// Recent chat for a ticket prompt: #general and the employee's own channel, plus anything that
