@@ -1,8 +1,8 @@
 name: release
 
 # Push a tag like v0.1.0 to build OneCorp for Apple silicon and Intel Macs, signed with the
-# Developer ID and notarized by Apple, so it opens with no warning. The release is a draft
-# until you read it and publish it.
+# Developer ID and notarized by Apple, so it opens with no warning. The release is published
+# with its notes from CHANGELOG.md, then the Homebrew cask points at it.
 on:
   push:
     tags: ["v*"]
@@ -64,7 +64,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/out" && cp "$dmg" "$RUNNER_TEMP/out/OneCorp.dmg"
           rm "$RUNNER_TEMP/notary.p8"
 
-      - name: Draft the release
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -74,4 +74,21 @@ jobs:
           prerelease=$([[ "$version" == *-* ]] && echo "--prerelease" || true)
           # A fixed name keeps releases/latest/download/OneCorp.dmg working as a direct link.
           gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/out/OneCorp.dmg" \
-            --title "OneCorp $version" --notes-file "$RUNNER_TEMP/notes.md" --draft $prerelease
+            --title "OneCorp $version" --notes-file "$RUNNER_TEMP/notes.md" $prerelease
+
+  # A job of its own, so a failed bump can be re-run without publishing the release again.
+  # It can't be a workflow on release published: a release made with github.token starts no other workflow.
+  cask:
+    needs: macos
+    # Pre-releases stay out of the tap, so brew only offers stable versions.
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update the Homebrew cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern OneCorp.dmg --dir "$RUNNER_TEMP"
+          ./scripts/bump-cask.sh "${GITHUB_REF_NAME#v}" "$RUNNER_TEMP/OneCorp.dmg"
