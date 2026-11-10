@@ -34,7 +34,7 @@ const server = createServer((req, res) => {
   res.writeHead(200, { "content-type": types[extname(path)] || "application/octet-stream" }).end(readFileSync(path));
 });
 await new Promise(r => server.listen(0, "127.0.0.1", r));
-const url = `http://127.0.0.1:${server.address().port}/index.html#profile`;
+const url = `http://127.0.0.1:${server.address().port}/index.html#welcome`;
 
 const profile = mkdtempSync(join(tmpdir(), "onecorp-walk-"));
 const chrome = spawn(CHROME, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0",
@@ -76,8 +76,13 @@ try {
   const at = async name => { await until(`document.querySelector(".onb-steps li.on")?.textContent.includes(${JSON.stringify(name)})`, `the ${name} step`); };
   const cont = () => click("#view .su-nav .btn.primary");
 
+  // Welcome: the layout stays hidden until the app knows where you land, then Get started.
+  await until(`document.querySelector(".welcome-hero")`, "the welcome");
+  assert.equal(await js(`document.querySelector(".app").classList.contains("booting")`), false, "the layout is revealed");
+  assert.equal(await js(`!!document.querySelector("#boot")`), false, "the launch mark is gone");
+  await click('[data-welcome="1"]');
   // You: typing survives the wait, and Continue goes on to Connect.
-  await until(`document.querySelector("#pf-name")`, "the welcome");
+  await until(`document.querySelector("#pf-name")`, "the You step");
   await type("#pf-name", "Ada Lovelace");
   await sleep(2000);
   assert.equal(await js(`document.querySelector("#pf-name").value`), "Ada Lovelace", "what you type stays put");
@@ -140,7 +145,7 @@ try {
 
   assert.deepEqual(errors, [], "no JavaScript errors along the way");
   ws.close();
-  console.log("onboarding walk-through: You, Connect, Company, Repo, Team, Launch, Company page");
+  console.log("onboarding walk-through: Welcome, You, Connect, Company, Repo, Team, Launch, Company page");
 } catch (e) {
   failed = true;
   console.error("onboarding walk-through FAILED:", e.message);

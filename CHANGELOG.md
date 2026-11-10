@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A calm launch: only the OneCorp mark shows until the app knows where you land, then it fades in, so the sidebar never flashes before onboarding. The very first launch opens on a welcome screen.
 - Company colors are muted tones that sit with the app's theme, graphite first. A company with no name yet shows a small building, not a question mark.
 - Connect notices a login by itself: sign in to Codex or GitHub in Terminal, come back, and it shows as connected. No button to press.
 - Onboarding: Back on the first step returns to You, and every step you've done is a link back. Connect AI is now Connect, with AI agents and code hosting as two groups. In Settings, Agents is now Integrations.

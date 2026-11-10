@@ -6,6 +6,17 @@ const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : preview;
 // Room for the window buttons in the app, and in screenshots that draw them (?native).
 if (window.__TAURI__ || /[?&]native\b/.test(location.search)) document.documentElement.classList.add("native");
 const $ = s => document.querySelector(s);
+document.getElementById("boot")?.insertAdjacentHTML("afterbegin", logo());
+// The layout appears once the first render has decided it. If loading stalls, show it anyway.
+let isBooted = false;
+function booted() {
+  if (isBooted) return;
+  isBooted = true;
+  const app = document.querySelector(".app");
+  app?.classList.remove("booting"); app?.classList.add("arrive");
+  document.getElementById("boot")?.remove();
+}
+setTimeout(booted, 4000);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const first = n => String(n || "").split(" ")[0];
 
@@ -969,6 +980,21 @@ function pfPic(name) {
 function focusTop(cancel) {
   return `<div class="focus-top" data-tauri-drag-region><span class="brand">${logo()}OneCorp</span>${cancel ? `<button class="btn ghost" type="button" data-su="cancel">Cancel</button>` : ""}</div>`;
 }
+// The first thing a new founder sees: what OneCorp is, in a line, and one way forward.
+function viewWelcome() {
+  return `<div class="focus-wrap"><div class="welcome-hero">
+    <span class="hero-mark">${logo()}</span>
+    <h1>OneCorp</h1>
+    <p class="lede">Run a company of AI employees, on your Mac.</p>
+    <ul class="hero-points">
+      <li><b>Hire a team</b><span>on Claude Code or Codex, each with a role and a personality</span></li>
+      <li><b>They work in your repo</b><span>each on their own branch, with tests</span></li>
+      <li><b>You run the company</b><span>answer questions, review, and approve what ships</span></li>
+    </ul>
+    <button class="btn primary big" data-welcome="1">Get started</button>
+    <p class="fine">Everything stays on this Mac. There's no account.</p>
+  </div></div>`;
+}
 function viewProfile() {
   const skip = S.companies.length ? `<button class="link-btn" type="button" data-skip-setup="1">Skip, go to ${esc(S.companies[0])}</button>` : `<span class="fine">Next: connect your AI</span>`;
   // Companies already here: a welcome back, not the first-run journey. Your teams are waiting.
@@ -1288,6 +1314,7 @@ function syncPolling() {
 }
 function render() {
   syncPolling();
+  booted();
   // Setup actions save the form themselves before changing it. Reading it again here would copy
   // stale fields over the change: the old team over a new template, or a row over the one deleted.
   if (S.profile && $("#pf-name")) S.profile.name = $("#pf-name").value;
@@ -1302,15 +1329,17 @@ function render() {
     ? `<span>${icon("pause")}<b>${esc(S.company)} reached its ${money(S.snap.spend.budget)} daily budget.</b> Running work finishes, and nothing new starts until tomorrow.</span><button class="btn" data-settings-tab="spend">Raise budget</button><button class="btn" data-keep-going="1">Keep going today</button>`
     : `<span>${icon("pause")}<b>${esc(S.company)} is paused.</b> Running work finishes, nothing new starts, and nobody replies in chat.</span><button class="btn" data-pause="0">Resume</button>`;
   // Setting up is full screen: no sidebar or top bar for things that don't exist yet.
-  document.querySelector(".app").classList.toggle("focus", !!(S.profile || S.setup));
+  document.querySelector(".app").classList.toggle("focus", !!(S.welcome || S.profile || S.setup));
   v.classList.toggle("flush", !S.profile && !S.setup && S.view === "chat");
-  const where = S.profile ? "profile" : S.setup ? "setup-" + S.setup.step : `${S.company}/${S.view}`;
+  const where = S.welcome ? "welcome" : S.profile ? "profile" : S.setup ? "setup-" + S.setup.step : `${S.company}/${S.view}`;
   if (where !== S.shown) {
     S.shown = where;
     v.classList.remove("enter"); void v.offsetWidth; v.classList.add("enter");
     clearTimeout(render.t); render.t = setTimeout(() => v.classList.remove("enter"), 400);
   }
-  if (S.profile) {
+  if (S.welcome) {
+    v.innerHTML = viewWelcome();
+  } else if (S.profile) {
     v.innerHTML = viewProfile();
   } else if (S.setup) {
     v.innerHTML = viewSetup();
@@ -1339,6 +1368,8 @@ async function refresh(force) {
     if (S.founder === null && !S.profile && !S.setup) S.profile = { name: "" };
     const c = await invoke("companies");
     S.companies = c.list; S.looks = c.looks || {};
+    // The very first launch opens on a welcome. Anyone with a company goes straight in.
+    if (S.welcome === undefined) S.welcome = S.founder === null && !c.list.length;
     if (!S.company || !c.list.includes(S.company)) S.company = c.current;
     if (!S.company) {
       S.snap = null;
@@ -1362,6 +1393,7 @@ async function refresh(force) {
     if (S.drawer?.type === "ticket") S.ticket = await invoke("ticket_detail", { company: S.company, key: S.drawer.key }).catch(() => S.ticket);
     render();
   } catch (e) {
+    booted();
     toast(String(e), true);
     // A failed load still leaves the workspace polling, so it recovers on its own.
     syncPolling();
@@ -1378,7 +1410,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1412,6 +1444,7 @@ document.addEventListener("click", async e => {
   }
   if (d.suAgent) { readSetup(); const [i, k] = d.suAgent.split(":"); S.setup.people[Number(i)].runtime = k; return render(); }
   if (d.agent) { Object.assign(S.drawer.form ||= {}, readPerson(), { runtime: d.agent, model: null }); return renderDrawer(); }
+  if (d.welcome) { S.welcome = false; render(); return $("#pf-name")?.focus(); }
   if (d.stepTo) {
     if (d.stepTo === "You") return backToYou();
     readSetup(); S.setup.step = ["Connect", "Company", "Repo", "Team"].indexOf(d.stepTo); return render();
@@ -1882,6 +1915,7 @@ async function previewScreen() {
   if (screen === "github") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; render(); }
   if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.companies = []; S.profile = { name: "" }; render(); }
+  if (screen === "welcome") { S.founder = null; S.companies = []; S.welcome = true; S.profile = { name: "" }; render(); }
   if (screen === "welcome-back") { S.founder = null; S.profile = { name: "" }; render(); }
   if (["popover", "you", "agents", "appearance"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
