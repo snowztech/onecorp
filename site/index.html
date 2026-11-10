@@ -52,7 +52,7 @@
 
     .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
     .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
-    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .brand svg { width: 22px; height: 22px; }
     .nav nav { display: flex; gap: 24px; font-size: 14px; }
     .nav nav a { color: var(--sn-fg-muted); text-decoration: none; transition: color 0.15s; }
     .nav nav a:hover { color: var(--sn-fg); }
@@ -68,10 +68,12 @@
     /* ui-css colors every a:hover with the accent, which wins over the button's own text color. */
     .actions a.sn-btn--primary:hover { color: var(--sn-fg-inverse); opacity: 0.85; }
     .actions a.sn-btn--secondary:hover { color: var(--sn-fg); }
-    .brew { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 9px 12px; border: 1px dashed var(--sn-border-strong); border-radius: 8px; background: none; color: var(--sn-fg-muted); font: 13px var(--mono); cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+    .brew { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; height: 40px; padding: 0 14px; border: 1px solid var(--sn-border-subtle); border-radius: var(--sn-r-xs); background: var(--sn-bg-elev-1); color: var(--sn-fg-muted); font: 13px var(--mono); cursor: pointer; transition: color 0.15s, border-color 0.15s; }
     .brew:hover { color: var(--sn-fg); border-color: var(--sn-fg-subtle); }
     .brew span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .brew em { font-style: normal; color: var(--sn-accent); }
+    .brew span::before { content: "$ "; color: var(--sn-fg-subtle); }
+    .brew em { font-style: normal; color: var(--sn-fg-subtle); font-size: 12px; transition: color 0.15s; }
+    .brew:hover em { color: var(--sn-accent); }
     .note { margin: 16px 0 0; color: var(--sn-fg-subtle); font-size: 14px; }
     .hero > * { animation: rise 0.8s var(--ease) both; }
     .hero > :nth-child(2) { animation-delay: 0.06s; }
@@ -156,7 +158,7 @@
 </head>
 <body>
   <header class="wrap nav">
-    <a class="brand" href="/"><img src="icon.png" alt="">OneCorp</a>
+    <a class="brand" href="/"><svg viewBox="0 0 32 32" aria-hidden="true"><g fill="currentColor"><circle cx="16" cy="9" r="6"/><circle cx="6" cy="24" r="4"/><circle cx="16" cy="25.5" r="4"/><circle cx="26" cy="24" r="4"/></g><path d="M12.6 13.6 8 20.3M16 15v6.5M19.4 13.6 24 20.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>OneCorp</a>
     <nav aria-label="Main">
       <a href="https://github.com/snowztech/onecorp/blob/main/CHANGELOG.md">Changelog</a>
       <a href="https://github.com/snowztech/onecorp">GitHub</a>
