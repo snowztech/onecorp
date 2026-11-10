@@ -1,16 +1,18 @@
 name: release
 
-# Pushing a tag like v0.2.0 builds OneCorp for Apple silicon and Intel Macs and drafts a GitHub
-# release with the DMG. The draft waits for you to read it and publish it.
+# Push a tag like v0.1.0 to build OneCorp for Apple silicon and Intel Macs, signed with the
+# Developer ID and notarized by Apple, so it opens with no warning. The release is a draft
+# until you read it and publish it.
 on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+
 jobs:
   macos:
     runs-on: macos-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -23,9 +25,53 @@ jobs:
           node-version: 22
       - run: node app/tests/ui-smoke.js
       - run: node app/tests/onboarding.mjs
-      - run: cargo install tauri-cli --version "^2" --locked
-      - run: cd app && cargo tauri build --target universal-apple-darwin --bundles app,dmg
-      - uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          files: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+
+      # The same certificate and notary key as the org's other Mac apps.
+      - name: Import the signing certificate
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          [ -n "$P12" ] || { echo "The DEVELOPER_ID_P12 secret isn't shared with this repo. Add onecorp to it in the org's secrets." >&2; exit 1; }
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/certificate.p12"
+          identity=$(security find-identity -v -p codesigning "$keychain" | grep -o '"Developer ID Application[^"]*"' | head -1 | tr -d '"')
+          [ -n "$identity" ] || { echo "No Developer ID Application identity in the certificate." >&2; exit 1; }
+          echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Build, sign and notarize
+        env:
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          APPLE_API_KEY: ${{ secrets.NOTARY_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          echo "$NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          export APPLE_API_KEY_PATH="$RUNNER_TEMP/notary.p8"
+          cargo install tauri-cli --version "^2" --locked
+          cd app && cargo tauri build --target universal-apple-darwin --bundles app,dmg
+          # Tauri notarizes the app inside. The DMG gets its own ticket, so it opens offline too.
+          dmg=$(ls ../target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait
+          xcrun stapler staple "$dmg"
+          mkdir -p "$RUNNER_TEMP/out" && cp "$dmg" "$RUNNER_TEMP/out/OneCorp.dmg"
+          rm "$RUNNER_TEMP/notary.p8"
+
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          ./scripts/release-notes.sh "$version" > "$RUNNER_TEMP/notes.md"
+          # Tags like v0.2.0-beta become pre-releases.
+          prerelease=$([[ "$version" == *-* ]] && echo "--prerelease" || true)
+          # A fixed name keeps releases/latest/download/OneCorp.dmg working as a direct link.
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/out/OneCorp.dmg" \
+            --title "OneCorp $version" --notes-file "$RUNNER_TEMP/notes.md" --draft $prerelease
