@@ -1,133 +1,396 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OneCorp · Run a company of AI employees, on your Mac</title>
-<meta name="description" content="Hire a team of AI employees on Claude Code or Codex. They plan, ask, build and test in your repo, and you approve what ships. Open source, local, no account.">
-<meta property="og:title" content="OneCorp">
-<meta property="og:description" content="Run a company of AI employees, on your Mac.">
-<meta property="og:image" content="https://onecorp.dev/social.png">
-<meta property="og:url" content="https://onecorp.dev">
-<meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="icon.png">
-<style>
-:root { --bg: #09090b; --surface: #111113; --surface-2: #18181b; --line: #27272a; --fg: #fafafa; --muted: #a1a1aa; --accent: #4c9aff;
-  --display: "Inter", -apple-system, "SF Pro Display", system-ui, sans-serif; --mono: "SF Mono", ui-monospace, Menlo, monospace; }
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--display); -webkit-font-smoothing: antialiased; }
-a { color: inherit; }
-.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
-header.top { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
-.brand img { width: 28px; height: 28px; border-radius: 7px; }
-.nav { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
-.nav a { text-decoration: none; } .nav a:hover { color: var(--fg); }
-.hero { padding: 72px 0 40px; text-align: center; background: radial-gradient(900px 420px at 50% -10%, rgba(76,154,255,.16), transparent 70%); }
-.hero img.mark { width: 84px; height: 84px; border-radius: 20px; box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 20px 50px -18px rgba(0,0,0,.7); }
-h1 { margin: 26px 0 12px; font-size: clamp(38px, 6vw, 62px); line-height: 1.04; letter-spacing: -.045em; font-weight: 650; }
-.lede { max-width: 640px; margin: 0 auto; font-size: 19px; color: var(--muted); }
-.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 32px 0 14px; }
-.btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid var(--line); }
-.btn.primary { background: var(--fg); color: #09090b; border-color: var(--fg); }
-.btn:hover { filter: brightness(1.1); }
-.brew { display: inline-flex; align-items: center; gap: 10px; margin-top: 4px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: 13px var(--mono); color: var(--muted); cursor: pointer; }
-.brew b { color: var(--fg); font-weight: 500; }
-.fine { font-size: 13px; color: var(--muted); }
-.shot { margin: 48px auto 0; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 40px 120px -30px rgba(0,0,0,.8); }
-.shot img { display: block; width: 100%; }
-section { padding: 88px 0 0; }
-.eyebrow { font: 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
-h2 { margin: 10px 0 12px; font-size: clamp(28px, 4vw, 40px); letter-spacing: -.035em; line-height: 1.1; font-weight: 650; }
-.sub { max-width: 620px; color: var(--muted); font-size: 17px; margin: 0; }
-.features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 36px; }
-.card { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
-.card .txt { padding: 20px 22px 18px; }
-.card h3 { margin: 0 0 4px; font-size: 17px; letter-spacing: -.01em; }
-.card p { margin: 0; color: var(--muted); font-size: 14.5px; }
-.card img { display: block; width: 100%; border-top: 1px solid var(--line); }
-.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 32px; counter-reset: s; }
-.step { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 99px; border: 1px solid var(--line); font: 12px var(--mono); color: var(--muted); margin-bottom: 12px; }
-.step b { display: block; margin-bottom: 4px; }
-.step span { color: var(--muted); font-size: 14px; }
-.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 32px; }
-.fact { padding: 20px; border-top: 1px solid var(--line); }
-.fact b { display: block; margin-bottom: 4px; }
-.fact span { color: var(--muted); font-size: 14.5px; }
-.end { text-align: center; padding: 100px 0 40px; }
-footer { border-top: 1px solid var(--line); margin-top: 60px; padding: 28px 0 40px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
-footer a { text-decoration: none; } footer a:hover { color: var(--fg); }
-@media (max-width: 820px) { .features, .facts { grid-template-columns: 1fr; } .steps { grid-template-columns: 1fr 1fr; } .nav { display: none; } }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OneCorp · Run a company of AI employees, on your Mac</title>
+  <meta name="description" content="OneCorp is a free, open source Mac app to run a company of AI employees on Claude Code or Codex. They plan, ask their lead, build and test in your repo, and open pull requests. You decide what ships.">
+  <link rel="canonical" href="https://onecorp.dev/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://onecorp.dev/">
+  <meta property="og:title" content="OneCorp">
+  <meta property="og:description" content="Run a company of AI employees, on your Mac.">
+  <meta property="og:image" content="https://onecorp.dev/social.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="icon.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OneCorp",
+    "operatingSystem": "macOS",
+    "applicationCategory": "DeveloperApplication",
+    "description": "Run a company of AI employees on Claude Code or Codex, on your Mac.",
+    "url": "https://onecorp.dev",
+    "downloadUrl": "https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg",
+    "releaseNotes": "https://github.com/snowztech/onecorp/blob/main/CHANGELOG.md",
+    "license": "https://opensource.org/licenses/MIT",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Person", "name": "Lucas Neves Pereira" },
+    "sameAs": ["https://github.com/snowztech/onecorp"]
+  }
+  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@snowztech/ui-css@0.7/dist/snowztech-ui.min.css">
+  <link rel="stylesheet" href="/footer.css">
+  <script>
+    (function () { var light = matchMedia("(prefers-color-scheme: light)"), root = document.documentElement; function follow() { if (light.matches) root.dataset.theme = "light"; else delete root.dataset.theme; } follow(); light.addEventListener("change", follow); })();
+  </script>
+  <style>
+    body {
+      margin: 0; background: var(--sn-bg); color: var(--sn-fg);
+      font-family: var(--sn-font-mono); font-size: var(--sn-text-base); line-height: var(--sn-leading-normal);
+    }
+    a { color: inherit; }
+    .column { max-width: 680px; margin: 0 auto; padding: 0 20px; }
+    .wide { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+    main { overflow-x: clip; }
+
+    /* Hero: the name, what it is, two buttons, one line of small print. */
+    .hero { --top: 88px; position: relative; isolation: isolate; padding-top: var(--top); text-align: center; }
+    .hero-icon { width: 88px; height: 88px; border-radius: 20px; }
+    h1 { margin: 18px 0 6px; font-size: 36px; font-weight: 600; letter-spacing: -0.02em; }
+    .tagline { display: block; margin: 8px auto 32px; max-width: 560px; color: var(--sn-fg-muted); font-size: var(--sn-text-md); font-weight: 400; letter-spacing: 0; text-wrap: balance; }
+    .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .actions .sn-btn { text-decoration: none; transition: opacity var(--sn-base) var(--sn-ease), border-color var(--sn-base) var(--sn-ease), transform var(--sn-base) var(--sn-ease); }
+    .actions .sn-btn:active { transform: translateY(1px); }
+    /* ui-css colors every a:hover with the accent, which wins over the button's own text color. */
+    .actions a.sn-btn--primary:hover { color: var(--sn-fg-inverse); background: var(--sn-fg); border-color: var(--sn-fg); opacity: 0.85; }
+    .actions a.sn-btn--secondary:hover { color: var(--sn-fg); }
+    .brew { display: inline-flex; flex-wrap: wrap; justify-content: center; max-width: 100%; align-items: center; gap: 10px; margin-top: 18px; padding: 6px 12px; border: 1px solid var(--sn-border-subtle); border-radius: 8px; background: none; color: var(--sn-fg-muted); font: inherit; font-size: var(--sn-text-xs); cursor: pointer; }
+    .brew:hover { color: var(--sn-fg); border-color: var(--sn-border-strong); }
+    .brew em { font-style: normal; color: var(--sn-fg-subtle); }
+    .fine { margin: 16px 0 0; color: var(--sn-fg-subtle); font-size: var(--sn-text-xs); }
+    .fine a { color: var(--sn-fg-muted); text-underline-offset: 3px; }
+    .fine a:hover { color: var(--sn-fg); }
+
+    /* The hero comes in one line after another, once, as the page opens. */
+    .hero > * { animation: rise 0.7s var(--sn-ease) both; }
+    .hero > :nth-child(2) { animation-delay: 0.08s; }
+    .hero > :nth-child(3) { animation-delay: 0.16s; }
+    .hero > :nth-child(4) { animation-delay: 0.24s; }
+    .hero > :nth-child(5) { animation-delay: 0.3s; }
+    .hero-shot { animation: rise 0.9s var(--sn-ease) 0.3s both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+    /* OneCorp's mark is one node directing three: a soft light behind the icon, and three that answer it in turn. */
+    .hero > .team { position: absolute; z-index: -1; left: 50%; top: calc(var(--top) + 44px); width: 0; height: 0; pointer-events: none; animation: none; }
+    .team::before { content: ""; position: absolute; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--sn-accent) 18%, transparent), transparent 62%); animation: glow 1.6s var(--sn-ease) 0.3s both; }
+    .team i { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--sn-accent); opacity: 0; box-shadow: 0 0 12px var(--sn-accent); animation: answer 4.5s var(--sn-ease) infinite; }
+    .team i:nth-child(1) { transform: translate(-150px, 96px); }
+    .team i:nth-child(2) { transform: translate(0, 140px); animation-delay: 1.5s; }
+    .team i:nth-child(3) { transform: translate(150px, 96px); animation-delay: 3s; }
+    [data-theme=light] .team::before { background: radial-gradient(circle, color-mix(in srgb, var(--sn-accent) 9%, transparent), transparent 62%); }
+    @keyframes glow { from { opacity: 0; } }
+    @keyframes answer { 0%, 100% { opacity: 0; } 20%, 45% { opacity: 0.8; } }
+
+    /* Screenshots: a soft light behind the window, and pictures that crossfade in one cell so the frame never jumps. */
+    .hero-shot { margin-top: 64px; }
+    .showcase { position: relative; }
+    .showcase::before {
+      content: ""; position: absolute; inset: -12% 8% auto; height: 70%; z-index: 0;
+      background: radial-gradient(ellipse at center, var(--sn-accent-soft), transparent 70%); filter: blur(24px); pointer-events: none;
+    }
+    .stack { position: relative; z-index: 1; display: grid; }
+    .stack > * { grid-area: 1 / 1; opacity: 0; transform: scale(0.985); transition: opacity 0.45s var(--sn-ease), transform 0.6s var(--sn-ease); }
+    .stack > [data-active] { opacity: 1; transform: none; }
+    .shot {
+      display: block; width: 100%; height: auto;
+      border: 1px solid var(--sn-border-strong); border-radius: 12px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+    }
+    [data-theme=light] .shot { box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18); }
+    /* Under the window, a dot per theme repaints it. */
+    .theme-dots { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 24px; }
+    .theme-dot {
+      position: relative; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+      background: var(--bg); box-shadow: inset 0 0 0 1px var(--sn-border-strong); transition: transform 0.15s var(--sn-ease);
+    }
+    .theme-dot::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--accent); }
+    .theme-dot:hover { transform: scale(1.15); }
+    .theme-dot[aria-checked="true"] { outline: 1.5px solid var(--sn-fg-muted); outline-offset: 3px; }
+    .theme-name { min-width: 11ch; margin-left: 6px; color: var(--sn-fg-subtle); font-size: var(--sn-text-xs); }
+
+    /* Sections. Those on the grid start at the left edge; those that show one thing stand centered. */
+    .signals, .features, .faq, .closing { margin-top: 136px; }
+    .section-title { margin: 0 0 10px; font-size: 24px; font-weight: 600; line-height: 1.3; letter-spacing: -0.02em; text-wrap: balance; }
+    .section-lede { margin: 0; color: var(--sn-fg-muted); font-size: var(--sn-text-sm); }
+    .grid, .states { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 56px; }
+    .closing { text-align: center; }
+
+    /* What a desk shows, as in the app: working breathes, needs you ripples. */
+    .states { position: relative; margin: 36px 0 0; padding: 0; list-style: none; }
+    .states::before { content: ""; position: absolute; top: 5px; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--sn-border-strong), var(--sn-border-subtle) 70%, transparent); }
+    .states h3 { margin: 0 0 6px; font-size: var(--sn-text-base); font-weight: 600; }
+    .states p { margin: 0; max-width: 34ch; color: var(--sn-fg-muted); font-size: var(--sn-text-sm); }
+    .dot { position: relative; display: block; width: 11px; height: 11px; margin-bottom: 20px; border-radius: 50%; background: currentColor; }
+    .dot-working { color: #86efac; box-shadow: 0 0 10px currentColor; animation: breathe 1.8s ease-in-out infinite; }
+    .dot-waiting { color: #fde68a; box-shadow: 0 0 10px currentColor; animation: ripple 1.6s ease-out infinite; }
+    .dot-done { color: #93c5fd; }
+    [data-theme=light] .dot-working { color: #1a7a44; box-shadow: none; }
+    [data-theme=light] .dot-waiting { color: #8f5a00; box-shadow: none; }
+    [data-theme=light] .dot-done { color: #1f66d6; }
+    @keyframes breathe { 50% { opacity: 0.45; transform: scale(0.8); } }
+    @keyframes ripple { from { box-shadow: 0 0 0 0 currentColor; } to { box-shadow: 0 0 0 8px transparent; } }
+    .states.armed::before { transform: scaleX(0); transform-origin: left; transition: transform 1.4s var(--sn-ease); }
+    .states.armed li { opacity: 0.2; transition: opacity 0.6s var(--sn-ease); }
+    .states.armed li:nth-child(2) { transition-delay: 0.4s; }
+    .states.armed li:nth-child(3) { transition-delay: 0.8s; }
+    .states.lit::before { transform: none; }
+    .states.lit li { opacity: 1; }
+
+    /* Features: pick one on the left, its picture fades in on the right. The one picked opens to say what it does. */
+    .feature-grid { margin-top: 36px; align-items: center; }
+    .feature-shot { grid-column: 2 / 4; }
+    .feature {
+      display: block; width: 100%; padding: 14px 0 14px 18px; border: 0; border-left: 2px solid var(--sn-border-subtle);
+      background: none; color: var(--sn-fg-subtle); font: inherit; text-align: left; cursor: pointer;
+      transition: color 0.2s var(--sn-ease), border-color 0.2s var(--sn-ease);
+    }
+    .feature:hover { color: var(--sn-fg-muted); }
+    .feature[aria-selected="true"] { color: var(--sn-fg); border-left-color: var(--sn-accent); }
+    .feature:focus-visible { outline: 2px solid var(--sn-accent); outline-offset: 2px; }
+    .feature-title { display: block; font-weight: 600; }
+    .feature-text { display: grid; grid-template-rows: 0fr; color: var(--sn-fg-muted); font-size: var(--sn-text-sm); transition: grid-template-rows 0.35s var(--sn-ease); }
+    .feature-text > span { overflow: hidden; min-height: 0; }
+    .feature[aria-selected="true"] .feature-text { grid-template-rows: 1fr; }
+    .extras { margin: 72px 0 0; padding: 0; list-style: none; }
+    .extras li { padding-top: 20px; border-top: 1px solid var(--sn-border-subtle); }
+    .extras h3 { margin: 0 0 6px; font-size: var(--sn-text-base); font-weight: 600; }
+    .extras p { margin: 0; color: var(--sn-fg-muted); font-size: var(--sn-text-sm); }
+    .more { margin: 36px 0 0; font-size: var(--sn-text-sm); }
+    .more a, .faq-aside a { color: var(--sn-fg); text-decoration: underline; text-decoration-color: var(--sn-border-strong); text-underline-offset: 4px; }
+    .more a:hover, .faq-aside a:hover { color: var(--sn-accent); }
+
+    .faq { align-items: start; }
+    .faq-aside { position: sticky; top: 40px; }
+    .faq-aside .more { display: flex; gap: 20px; margin-top: 20px; }
+    .faq-list { grid-column: 2 / 4; }
+    .faq details { border-bottom: 1px solid var(--sn-border-subtle); }
+    .faq details:first-of-type summary { padding-top: 4px; }
+    .faq summary { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; cursor: pointer; list-style: none; font-weight: 500; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; color: var(--sn-fg-subtle); transition: transform 0.2s var(--sn-ease); }
+    .faq details[open] summary::after { transform: rotate(45deg); }
+    .faq details p { margin: 0; padding: 0 0 18px; color: var(--sn-fg-muted); font-size: var(--sn-text-sm); }
+    .faq details a { color: var(--sn-fg); text-underline-offset: 3px; }
+
+    .closing { padding-bottom: 32px; }
+    .closing img { width: 56px; height: 56px; border-radius: 13px; }
+    .closing .section-title { margin: 14px 0 6px; }
+    .closing .fine { margin: 0 0 24px; }
+
+    @media (max-width: 860px) {
+      .grid, .states { grid-template-columns: 1fr; row-gap: 28px; }
+      .feature-shot, .faq-list { grid-column: auto; }
+      /* The picture above the list, so a tap shows its change where the eye already is. */
+      .feature-shot { order: -1; }
+      .faq-aside { position: static; }
+      .states::before { display: none; }
+      .dot { margin-bottom: 12px; }
+      .extras { row-gap: 0; margin-top: 48px; }
+      .extras li { padding-bottom: 20px; }
+      .team i { display: none; }
+    }
+    @media (max-width: 600px) {
+      .hero { --top: 56px; }
+      .signals, .features, .faq, .closing { margin-top: 104px; }
+      .theme-name { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <a class="brand" href="/"><img src="icon.png" alt="">OneCorp</a>
-    <nav class="nav"><a href="#how">How it works</a><a href="#features">Features</a><a href="https://github.com/snowztech/onecorp">GitHub</a><a href="https://github.com/snowztech/onecorp/blob/main/CHANGELOG.md">Changelog</a></nav>
-  </header>
-</div>
+  <main>
+    <section class="hero column">
+      <img class="hero-icon" src="icon.png" alt="OneCorp icon">
+      <h1>OneCorp <span class="tagline">Run a company of AI employees, on your Mac. They plan, ask their lead, build and test in your repo. You decide what ships.</span></h1>
+      <div class="actions">
+        <a class="sn-btn sn-btn--primary sn-btn--lg" href="https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg">Download for Mac</a>
+        <a class="sn-btn sn-btn--secondary sn-btn--lg" href="https://github.com/snowztech/onecorp">GitHub</a>
+      </div>
+      <button class="brew" type="button" data-cmd="brew install --cask snowztech/tap/onecorp">brew install --cask snowztech/tap/onecorp <em>copy</em></button>
+      <p class="fine">Free and open source, for Apple silicon and Intel Macs. Works with the Claude Code or Codex login you already have.</p>
+      <div class="team" aria-hidden="true"><i></i><i></i><i></i></div>
+    </section>
 
-<div class="hero">
-  <div class="wrap">
-    <img class="mark" src="icon.png" alt="OneCorp">
-    <h1>Run a company of<br>AI employees, on your Mac.</h1>
-    <p class="lede">Hire a team on Claude Code or Codex. They plan, ask their lead, build and test in your repo, and open pull requests. You decide what ships.</p>
-    <div class="cta">
-      <a class="btn primary" href="https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg">Download for Mac</a>
-      <a class="btn" href="https://github.com/snowztech/onecorp">Star on GitHub</a>
-    </div>
-    <button class="brew" onclick="navigator.clipboard.writeText(this.dataset.cmd); this.querySelector('em').textContent = 'copied'" data-cmd="brew install --cask snowztech/tap/onecorp">$ <b>brew install --cask snowztech/tap/onecorp</b> <em>copy</em></button>
-    <p class="fine">Free and open source. Apple silicon and Intel. Uses the Claude Code or Codex login you already have.</p>
-    <div class="shot"><img src="hero.jpg" alt="The Company page: departments of employees at their desks, what needs you, and a live feed"></div>
-  </div>
-</div>
+    <section class="hero-shot wide" aria-label="OneCorp's Company page">
+      <div class="showcase">
+        <div class="stack" id="theme-shot">
+          <div data-active data-key="dark"><img class="shot" src="shots/company.jpg" width="2400" height="1733" fetchpriority="high" alt="The Company page: departments as rooms of desks, each employee at work with what they're doing above them, what needs you and the live feed on the right"></div>
+          <div data-key="light"><img class="shot" data-src="shots/company-light.jpg" width="2400" height="1733" loading="lazy" decoding="async" alt="The Company page in light mode"></div>
+        </div>
+      </div>
+      <div class="theme-dots" role="radiogroup" aria-label="Theme of the picture">
+        <button class="theme-dot" type="button" role="radio" aria-checked="true" tabindex="0" data-key="dark" aria-label="Dark" style="--bg: #09090b; --accent: #4c9aff"></button>
+        <button class="theme-dot" type="button" role="radio" aria-checked="false" tabindex="-1" data-key="light" aria-label="Light" style="--bg: #fafafa; --accent: #0a6cff"></button>
+        <span class="theme-name" aria-hidden="true">Dark</span>
+      </div>
+    </section>
 
-<div class="wrap">
-  <section id="how">
-    <span class="eyebrow">How it works</span>
-    <h2>A small company, not a chat window.</h2>
-    <p class="sub">Each agent is an employee with a name, a role, a personality and a desk. They work like a team, and you run it like a founder.</p>
-    <div class="steps">
-      <div class="step"><b>Hire a team</b><span>Start from a template, or build your own. Each person runs on Claude Code or Codex.</span></div>
-      <div class="step"><b>Describe a project</b><span>Your planner turns it into tickets with owners, across one repo or several.</span></div>
-      <div class="step"><b>They do the work</b><span>Each ticket in its own git worktree. They build, run the tests, and ask when it matters.</span></div>
-      <div class="step"><b>You approve</b><span>Review the change, merge the pull request. Your checkout is never touched.</span></div>
-    </div>
-  </section>
+    <section class="signals wide" aria-labelledby="signals-title">
+      <h2 class="section-title" id="signals-title">A company you can read at a glance</h2>
+      <ul class="states">
+        <li><span class="dot dot-working" aria-hidden="true"></span><h3>Working</h3><p>At their desk on a ticket, in its own copy of your repo. The bubble says what they're doing.</p></li>
+        <li><span class="dot dot-waiting" aria-hidden="true"></span><h3>Needs you</h3><p>A plan to approve, a question their lead passed up, or work to review. One inbox, one click.</p></li>
+        <li><span class="dot dot-done" aria-hidden="true"></span><h3>Shipped</h3><p>Tested, committed under their name with you credited, and merged as a pull request.</p></li>
+      </ul>
+    </section>
 
-  <section id="features">
-    <span class="eyebrow">Inside</span>
-    <h2>Everything a founder needs, in one window.</h2>
-    <div class="features">
-      <div class="card"><div class="txt"><h3>One inbox for what needs you</h3><p>Plans to approve, questions with a default answer, work to review, runs that stopped.</p></div><img src="inbox.jpg" alt="The Inbox" loading="lazy"></div>
-      <div class="card"><div class="txt"><h3>Every run, step by step</h3><p>What they read, what they changed, the tests that failed and passed, and what it cost.</p></div><img src="ticket.jpg" alt="A ticket's log" loading="lazy"></div>
-      <div class="card"><div class="txt"><h3>A team chat you can read</h3><p>Channels per department, direct messages, and leads deciding out loud.</p></div><img src="chat.jpg" alt="Team chat" loading="lazy"></div>
-      <div class="card"><div class="txt"><h3>A team in a minute</h3><p>Roles, departments, agents and personalities, from a template or your other company.</p></div><img src="team.jpg" alt="Picking a starting team" loading="lazy"></div>
-    </div>
-  </section>
+    <section class="features wide" aria-labelledby="features-title">
+      <h2 class="section-title" id="features-title">From idea to pull request</h2>
+      <div class="grid feature-grid">
+      <div class="feature-list" role="tablist" aria-orientation="vertical" aria-labelledby="features-title">
+        <button class="feature" type="button" role="tab" id="feature-project" aria-controls="feature-shot" aria-selected="true" tabindex="0" data-key="project">
+          <span class="feature-title">Describe a project</span>
+          <span class="feature-text"><span>Say what you want. Your planner breaks it into tickets with owners, across one repo or several, for you to approve.</span></span>
+        </button>
+        <button class="feature" type="button" role="tab" id="feature-inbox" aria-controls="feature-shot" aria-selected="false" tabindex="-1" data-key="inbox">
+          <span class="feature-title">One inbox for what needs you</span>
+          <span class="feature-text"><span>Plans, questions with a default answer, work to review and runs that stopped. Leads answer what they can first.</span></span>
+        </button>
+        <button class="feature" type="button" role="tab" id="feature-ticket" aria-controls="feature-shot" aria-selected="false" tabindex="-1" data-key="ticket">
+          <span class="feature-title">Every run, step by step</span>
+          <span class="feature-text"><span>What they read, what they changed, the tests that failed and passed, the commit, and what it cost.</span></span>
+        </button>
+        <button class="feature" type="button" role="tab" id="feature-chat" aria-controls="feature-shot" aria-selected="false" tabindex="-1" data-key="chat">
+          <span class="feature-title">A team chat you can read</span>
+          <span class="feature-text"><span>Channels per department and direct messages. Questions to a lead and their decisions happen out loud.</span></span>
+        </button>
+        <button class="feature" type="button" role="tab" id="feature-team" aria-controls="feature-shot" aria-selected="false" tabindex="-1" data-key="team">
+          <span class="feature-title">A team in a minute</span>
+          <span class="feature-text"><span>Start from a template. Each person gets a role, an agent, a model and a personality you can change.</span></span>
+        </button>
+        <button class="feature" type="button" role="tab" id="feature-spending" aria-controls="feature-shot" aria-selected="false" tabindex="-1" data-key="spending">
+          <span class="feature-title">Spending you control</span>
+          <span class="feature-text"><span>A daily budget, caps per person, a cheaper model for chat, and plan limits it waits out by itself.</span></span>
+        </button>
+      </div>
+      <div class="showcase feature-shot">
+        <div class="stack" id="feature-shot" role="tabpanel" aria-labelledby="feature-project">
+          <div data-active data-key="project"><img class="shot" src="shots/project.jpg" width="2400" height="1500" loading="lazy" decoding="async" alt="New project: Stripe billing, with a goal and the product lead to plan it, beside the Board"></div>
+          <div data-key="inbox"><img class="shot" data-src="shots/inbox.jpg" width="2400" height="1500" loading="lazy" decoding="async" alt="The Inbox: a plan to start, a stopped run to retry, a blocking question with two answers, and a pull request to review"></div>
+          <div data-key="ticket"><img class="shot" data-src="shots/ticket.jpg" width="2400" height="1500" loading="lazy" decoding="async" alt="A ticket's log, from reading the code to a failing test, the fix, passing tests and the commit"></div>
+          <div data-key="chat"><img class="shot" data-src="shots/chat.jpg" width="2400" height="1500" loading="lazy" decoding="async" alt="Team chat in #general, with the founder asking Tomás a question while he types"></div>
+          <div data-key="team"><img class="shot" data-src="shots/team.jpg" width="2400" height="1500" loading="lazy" decoding="async" alt="Picking a starting team, each person with a role, department, personality and agent"></div>
+          <div data-key="spending"><img class="shot" data-src="shots/spending.jpg" width="2400" height="1500" loading="lazy" decoding="async" alt="Spending: today against the daily budget, the model for chat, two weeks of spend and spend per person"></div>
+        </div>
+      </div>
+      </div>
+      <ul class="grid extras">
+        <li><h3>Keeps working, window closed</h3><p>Close the window and your team carries on from the menu bar, with what needs you counted next to it.</p></li>
+        <li><h3>Your repos, untouched</h3><p>Every ticket gets its own worktree and branch. Your checkout stays exactly as you left it.</p></li>
+        <li><h3>Built on your agents</h3><p>Claude Code and Codex, with the login you already have. No account, no server, nothing leaves your Mac.</p></li>
+      </ul>
+    </section>
 
-  <section>
-    <span class="eyebrow">Yours</span>
-    <h2>Local, open, and on a budget.</h2>
-    <div class="facts">
-      <div class="fact"><b>Everything stays on your Mac</b><span>No account, no server. Your agents use the login you already have.</span></div>
-      <div class="fact"><b>Spending you can see</b><span>A daily budget, caps per person, and plan limits it waits out by itself.</span></div>
-      <div class="fact"><b>Open source, MIT</b><span>Read the code, change it, ship it. Built in Rust with a CLI too.</span></div>
-    </div>
-  </section>
+    <section class="faq wide grid" aria-labelledby="faq-title">
+      <div class="faq-aside">
+        <h2 class="section-title" id="faq-title">Questions</h2>
+        <p class="section-lede">The README covers everything. For anything else, open an issue.</p>
+        <p class="more"><a href="https://github.com/snowztech/onecorp#readme">Read the README</a><a href="https://github.com/snowztech/onecorp/issues/new">Open an issue</a></p>
+      </div>
+      <div class="faq-list">
+      <details>
+        <summary>What is OneCorp?</summary>
+        <p>A free, open source Mac app where you run a small company of AI employees. Each one is a coding agent with a name, a role, a personality and a desk. They take tickets, ask their lead when they're unsure, build and test in your repo, and open pull requests for you to approve.</p>
+      </details>
+      <details>
+        <summary>Which coding agents does it work with?</summary>
+        <p>Claude Code and Codex. Each employee runs on one of them, and you pick the model, like Opus 5.5 or GPT-6.1-Sol. OneCorp uses the login you already have, so there's nothing new to sign up for.</p>
+      </details>
+      <details>
+        <summary>What does it cost?</summary>
+        <p>OneCorp is free. Your agents use your Claude or ChatGPT plan, or your API key. Every company has a daily budget, ten dollars to start, and chat replies run on a cheaper model so talk stays cheap. When your plan's usage limit is reached, work waits and picks up again by itself.</p>
+      </details>
+      <details>
+        <summary>Does my code leave my Mac?</summary>
+        <p>Only the way it already does when you use Claude Code or Codex yourself. OneCorp has no server and no account. Your companies, chat and wiki live in a folder on your Mac.</p>
+      </details>
+      <details>
+        <summary>Will the agents touch my branch?</summary>
+        <p>No. Each ticket runs in its own git worktree on its own branch, starting from your main branch. Nothing lands until you approve it, as a pull request on GitHub or GitLab or as a merge on your Mac.</p>
+      </details>
+      <details>
+        <summary>Can they run my tests?</summary>
+        <p>Yes. OneCorp reads your repo (cargo, npm, pnpm, bun, yarn, go, pytest, make) and lets employees build and test in their worktree, so work comes back tested. You can change the list per repo.</p>
+      </details>
+      <details>
+        <summary>Can a company work across several repos?</summary>
+        <p>Yes, like an app and its api. Each ticket happens in one repo, and the planner splits work that spans them into tickets that wait for each other.</p>
+      </details>
+      <details>
+        <summary>Is there a command line?</summary>
+        <p>Yes. Everything the app does, the <code>onecorp</code> command does too. Both run on the same Rust library.</p>
+      </details>
+      </div>
+    </section>
 
-  <div class="end">
-    <h2>Start your company.</h2>
-    <div class="cta"><a class="btn primary" href="https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg">Download for Mac</a><a class="btn" href="https://github.com/snowztech/onecorp">Read the code</a></div>
-  </div>
+    <section class="closing column" aria-labelledby="closing-title">
+      <img src="icon.png" alt="">
+      <h2 class="section-title" id="closing-title">OneCorp is free and open source</h2>
+      <p class="fine">Apple silicon and Intel Macs.</p>
+      <div class="actions">
+        <a class="sn-btn sn-btn--primary sn-btn--lg" href="https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg">Download for Mac</a>
+        <a class="sn-btn sn-btn--secondary sn-btn--lg" href="https://github.com/snowztech/onecorp">GitHub</a>
+      </div>
+    </section>
+  </main>
 
   <footer>
-    <span>© 2026 Lucas Neves Pereira, <a href="https://github.com/snowztech">snowztech</a>. OneCorp isn't affiliated with Anthropic or OpenAI.</span>
-    <span><a href="https://github.com/snowztech/onecorp">GitHub</a> · <a href="https://github.com/snowztech/onecorp/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/snowztech/onecorp/issues/new">Report an issue</a></span>
+    <div class="top">
+      <div>
+        <a class="home" href="/"><img src="/icon.png" alt="">OneCorp</a>
+        <p>Run a company of AI employees, on your Mac.</p>
+      </div>
+      <nav aria-label="Footer">
+        <div>
+          <h2>Product</h2>
+          <ul>
+            <li><a href="https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg">Download</a></li>
+            <li><a href="https://github.com/snowztech/onecorp/blob/main/CHANGELOG.md">Changelog</a></li>
+            <li><a href="https://github.com/snowztech/onecorp/blob/main/ROADMAP.md">Roadmap</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2>Community</h2>
+          <ul>
+            <li><a href="https://github.com/snowztech/onecorp">GitHub</a></li>
+            <li><a href="https://github.com/snowztech/onecorp/issues/new">Report an issue</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2>From snowztech</h2>
+          <ul>
+            <li><a href="https://farol.sh">Farol</a></li>
+            <li><a href="https://github.com/snowztech">All projects</a></li>
+          </ul>
+        </div>
+      </nav>
+    </div>
+    <div class="legal">
+      <span>© 2026 Lucas Neves Pereira, <a href="https://github.com/snowztech">snowztech</a>. Not affiliated with Anthropic or OpenAI.</span>
+      <span><a href="https://github.com/snowztech/onecorp/blob/main/LICENSE">MIT</a></span>
+    </div>
   </footer>
-</div>
+  <script src="/picker.js"></script>
+  <script>
+    const themeName = document.querySelector(".theme-name");
+    picker([...document.querySelectorAll(".theme-dot")], document.getElementById("theme-shot"), dot => { themeName.textContent = dot.getAttribute("aria-label"); });
+    const featureShot = document.getElementById("feature-shot");
+    picker([...document.querySelectorAll(".feature")], featureShot, feature => featureShot.setAttribute("aria-labelledby", feature.id));
+
+    const brew = document.querySelector(".brew");
+    brew.addEventListener("click", () => { navigator.clipboard.writeText(brew.dataset.cmd); brew.querySelector("em").textContent = "copied"; });
+
+    const states = document.querySelector(".states");
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      states.classList.add("armed");
+      new IntersectionObserver(([entry], observer) => {
+        if (!entry.isIntersecting) return;
+        states.classList.add("lit");
+        observer.disconnect();
+      }, { threshold: 0.6 }).observe(states);
+    }
+  </script>
 </body>
 </html>
