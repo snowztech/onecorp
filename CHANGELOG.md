@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A polish pass from real use: every dropdown matches the other fields, Inbox questions read like messages and their buttons stay short (Keep Rui's choice), plan tickets show their details as Markdown and fold long ones, desk bubbles say what someone is doing in plain words (Reading providers.go, Running tests), and a question in chat shows who it went to, with Answer in Inbox when it's you.
 - Chat replies stay short, a few lines unless you ask for detail. When your own checkout is on a feature branch, replies know it's yours and look at main for where the team stands.
 - The wiki shows Markdown tables as tables, plus smaller headings and dividers. A skipped mission shows as a hint, not as text you wrote.
 - Chat reads Markdown like Slack: `code`, bold, italics, links and code blocks. Mentions and ticket links still work, and never inside code.

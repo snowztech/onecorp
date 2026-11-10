@@ -362,8 +362,58 @@ pub fn person(c: &Company, id: &str) -> Result<Value> {
 fn last_activity(c: &Company, ticket: i64) -> Option<String> {
     let events = c.events(ticket).ok()?;
     let (_, kind, summary) = events.iter().rev().find(|(_, k, _)| k == "say" || k == "tool")?;
-    let text = if kind == "tool" { summary.clone() } else { first_line(summary) };
+    let text = if kind == "tool" { plain_tool(summary) } else { first_line(summary) };
     Some(text.chars().take(70).collect())
+}
+
+/// What a tool call means, in words a founder reads at a glance: "Bash sed -n 1,9p src/a.rs"
+/// becomes "Reading a.rs". The exact command stays in the ticket's log.
+pub fn plain_tool(summary: &str) -> String {
+    let (tool, rest) = summary.split_once(' ').unwrap_or((summary, ""));
+    let rest = rest.trim();
+    let file = |p: &str| p.rsplit('/').next().unwrap_or(p).to_string();
+    let last_path = || rest.split_whitespace().rev().find(|w| w.contains('/') || w.contains('.')).map(file).unwrap_or_default();
+    match tool {
+        "Read" => format!("Reading {}", file(rest)),
+        "Edit" | "MultiEdit" => format!("Editing {}", file(rest)),
+        "Write" => format!("Writing {}", file(rest)),
+        "Grep" => format!("Searching for {rest}"),
+        "Glob" => "Looking for files".into(),
+        "WebFetch" | "WebSearch" => "Reading the web".into(),
+        "TodoWrite" => "Making a plan".into(),
+        "post_message" => "Posting in chat".into(),
+        "ask_human" => "Asking a question".into(),
+        "create_ticket" => "Creating a ticket".into(),
+        "update_ticket" => "Updating the ticket".into(),
+        "remember" => "Taking a note".into(),
+        "propose_wiki" => "Suggesting a wiki change".into(),
+        "Bash" => {
+            let cmd = rest.trim_start_matches("cd ").split("&&").last().unwrap_or(rest).trim();
+            let first = cmd.split_whitespace().next().unwrap_or("");
+            let has = |w: &str| cmd.split_whitespace().any(|x| x == w);
+            if has("test") || first == "pytest" || cmd.contains("vitest") || cmd.contains("jest") {
+                "Running tests".into()
+            } else if has("build") || has("check") || has("typecheck") || has("vet") || has("clippy") {
+                "Checking the build".into()
+            } else if has("install") || has("add") {
+                "Installing packages".into()
+            } else if ["sed", "cat", "head", "tail", "less", "wc"].contains(&first) {
+                let f = last_path();
+                if f.is_empty() { "Reading a file".into() } else { format!("Reading {f}") }
+            } else if ["rg", "grep", "ag", "ack"].contains(&first) {
+                "Searching the code".into()
+            } else if ["ls", "find", "tree", "fd", "pwd"].contains(&first) {
+                "Looking around the repo".into()
+            } else if first == "git" {
+                "Checking git".into()
+            } else if first == "gh" {
+                "Checking GitHub".into()
+            } else {
+                format!("Running {first}")
+            }
+        }
+        _ => summary.to_string(),
+    }
 }
 
 fn last_said(c: &Company, ticket: i64) -> Option<String> {
@@ -375,6 +425,16 @@ fn last_said(c: &Company, ticket: i64) -> Option<String> {
 mod tests {
     use super::*;
     use crate::store::Employee;
+
+    #[test]
+    fn tool_calls_read_as_plain_words() {
+        assert_eq!(super::plain_tool("Bash sed -n 440,470p internal/catalog/providers.go"), "Reading providers.go");
+        assert_eq!(super::plain_tool("Bash cd api && go test ./..."), "Running tests");
+        assert_eq!(super::plain_tool("Bash pnpm typecheck"), "Checking the build");
+        assert_eq!(super::plain_tool("Edit src/routes/pricing.rs"), "Editing pricing.rs");
+        assert_eq!(super::plain_tool("Bash cargo test billing"), "Running tests");
+        assert_eq!(super::plain_tool("post_message Pricing page is up"), "Posting in chat");
+    }
 
     #[test]
     fn shows_who_is_doing_what() {
@@ -395,7 +455,7 @@ mod tests {
 
         let v = snapshot(&c).unwrap();
         let by = |id: &str| v["employees"].as_array().unwrap().iter().find(|e| e["id"] == id).unwrap().clone();
-        assert_eq!((by("maya")["status"].as_str(), by("maya")["bubble"].as_str()), (Some("working"), Some("Edit src/auth.rs")));
+        assert_eq!((by("maya")["status"].as_str(), by("maya")["bubble"].as_str()), (Some("working"), Some("Editing auth.rs")));
         assert_eq!(by("tomas")["status"], "blocked");
         assert_eq!(by("tomas")["bubble"], "Need you on SNO-2");
         assert_eq!(by("lina")["status"], "idle");

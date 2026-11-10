@@ -509,11 +509,12 @@ function stopped(t) {
 }
 function question(q, withLead) {
   const opts = q.options.map(o => `<button class="btn primary" data-answer="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join("");
-  const def = q.default && !q.options.includes(q.default) ? `<button class="btn" data-answer="${q.id}" data-val="${esc(q.default)}">Go with ${esc(q.default)}</button>` : "";
+  // A long default goes in the sentence above, so its button stays short.
+  const def = q.default && !q.options.includes(q.default) ? `<button class="btn" data-answer="${q.id}" data-val="${esc(q.default)}">${q.default.length > 40 ? `Keep ${esc(first(q.name))}'s choice` : `Go with ${esc(q.default)}`}</button>` : "";
   const kind = withLead ? `With ${esc(first(q.lead_name || "their lead"))}` : q.blocking ? "Blocking" : "Question";
   const via = q.via_name ? `<p class="via"><b>${esc(first(q.via_name))}</b> passed this to you${q.note ? `: ${esc(q.note)}` : "."}</p>` : "";
   return `<article class="ask ${q.blocking ? "blocking" : ""} ${withLead ? "lead" : ""}" id="in-q${q.id}">${face(q.name, q.blocking ? "blocked" : "neutral")}<div>
-    <span class="kind">${kind} · ${esc(q.key || "")}</span><h4>${esc(q.question)}</h4>${via}
+    <span class="kind">${kind} · ${esc(q.key || "")}</span><div class="q-text">${md(q.question).html}</div>${via}
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
     <div class="acts">${opts}${def}</div>
     ${more(`ans-${q.id}`, "Write your own answer", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Your answer"><button class="btn">Send</button></form>`)}</div></article>`;
@@ -526,7 +527,11 @@ function planReview(r) {
   const people = S.snap.employees;
   const rows = r.tickets.map(t => `<li class="pt">
     <span class="k">${esc(t.key)}</span>
-    <div class="pt-main"><b>${esc(t.title)}</b>${t.description ? `<span class="muted">${esc(t.description)}</span>` : ""}${t.after ? `<span class="after">after ${esc(t.after)}</span>` : ""}</div>
+    <div class="pt-main"><b>${esc(t.title)}</b>${t.repo ? `<span class="repo-tag">${esc(t.repo)}</span>` : ""}${t.description ? (() => {
+      // Short details show whole. Long ones fold to a few lines until you open them.
+      const long = t.description.length > 220 || t.description.split("\n").length > 3, open = !long || S.open["pd-" + t.key];
+      return `<div class="pt-desc ${open ? "open" : ""}">${md(t.description).html}</div>${open ? "" : `<button class="link-btn inline more-link" type="button" data-more="pd-${esc(t.key)}">Show details</button>`}`;
+    })() : ""}${t.after ? `<span class="after">after ${esc(t.after)}</span>` : ""}</div>
     <select data-plan-assign="${esc(t.key)}" aria-label="Who does ${esc(t.key)}"><option value="">Nobody yet</option>${people.map(e => `<option value="${esc(e.id)}" ${e.id === t.assignee ? "selected" : ""}>${esc(first(e.name))}</option>`).join("")}</select>
     <button class="x" data-plan-del="${esc(t.key)}" title="Remove from the plan" aria-label="Remove ${esc(t.key)}">×</button></li>`).join("");
   return `<article class="ask plan" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
@@ -652,6 +657,12 @@ const sameMinutes = (a, b, n) => Math.abs(utc(b) - utc(a)) <= n * 60000;
 // Agents write Markdown, so chat reads it like Slack does: code, bold, italics, links and code
 // blocks. Mentions and keys are only picked out of plain text, never inside code.
 function chatText(text) {
+  const asking = String(text).match(/\n\(Asking (.+)\.\)$/);
+  if (asking) {
+    const toYou = /founder/.test(asking[1]);
+    const note = toYou ? `<span class="msg-meta">Asked you · <button class="link-btn inline" data-view="inbox">Answer in Inbox</button></span>` : `<span class="msg-meta">Asked ${chatText(asking[1])}</span>`;
+    return chatText(String(text).slice(0, asking.index)) + note;
+  }
   const blocks = String(text).split(/```(?:\w+)?\n?/);
   return blocks.map((part, i) => {
     if (i % 2) return `<pre class="chat-code"><code>${esc(part.replace(/\n$/, ""))}</code></pre>`;
@@ -2084,11 +2095,13 @@ function preview(cmd, args) {
       projects: [{ key: "SNO-20", title: "First version", goal: "", status: "done", planner: "rui", planner_name: "Rui Alves", total: 8, done: 5 }, { key: "SNO-30", title: "Stripe billing", goal: "Pro plan at $6 a month with a free tier.", status: "review", planner: "rui", planner_name: "Rui Alves", total: 4, done: 0 }],
       departments: [{ id: 1, name: "Engineering", lead: "odile", members: ["odile", "maya", "tomas"] }, { id: 2, name: "Product", lead: "rui", members: ["rui", "lina"] }, { id: 3, name: "Growth", lead: "sam", members: ["sam"] }],
       with_leads: [{ id: 5, kind: "question", key: "SNO-15", employee: "tomas", name: "Tomás Reis", lead_name: "Odile Martin", question: "Retry webhooks 3 or 5 times?", section: "", options: ["3", "5"], default: "3", blocking: false }],
-      inbox: [{ id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
+      // A question with a long default and no options, like most real ones.
+      inbox_extra: null,
+      inbox: [{ id: 7, kind: "question", key: "SNO-20", employee: "rui", name: "Rui Alves", question: "Which K-drama and region did you see Viki missing on? The API already pulls TMDB's subscription tiers, so I suspect a data gap, not a filter on our side.", section: "", options: [], default: "I'll plan with an investigation ticket first, using popular K-dramas in US, KR and FR.", blocking: false }, { id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
         { id: 3, kind: "wiki", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
       failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished" }],
       reviews: [{ key: "SNO-20", title: "First version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",
-          tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
+          tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.\n\nDone looks like:\n- `cargo build` and `cargo test` pass\n- A README that says how to run it\n- CI runs the tests on every push", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
             { key: "SNO-22", title: "Magic link login", description: "Email a one-time link, 15 minute expiry.", assignee: "tomas", name: "Tomás Reis", after: "SNO-21", status: "backlog" }] },
         { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31", title: "Pricing page" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "start", summary: "started", title: "Retry failed Stripe webhooks" }, { at: "2026-11-09 10:31:00", key: "SNO-12", employee: "maya", name: "Maya Okafor", kind: "block", summary: "asked you about magic link expiry", title: "Magic link login" }],

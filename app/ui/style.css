@@ -1216,3 +1216,34 @@ table.md td code { font-size: 12px; white-space: nowrap; }
 .msg .msg-text b { font-weight: 600; }
 .chat-code { margin: 6px 0; padding: 10px 12px; background: var(--term-bg); color: var(--term-fg); border-radius: var(--r-md); overflow-x: auto; font: 12.5px/1.5 var(--mono); white-space: pre; }
 .chat-code code { background: none; border: 0; padding: 0; }
+
+/* Every select looks like the other fields: same height, background and a quiet chevron. */
+select { appearance: none; -webkit-appearance: none; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%2371717a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 10px center; padding: 7px 28px 7px 10px; font-size: 13px; line-height: 1.3; color: var(--fg); cursor: pointer; }
+select:hover { border-color: var(--muted); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn .ic { width: 14px; height: 14px; }
+
+/* Inbox questions read like a message, not a headline. */
+.q-text { margin: 2px 0 6px; font-size: 15px; line-height: 1.55; }
+.q-text p { margin: 0 0 6px; }
+.q-text p:first-child { font-weight: 500; }
+.q-text ul, .q-text ol { margin: 0 0 6px; padding-left: 20px; }
+.q-text code { font: 12.5px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
+.ask .acts { flex-wrap: wrap; }
+.ask .acts .btn { white-space: normal; text-align: left; max-width: 100%; }
+
+/* Plan tickets: details as Markdown, folded to three lines until you open them. */
+.pt-desc { font-size: 13px; color: var(--muted); line-height: 1.5; max-height: 4.5em; overflow: hidden; mask-image: linear-gradient(#000 55%, transparent); }
+.pt-desc.open { max-height: none; mask-image: none; }
+.pt-desc p { margin: 0 0 4px; }
+.pt-desc ul, .pt-desc ol { margin: 2px 0 4px; padding-left: 18px; }
+.pt-desc code { font: 12px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: 4px; color: var(--fg); }
+.pt-main .repo-tag { margin: 2px 0; }
+
+/* The note under a question in chat */
+.msg-meta { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.msg-meta .link-btn { font-size: 12px; }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%2371717a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E") !important; background-repeat: no-repeat !important; background-position: right 10px center !important; padding-right: 28px !important; }
+.q-text p { color: var(--fg); }
+.more-link { align-self: flex-start; font-size: 12px; }
+.acts > .fine { margin: 0; align-self: center; }
