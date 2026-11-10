@@ -268,13 +268,13 @@ function companySection() {
     ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, wiki and memory. Your repo and its branches stay as they are.</p>
         <div class="su-row"><input id="del-name" placeholder="Type ${esc(st.name)} to confirm" autocomplete="off" spellcheck="false"><button class="btn danger">Delete</button><button class="btn ghost" type="button" data-confirm="">Cancel</button></div></form>`
     : `<div class="row-set"><div><b>Delete ${esc(st.name)}</b><span>Your repo is never touched.</span></div><button class="btn danger-ghost" data-confirm="delete">Delete…</button></div>`;
-  return `<div class="row-set"><div class="who-row">${badge(st.name, look, "lg")}<div><b>Logo</b><span>A color, or your own image.</span></div></div>
+  return `<div class="row-set"><div class="who-row">${badge(st.name, look, "lg")}<div><b>Logo</b></div></div>
       <div class="look-row">${PALETTE.map(c => `<button type="button" class="swatch" data-look-color="${c}" aria-pressed="${!look.logo && c === look.color}" style="--c:${c}" aria-label="Color ${c}"></button>`).join("")}
         ${window.__TAURI__?.dialog ? `<button class="link-btn" data-look-logo="1">${look.logo ? "Change image" : "Image…"}</button>` : ""}</div></div>
     <div class="row-set"><div><b>Finished work</b><span>${st.ship === "local" ? "Merged on this Mac" : "Opened as pull requests"}</span></div>
       <div class="seg">${modes.map(([m, n]) => `<button data-ship="${m}" aria-pressed="${m === st.ship}">${n}</button>`).join("")}</div></div>
     <div class="row-set"><div><b>Commits</b><span>${st.git_you
-        ? (st.commits === "you" ? `Every commit is yours, as ${esc(st.git_you.name)} &lt;${esc(st.git_you.email)}&gt;` : `Written by the employee. You're the committer and co-author, as ${esc(st.git_you.name)}`)
+        ? (st.commits === "you" ? `Every commit is yours, as ${esc(st.git_you.name)}` : `The employee writes it, you're credited too`)
         : "By the employee. Set your name in git (git config user.name and user.email) to commit as you."}</span></div>
       <div class="seg">${[["team", "As your team"], ["you", "As you"]].map(([m, n]) => `<button data-commits="${m}" aria-pressed="${m === (st.commits || "team")}" ${!st.git_you && m === "you" ? "disabled" : ""}>${n}</button>`).join("")}</div></div>
     <h3 class="label repos-label">Repos</h3>
@@ -350,7 +350,7 @@ function spendTab() {
   const r = S.spend;
   if (!r) return `<p class="muted">Adding it up…</p>`;
   const t = r.totals, b = r.budget, pct = b > 0 ? Math.min(100, (t.today.cost / b) * 100) : 0;
-  const any = r.days.some(d => d.cost > 0), top = Math.max(...r.days.map(d => d.cost), b || 0, 0.01);
+  const any = r.days.filter(d => d.cost > 0).length >= 2, top = Math.max(...r.days.map(d => d.cost), b || 0, 0.01);
   const today = r.days[r.days.length - 1]?.day;
   const presets = [0, 5, 10, 25, 50], custom = b > 0 && !presets.includes(b);
   const row = (lead, w, extra = "") => `<tr><td>${lead}</td><td class="num">${money(w.today.cost)}</td><td class="num">${money(w.week.cost)}</td><td class="num">${money(w.all.cost)}</td>${extra}</tr>`;
@@ -361,8 +361,13 @@ function spendTab() {
     <div class="row-set"><div><b>Daily budget</b><span>The company pauses there until tomorrow.</span></div>
       <div class="seg">${presets.map(p => `<button data-budget="${p}" aria-pressed="${p === b && !S.customBudget}">${p ? `$${p}` : "None"}</button>`).join("")}<button data-budget-custom="1" aria-pressed="${custom || !!S.customBudget}">${custom ? money(b) : "Other"}</button></div></div>
     ${S.customBudget ? `<form id="budget-form" class="row-set"><div><b>Your budget</b><span>Press Enter to save.</span></div><label class="money-in inline"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b || ""}" placeholder="12"><span class="unit">a day</span></label></form>` : ""}
-    ${S.settings ? `<div class="row-set"><div><b>Chat and quick decisions</b><span>${S.settings.talk === "same" ? "Replies and lead decisions use each person's own model." : "Replies and lead decisions use a lighter model, like Sonnet 5.5. They're short, so it costs a fraction. Tickets always use each person's model."}</span></div>
-      <div class="seg">${[["light", "Lighter model"], ["same", "Their own model"]].map(([m, n]) => `<button data-talk="${m}" aria-pressed="${m === (S.settings.talk || "light")}">${n}</button>`).join("")}</div></div>` : ""}
+    ${S.settings ? (() => {
+      // Says exactly which model runs, so there's nothing to guess about "lighter".
+      const t = S.settings.talk || "balanced", names = (S.settings.talk_models?.[t] || []).join(" and ");
+      const line = t === "same" ? "Each person's own model answers in chat and decides as a lead." : `${names || "A smaller model"} answers in chat and decides for leads. Tickets use each person's model.`;
+      return `<div class="row-set"><div><b>Chat and lead decisions</b><span>${esc(line)}</span></div>
+        <div class="seg">${[["cheapest", "Cheapest"], ["balanced", "Balanced"], ["same", "Their own"]].map(([m, n]) => `<button data-talk="${m}" aria-pressed="${m === t}">${n}</button>`).join("")}</div></div>`;
+    })() : ""}
     ${any ? `<div class="chart" role="img" aria-label="Spend over the last 14 days">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}"><i style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%"></i></div>`).join("")}${b > 0 && b < top ? `<span class="budget-line" style="bottom:${(b / top) * 100}%"></span>` : ""}</div>
       <div class="chart-axis"><span>2 weeks ago</span><span>Today</span></div>` : `<p class="muted sp-empty">Nothing spent yet. Your team's runs add up here.</p>`}
     ${people.length ? `<h3 class="label sp-h">People</h3><table class="sp">${head('<th class="num">Cap</th>')}<tbody>${people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(first(p.name))}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")}</tbody></table>` : ""}
@@ -2142,7 +2147,7 @@ function preview(cmd, args) {
     new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
     readiness: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4", fix: null },
       { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex" }, { level: "warn", what: "GitHub CLI", detail: "installed but not signed in", fix: "gh auth login" }],
-    settings: { talk: "light", commits: "team", git_you: { name: "Lucas", email: "lucas@example.com" }, repos: [{ name: "notes", path: "/Users/you/dev/notes", main: true, commands: ["cargo build", "cargo test", "cargo check", "cargo clippy", "cargo fmt"], custom: false }, { name: "notes-web", path: "/Users/you/dev/notes-web", main: false, commands: ["pnpm install", "pnpm test", "pnpm run"], custom: false }], name: "snowztech", repo: "/Users/you/dev/snowztech", data: "/Users/you/.onecorp/companies/snowztech", home: "/Users/you/.onecorp", ship: "github", forge: "github", forge_name: "GitHub", origin: "git@github.com:snowztech/notes.git", tickets: 22, people: 6, version: "0.1.0" },
+    settings: { talk: "balanced", talk_models: { cheapest: ["Haiku 5.5"], balanced: ["Sonnet 5.5"] }, commits: "team", git_you: { name: "Lucas", email: "lucas@example.com" }, repos: [{ name: "notes", path: "/Users/you/dev/notes", main: true, commands: ["cargo build", "cargo test", "cargo check", "cargo clippy", "cargo fmt"], custom: false }, { name: "notes-web", path: "/Users/you/dev/notes-web", main: false, commands: ["pnpm install", "pnpm test", "pnpm run"], custom: false }], name: "snowztech", repo: "/Users/you/dev/snowztech", data: "/Users/you/.onecorp/companies/snowztech", home: "/Users/you/.onecorp", ship: "github", forge: "github", forge_name: "GitHub", origin: "git@github.com:snowztech/notes.git", tickets: 22, people: 6, version: "0.1.0" },
     health: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4 (Claude Code)", fix: null },
       { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex, then run codex once to sign in" },
       { level: "ok", what: "company snowztech", detail: "opens pull requests on git@github.com:snowztech/notes.git (Logged in to github.com account you)", fix: null }],

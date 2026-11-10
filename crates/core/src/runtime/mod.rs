@@ -80,16 +80,20 @@ pub fn models(runtime: &str) -> Vec<(String, String, String)> {
     }
 }
 
-/// The lighter model for talk: chat replies and a lead's quick decisions. They're short, so a
-/// smaller model answers them well for a fraction of the cost. Tickets keep each person's model.
-pub fn light_model(runtime: &str) -> Option<String> {
+/// The model for talk (chat replies and a lead's quick decisions) at a tier: "cheapest" or
+/// "balanced". Talk is short, so a smaller model answers it well for a fraction of the cost.
+/// Returns (id, name). Codex's own list says which of its models fits each tier.
+pub fn talk_model(runtime: &str, tier: &str) -> Option<(String, String)> {
+    let cheapest = tier == "cheapest";
     match runtime {
-        "claude" => Some("claude-sonnet-5-5".into()),
-        // Codex's own list says which model is the fast, affordable one.
+        "claude" => Some(if cheapest { ("claude-haiku-5-5".into(), "Haiku 5.5".into()) } else { ("claude-sonnet-5-5".into(), "Sonnet 5.5".into()) }),
         "codex" => codex_models()
             .into_iter()
-            .find(|(id, _, about)| about.to_lowercase().contains("fast and affordable") || id.contains("luna"))
-            .map(|(id, _, _)| id),
+            .find(|(id, _, about)| {
+                let about = about.to_lowercase();
+                if cheapest { about.contains("fast and affordable") || id.contains("luna") } else { about.contains("workhorse") }
+            })
+            .map(|(id, name, _)| (id, name)),
         _ => None,
     }
 }

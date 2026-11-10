@@ -111,6 +111,8 @@ fn channels_posts_and_replies() {
     // Talk runs on a lighter model by default. Tickets keep each person's own.
     let odile = onecorp::store::Employee { runtime: "claude".into(), model: Some("claude-opus-5-5".into()), ..c.employee("odile").unwrap().unwrap() };
     assert_eq!(work::talk_model(&c, &odile).unwrap().as_deref(), Some("claude-sonnet-5-5"));
+    c.set_setting("talk", "cheapest").unwrap();
+    assert_eq!(work::talk_model(&c, &odile).unwrap().as_deref(), Some("claude-haiku-5-5"));
     c.set_setting("talk", "same").unwrap();
     assert_eq!(work::talk_model(&c, &odile).unwrap().as_deref(), Some("claude-opus-5-5"));
 

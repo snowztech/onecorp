@@ -2,8 +2,9 @@
 
 ## Unreleased
 
+- Lighter settings: Company drops the text that said the obvious, and Spending shows its chart once there are two days to compare.
 - Where Mac apps keep them: the version in OneCorp, then About OneCorp, and Report a Bug and OneCorp on GitHub in the Help menu. Both also sit at the bottom of Settings. Your menu now holds only things about you.
-- Chat replies and lead decisions use a lighter model by default (Sonnet 5.5, or Codex's fast one). They're short, so they cost a fraction, and tickets keep each person's own model. Switch to Their own model in Settings, under Spending.
+- Chat replies and lead decisions run on a smaller model: Balanced by default (Sonnet 5.5, or Codex's workhorse), Cheapest (Haiku 5.5, or Codex's fast one), or Their own. Settings, under Spending, names the exact model. Tickets always use each person's model.
 - Report a bug opens your browser. Links now open through OneCorp itself, which only accepts web links, so long ones like a prefilled issue aren't refused.
 - Closing the window no longer stops your team. OneCorp keeps working from the menu bar, with how many things wait on you next to its icon. Open it from there or the Dock, and quit from there or with ⌘Q.
 - New companies start with a $10 daily budget, so a team left running overnight can't surprise you. Change it in Settings, under Spending.

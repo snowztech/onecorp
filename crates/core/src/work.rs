@@ -579,13 +579,24 @@ pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
     Ok(out)
 }
 
-/// The model for talk, per the company's choice (setting "talk"): "light" by default, so chat
-/// replies and lead decisions run on a smaller model; "same" keeps each person's own model.
+/// The model for talk, per the company's choice (setting "talk"): "balanced" by default,
+/// "cheapest", or "same" for each person's own model. Tickets always use the person's model.
+pub fn talk_tier(c: &Company) -> Result<String> {
+    Ok(match c.setting("talk")?.as_deref() {
+        Some("same") => "same",
+        Some("cheapest") => "cheapest",
+        // "light" was the earlier name for balanced.
+        _ => "balanced",
+    }
+    .into())
+}
+
 pub fn talk_model(c: &Company, e: &Employee) -> Result<Option<String>> {
-    if c.setting("talk")?.as_deref() == Some("same") {
+    let tier = talk_tier(c)?;
+    if tier == "same" {
         return Ok(e.model.clone());
     }
-    Ok(runtime::light_model(&e.runtime).or_else(|| e.model.clone()))
+    Ok(runtime::talk_model(&e.runtime, &tier).map(|(id, _)| id).or_else(|| e.model.clone()))
 }
 
 /// The other repos, for runs that read across all of them: planning, the wiki, chat replies.
