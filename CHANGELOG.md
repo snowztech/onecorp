@@ -1,121 +1,19 @@
 # Changelog
 
-## Unreleased
-
-- Signed and notarized by Apple, so OneCorp opens like any Mac app, with no right-click step. Install it with Homebrew too: `brew install --cask snowztech/tap/onecorp`.
-- onecorp.dev, a short page with what OneCorp is and where to get it.
-- Settings → About: the OneCorp mark, your version (click to copy), and links to GitHub, the changelog, reporting an issue and onecorp.dev.
-- Lighter settings: Company drops the text that said the obvious, and Spending shows its chart once there are two days to compare.
-- Where Mac apps keep them: the version in OneCorp, then About OneCorp, and Report a Bug and OneCorp on GitHub in the Help menu. Both also sit at the bottom of Settings. Your menu now holds only things about you.
-- Chat replies and lead decisions run on a smaller model: Balanced by default (Sonnet 5.5, or Codex's workhorse), Cheapest (Haiku 5.5, or Codex's fast one), or Their own. Settings, under Spending, names the exact model. Tickets always use each person's model.
-- Report a bug opens your browser. Links now open through OneCorp itself, which only accepts web links, so long ones like a prefilled issue aren't refused.
-- Closing the window no longer stops your team. OneCorp keeps working from the menu bar, with how many things wait on you next to its icon. Open it from there or the Dock, and quit from there or with ⌘Q.
-- New companies start with a $10 daily budget, so a team left running overnight can't surprise you. Change it in Settings, under Spending.
-- Models by their exact names: Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.1 for Claude Code, and Codex's current list read from Codex itself.
-- Picking who does a ticket in a plan shows each person's role.
-- A polish pass from real use: every dropdown matches the other fields, Inbox questions read like messages and their buttons stay short (Keep Rui's choice), plan tickets show their details as Markdown and fold long ones, desk bubbles say what someone is doing in plain words (Reading providers.go, Running tests), and a question in chat shows who it went to, with Answer in Inbox when it's you.
-- Chat replies stay short, a few lines unless you ask for detail. When your own checkout is on a feature branch, replies know it's yours and look at main for where the team stands.
-- The wiki shows Markdown tables as tables, plus smaller headings and dividers. A skipped mission shows as a hint, not as text you wrote.
-- Chat reads Markdown like Slack: `code`, bold, italics, links and code blocks. Mentions and ticket links still work, and never inside code.
-- Report a bug from your menu or Settings: it opens a GitHub issue with the questions to answer and your OneCorp version filled in. The version also shows in your menu, in Settings and on the welcome screen.
-- Commits: by default the employee is the author and you're the committer, with a Co-authored-by line so the work counts as yours on GitHub. Or pick As you in Settings, under Company, for commits that are yours alone. You is your git name and email for that repo.
-- See the team think in Chat: a question to a lead, the lead's decision or hand-off to you, and your answer all appear in that team's channel, linked to the ticket.
-- Cloning from GitHub asks where first: the path is shown before anything happens, and clicking it picks another folder. A folder that already holds a different repo is never used: the default becomes owner-name, like tvcask-app, and cloning onto someone else's repo is refused. Your projects folder sits at the top of the screen, and clicking it changes it.
-- Clones and new repos go where your projects already are: OneCorp looks in ~/Developer, ~/dev, ~/code, ~/Projects and the like, and picks the one holding your repos. Change it from the GitHub screen, and it's remembered for next time.
-- New tickets start from the repo's main branch (the one origin points to, or main, or master), not whatever you have checked out, and approving lands there too. Being on a feature branch in your own checkout no longer changes your team's base.
-- Name the primary repo in onboarding, like the others.
-- The Repo step is one list: add repos from a folder, from GitHub or by pasting a path, and the first is the primary one. Each shows its branch, with a warning when it isn't on main, since new tickets start from it. Your GitHub repos load in the background, cloning says what it's doing, and the new repo is highlighted when it lands.
-- A calm launch: only the OneCorp mark shows until the app knows where you land, then it fades in, so the sidebar never flashes before onboarding. The very first launch opens on a welcome screen.
-- Company colors are muted tones that sit with the app's theme, graphite first. A company with no name yet shows a small building, not a question mark.
-- Connect notices a login by itself: sign in to Codex or GitHub in Terminal, come back, and it shows as connected. No button to press.
-- Onboarding: Back on the first step returns to You, and every step you've done is a link back. Connect AI is now Connect, with AI agents and code hosting as two groups. In Settings, Agents is now Integrations.
-- Several repos per company, like an app and its api. Add them in onboarding (from a folder or GitHub), in Settings, or with `onecorp repo add`. Each ticket works in one repo, from its own worktree, and ships there. The planner picks the repo for each ticket and splits work that spans two into tickets that wait for each other. Build and test commands are per repo.
-- Start a new company with the same people as another one: their roles, departments, agents and personalities come over.
-- Settings always shows the company you're on. After switching companies it could show the previous one, Delete button included.
-- Forgetting your profile keeps your companies, and coming back is a short welcome back that opens them, not the new company journey.
-- Settings → Appearance: the theme, and the face set for your team. OneCorp's own faces stay the default; Lorelei (by Lisa Wischofsky) and Notionists (by Zoish) are the other two, both CC0, bundled so they work offline.
-- From GitHub, in onboarding: search your repos and your orgs' repos, pick one, and OneCorp clones it into your dev folder (or uses it if it's already there).
-- Employees build and test their work. OneCorp reads your repo (cargo, npm, pnpm, bun, yarn, go, pytest, make) and lets Claude Code run those commands in its worktree, and the prompt asks for a green build before finishing. See or change the list in Settings, under Company.
-- Plan usage limits: when Claude Code or Codex says your plan's limit is reached, that work waits in the queue instead of failing, a bar says when it's back, and it starts again by itself at the reset. Chat replies say so too.
-- Personalities: each employee writes in their own way, terse, warm, thorough, dry, blunt, curious, upbeat or calm, in chat, comments and summaries. Everyone starts with one that fits their role, so a starting team already has its characters. Pick it with the rest of the person, in onboarding, when hiring or editing, and hear a sample reply in that voice before you choose. `onecorp hire --personality`. "How they work" says it holds instructions.
-- Delete a chat message: hover it and click the bin, then Delete? to confirm.
-- In a channel, a message that mentions no one says so before you send: no one will reply unless you @ someone.
-- Faces with ink outlines, each on one of eight muted colours: soft in light, deep in dark, so the team has colour that sits with the UI.
-- Pick Light, Dark or System in Settings, under You. The title bar follows.
-- Thin scrollbars that match the app, instead of the wide grey track.
-- Settings in four sections: Company, Spending, Agents and You. Changes save as you make them. Pick a daily budget in one click ($5, $10, $25, $50 or your own). Agents shows what's connected, with the command to fix what isn't. Change the company's logo and your name and photo right there.
-- A lighter Company page: your line reads Founder, people, and who's working.
-- Budgets. Set a daily budget for a company: a heads-up at 80%, and at 100% it pauses until tomorrow, with Raise budget or Keep going today. Give anyone their own daily cap: they stop picking up work at it, and the rest of the team carries on.
-- Spend, in Settings: today against the budget, the last two weeks, and where it goes by person, project and agent. Claude Code reports its own cost; Codex is estimated from its tokens at a rate you can change. Your menu shows what all your companies spent today, and the top bar shows today's spend against the budget on every page, amber near it and red at it.
-- The Live feed only shows the moments that matter, each on one short line.
-- The Handbook is now the Wiki: the team's shared knowledge, edited by you, proposed to by your team, read by everyone before every ticket. `onecorp wiki` (`onecorp handbook` still works).
-- What we're building is a section of the wiki, written by your lead from the repo, instead of a separate brief. Getting started asks you to read your wiki.
-- Projects are made like tickets: New project on the Board, next to New ticket. A ticket you write yourself can belong to a project.
-- Direct messages: each person has a private thread under Direct messages in Chat, with their face, agent and a status dot. Every message gets a reply, no @ needed, and they read the thread before their next ticket. Message someone from their drawer too.
-- Change how someone looks: pick from eight drawn faces, or use a photo. It changes everywhere they appear.
-- Chat: type @ for a list of your team, with their faces and agents, and pick with the arrows and Enter. A line under the box says who will reply before you send. @all (or @everyone) calls everyone in the channel: the whole company in #general, the team in a department's channel.
-- When your lead writes the handbook and you haven't said what you're building, they draft that too, from the repo. Planning starts from it, and Getting started ticks it off. A brief you wrote is never replaced.
-- Some employees were drawn without their hair or accessories. Every face is complete now.
-- Starting teams by situation, not size: Solo builder, Startup, Indie maker, Open source, Agency, or Start empty.
-- Each agent has its own mark everywhere it appears: a spark for Claude Code, the OpenAI mark for Codex, so two employees on different agents never look alike.
-- Getting started counts only real tickets, so the handbook your lead writes at launch no longer ticks "Approve the plan".
-- A design pass after onboarding: pages always fill the window (Chat no longer stops halfway), one primary button style everywhere (merge and start no longer turn green), activity logs in drawers render cleanly, and the Inbox sits centered like the Handbook.
-- The Dock badge and notifications cover all your companies, and the company switcher shows which ones need you.
-- Onboarding is tested end to end: `make check` and CI walk through it in Chrome like a first user, typing and clicking Continue from the welcome to the company page.
-- Starting teams that fit how founders work: Solo builder, Product team, Startup, Open source project, or Start empty. The stand-in team with no AI is gone from the app, since an employee without AI can't do any work. Connect AI asks for Claude Code or Codex before going on.
-- Every employee wears a small badge on their avatar for the agent they run on.
-- Onboarding fixes found by clicking through it end to end: Continue on the repo step checks the path itself, so typing or pasting one works without a separate Check; switching starting templates, removing someone or changing their agent no longer gets overwritten by what was on screen before.
-- Onboarding has no background polling timer, so fields keep focus while you type. Live updates start in the company workspace and stop whenever you enter setup again.
-- You're a photo or your initials, never a drawn face: those are for your AI team. On the welcome, your avatar is the photo button, so you can pick a photo before typing your name. It's saved when you continue.
-- Typing your name no longer makes the screen jump: the drawn face changes once you pause, with a soft fade, and background refreshes leave setup screens alone. Fields focus in place, with no gap around the ring.
-- Continue on the welcome follows the steps it shows, into Connect AI and the rest, even when you already have a company. Skip takes you straight back.
-- A dev-tool look: neutral zinc greys in both themes, one crisp blue, tighter type and mono labels.
-- Onboarding is a real setup flow, with the steps beside it: You, Connect AI (Claude Code, Codex and the GitHub CLI, each shown as Connected, Not signed in or Not installed, with the command to fix it), Company, Repo, Team, Launch. Launching shows the company being set up step by step. `make fresh` opens the app on an empty home to see it as a first user does.
-- Your team writes the handbook: at launch, your engineering lead reads the repo (read-only) and writes the mission, codebase, build and test commands and the conventions the code already follows. You land in a company that already knows its codebase. With the free stand-in, a quick local scan fills in the Codebase section instead.
-- Ready for first users: download a DMG (a draft release is built for every version tag), and a README that starts from the download.
-- A new mark and app icon: one node directing three, you and your agents. Abstract and monochrome, like the rest of the app.
-- The welcome is calmer: normal-size fields, and a missing name is said right under the field.
-- Onboarding is one journey, shown on every step: You, Company, Repo, Team, Launch. Found your company first (its name, a color or your own logo, its mission, what you're building), then its repo with a check of your Mac, then a starting team from template cards you can edit, then a launch summary. Companies wear their logo in the switcher, and `make bundle` also builds a DMG.
-- The Handbook is a wiki page: it reads as formatted Markdown with a table of contents, and Edit opens the Markdown beside a live preview.
-- A new company's Handbook starts with a Codebase section read from the repo: the stack, build and test commands, the layout and what the README says. Free and local. Update it anytime from the Handbook.
-- Pick how someone works instead of typing it: Claude Code, Codex or the free stand-in as cards, and their models as chips. Agents that aren't installed say so.
-- Creating a company checks your Mac first (git, Claude Code, Codex, GitHub CLI), with the command that fixes anything missing, a Copy button, and Check again.
-- Getting started: five steps on the Company page from an empty company to your first merged work (hire, say what you're building, plan, approve, merge), each checked off by doing it for real, with the next one a click away.
-- Know when your team needs you, even with the app in the background: the dock icon shows how much waits on you, and each new question, plan or review sends a macOS notification.
-- Pause a company: your off switch for spending. Running work finishes, nothing new starts, leads don't consult and nobody replies in chat. A bar on every page says so, with Resume. From the Live section, or `onecorp pause` and `onecorp resume`.
-- Hire anyone you like: the hire drawer is a form (name, role, runtime, model, how they work) with three suggestions that fill it in one click, and a face that follows the name. + Hire is back on each department and + Department on your card. In someone's drawer you can edit them, make them lead, give them a ticket, or let them go; a lead who leaves hands the department to the next person in it.
-- Delete tickets that are merged, stopped or never started, from the ticket drawer or `onecorp rm`. Merged work stays in your repo, and a stopped ticket's branch is cleaned up.
-- Calmer all-clear states, a Cancel on the department form, and ⌘B also folds the sidebar.
-- Needs you is always on the Company page: the top three things waiting on you, most urgent first, each opening the Inbox right at that card. With nothing waiting it says so: all clear. When your whole team is free, a line under your name offers to plan a project or give someone a ticket.
-- The sidebar folds into a rail of icons (⌘\\ or the button in the top bar), and remembers how you left it. The top bar names the page you're on, and the org chart ends with a quiet + New department.
-- Projects, like epics that plan themselves. Plan a project from the Board (or `onecorp plan "Stripe billing" --goal "..."`): your planner breaks it into tickets with owners and order, and you approve it in the Inbox. The Board shows each project as a chip with its progress, and picking one shows only its tickets. The first version is simply your first project. The Company page is the office again: your team at their desks, with planning shown only while it happens.
-- A lighter top bar and a cleaner company switcher.
-- A polish pass so every screen feels like the same app. Settings left the sidebar: your face at the bottom opens your menu (Edit profile, Settings ⌘,, Forget my profile), and Settings is a sheet over the app with Company and Setup check tabs. The top bar only says where you are, with company facts and spend on the Company page. Pages have icons, empty states are friendly, and small animations make it feel alive: pages ease in, menus and sheets open smoothly, buttons press, all off with Reduce Motion.
-- Settings (⌘,): the company's repo and data folder, how finished work ships, your profile, and the same health checks as `onecorp doctor`, with the fix for each. A danger zone deletes a company (type its name to confirm) or forgets your profile. Deleting stops running work and removes OneCorp's worktrees, and never touches your repo or its branches. Also `onecorp delete <company>` and `onecorp founder --forget`.
-- The Handbook reads like a company doc: a title, a table of contents, your team's proposals at the top, and edit controls only when you reach for them.
-- One company switcher at the top of the sidebar instead of a list. The plan card says what it does: describe the product once, your team plans it into tickets. A single task is a New ticket.
-- One calm look across the app, written down in `docs/DESIGN.md`: one type scale, one card style, one label style, three radii, and no attention rings. The Company page lost its nested boxes: the brief becomes a one-line Building strip once planned, you're a header instead of a card, and Needs you and Live are plain sections. Live only shows moments that matter (started, finished, asked, merged) with the ticket's title, and opens the ticket on click. Handbook sections fold their add field away.
-- A first launch that feels like a welcome, not a dashboard. Setting up your profile and creating a company are full screen, with nothing around them yet. Your drawn face follows your name as you type. Editing your profile later is a small popover from your name in the sidebar. On a Mac the title bar is gone and the window controls sit on the app. Fixed a blank window on a brand new install.
-- Team chat you can see and join. #general for the company and a channel per department, made for you as departments appear. Employees post to their own team by default and read recent chat before each ticket. Post from the Chat page or `onecorp say engineering "@maya how does login work?"`, and whoever you @mention replies, read-only, with the cost counted in your spend. Times now show in your own time zone.
-- A calmer app. One New ticket button (⌘K) replaces the busy top bar form. The Board has five columns, with everything that needs you in one, and only shows cost once something was spent. Inbox cards lead with their one-click answers and fold free text away. Desks drop their runtime chips and hire buttons, since the empty desk already does that.
-- Start from just an idea: the new company flow can create the repo, with git, a README and a first commit, and also create it on GitHub under you or one of your orgs (`onecorp new --init --github`). Starting teams are editable before you create the company: names, roles, departments and runtimes.
-- Kickoff from an idea: write a brief (in the app, `onecorp brief`, or when creating a company), and your product manager plans it into small tickets with owners and an order. Review the plan in the Inbox, change owners or remove tickets, then start it. Plan again with feedback, or dismiss it. The small and demo teams now include a product manager.
-- Real tickets: details, a backlog (`--later`, `start`, `assign`), tickets that wait for another one to be merged and then start by themselves, and a `create_ticket` tool so leads and PMs can plan work. The app's Board has a Backlog column and a New ticket drawer.
-- Founder profile: your name and photo, set on first launch or with `onecorp founder`. It shows on the org chart, and employees know who they work for. No account, it stays on your Mac.
-- Ship as pull requests: finished work opens a PR on GitHub or GitLab, sending it back updates it, and approving merges it. PRs merged or closed on the forge are picked up. `onecorp ship` switches modes.
-
 ## 0.1.0
 
-The first version you can use every day.
+The first public release. Run a company of AI employees on Claude Code or Codex, on your Mac.
 
-- Companies around a git repo, each with departments, a handbook and an inbox. Create them in the app or with `onecorp new`, from a starting team or empty.
-- Employees on Claude Code, Codex, or a free stand-in with no AI. Hire them into departments. The first one in leads.
-- Every ticket gets its own git worktree and branch, and the work is committed under the employee's name.
-- Company tools for agents: ask the founder, post to chat, propose to the handbook, remember, mark blocked.
-- Questions go to the department lead first. The lead decides, or passes it up with a reason.
-- Review in the inbox with the real diff: approve and merge, or send it back with feedback that goes into the employee's memory. Conflicts go back to the employee to fix.
-- A shared handbook everyone reads before each ticket, and personal memory per employee.
-- `serve` runs work in parallel, one ticket per person. The app runs it for you.
-- Stop a run, cancel a queued ticket, retry one that stopped. Stuck tickets are noticed and marked.
-- The desktop app: Company page, Board, Inbox, Handbook, hiring, departments and new company flow.
-- `onecorp doctor` checks your setup. `scripts/install.sh` installs the command and the app.
+- **A company around your repos.** Departments, leads and a team you hire from a template or one by one. Each employee has a role, an agent, a model and a personality. A company can span several repos, like an app and its api.
+- **Tickets and projects.** Describe a project and your planner breaks it into tickets with owners and an order, for you to approve. Tickets can wait on each other and start by themselves.
+- **Work that stays out of your way.** Each ticket runs in its own git worktree and branch, starting from main. Employees build and test with your repo's own commands, so work comes back tested. Commits carry the employee as author and you as co-author, or you alone.
+- **You approve what ships.** Finished work opens a pull request on GitHub or GitLab, or merges on your Mac. Send it back with feedback and the same session picks it up.
+- **One inbox.** Plans, questions with a default answer, reviews and stopped runs. Questions go to the department lead first, who settles what they can.
+- **Team chat.** #general, a channel per department and direct messages. Leads' decisions show up in their team's channel. Markdown like Slack.
+- **A shared wiki and personal memory.** Your lead writes the first page from the repo. Everyone reads it before every ticket.
+- **Spending you control.** A $10 daily budget to start, caps per person, a cheaper model for chat, and spend by person, project and agent. When a plan's usage limit is hit, work waits and resumes by itself.
+- **Keeps working in the background.** Close the window and OneCorp stays in the menu bar, with what needs you counted next to it. Notifications and a Dock badge across all your companies.
+- **A setup that does the work.** Onboarding checks your agents and GitHub, finds your repos or clones one from GitHub, and lands you in a company that already knows its codebase.
+- **Light and dark, three face sets**, and an About pane with your version and a bug report link.
+- **The `onecorp` command** does everything the app does.
+- Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
