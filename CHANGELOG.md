@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Onboarding: Back on the first step returns to You, and every step you've done is a link back. Connect AI is now Connect, with AI agents and code hosting as two groups. In Settings, Agents is now Integrations.
 - Several repos per company, like an app and its api. Add them in onboarding (from a folder or GitHub), in Settings, or with `onecorp repo add`. Each ticket works in one repo, from its own worktree, and ships there. The planner picks the repo for each ticket and splits work that spans two into tickets that wait for each other. Build and test commands are per repo.
 - Start a new company with the same people as another one: their roles, departments, agents and personalities come over.
 - Settings always shows the company you're on. After switching companies it could show the previous one, Delete button included.

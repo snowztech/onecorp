@@ -1133,3 +1133,8 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .add-repo { margin-top: 12px; }
 .add-repo input { flex: 1; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 9px; background: var(--surface-2); font-size: 12px; }
 .repo-tag { align-self: flex-start; font: 500 10px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 7px; }
+.onb-steps li > button { all: unset; display: contents; cursor: pointer; }
+.onb-steps li.done:has(button):hover { color: var(--fg); background: color-mix(in srgb, var(--fg) 4%, transparent); }
+.tools-h { margin: 18px 0 8px; }
+.tools-h:first-child, h1 + p + .tools-h { margin-top: 4px; }
+.tools-h .muted { text-transform: none; letter-spacing: 0; }

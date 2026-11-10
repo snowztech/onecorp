@@ -76,7 +76,7 @@ try {
   const at = async name => { await until(`document.querySelector(".onb-steps li.on")?.textContent.includes(${JSON.stringify(name)})`, `the ${name} step`); };
   const cont = () => click("#view .su-nav .btn.primary");
 
-  // You: typing survives the wait, and Continue goes on to Connect AI.
+  // You: typing survives the wait, and Continue goes on to Connect.
   await until(`document.querySelector("#pf-name")`, "the welcome");
   await type("#pf-name", "Ada Lovelace");
   await sleep(2000);
@@ -85,8 +85,14 @@ try {
   assert.equal(await js(`document.querySelector(".welcome .mono-av")?.textContent`), "AL", "your initials, not a drawn face");
   await cont();
 
-  // Connect AI: each tool says where it stands.
-  await at("Connect AI");
+  // Connect: Back returns to You with your name kept, and Continue comes back here.
+  await at("Connect");
+  await click('#view .su-nav [data-su="back"]');
+  await at("You");
+  assert.equal(await js(`document.querySelector("#pf-name").value`), "Ada Lovelace", "your name is still there");
+  await cont();
+  // Each tool says where it stands.
+  await at("Connect");
   const tools = await js(`[...document.querySelectorAll(".tool")].map(t => t.querySelector("b").textContent + "=" + t.querySelector(".pill-state").textContent).join(", ")`);
   assert.match(tools, /Claude Code=Connected/, "a connected agent shows as connected");
   await cont();
@@ -134,7 +140,7 @@ try {
 
   assert.deepEqual(errors, [], "no JavaScript errors along the way");
   ws.close();
-  console.log("onboarding walk-through: You, Connect AI, Company, Repo, Team, Launch, Company page");
+  console.log("onboarding walk-through: You, Connect, Company, Repo, Team, Launch, Company page");
 } catch (e) {
   failed = true;
   console.error("onboarding walk-through FAILED:", e.message);

@@ -218,7 +218,7 @@ function viewCompany() {
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
    OneCorp needs is in place. Your own profile lives in your menu. */
 /* Settings: sections on the left, the section on the right, and changes save as you make them. */
-const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["agents", "Agents", "spark"], ["appearance", "Appearance", "eye"], ["you", "You", "user"]];
+const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["agents", "Integrations", "spark"], ["appearance", "Appearance", "eye"], ["you", "You", "user"]];
 function renderSheet() {
   const el = $("#sheet");
   el.hidden = !S.sheet;
@@ -275,10 +275,12 @@ function agentsSection() {
   const codex = S.spend?.prices?.find(p => p.runtime === "codex")?.price ?? 5;
   const mark = { ok: "✓", warn: "!", fail: "×" };
   const others = (S.health || []).filter(h => !tools.some(([w]) => w === h.what));
-  return `<div class="tools">${tools.map(card).join("")}</div>
+  return `<h3 class="label tools-h">AI agents</h3><div class="tools">${tools.slice(0, 2).map(card).join("")}</div>
     <div class="row-set"><div><b>Codex cost</b><span>Codex doesn't report a cost, so OneCorp estimates it from tokens.</span></div>
       <label class="money-in inline"><span>$</span><input data-price="codex" type="number" min="0" step="0.5" value="${codex}" aria-label="Dollars per million Codex tokens"><span class="unit">/ 1M tokens</span></label></div>
-    <div class="row-set"><div><b>Everything else</b><span>Git, your repo and each company.</span></div><button class="link-btn" data-health="1">${S.health ? "Check again" : "Check"}</button></div>
+    <h3 class="label tools-h">Code hosting</h3><div class="tools">${tools.slice(2).map(card).join("")}</div>
+    <h3 class="label tools-h">Health</h3>
+    <div class="row-set"><div><b>Everything else</b><span>Git, your repos and each company.</span></div><button class="link-btn" data-health="1">${S.health ? "Check again" : "Check"}</button></div>
     ${others.length ? `<ul class="health">${others.map(h => `<li class="hc lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("")}</ul>` : ""}`;
 }
 function appearanceSection() {
@@ -970,7 +972,7 @@ function focusTop(cancel) {
 function viewProfile() {
   const skip = S.companies.length ? `<button class="link-btn" type="button" data-skip-setup="1">Skip, go to ${esc(S.companies[0])}</button>` : `<span class="fine">Next: connect your AI</span>`;
   // Companies already here: a welcome back, not the first-run journey. Your teams are waiting.
-  const back = S.companies.length > 0;
+  const back = S.companies.length > 0 && !S.profile.inSetup;
   const names = S.companies.slice(0, 3).join(", ") + (S.companies.length > 3 ? ` and ${S.companies.length - 3} more` : "");
   const wrap = form => back ? `<div class="focus-wrap">${focusTop(false)}<div class="onb solo">${form}</div></div>` : onboarding("You", false, form);
   return wrap(`<form class="onb-main welcome" id="profile">
@@ -1098,9 +1100,17 @@ function badge(name, look, cls = "") {
   return `<span class="logo ${cls}" style="background:${esc(look?.color || "var(--fg)")};color:#fff">${esc((name || "?")[0].toUpperCase())}</span>`;
 }
 // The whole journey, shown on every step. A first launch also counts you.
+// Back to the You step from setup: your name and photo as they are, and setup waits where it was.
+function backToYou() {
+  S.profile = { name: S.founder?.name || "", photoUrl: S.founder?.photo || null, photo: null, inSetup: true };
+  render();
+  $("#pf-name")?.focus();
+}
 function journey(at) {
-  const steps = [...(S.companies.length && !S.onboarding && at !== "You" ? [] : ["You"]), "Connect AI", "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
-  return `<ol class="onb-steps">${steps.map((n, k) => `<li class="${k === i ? "on" : k < i ? "done" : ""}"><span class="n">${k < i ? icon("check") : k + 1}</span>${n}</li>`).join("")}</ol>`;
+  const steps = [...(S.companies.length && !S.onboarding && at !== "You" ? [] : ["You"]), "Connect", "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
+  // Steps you've done are links back, so you can change anything on the way.
+  const item = (n, k) => `<span class="n">${k < i ? icon("check") : k + 1}</span>${n}`;
+  return `<ol class="onb-steps">${steps.map((n, k) => `<li class="${k === i ? "on" : k < i ? "done" : ""}">${k < i && S.setup && !S.setup.launch ? `<button type="button" data-step-to="${n}">${item(n, k)}</button>` : item(n, k)}</li>`).join("")}</ol>`;
 }
 // Setup screens: the steps on the left, the step itself on the right, over a faint grid.
 const onboarding = (at, cancel, form) => `<div class="focus-wrap">${focusTop(cancel)}<div class="onb"><aside>${journey(at)}</aside>${form}</div></div>`;
@@ -1135,15 +1145,17 @@ async function addExtraRepo(path) {
 }
 function viewSetup() {
   if (S.setup.launch) return viewLaunching();
-  const s = S.setup, names = ["Connect AI", "Company", "Repo", "Team", "Launch"];
-  const back = s.step ? `<button class="btn" type="button" data-su="back">Back</button>` : "<span></span>";
+  const s = S.setup, names = ["Connect", "Company", "Repo", "Team", "Launch"];
+  // On the first step, Back goes to you, when you're part of this journey.
+  const toYou = !s.step && (S.onboarding || !S.companies.length);
+  const back = s.step || toYou ? `<button class="btn" type="button" data-su="back">Back</button>` : "<span></span>";
   const nav = (label, disabled) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
   const picker = window.__TAURI__?.dialog;
   let body = "";
   const look = { color: s.color, logo: s.logoUrl };
   if (s.step === 0) {
     const r = s.ready, find = w => (r || []).find(h => h.what === w);
-    const tools = [["Claude Code", "Anthropic's coding agent", "claude"], ["Codex", "OpenAI's coding agent", "codex"], ["GitHub CLI", "Optional. Ships work as pull requests", "gh"]];
+    const tools = [["Claude Code", "Anthropic's coding agent", "claude"], ["Codex", "OpenAI's coding agent", "codex"], ["GitHub CLI", "Ships finished work as pull requests", "gh"]];
     const card = ([what, about, key]) => {
       const h = find(what), state = !r ? "checking" : !h ? "missing" : h.level === "ok" ? "ok" : /not signed in/.test(h.detail) ? "signin" : "missing";
       const pill = { checking: "Checking…", ok: "Connected", signin: "Not signed in", missing: "Not installed" }[state];
@@ -1152,8 +1164,9 @@ function viewSetup() {
         <span class="pill-state">${pill}</span></div>`;
     };
     const git = find("git"), agents = r && tools.slice(0, 2).some(([w]) => find(w)?.level === "ok");
-    body = `<h1>Connect your AI</h1><p class="muted">Your employees run on these agents, signed in as you. OneCorp never sees your keys.</p>
-      <div class="tools">${tools.map(card).join("")}</div>
+    body = `<h1>Connect your tools</h1><p class="muted">Signed in as you, on this Mac. OneCorp never sees your keys.</p>
+      <h3 class="label tools-h">AI agents <span class="muted">· one is enough</span></h3><div class="tools">${tools.slice(0, 2).map(card).join("")}</div>
+      <h3 class="label tools-h">Code hosting <span class="muted">· optional</span></h3><div class="tools">${tools.slice(2).map(card).join("")}</div>
       ${git && git.level !== "ok" ? `<p class="su-bad">git isn't installed. Run <code>${esc(git.fix || "xcode-select --install")}</code></p>` : ""}
       ${r && !agents ? `<p class="su-warn">Your employees need Claude Code or Codex to work. Install one, sign in, then check again.</p>` : ""}
       <p class="fine">Run a command in Terminal, then <button class="link-btn" type="button" data-recheck="1">check again</button>.</p>
@@ -1344,7 +1357,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1378,6 +1391,10 @@ document.addEventListener("click", async e => {
   }
   if (d.suAgent) { readSetup(); const [i, k] = d.suAgent.split(":"); S.setup.people[Number(i)].runtime = k; return render(); }
   if (d.agent) { Object.assign(S.drawer.form ||= {}, readPerson(), { runtime: d.agent, model: null }); return renderDrawer(); }
+  if (d.stepTo) {
+    if (d.stepTo === "You") return backToYou();
+    readSetup(); S.setup.step = ["Connect", "Company", "Repo", "Team"].indexOf(d.stepTo); return render();
+  }
   if ("vpick" in d) {
     $("#pf-v").value = d.vpick;
     el.parentElement.querySelectorAll(".vchip").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
@@ -1540,7 +1557,7 @@ document.addEventListener("click", async e => {
     readSetup();
     const s = S.setup;
     if (d.su === "cancel") { S.setup = null; S.onboarding = false; S.view = "company"; return refresh(true); }
-    if (d.su === "back") { s.step--; return render(); }
+    if (d.su === "back") { if (!s.step) return backToYou(); s.step--; return render(); }
     if (d.su === "check") return checkRepo(s.path);
     if (d.su.startsWith("color-")) { s.color = d.su.slice(6); s.logo = s.logoUrl = null; return render(); }
     if (d.su === "logo-remove") { s.logo = s.logoUrl = null; return render(); }
@@ -1633,6 +1650,8 @@ document.addEventListener("submit", async e => {
     const firstTime = !!S.profile;
     if (!(await saveProfile(S.profile?.photo, S.profile?.noPhoto))) return;
     if (!firstTime) { S.pop = false; renderPop(); render(); return toast("Saved"); }
+    // Back from setup: pick up where you were.
+    if (S.profile.inSetup) { S.profile = null; return render(); }
     S.profile = null;
     // Coming back to your companies, not starting a new one.
     if (S.companies.length) { toast(`Welcome back, ${myName()}`); return refresh(true); }
@@ -1853,6 +1872,7 @@ try { if (localStorage.getItem("onecorp.rail")) toggleRail(true); } catch {}
 if (window.__TAURI__) refresh(true); else previewScreen();
 
 /* Sample data for opening ui/index.html in a browser. Never used inside the app. */
+let previewFounder = null;
 function preview(cmd, args) {
   const team = [
     ["odile", "Odile Martin", "CTO", "claude", "opus", "working", "Reading the SNO-12 diff", 1], ["maya", "Maya Okafor", "Senior engineer", "codex", null, "blocked", "Need you on SNO-12", 1],
@@ -1942,6 +1962,9 @@ function preview(cmd, args) {
   if (cmd === "chat" && String(args?.channel).startsWith("dm:")) return Promise.resolve({ channel: args.channel, messages: args.channel === "dm:tomas"
     ? [{ id: 13, at: "2026-11-09 11:40:00", author: "founder", name: "Lucas", founder: true, text: "How are the webhook retries going?", key: null, pending: false },
        { id: 14, at: "2026-11-09 11:41:00", author: "tomas", name: "Tomás Reis", text: "Close. Retries back off over 3 days now, and handlers are idempotent. Tests next, then it's in your Inbox as SNO-15.", key: "SNO-15", pending: false }] : [] });
+  // Saving your name sticks for the rest of the preview, like it does in the app.
+  if (cmd === "save_founder") { previewFounder = { name: args.name, photo: null }; return Promise.resolve(null); }
+  if (cmd === "founder" && previewFounder) return Promise.resolve(previewFounder);
   if (cmd === "check_repo" && args?.path) return Promise.resolve({ ...data.check_repo, path: args.path, suggested: args.path.split("/").pop() });
   if (cmd in data) return Promise.resolve(data[cmd]);
   return Promise.reject("This is a preview. Open the OneCorp app to make changes.");
