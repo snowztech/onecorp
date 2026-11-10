@@ -80,6 +80,20 @@ pub fn models(runtime: &str) -> Vec<(String, String, String)> {
     }
 }
 
+/// The lighter model for talk: chat replies and a lead's quick decisions. They're short, so a
+/// smaller model answers them well for a fraction of the cost. Tickets keep each person's model.
+pub fn light_model(runtime: &str) -> Option<String> {
+    match runtime {
+        "claude" => Some("claude-sonnet-5-5".into()),
+        // Codex's own list says which model is the fast, affordable one.
+        "codex" => codex_models()
+            .into_iter()
+            .find(|(id, _, about)| about.to_lowercase().contains("fast and affordable") || id.contains("luna"))
+            .map(|(id, _, _)| id),
+        _ => None,
+    }
+}
+
 fn codex_models() -> Vec<(String, String, String)> {
     let home = std::env::var("CODEX_HOME").map(std::path::PathBuf::from).unwrap_or_else(|_| std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".codex"));
     let Ok(text) = std::fs::read_to_string(home.join("models_cache.json")) else { return vec![] };

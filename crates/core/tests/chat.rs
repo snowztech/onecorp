@@ -108,6 +108,12 @@ fn channels_posts_and_replies() {
     let cto = onecorp::store::Employee { role: "CTO".into(), id: "odile".into(), ..maya.clone() };
     assert_eq!(onecorp::voice::of(&c, &cto).unwrap(), "calm", "a lead starts calm");
 
+    // Talk runs on a lighter model by default. Tickets keep each person's own.
+    let odile = onecorp::store::Employee { runtime: "claude".into(), model: Some("claude-opus-5-5".into()), ..c.employee("odile").unwrap().unwrap() };
+    assert_eq!(work::talk_model(&c, &odile).unwrap().as_deref(), Some("claude-sonnet-5-5"));
+    c.set_setting("talk", "same").unwrap();
+    assert_eq!(work::talk_model(&c, &odile).unwrap().as_deref(), Some("claude-opus-5-5"));
+
     // You can take back a message.
     let id = c.post("general", "founder", "oops", None).unwrap();
     c.delete_message(id).unwrap();

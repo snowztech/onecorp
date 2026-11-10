@@ -162,7 +162,8 @@ fn consult(c: &Company, id: i64) -> Result<()> {
 
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
-    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &other_repos(c)? };
+    let model = talk_model(c, &lead)?;
+    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &other_repos(c)? };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -177,7 +178,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     })?;
-    let cost = crate::spend::record(c, &lead.id, Some(t.id), &lead.runtime, lead.model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record(c, &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens)?;
     c.add_cost(t.id, cost, tokens)?;
 
     match verdict(&said) {
@@ -576,6 +577,15 @@ pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
         out.push_str(&format!("\n\nThis company works in {} repos. Each ticket happens in one of them:\n{}", repos.len(), list.join("\n")));
     }
     Ok(out)
+}
+
+/// The model for talk, per the company's choice (setting "talk"): "light" by default, so chat
+/// replies and lead decisions run on a smaller model; "same" keeps each person's own model.
+pub fn talk_model(c: &Company, e: &Employee) -> Result<Option<String>> {
+    if c.setting("talk")?.as_deref() == Some("same") {
+        return Ok(e.model.clone());
+    }
+    Ok(runtime::light_model(&e.runtime).or_else(|| e.model.clone()))
 }
 
 /// The other repos, for runs that read across all of them: planning, the wiki, chat replies.

@@ -178,6 +178,8 @@ fn settings(company: String) -> Res<Value> {
         "version": env!("CARGO_PKG_VERSION"),
         "repos": repos_json(&c).map_err(err)?,
         "commits": c.setting("commits").map_err(err)?.unwrap_or_else(|| "team".into()),
+        "talk": c.setting("talk").map_err(err)?.unwrap_or_else(|| "light".into()),
+        "light": { "claude": onecorp::runtime::light_model("claude"), "codex": onecorp::runtime::light_model("codex") },
         "git_you": onecorp::git::config(&repo, "user.name").zip(onecorp::git::config(&repo, "user.email")).map(|(n, e)| json!({"name": n, "email": e})),
     }))
 }
@@ -201,6 +203,15 @@ fn set_commands(company: String, repo: String, text: Option<String>) -> Res<Vec<
     }
     .map_err(err)?;
     repos_json(&c).map_err(err)
+}
+
+/// Which model answers in chat and decides as a lead: "light" (a smaller one) or "same".
+#[tauri::command(async)]
+fn set_talk(company: String, mode: String) -> Res<()> {
+    if !["light", "same"].contains(&mode.as_str()) {
+        return Err(format!("{mode} isn't a choice. Pick light or same."));
+    }
+    open(&company)?.set_setting("talk", &mode).map_err(err)
 }
 
 /// Who commits are by: "team" (the employee, with you as committer and co-author) or "you".
@@ -745,6 +756,7 @@ fn main() {
             set_commands,
             add_repo,
             set_commits,
+            set_talk,
             remove_repo,
             github_repos,
             clone_repo,
