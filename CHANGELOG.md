@@ -4,6 +4,15 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- Connecting your tools takes one click: Sign in and Install open Terminal with the command already running, and the step updates by itself when you come back. Claude Code signs in with `claude auth login` instead of a full session. Check again is back.
+
+### Fixed
+
+- The welcome and setup screens fill the window again after you folded the sidebar. They were squeezed into a thin column on the left.
+- The GitHub CLI fix is a command you can run: `brew install gh && gh auth login`.
+
 ## [0.1.1] - 2026-11-10
 
 Your team builds and tests in many more kinds of repo.

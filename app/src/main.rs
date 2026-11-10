@@ -314,6 +314,19 @@ fn readiness() -> Res<Value> {
     Ok(checks(onecorp::doctor::machine()))
 }
 
+/// Opens Terminal running a setup command, like `claude auth login`. Only the fixes OneCorp's own
+/// checks suggest, so the page can't ask for anything else.
+#[tauri::command(async)]
+fn in_terminal(command: String) -> Res<()> {
+    let allowed = onecorp::doctor::machine().into_iter().filter_map(|c| c.fix).any(|f| f == command);
+    if !allowed {
+        return Err("OneCorp only runs its own setup commands.".into());
+    }
+    let script = format!("tell application \"Terminal\"\nactivate\ndo script \"{}\"\nend tell", command.replace('\\', "\\\\").replace('"', "\\\""));
+    std::process::Command::new("osascript").arg("-e").arg(script).status().map_err(|e| format!("couldn't open Terminal: {e}"))?;
+    Ok(())
+}
+
 #[tauri::command(async)]
 fn delete_company(name: String) -> Res<()> {
     onecorp::setup::delete_company(&name).map_err(err)
@@ -759,6 +772,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            in_terminal,
             companies,
             use_company,
             chat,

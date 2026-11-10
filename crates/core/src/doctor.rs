@@ -72,13 +72,13 @@ pub fn machine() -> Vec<Check> {
             }
             (Some(_), Some(false)) => {
                 found.push(program);
-                check(Level::Warn, name, "installed but not signed in", Some(if program == "claude" { "claude" } else { "codex login" }))
+                check(Level::Warn, name, "installed but not signed in", Some(if program == "claude" { "claude auth login" } else { "codex login" }))
             }
             (None, _) => check(Level::Warn, name, "not installed. Employees can't run on it", Some(how)),
         });
     }
     checks.push(match version("gh") {
-        None => check(Level::Warn, "GitHub CLI", "not installed. Work merges on your Mac instead of opening pull requests", Some("brew install gh, then gh auth login")),
+        None => check(Level::Warn, "GitHub CLI", "not installed. Work merges on your Mac instead of opening pull requests", Some("brew install gh && gh auth login")),
         Some(v) => match crate::forge::Forge::GitHub.signed_in(&std::env::temp_dir()) {
             Ok(who) => check(Level::Ok, "GitHub CLI", format!("{v}, {who}"), None),
             Err(_) => check(Level::Warn, "GitHub CLI", "installed but not signed in", Some("gh auth login")),

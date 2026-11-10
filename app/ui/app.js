@@ -287,6 +287,8 @@ function companySection() {
     <div class="row-set"><div><b>Data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div>
     <h3 class="label danger-label">Danger zone</h3>${del}`;
 }
+// What fixes a tool: a button that opens Terminal running the command, and the command itself to copy.
+const fixRow = (fix, state) => `<div class="fix"><button class="btn sm" type="button" data-term="${esc(fix)}">${state === "signin" ? "Sign in" : "Install"}</button><code>${esc(fix)}</code><button class="link-btn" type="button" data-copy="${esc(fix)}">Copy</button></div>`;
 function agentsSection() {
   const r = S.ready, find = w => (r || []).find(h => h.what === w);
   const tools = [["Claude Code", "claude"], ["Codex", "codex"], ["GitHub CLI", "gh"]];
@@ -294,7 +296,7 @@ function agentsSection() {
     const h = find(what), state = !r ? "checking" : !h ? "missing" : h.level === "ok" ? "ok" : /not signed in/.test(h.detail) ? "signin" : "missing";
     const pill = { checking: "Checking…", ok: "Connected", signin: "Not signed in", missing: "Not installed" }[state];
     return `<div class="tool t-${state}"><span class="tool-ic" style="--c:${AGENTS[key]?.color || "#18181b"}">${agentMark(key)}</span>
-      <div class="tool-main"><b>${esc(what)}</b>${h?.fix && state !== "ok" ? `<div class="fix"><code>${esc(h.fix)}</code><button class="link-btn" type="button" data-copy="${esc(h.fix)}">Copy</button></div>` : `<span>${esc(h?.detail || "")}</span>`}</div>
+      <div class="tool-main"><b>${esc(what)}</b>${h?.fix && state !== "ok" ? fixRow(h.fix, state) : `<span>${esc(h?.detail || "")}</span>`}</div>
       <span class="pill-state">${pill}</span></div>`;
   };
   const codex = S.spend?.prices?.find(p => p.runtime === "codex")?.price ?? 5;
@@ -1251,6 +1253,8 @@ async function recheckTools() {
   if (onConnect() && toolMissing(S.setup.ready)) toolTimer = setTimeout(recheckTools, 4000);
 }
 window.addEventListener?.("focus", recheckTools);
+// Back from Terminal with Settings on Integrations: show what changed.
+window.addEventListener?.("focus", async () => { if (S.sheet === "agents") { S.ready = await invoke("readiness").catch(() => S.ready); renderSheet(); } });
 function journey(at) {
   const steps = [...(S.companies.length && !S.onboarding && at !== "You" ? [] : ["You"]), "Connect", "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
   // Steps you've done are links back, so you can change anything on the way.
@@ -1319,7 +1323,7 @@ function viewSetup() {
       const h = find(what), state = !r ? "checking" : !h ? "missing" : h.level === "ok" ? "ok" : /not signed in/.test(h.detail) ? "signin" : "missing";
       const pill = { checking: "Checking…", ok: "Connected", signin: "Not signed in", missing: "Not installed" }[state];
       return `<div class="tool t-${state}"><span class="tool-ic" style="--c:${AGENTS[key]?.color || "#18181b"}">${agentMark(key)}</span>
-        <div class="tool-main"><b>${esc(what)}</b><span>${esc(about)}</span>${h?.fix && state !== "ok" ? `<div class="fix"><code>${esc(h.fix)}</code><button class="link-btn" type="button" data-copy="${esc(h.fix)}">Copy</button></div>` : ""}</div>
+        <div class="tool-main"><b>${esc(what)}</b><span>${esc(about)}</span>${h?.fix && state !== "ok" ? fixRow(h.fix, state) : ""}</div>
         <span class="pill-state">${pill}</span></div>`;
     };
     const git = find("git"), agents = r && tools.slice(0, 2).some(([w]) => find(w)?.level === "ok");
@@ -1328,7 +1332,7 @@ function viewSetup() {
       <h3 class="label tools-h">Code hosting <span class="muted">· optional</span></h3><div class="tools">${tools.slice(2).map(card).join("")}</div>
       ${git && git.level !== "ok" ? `<p class="su-bad">git isn't installed. Run <code>${esc(git.fix || "xcode-select --install")}</code></p>` : ""}
       ${r && !agents ? `<p class="su-warn">Your employees need Claude Code or Codex to work. Install one, sign in, then check again.</p>` : ""}
-      ${r && toolMissing(r) ? `<p class="fine watching"><i class="pulse"></i>Run the command in Terminal. This page updates by itself when you're done.</p>` : ""}
+      ${r && toolMissing(r) ? `<p class="fine watching"><i class="pulse"></i>Finish in Terminal and come back. This page updates by itself. <button class="link-btn inline" type="button" data-recheck="1">Check again</button></p>` : ""}
       ${nav("Continue", !r || !agents)}`;
   } else if (s.step === 1) {
     const prefix = (s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM";
@@ -1542,7 +1546,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1593,6 +1597,7 @@ document.addEventListener("click", async e => {
     return;
   }
   if (d.copy) { navigator.clipboard?.writeText(d.copy).then(() => toast("Copied. Paste it in Terminal")).catch(() => toast(d.copy)); return; }
+  if (d.term) { await invoke("in_terminal", { command: d.term }).catch(e => toast(String(e))); recheckTools(); return; }
   if (d.recheck) { S.setup.ready = null; render(); S.setup.ready = await invoke("readiness").catch(() => []); return render(); }
   if (d.pickFill) {
     const keep = readPerson(), c = candidates(keep.role)[Number(d.pickFill)];
@@ -2070,6 +2075,7 @@ async function previewScreen() {
   if (screen === "wiki-edit") { S.view = "wiki"; S.hbEdit = true; await refresh(true); render(); }
   if (screen === "inbox-zero") { S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; S.snap.with_leads = []; S.view = "inbox"; render(); }
   if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the wiki"] }; render(); }
+  if (screen === "connect") await startSetup();
   if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
   if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
   if (screen === "spend") await openSettings("spend");
