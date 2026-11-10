@@ -34,11 +34,11 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@snowztech/ui-css@0.7/dist/snowztech-ui.min.css">
   <link rel="stylesheet" href="/footer.css">
   <script>
-    (function () { var light = matchMedia("(prefers-color-scheme: light)"), root = document.documentElement; function follow() { if (light.matches) root.dataset.theme = "light"; else delete root.dataset.theme; } follow(); light.addEventListener("change", follow); })();
+    (function () { var light = matchMedia("(prefers-color-scheme: light)"), root = document.documentElement; root.classList.add("js"); function follow() { if (light.matches) root.dataset.theme = "light"; else delete root.dataset.theme; } follow(); light.addEventListener("change", follow); })();
   </script>
   <style>
     /* The app's own type: Geist for words, Geist Mono for commands and labels. */
-    :root { --sans: "Geist", -apple-system, system-ui, sans-serif; --mono: "Geist Mono", ui-monospace, Menlo, monospace; }
+    :root { --sans: "Geist", -apple-system, system-ui, sans-serif; --mono: "Geist Mono", ui-monospace, Menlo, monospace; --ease: cubic-bezier(0.2, 0.8, 0.2, 1); --slide: 6s; }
     body { margin: 0; background: var(--sn-bg); color: var(--sn-fg); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
     a { color: inherit; }
     .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
@@ -50,41 +50,76 @@
     .muted { color: var(--sn-fg-muted); }
     .wrap + .wrap { margin-top: 128px; }
 
-    /* Hero: left aligned, the claim first, then the window. */
-    .hero { padding-top: 72px; }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
     .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
-    .brand img { width: 32px; height: 32px; border-radius: 8px; }
-    .hero h1 { max-width: 14ch; margin: 40px 0 18px; font-size: clamp(40px, 6.4vw, 64px); font-weight: 600; line-height: 1.02; }
+    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .nav nav { display: flex; gap: 24px; font-size: 14px; }
+    .nav nav a { color: var(--sn-fg-muted); text-decoration: none; transition: color 0.15s; }
+    .nav nav a:hover { color: var(--sn-fg); }
+
+    /* Hero: the claim on two lines, then the window, already in view. */
+    .hero { padding-top: 64px; }
+    .hero h1 { margin: 0 0 18px; font-size: clamp(36px, 5.2vw, 56px); font-weight: 600; line-height: 1.05; }
     .hero h1 em { font-style: normal; color: var(--sn-fg-muted); }
-    .hero .lede { max-width: 46ch; margin: 0 0 32px; font-size: 18px; }
+    .hero .lede { max-width: 52ch; margin: 0 0 32px; font-size: 18px; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .actions .sn-btn { text-decoration: none; font-family: var(--sans); font-weight: 500; }
+    .actions .sn-btn { text-decoration: none; font-family: var(--sans); font-weight: 500; transition: opacity 0.15s, transform 0.15s; }
+    .actions .sn-btn:active { transform: translateY(1px); }
     /* ui-css colors every a:hover with the accent, which wins over the button's own text color. */
     .actions a.sn-btn--primary:hover { color: var(--sn-fg-inverse); opacity: 0.85; }
     .actions a.sn-btn--secondary:hover { color: var(--sn-fg); }
-    .brew { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 9px 12px; border: 1px dashed var(--sn-border-strong); border-radius: 8px; background: none; color: var(--sn-fg-muted); font: 13px var(--mono); cursor: pointer; }
-    .brew:hover { color: var(--sn-fg); }
+    .brew { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 9px 12px; border: 1px dashed var(--sn-border-strong); border-radius: 8px; background: none; color: var(--sn-fg-muted); font: 13px var(--mono); cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+    .brew:hover { color: var(--sn-fg); border-color: var(--sn-fg-subtle); }
     .brew span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .brew em { font-style: normal; color: var(--sn-accent); }
-    .note { margin: 18px 0 0; color: var(--sn-fg-subtle); font-size: 14px; }
+    .note { margin: 16px 0 0; color: var(--sn-fg-subtle); font-size: 14px; }
+    .hero > * { animation: rise 0.8s var(--ease) both; }
+    .hero > :nth-child(2) { animation-delay: 0.06s; }
+    .hero > :nth-child(3) { animation-delay: 0.12s; }
+    .hero > :nth-child(4) { animation-delay: 0.18s; }
+    .hero > :nth-child(5) { animation-delay: 0.3s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
 
-    .window { position: relative; isolation: isolate; margin-top: 64px; }
-    .window::before { content: ""; position: absolute; inset: 10% 4% -6%; z-index: -1; border-radius: 40px; background: var(--sn-accent-soft); filter: blur(60px); opacity: 0.7; }
+    .window { position: relative; isolation: isolate; margin-top: 56px; }
+    .window::before { content: ""; position: absolute; inset: 8% 6% -4%; z-index: -1; border-radius: 40px; background: var(--sn-accent-soft); filter: blur(64px); opacity: 0.8; }
     .shot { display: block; width: 100%; height: auto; border: 1px solid var(--sn-border-strong); border-radius: 12px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4); }
     [data-theme=light] .shot { box-shadow: 0 24px 60px rgba(0, 0, 0, 0.14); }
 
+    /* Sections ease in as they reach the screen. */
+    .js .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+    .js .reveal.in { opacity: 1; transform: none; }
+
     /* Three steps, numbered like tickets. */
     .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 40px 0 0; padding: 0; list-style: none; }
-    .steps li { padding: 22px; border: 1px solid var(--sn-border-subtle); border-radius: 12px; }
+    .steps li { padding: 22px; border: 1px solid var(--sn-border-subtle); border-radius: 12px; transition: transform 0.25s var(--ease), border-color 0.25s; }
+    .steps li:hover { transform: translateY(-3px); border-color: var(--sn-border-strong); }
+    .js .steps.reveal li { opacity: 0; transform: translateY(10px); transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), border-color 0.25s; }
+    .js .steps.reveal.in li { opacity: 1; transform: none; }
+    .js .steps.reveal.in li:nth-child(2) { transition-delay: 0.1s; }
+    .js .steps.reveal.in li:nth-child(3) { transition-delay: 0.2s; }
+    .js .steps.reveal.in li:hover { transform: translateY(-3px); transition-delay: 0s; }
     .steps .key { display: inline-block; margin-bottom: 18px; padding: 1px 7px; border: 1px solid var(--sn-border-subtle); border-radius: 5px; color: var(--sn-fg-muted); font: 12px var(--mono); }
-    .steps p, .tour p { margin: 0; color: var(--sn-fg-muted); font-size: 15px; }
+    .steps p { margin: 0; color: var(--sn-fg-muted); font-size: 15px; }
 
-    /* The tour: one picture and one sentence per screen, alternating sides. */
-    .tour { display: grid; gap: 96px; margin-top: 56px; }
-    .tour article { display: grid; grid-template-columns: 1fr 1.7fr; gap: 56px; align-items: center; }
-    .tour article:nth-child(even) { grid-template-columns: 1.7fr 1fr; }
-    .tour article:nth-child(even) > div { order: 2; }
-    .tour h3 { font-size: 22px; letter-spacing: -0.02em; }
+    /* The tour: tabs across one window. The picked tab fills a bar, then hands over to the next. */
+    .tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 40px 0 24px; }
+    .tab { position: relative; padding: 14px 0 0; border: 0; background: none; color: var(--sn-fg-subtle); font: inherit; text-align: left; cursor: pointer; transition: color 0.2s; }
+    .tab::before, .tab::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 2px; background: var(--sn-border-subtle); }
+    .tab::after { right: auto; width: 0; background: var(--sn-accent); }
+    .tab:hover { color: var(--sn-fg-muted); }
+    .tab[aria-selected="true"] { color: var(--sn-fg); }
+    .tab[aria-selected="true"]::after { width: 100%; }
+    .tour.playing .tab[aria-selected="true"]::after { animation: fill var(--slide) linear both; }
+    .tour.paused .tab[aria-selected="true"]::after { animation-play-state: paused; }
+    @keyframes fill { from { width: 0; } }
+    .tab:focus-visible { outline: 2px solid var(--sn-accent); outline-offset: 4px; border-radius: 4px; }
+    .tab b { display: block; font-weight: 600; font-size: 15px; }
+    .tab span { display: block; margin-top: 2px; color: var(--sn-fg-muted); font-size: 13px; line-height: 1.45; opacity: 0.55; transition: opacity 0.2s; }
+    .tab[aria-selected="true"] span { opacity: 1; }
+    .stage { position: relative; isolation: isolate; display: grid; }
+    .stage::before { content: ""; position: absolute; inset: 10% 8% -4%; z-index: -1; border-radius: 40px; background: var(--sn-accent-soft); filter: blur(64px); opacity: 0.6; }
+    .stage > img { grid-area: 1 / 1; opacity: 0; transform: scale(0.985); transition: opacity 0.5s var(--ease), transform 0.7s var(--ease); }
+    .stage > img.on { opacity: 1; transform: none; }
 
     .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; margin: 0; padding: 32px 0 0; border-top: 1px solid var(--sn-border-subtle); list-style: none; }
     .facts p { margin: 0; color: var(--sn-fg-muted); font-size: 14px; }
@@ -93,11 +128,11 @@
     .faq details { border-bottom: 1px solid var(--sn-border-subtle); }
     .faq summary { display: flex; justify-content: space-between; gap: 16px; padding: 18px 0; cursor: pointer; list-style: none; font-weight: 500; }
     .faq summary::-webkit-details-marker { display: none; }
-    .faq summary::after { content: "+"; color: var(--sn-fg-subtle); font-family: var(--mono); }
-    .faq details[open] summary::after { content: "−"; }
+    .faq summary::after { content: "+"; color: var(--sn-fg-subtle); font-family: var(--mono); transition: transform 0.2s var(--ease); }
+    .faq details[open] summary::after { transform: rotate(45deg); }
     .faq details p { margin: 0; padding: 0 0 18px; color: var(--sn-fg-muted); font-size: 15px; }
 
-    .closing { padding: 56px 20px 40px; text-align: center; }
+    .closing { padding-top: 56px; padding-bottom: 40px; text-align: center; }
     .closing .actions { justify-content: center; }
     .closing p { margin: 0 0 28px; }
 
@@ -105,18 +140,31 @@
 
     @media (max-width: 860px) {
       .steps, .facts { grid-template-columns: 1fr; }
-      .tour { gap: 64px; }
-      .tour article, .tour article:nth-child(even) { grid-template-columns: 1fr; gap: 20px; }
-      .tour article:nth-child(even) > div { order: 0; }
+      /* Tabs scroll sideways rather than squeeze. */
+      .tabs { display: flex; overflow-x: auto; gap: 20px; scrollbar-width: none; }
+      .tab { flex: 0 0 auto; }
+      .tab span { display: none; }
       .wrap + .wrap { margin-top: 96px; }
+      .hero { padding-top: 40px; }
+      .nav nav a:not(:last-child) { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .js .reveal, .js .steps.reveal li { opacity: 1; transform: none; }
     }
   </style>
 </head>
 <body>
+  <header class="wrap nav">
+    <a class="brand" href="/"><img src="icon.png" alt="">OneCorp</a>
+    <nav aria-label="Main">
+      <a href="https://github.com/snowztech/onecorp/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/snowztech/onecorp">GitHub</a>
+    </nav>
+  </header>
   <main>
     <section class="hero wrap">
-      <a class="brand" href="/"><img src="icon.png" alt="">OneCorp</a>
-      <h1>AI employees for your codebase. <em>You run the company.</em></h1>
+      <h1>AI employees for your codebase.<br><em>You run the company.</em></h1>
       <p class="lede muted">Hire a team of coding agents on Claude Code or Codex. They take tickets, work in your repo and open pull requests. You approve what ships.</p>
       <div class="actions">
         <a class="sn-btn sn-btn--primary sn-btn--lg" href="https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg">Download for Mac</a>
@@ -132,39 +180,37 @@
     </section>
 
     <section class="wrap" aria-labelledby="how">
-      <p class="label">How it works</p>
-      <h2 id="how">Three steps, then you review.</h2>
-      <ol class="steps">
+      <div class="reveal">
+        <p class="label">How it works</p>
+        <h2 id="how">Three steps, then you review.</h2>
+      </div>
+      <ol class="steps reveal">
         <li><span class="key">01</span><h3>Hire a team</h3><p>Pick a starting team. Each person has a role, a model and a personality.</p></li>
         <li><span class="key">02</span><h3>Describe the work</h3><p>Your planner turns an idea into tickets with owners, for you to approve.</p></li>
         <li><span class="key">03</span><h3>Approve what ships</h3><p>Each ticket comes back tested, as a pull request. Merge it or send it back.</p></li>
       </ol>
     </section>
 
-    <section class="wrap" aria-labelledby="tour">
+    <section class="wrap tour reveal" aria-labelledby="tour">
       <p class="label">Inside</p>
       <h2 id="tour">Everything a small company needs.</h2>
-      <div class="tour">
-        <article>
-          <div><h3>One inbox</h3><p>Plans, questions and work to review. Leads answer what they can first.</p></div>
-          <img class="shot" src="shots/inbox.jpg" width="2400" height="1500" loading="lazy" alt="The Inbox: a plan to start, a question with two answers, and a pull request to review">
-        </article>
-        <article>
-          <div><h3>Every run, step by step</h3><p>What they read and changed, the tests, the commit and the cost.</p></div>
-          <img class="shot" src="shots/ticket.jpg" width="2400" height="1500" loading="lazy" alt="A ticket's log, from reading code to a failing test, the fix and the commit">
-        </article>
-        <article>
-          <div><h3>A team chat</h3><p>Channels per department and direct messages. Decisions happen out loud.</p></div>
-          <img class="shot" src="shots/chat.jpg" width="2400" height="1500" loading="lazy" alt="Team chat in #general">
-        </article>
-        <article>
-          <div><h3>Spending you control</h3><p>A daily budget, a cheaper model for chat, and plan limits it waits out.</p></div>
-          <img class="shot" src="shots/spending.jpg" width="2400" height="1500" loading="lazy" alt="Spending: today against the daily budget and spend per person">
-        </article>
+      <div class="tabs" role="tablist" aria-labelledby="tour">
+        <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="stage"><b>Inbox</b><span>Plans, questions and reviews in one place.</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="stage" tabindex="-1"><b>Every run</b><span>What they read, changed, tested and spent.</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="stage" tabindex="-1"><b>Projects</b><span>An idea in, tickets with owners out.</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="stage" tabindex="-1"><b>Team chat</b><span>Channels and DMs. Decisions out loud.</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="stage" tabindex="-1"><b>Spending</b><span>A daily budget and a cheaper chat model.</span></button>
+      </div>
+      <div class="stage" id="stage" role="tabpanel">
+        <img class="shot on" src="shots/inbox.jpg" width="2400" height="1500" loading="lazy" alt="The Inbox: a plan to start, a question with two answers, and a pull request to review">
+        <img class="shot" src="shots/ticket.jpg" width="2400" height="1500" loading="lazy" alt="A ticket's log, from reading code to a failing test, the fix and the commit">
+        <img class="shot" src="shots/project.jpg" width="2400" height="1500" loading="lazy" alt="New project: a goal and the lead who will plan it, beside the Board">
+        <img class="shot" src="shots/chat.jpg" width="2400" height="1500" loading="lazy" alt="Team chat in #general">
+        <img class="shot" src="shots/spending.jpg" width="2400" height="1500" loading="lazy" alt="Spending: today against the daily budget and spend per person">
       </div>
     </section>
 
-    <section class="wrap" aria-label="Details">
+    <section class="wrap reveal" aria-label="Details">
       <ul class="facts">
         <li><h3>Local first</h3><p>No account, no server. Data stays on your Mac.</p></li>
         <li><h3>Your branch, untouched</h3><p>Each ticket runs in its own git worktree.</p></li>
@@ -173,7 +219,7 @@
       </ul>
     </section>
 
-    <section class="wrap faq" aria-labelledby="faq">
+    <section class="wrap faq reveal" aria-labelledby="faq">
       <p class="label">FAQ</p>
       <h2 id="faq">Questions</h2>
       <details><summary>Which agents does it use?</summary><p>Claude Code and Codex, with the login you already have. Pick a model per employee.</p></details>
@@ -182,7 +228,7 @@
       <details><summary>Is there a CLI?</summary><p>Yes. The <code>onecorp</code> command does everything the app does.</p></details>
     </section>
 
-    <section class="wrap closing" aria-labelledby="start">
+    <section class="wrap closing reveal" aria-labelledby="start">
       <h2 id="start">Start your company.</h2>
       <p class="muted">Free, open source, MIT licensed.</p>
       <div class="actions">
@@ -231,6 +277,30 @@
   <script>
     const brew = document.querySelector(".brew");
     brew.addEventListener("click", () => { navigator.clipboard.writeText(brew.dataset.cmd); brew.querySelector("em").textContent = "copied"; });
+
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const seen = new IntersectionObserver(entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); seen.unobserve(e.target); } }), { threshold: 0.2 });
+    document.querySelectorAll(".reveal").forEach(el => seen.observe(el));
+
+    // The tour plays while it is on screen and the pointer is off it. Its bar starts over on each new tab.
+    const tour = document.querySelector(".tour"), tabs = [...tour.querySelectorAll(".tab")], shots = [...tour.querySelectorAll(".stage img")];
+    let at = 0;
+    function show(i, focus) {
+      at = (i + tabs.length) % tabs.length;
+      tabs.forEach((t, j) => { t.setAttribute("aria-selected", j === at); t.tabIndex = j === at ? 0 : -1; });
+      shots.forEach((s, j) => s.classList.toggle("on", j === at));
+      if (focus) tabs[at].focus();
+    }
+    tabs.forEach((t, i) => {
+      t.addEventListener("click", () => show(i));
+      t.addEventListener("animationend", () => show(at + 1));
+      t.addEventListener("keydown", e => { if (e.key === "ArrowRight") show(at + 1, true); if (e.key === "ArrowLeft") show(at - 1, true); });
+    });
+    if (!still) {
+      new IntersectionObserver(([e]) => tour.classList.toggle("playing", e.isIntersecting), { threshold: 0.4 }).observe(tour);
+      tour.addEventListener("pointerenter", () => tour.classList.add("paused"));
+      tour.addEventListener("pointerleave", () => tour.classList.remove("paused"));
+    }
   </script>
 </body>
 </html>
