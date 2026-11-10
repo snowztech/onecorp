@@ -57,19 +57,30 @@ Everything runs locally. There's no account and no server. Your agents use the C
 </tr>
 </table>
 
+## Install
+
+```sh
+brew install --cask snowztech/tap/onecorp
+```
+
+Or download [OneCorp.dmg](https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg) and drag OneCorp to Applications. macOS 11 or later, Apple silicon or Intel.
+
 ## Get started
 
-1. Install with Homebrew, `brew install --cask snowztech/tap/onecorp`, or download `OneCorp.dmg` from [Releases](https://github.com/snowztech/onecorp/releases) and drag OneCorp to Applications.
-2. Open it. OneCorp walks you through the rest: you, your AI agents, your company, its repo (a folder on your Mac, one of your GitHub repos, or a new one) and a starting team.
+**1. Sign in to an agent.** Your employees run on Claude Code, Codex, or both. You need at least one.
 
-Your employees need at least one of these, installed and signed in. OneCorp checks during setup and gives you the command for anything missing.
+| Agent | Install | Sign in |
+|---|---|---|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `npm install -g @anthropic-ai/claude-code` | `claude` |
+| [Codex](https://github.com/openai/codex) | `npm install -g @openai/codex` | `codex` |
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code): `npm install -g @anthropic-ai/claude-code`, then run `claude` once.
-- [Codex](https://github.com/openai/codex): `npm install -g @openai/codex`, then run `codex` once.
+**2. Open OneCorp.** Setup asks for your name, checks your agents, and sets up your company: its repo (a folder on your Mac, one of your GitHub repos, or a new one) and a starting team.
 
-For pull requests, install the [GitHub CLI](https://cli.github.com) and run `gh auth login`. GitLab works the same way with `glab`.
+**3. Give them work.** Describe a project or write a ticket. Answer what lands in your Inbox, and approve what ships.
 
-**What it costs:** your agents' usage, nothing else. OneCorp shows what every run spent, by person, project and agent. Set a daily budget and the company pauses when it's reached. On a Claude or ChatGPT plan, when the plan's usage limit is hit, the work waits and picks up again by itself at the reset.
+For pull requests, install the [GitHub CLI](https://cli.github.com) and run `gh auth login`. GitLab works the same way with `glab`. Without either, approving merges on your Mac.
+
+**What it costs:** your agents' usage, nothing else. Every company has a daily budget ($10 to start) and every run shows what it spent. On a Claude or ChatGPT plan, when the usage limit is hit, work waits and picks up again by itself.
 
 ## How it works
 
@@ -86,7 +97,7 @@ More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Where it's going: [ROADMAP
 
 ## Command line
 
-Everything the app does, the `onecorp` command does too. Both run on the same library, so they always agree.
+Everything the app does, the `onecorp` command does too. Both run on the same library, so they always agree. For now it installs from source: clone the repo and run `scripts/install.sh --cli` (needs Rust).
 
 ```sh
 onecorp doctor                                    # check git, the agents and your companies
