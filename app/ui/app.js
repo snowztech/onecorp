@@ -139,6 +139,8 @@ const ICON = {
   coin: '<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6v2M12 16v2"/>',
   spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
@@ -237,16 +239,15 @@ function viewCompany() {
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
    OneCorp needs is in place. Your own profile lives in your menu. */
 /* Settings: sections on the left, the section on the right, and changes save as you make them. */
-const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["agents", "Integrations", "spark"], ["appearance", "Appearance", "eye"], ["you", "You", "user"]];
+const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["agents", "Integrations", "spark"], ["appearance", "Appearance", "eye"], ["you", "You", "user"], ["about", "About", "info"]];
 function renderSheet() {
   const el = $("#sheet");
   el.hidden = !S.sheet;
   if (!S.sheet) return (el.innerHTML = "");
   const tab = SECTIONS.some(([k]) => k === S.sheet) ? S.sheet : "company";
-  const body = { company: companySection, spend: spendTab, agents: agentsSection, appearance: appearanceSection, you: youSection }[tab]();
+  const body = { company: companySection, spend: spendTab, agents: agentsSection, appearance: appearanceSection, you: youSection, about: aboutSection }[tab]();
   el.innerHTML = `<div class="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
-    <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}
-      <div class="set-foot"><button class="link-btn inline" data-open-url="${esc(bugUrl())}" title="Opens a GitHub issue with your version filled in">Report a bug ↗</button><span>OneCorp ${esc(version)}</span></div></nav>
+    <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}</nav>
     <div class="set-main"><header class="set-h"><h3>${SECTIONS.find(([k]) => k === tab)[1]}</h3><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
       <div class="sheet-body">${body}</div></div></div>`;
 }
@@ -306,6 +307,18 @@ function agentsSection() {
     <h3 class="label tools-h">Health</h3>
     <div class="row-set"><div><b>Everything else</b><span>Git, your repos and each company.</span></div><button class="link-btn" data-health="1">${S.health ? "Check again" : "Check"}</button></div>
     ${others.length ? `<ul class="health">${others.map(h => `<li class="hc lvl-${h.level}"><i>${mark[h.level]}</i><div><b>${esc(h.what)}</b><span>${esc(h.detail)}</span>${h.fix && h.level !== "ok" ? `<code>${esc(h.fix)}</code>` : ""}</div></li>`).join("")}</ul>` : ""}`;
+}
+// Who made it, which version, and where to go next. The About pane of a Mac app.
+function aboutSection() {
+  const repo = "https://github.com/snowztech/onecorp";
+  return `<div class="about">
+    <span class="hero-mark">${logo()}</span>
+    <h2>OneCorp</h2>
+    <p class="muted">Run a company of AI employees, on your Mac.</p>
+    ${version ? `<button class="version-chip" data-copy="${esc(version)}" title="Copy the version">Version ${esc(version)} ${icon("copy")}</button>` : ""}
+    <div class="about-links"><button class="link-btn" data-open-url="${repo}">GitHub</button><button class="link-btn" data-open-url="${repo}/blob/main/CHANGELOG.md">Changelog</button><button class="link-btn" data-open-url="${esc(bugUrl())}">Report an issue</button><button class="link-btn" data-open-url="https://onecorp.dev">onecorp.dev</button></div>
+    <p class="fine">Open source, MIT. © 2026 Lucas Neves Pereira, <button class="link-btn inline" data-open-url="https://github.com/snowztech">snowztech</button></p>
+  </div>`;
 }
 function appearanceSection() {
   const team = (S.snap?.employees || []).slice(0, 5).map(e => e.face || e.name);
@@ -2078,7 +2091,7 @@ async function previewScreen() {
   if (screen === "profile") { S.founder = null; S.companies = []; S.profile = { name: "" }; render(); }
   if (screen === "welcome") { S.founder = null; S.companies = []; S.welcome = true; S.profile = { name: "" }; render(); }
   if (screen === "welcome-back") { S.founder = null; S.profile = { name: "" }; render(); }
-  if (["popover", "you", "agents", "appearance"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
+  if (["popover", "you", "agents", "appearance", "about"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
   if (screen.startsWith("faces-")) { try { localStorage.setItem("onecorp.faces", screen.slice(6)); } catch {} render(); }
   if (screen === "limit") { S.snap.limits = [{ runtime: "claude", back: "15:00" }]; render(); }
