@@ -52,6 +52,17 @@ fn channels_posts_and_replies() {
     assert_eq!(chat::say(&c, "engineering", "@all standup in 5").unwrap().len(), 2, "odile and maya");
     assert_eq!(chat::say(&c, "general", "@everyone shipping Friday, @maya too").unwrap().len(), 4, "everyone once, even when named twice");
 
+    // A question to the lead happens out loud in the team channel, and the founder's answer closes it there.
+    let ask = json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "ask_human", "arguments": {"question": "15 or 60 minute links?", "default": "15"}}});
+    let said = mcp::handle(&c, &mcp::Ctx { ticket, employee: "maya".into() }, &ask).unwrap()["result"]["content"][0]["text"].as_str().unwrap().to_string();
+    let n: i64 = said.split('#').nth(1).unwrap().split_whitespace().next().unwrap().parse().unwrap();
+    let eng = c.messages(Some("engineering")).unwrap();
+    let asked = eng.iter().rev().find(|m| m.author == "maya").unwrap();
+    assert!(asked.text.contains("15 or 60 minute links?") && asked.text.contains("@odile"), "{}", asked.text);
+    work::answer(&c, n, "60 minutes").unwrap();
+    let last = c.messages(Some("engineering")).unwrap().pop().unwrap();
+    assert_eq!((last.author.as_str(), last.text.as_str()), ("founder", "@maya 60 minutes"));
+
     // Before a ticket, an engineer reads #general and #engineering. Product's channel isn't theirs.
     c.post("product", "rui", "Pricing is $6", None).unwrap();
     let maya = c.employee("maya").unwrap().unwrap();

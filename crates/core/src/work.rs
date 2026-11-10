@@ -183,6 +183,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     match verdict(&said) {
         Verdict::Decide(answer) => {
             c.add_event(t.id, "lead", &format!("{} answered #{id}: {answer}", lead.name), "")?;
+            crate::chat::note(c, &q.employee, &lead.id, &format!("@{} Decided: {answer}", q.employee), Some(t.id))?;
             out(&format!("{key}  {} answered: {answer}", lead.name));
             let q = c.answer_as(id, &answer, &lead.id)?;
             follow_up(c, &q, &answer)
@@ -190,6 +191,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         Verdict::Escalate(why) => {
             c.route(id, "founder", Some(&lead.id), Some(&why))?;
             c.add_event(t.id, "lead", &format!("{} passed #{id} to you: {why}", lead.name), "")?;
+            crate::chat::note(c, &q.employee, &lead.id, &format!("Passing this one to the founder: {why}"), Some(t.id))?;
             out(&format!("{key}  {} passed it to you: {}. See: onecorp inbox", lead.name, why.trim_end_matches('.')));
             Ok(())
         }
@@ -636,6 +638,10 @@ pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
         return Ok(());
     }
     out(&format!("Answered #{id}."));
+    // The founder's answer closes the thread in the channel where the question was asked.
+    if q.kind == "question" {
+        crate::chat::note(c, &q.employee, "founder", &format!("@{} {text}", q.employee), q.ticket_id)?;
+    }
     follow_up(c, &q, text)
 }
 
@@ -794,6 +800,31 @@ fn pick_up(c: &Company, t: &Ticket, why: &str, prompt: &str, label: &str) -> Res
     drive(c, &e, t.id, Path::new(wt), Some(session), prompt, label)
 }
 
+/// Who a commit is by, per the company's choice (setting "commits"):
+/// - "team", the default: the employee is the author, you're the committer, and a
+///   Co-authored-by line credits you, so the work counts as yours on GitHub too.
+/// - "you": author and committer are both you.
+///
+/// "You" is whoever the repo's git config says (user.name, user.email). Without one, commits stay
+/// the employee's alone.
+pub struct Signature {
+    pub env: Vec<(String, String)>,
+    pub trailer: Option<String>,
+}
+
+pub fn signature(c: &Company, e: &Employee, repo: &Path) -> Result<Signature> {
+    let own = git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name));
+    let you = git::config(repo, "user.name").zip(git::config(repo, "user.email"));
+    let Some((name, email)) = you else { return Ok(Signature { env: own, trailer: None }) };
+    if c.setting("commits")?.as_deref() == Some("you") {
+        return Ok(Signature { env: git::identity(&name, &email), trailer: None });
+    }
+    let mut env: Vec<(String, String)> = own.into_iter().filter(|(k, _)| k.starts_with("GIT_AUTHOR")).collect();
+    env.push(("GIT_COMMITTER_NAME".into(), name.clone()));
+    env.push(("GIT_COMMITTER_EMAIL".into(), email.clone()));
+    Ok(Signature { env, trailer: Some(format!("Co-authored-by: {name} <{email}>")) })
+}
+
 /// Runs one agent session on a ticket, logging every event, commits what it left, then reports where the ticket landed.
 /// `label` names this run in the commit message, like the ticket title or "changes from review".
 fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, prompt: &str, label: &str) -> Result<()> {
@@ -876,7 +907,12 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     }
     if ok && !planning {
         let msg = short(&format!("{key}: {label}"), 72);
-        if let Some(hash) = git::commit_all(wt, &msg, &identity)? {
+        let sig = signature(c, e, &c.repo_of(&c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?)?)?;
+        let full = match &sig.trailer {
+            Some(t) => format!("{msg}\n\n{t}"),
+            None => msg.clone(),
+        };
+        if let Some(hash) = git::commit_all(wt, &full, &sig.env)? {
             c.add_event(id, "commit", &format!("{hash} {msg}"), "")?;
             out(&format!("  commit {hash} as {}", e.name));
         }

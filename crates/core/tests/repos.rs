@@ -33,21 +33,35 @@ fn tickets_work_and_land_in_their_own_repo() {
     assert!(c.add_repo(&api, None).is_err(), "the same folder twice");
     assert!(c.remove_repo("notes-app").is_err(), "the main repo stays");
 
+    // You, as git knows you in that repo.
+    for (k, v) in [("user.name", "Lucas Founder"), ("user.email", "lucas@example.com")] {
+        assert!(Command::new("git").arg("-C").arg(&api).args(["config", k, v]).status().unwrap().success());
+    }
+    let last = |branch: &str| String::from_utf8(Command::new("git").arg("-C").arg(&api).args(["log", "-1", "--format=%an|%cn|%B", branch]).output().unwrap().stdout).unwrap();
+
     // A ticket in the api repo branches from it and merges into it, leaving the app untouched.
     let t = c.new_ticket(&NewTicket { title: "Add search".into(), assignee: Some("maya".into()), repo: Some("api".into()), ..Default::default() }, "todo").unwrap();
     work::start(&c, &c.ticket(t).unwrap().unwrap()).unwrap();
     let ticket = c.ticket(t).unwrap().unwrap();
     assert_eq!(ticket.status, "review");
     assert_eq!(c.repo_of(&ticket).unwrap(), added.path);
+    // As your team, the default: Maya wrote it, you committed it and share the credit.
+    let log = last(ticket.branch.as_deref().unwrap());
+    assert!(log.starts_with("Maya Okafor|Lucas Founder|"), "{log}");
+    assert!(log.contains("Co-authored-by: Lucas Founder <lucas@example.com>"), "{log}");
     ship::approve(&c, &ticket).unwrap();
     assert!(api.join("WORK.md").exists(), "merged into the api repo");
     assert!(!app.join("WORK.md").exists(), "the app repo is untouched");
 
     // Being on a feature branch in your checkout doesn't change where new work starts.
     assert!(Command::new("git").arg("-C").arg(&api).args(["checkout", "-q", "-b", "feat/wip"]).status().unwrap().success());
+    c.set_setting("commits", "you").unwrap();
     let t2 = c.new_ticket(&NewTicket { title: "Add tags".into(), assignee: Some("maya".into()), repo: Some("api".into()), ..Default::default() }, "todo").unwrap();
     work::start(&c, &c.ticket(t2).unwrap().unwrap()).unwrap();
     assert_eq!(c.ticket(t2).unwrap().unwrap().base.as_deref(), Some("main"), "starts from main, not feat/wip");
+    // As you: every commit is yours alone.
+    let log = last(c.ticket(t2).unwrap().unwrap().branch.as_deref().unwrap());
+    assert!(log.starts_with("Lucas Founder|Lucas Founder|") && !log.contains("Co-authored-by"), "{log}");
 
     // The planner names the repo for each ticket it creates.
     let plan = c.new_plan("Search", "Search across notes", "maya").unwrap();

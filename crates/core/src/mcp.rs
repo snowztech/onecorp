@@ -189,6 +189,13 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
                 }
                 None => "the founder".into(),
             };
+            // Out loud in the team channel, so the founder sees the team think, not only the outcome.
+            let asked = c.question(n)?.map(|q| q.question).unwrap_or_default();
+            let who = match &lead {
+                Some(l) => format!("@{}", l.id),
+                None => "the founder, in their Inbox".into(),
+            };
+            crate::chat::note(c, &ctx.employee, &ctx.employee, &format!("{asked}\n(Asking {who}.)"), Some(ctx.ticket))?;
             if blocking {
                 c.set_status(ctx.ticket, "blocked")?;
                 Ok(format!("Question #{n} went to {to}, and the ticket is marked blocked. Stop here and summarize where you are."))
@@ -304,7 +311,9 @@ mod tests {
 
         let post = json!({"name": "post_message", "arguments": {"channel": "#general", "text": "hashing tokens at rest"}});
         handle(&c, &ctx, &req(4, "tools/call", post)).unwrap();
-        assert_eq!(c.messages(Some("general")).unwrap()[0].text, "hashing tokens at rest");
+        let general = c.messages(Some("general")).unwrap();
+        assert!(general[0].text.starts_with("15 or 60 minutes?"), "the question was said out loud first");
+        assert_eq!(general.last().unwrap().text, "hashing tokens at rest");
 
         let prop = json!({"name": "propose_wiki", "arguments": {"text": "Tokens are hashed at rest", "section": "conventions"}});
         handle(&c, &ctx, &req(7, "tools/call", prop)).unwrap();

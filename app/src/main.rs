@@ -177,6 +177,8 @@ fn settings(company: String) -> Res<Value> {
         "tickets": c.tickets().map_err(err)?.len(), "people": c.employees().map_err(err)?.len(),
         "version": env!("CARGO_PKG_VERSION"),
         "repos": repos_json(&c).map_err(err)?,
+        "commits": c.setting("commits").map_err(err)?.unwrap_or_else(|| "team".into()),
+        "git_you": onecorp::git::config(&repo, "user.name").zip(onecorp::git::config(&repo, "user.email")).map(|(n, e)| json!({"name": n, "email": e})),
     }))
 }
 
@@ -199,6 +201,15 @@ fn set_commands(company: String, repo: String, text: Option<String>) -> Res<Vec<
     }
     .map_err(err)?;
     repos_json(&c).map_err(err)
+}
+
+/// Who commits are by: "team" (the employee, with you as committer and co-author) or "you".
+#[tauri::command(async)]
+fn set_commits(company: String, mode: String) -> Res<()> {
+    if !["team", "you"].contains(&mode.as_str()) {
+        return Err(format!("{mode} isn't a choice. Pick team or you."));
+    }
+    open(&company)?.set_setting("commits", &mode).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -702,6 +713,7 @@ fn main() {
             set_voice,
             set_commands,
             add_repo,
+            set_commits,
             remove_repo,
             github_repos,
             clone_repo,

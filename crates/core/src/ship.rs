@@ -112,7 +112,10 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
     };
     let forge = forge_for(c, &repo)?;
     let who = t.assignee.as_deref().and_then(|id| c.employee(id).ok().flatten());
-    let identity = who.as_ref().map(|e| git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name))).unwrap_or_default();
+    let identity = match &who {
+        Some(e) => crate::work::signature(c, e, &repo)?.env,
+        None => vec![],
+    };
 
     let upstream = if forge.is_some() {
         git::fetch(&repo, &base)?;

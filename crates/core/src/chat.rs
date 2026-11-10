@@ -120,6 +120,17 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id)).collect()
 }
 
+/// Says in the asker's team channel how a question is moving: asked, decided by the lead, passed
+/// to the founder, answered. Only a record of what happened, so it never starts a reply or a loop.
+pub fn note(c: &Company, asker: &str, author: &str, text: &str, ticket: Option<i64>) -> Result<()> {
+    let channel = match c.employee(asker)? {
+        Some(e) => home(c, &e)?,
+        None => GENERAL.into(),
+    };
+    c.post(&channel, author, text, ticket)?;
+    Ok(())
+}
+
 /// A mentioned employee answers in the channel. Read-only in the repo and with no company tools,
 /// so a chat reply can look at the code but never changes it or opens tickets.
 pub fn reply(c: &Company, id: i64) -> Result<()> {

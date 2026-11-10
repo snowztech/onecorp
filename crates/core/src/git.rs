@@ -86,6 +86,11 @@ pub fn current_branch(repo: &Path) -> Result<String> {
     }
 }
 
+/// A git config value as git resolves it for this repo, like user.email. None when unset.
+pub fn config(repo: &Path, key: &str) -> Option<String> {
+    git(repo, &["config", "--get", key], &[]).ok().filter(|v| !v.is_empty())
+}
+
 /// The env that makes git commits show up under an employee's name.
 pub fn identity(name: &str, email: &str) -> Vec<(String, String)> {
     ["GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"]
