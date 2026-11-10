@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-11
+
+A smoother first launch: setup fills the window, and tools connect in one click.
+
 ### Changed
 
 - Connecting your tools takes one click: Sign in and Install open Terminal with the command already running, and the step updates by itself when you come back. Claude Code signs in with `claude auth login` instead of a full session. Check again is back.
@@ -46,5 +50,6 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.2]: https://github.com/snowztech/onecorp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/snowztech/onecorp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/snowztech/onecorp/releases/tag/v0.1.0
