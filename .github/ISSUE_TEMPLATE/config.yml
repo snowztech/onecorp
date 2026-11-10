@@ -1,0 +1,6 @@
+# Blank issues stay on: Help → Report a Bug opens one with the version filled in.
+blank_issues_enabled: true
+contact_links:
+  - name: Roadmap
+    url: https://github.com/snowztech/onecorp/blob/main/ROADMAP.md
+    about: See where OneCorp is going before you suggest something big.
