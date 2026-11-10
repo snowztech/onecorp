@@ -333,7 +333,7 @@ impl Company {
 
     /// The company's look: a badge color, and a logo image if you added one.
     pub fn look(&self) -> Result<(String, Option<PathBuf>)> {
-        let color = self.db.query_row("SELECT value FROM meta WHERE key = 'color'", [], |r| r.get(0)).optional()?.unwrap_or_else(|| "#2b55c9".to_string());
+        let color = self.db.query_row("SELECT value FROM meta WHERE key = 'color'", [], |r| r.get(0)).optional()?.unwrap_or_else(|| "#27272a".to_string());
         let logo = fs::read_dir(&self.dir).ok().and_then(|d| d.flatten().map(|e| e.path()).find(|p| p.file_stem().is_some_and(|s| s == "logo")));
         Ok((color, logo))
     }

@@ -1141,3 +1141,6 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .watching { display: flex; align-items: center; gap: 8px; }
 .pulse { width: 6px; height: 6px; border-radius: 99px; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+.logo:not(.img):not(.add) { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08); }
+.logo.xl:not(.img):not(.add) { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08), 0 10px 24px -12px rgb(0 0 0 / .6); }
+.logo .ic { width: 55%; height: 55%; opacity: .75; }

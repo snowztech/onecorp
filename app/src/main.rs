@@ -384,7 +384,7 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
     }
     // The look is a nicety: the company exists either way, so a bad logo file shouldn't undo it.
     let logo = logo.filter(|l| !l.is_empty()).map(std::path::PathBuf::from);
-    let _ = c.set_look(color.as_deref().unwrap_or("#2b55c9"), logo.as_deref(), logo.is_none());
+    let _ = c.set_look(color.as_deref().unwrap_or("#27272a"), logo.as_deref(), logo.is_none());
     Ok(c.name)
 }
 

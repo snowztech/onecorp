@@ -1094,10 +1094,13 @@ function shipNote(r) {
   return `<p class="su-warn">This repo is on ${esc(r.forge)}, but ${cli} isn't signed in, so work merges locally for now. Run <code>${cli} auth login</code>, then <code>onecorp ship ${r.forge.toLowerCase()}</code>.</p>`;
 }
 // A company's badge: its logo if it has one, otherwise its first letter on its color.
-const PALETTE = ["#2b55c9", "#d97757", "#3a9b7a", "#8b5cf6", "#d4a019", "#e05d8a", "#2f9fc6", "#5f6573"];
+// Graphite first, like the OneCorp icon, then muted tones that sit with the zinc theme.
+const PALETTE = ["#27272a", "#4772ae", "#ae5c47", "#47ae88", "#6d47ae", "#ae8847", "#ae477a", "#4799ae"];
 function badge(name, look, cls = "") {
   if (look?.logo) return `<span class="logo ${cls} img"><img src="${esc(look.logo)}" alt=""></span>`;
-  return `<span class="logo ${cls}" style="background:${esc(look?.color || "var(--fg)")};color:#fff">${esc((name || "?")[0].toUpperCase())}</span>`;
+  // No name yet: a quiet building, not a question mark.
+  const mark = name ? esc(name[0].toUpperCase()) : icon("company");
+  return `<span class="logo ${cls}" style="background:${esc(look?.color || PALETTE[0])};color:#fff">${mark}</span>`;
 }
 // The whole journey, shown on every step. A first launch also counts you.
 // Back to the You step from setup: your name and photo as they are, and setup waits where it was.
@@ -1900,7 +1903,7 @@ function preview(cmd, args) {
   const VOICES = [["terse","Terse","Done. Login works, tests pass."],["warm","Warm","Login's in! Thanks for the clear ticket. Tests are green."],["thorough","Thorough","Login is in. I went with magic links over passwords: less to store. Tests cover both paths."],["dry","Dry","Login works. The tests agree, which is a first this week."],["blunt","Blunt","Login works. The old session code was broken, so I replaced it."],["curious","Curious","Login works. Should links expire after 15 minutes or an hour?"],["upbeat","Upbeat","Login shipped! On to signup next."],["calm","Calm","Login is done. 1. Link sent. 2. Token checked. 3. Session set."]].map(([key, label, sample]) => ({ key, label, sample }));
   const data = {
     voices: VOICES,
-    companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech", looks: { snowztech: { color: "#2b55c9" }, tvcask: { color: "#d97757" }, autoremind: { color: "#3a9b7a" }, pingbuddy: { color: "#8b5cf6" } } },
+    companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech", looks: { snowztech: { color: "#4772ae" }, tvcask: { color: "#ae5c47" }, autoremind: { color: "#47ae88" }, pingbuddy: { color: "#27272a" } } },
     snapshot: {
       repos: [{ name: "notes", path: "/Users/you/dev/notes", main: true }, { name: "notes-web", path: "/Users/you/dev/notes-web", main: false }],
       company: "snowztech", serve: true, kickoff: { brief: "A notes app for writers.", planner: "rui", planned: true, planning: [] }, ship: { mode: "github", forge: "GitHub", pr_word: "pull request" }, employees: team, tickets: [
