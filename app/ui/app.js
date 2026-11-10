@@ -306,7 +306,8 @@ async function openSettings(tab = "company") {
   await loadSection(S.sheet);
 }
 async function loadSection(tab) {
-  if (!S.settings) { try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); } }
+  // Loaded fresh for the company you're on: a switch since last time must never show the old one.
+  if (S.settings?.name !== S.company) { S.settings = null; renderSheet(); try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); } }
   if (tab === "spend" || tab === "agents") await loadSpend();
   if (tab === "agents" && !S.ready) S.ready = await invoke("readiness").catch(() => []);
   renderSheet();
@@ -963,14 +964,18 @@ function focusTop(cancel) {
 }
 function viewProfile() {
   const skip = S.companies.length ? `<button class="link-btn" type="button" data-skip-setup="1">Skip, go to ${esc(S.companies[0])}</button>` : `<span class="fine">Next: connect your AI</span>`;
-  return onboarding("You", false, `<form class="onb-main welcome" id="profile">
-      <h1>Who's running the company?</h1>
-      <p class="muted">Your team works for you and knows you by name. Everything stays on this Mac. There's no account.</p>
+  // Companies already here: a welcome back, not the first-run journey. Your teams are waiting.
+  const back = S.companies.length > 0;
+  const names = S.companies.slice(0, 3).join(", ") + (S.companies.length > 3 ? ` and ${S.companies.length - 3} more` : "");
+  const wrap = form => back ? `<div class="focus-wrap">${focusTop(false)}<div class="onb solo">${form}</div></div>` : onboarding("You", false, form);
+  return wrap(`<form class="onb-main welcome" id="profile">
+      <h1>${back ? "Welcome back" : "Who's running the company?"}</h1>
+      <p class="muted">${back ? `${esc(names)} ${S.companies.length === 1 ? "is" : "are"} here as you left ${S.companies.length === 1 ? "it" : "them"}. Tell your team who they work for.` : "Your team works for you and knows you by name. Everything stays on this Mac. There's no account."}</p>
       <div class="me-row"><button type="button" class="pf-pic pick-pic" data-pf="pick" title="Add a photo">${pfPic(S.profile.name)}<span class="pick-hint">${hasPhoto() ? "Change" : "Photo"}</span></button><div class="field grow"><label for="pf-name">Your name</label>
         <input id="pf-name" value="${esc(S.profile.name)}" placeholder="Lucas" autocomplete="off">
         <p class="field-err" id="pf-err" hidden>Say what your team should call you.</p></div></div>
       <div class="photo-acts">${photoActs() || `<span class="fine">Add a photo anytime.</span>`}</div>
-      <div class="su-nav">${skip}<button class="btn primary">Continue</button></div>
+      <div class="su-nav">${back ? "<span></span>" : skip}<button class="btn primary">${back ? `Open ${esc(S.company || S.companies[0])}` : "Continue"}</button></div>
     </form>`);
 }
 function renderPop() {
@@ -1405,7 +1410,7 @@ document.addEventListener("click", async e => {
   if (d.forget) {
     el.disabled = true;
     try { await invoke("forget_founder"); } catch (err) { el.disabled = false; return toast(String(err), true); }
-    S.founder = null; S.confirm = null; S.pop = false; S.profile = { name: "" }; renderPop(); return render();
+    S.founder = null; S.confirm = null; S.pop = false; S.sheet = null; S.profile = { name: "" }; renderPop(); renderSheet(); return render();
   }
   if (d.more) { S.open[d.more] = true; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) return openSettings("you");
@@ -1568,10 +1573,10 @@ document.addEventListener("submit", async e => {
     if (!(await saveProfile(S.profile?.photo, S.profile?.noPhoto))) return;
     if (!firstTime) { S.pop = false; renderPop(); render(); return toast("Saved"); }
     S.profile = null;
-    // Continue follows the steps on screen, whether or not you already have a company.
+    // Coming back to your companies, not starting a new one.
+    if (S.companies.length) { toast(`Welcome back, ${myName()}`); return refresh(true); }
     S.onboarding = true;
     return startSetup();
-    return refresh(true);
   }
   if (f.id === "setup") {
     readSetup();
@@ -1773,7 +1778,8 @@ async function previewScreen() {
   if (screen === "setup") await startSetup();
   if (screen === "github") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; render(); }
   if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
-  if (screen === "profile") { S.founder = null; S.profile = { name: "" }; render(); }
+  if (screen === "profile") { S.founder = null; S.companies = []; S.profile = { name: "" }; render(); }
+  if (screen === "welcome-back") { S.founder = null; S.profile = { name: "" }; render(); }
   if (["popover", "you", "agents", "appearance"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
   if (screen.startsWith("faces-")) { try { localStorage.setItem("onecorp.faces", screen.slice(6)); } catch {} render(); }
