@@ -251,11 +251,14 @@ function companySection() {
   return `<div class="row-set"><div class="who-row">${badge(st.name, look, "lg")}<div><b>Logo</b><span>A color, or your own image.</span></div></div>
       <div class="look-row">${PALETTE.map(c => `<button type="button" class="swatch" data-look-color="${c}" aria-pressed="${!look.logo && c === look.color}" style="--c:${c}" aria-label="Color ${c}"></button>`).join("")}
         ${window.__TAURI__?.dialog ? `<button class="link-btn" data-look-logo="1">${look.logo ? "Change image" : "Image…"}</button>` : ""}</div></div>
-    <div class="row-set"><div><b>Repo</b><span class="mono">${esc(st.repo)}</span></div>${reveal(st.repo)}</div>
     <div class="row-set"><div><b>Finished work</b><span>${st.ship === "local" ? "Merged on this Mac" : "Opened as pull requests"}</span></div>
       <div class="seg">${modes.map(([m, n]) => `<button data-ship="${m}" aria-pressed="${m === st.ship}">${n}</button>`).join("")}</div></div>
-    <div class="row-set stack"><div><b>Build and test</b><span>Commands your team may run, so work comes back tested. ${st.commands_custom ? `<button class="link-btn" type="button" data-commands-reset="1">Use what the repo suggests</button>` : "Suggested from your repo."}</span></div>
-      <input id="commands-in" class="mono" value="${esc((st.commands || []).join(", "))}" placeholder="cargo test, npm test" autocomplete="off" spellcheck="false" aria-label="Build and test commands"></div>
+    <h3 class="label repos-label">Repos</h3>
+    ${(st.repos || []).map(r => `<div class="repo-set">
+      <div class="repo-h"><b>${esc(r.name)}</b>${r.main ? `<span class="pill-state">main</span>` : ""}<span class="mono muted" title="${esc(r.path)}">${esc(r.path)}</span>${reveal(r.path)}${r.main ? "" : `<button class="link-btn" data-repo-rm="${esc(r.name)}">Remove</button>`}</div>
+      <label class="cmd"><span>Build and test${r.custom ? ` · <button class="link-btn" type="button" data-commands-reset="${esc(r.name)}">use what the repo suggests</button>` : ""}</span>
+        <input class="mono" data-commands="${esc(r.name)}" value="${esc(r.commands.join(", "))}" placeholder="cargo test, npm test" autocomplete="off" spellcheck="false" aria-label="Build and test commands for ${esc(r.name)}"></label></div>`).join("")}
+    <div class="su-row add-repo">${window.__TAURI__?.dialog ? `<button class="btn" type="button" data-repo-add="pick">Add a repo…</button>` : ""}<input id="repo-add-path" class="mono" placeholder="/Users/you/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-repo-add="path">Add</button></div>
     <div class="row-set"><div><b>Data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div>
     <h3 class="label danger-label">Danger zone</h3>${del}`;
 }
@@ -723,7 +726,7 @@ function viewBoard() {
     if (title === "Done") ts = ts.slice(-12);
     return `<section class="col"><h4>${title}<span>${ts.length}</span></h4>${ts.slice().reverse().map(t => `
       <button class="tk ${t.status} ${t.kind === "plan" ? "is-plan" : ""}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}${t.kind === "plan" ? " · plan" : ""}${PILL[t.status] ? `<span class="pill ${PILL[t.status][1]}">${PILL[t.status][0]}</span>` : ""}</span><span class="t">${esc(t.title)}</span>
-        ${t.after && t.status !== "done" ? `<span class="after">after ${esc(t.after)}</span>` : ""}
+        ${t.repo ? `<span class="repo-tag">${esc(t.repo)}</span>` : ""}${t.after && t.status !== "done" ? `<span class="after">after ${esc(t.after)}</span>` : ""}
         <span class="row">${t.assignee ? `${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span>` : `<span class="muted">Nobody yet</span>`}${spent(t) ? `<span class="cost">${esc(t.spend)}</span>` : ""}</span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
   }).join("");
   return `${bar}<div class="board">${cols}</div>`;
@@ -751,6 +754,7 @@ function drawerTicket() {
         ${t.created_by ? `<dt>Created by</dt><dd>${esc(t.created_by)}</dd>` : ""}
         ${t.after ? `<dt>After</dt><dd><a class="link" data-ticket="${esc(t.after)}">${esc(t.after)}</a></dd>` : ""}
         ${t.pr_url ? `<dt>Pull request</dt><dd>${prLink(t.pr_url, t.pr_number)}</dd>` : ""}
+        ${t.repo ? `<dt>Repo</dt><dd class="mono">${esc(t.repo)}</dd>` : ""}
         ${t.branch ? `<dt>Branch</dt><dd class="mono">${esc(t.branch)}${t.base ? ` <span class="muted">from ${esc(t.base)}</span>` : ""}</dd>` : ""}</dl>
       ${acts ? `<div class="acts">${acts}</div>` : ""}${back}${changes(t.key)}
       <div><h5>Everything that happened</h5>${log ? `<div class="term tall" id="term">${log}</div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`}</div>
@@ -768,6 +772,7 @@ function drawerNewTicket() {
     <form class="dbody" id="nt">
       <div class="field"><label for="nt-title">What needs doing</label><input id="nt-title" placeholder="Add magic link login" autocomplete="off"></div>
       <div class="field"><label for="nt-who">Who</label><select id="nt-who"><option value="">Nobody yet</option>${team.map(e => `<option value="${esc(e.id)}" ${e.id === pick ? "selected" : ""}>${esc(e.name)}, ${esc(e.role)}${e.status === "idle" ? " (free)" : ""}</option>`).join("")}</select></div>
+      ${(S.snap?.repos || []).length > 1 ? `<div class="field"><label for="nt-repo">Repo</label><select id="nt-repo">${S.snap.repos.map(r => `<option value="${esc(r.name)}">${esc(r.name)}${r.main ? " (main)" : ""}</option>`).join("")}</select></div>` : ""}
       <div class="field"><label for="nt-desc">Details <span class="muted">(optional)</span></label><textarea id="nt-desc" rows="5" placeholder="What done looks like, links, constraints"></textarea></div>
       ${(S.snap?.projects || []).length ? `<div class="field"><label for="nt-project">Project <span class="muted">(optional)</span></label><select id="nt-project"><option value="">None</option>${S.snap.projects.map(p => `<option value="${esc(p.key)}" ${p.key === S.project ? "selected" : ""}>${esc(p.title)}</option>`).join("")}</select></div>` : ""}
       <div class="field"><label for="nt-after">After</label><select id="nt-after"><option value="">Nothing, it can start right away</option>${open.map(t => `<option value="${esc(t.key)}">${esc(t.key)} ${esc(t.title)}</option>`).join("")}</select></div>
@@ -777,7 +782,7 @@ function drawerNewTicket() {
 async function saveNewTicket(later) {
   const title = $("#nt-title").value.trim();
   if (!title) return $("#nt-title").focus();
-  const args = { company: S.company, title, employee: $("#nt-who").value || null, description: $("#nt-desc").value, after: $("#nt-after").value || null, project: $("#nt-project")?.value || null, later };
+  const args = { company: S.company, title, employee: $("#nt-who").value || null, description: $("#nt-desc").value, after: $("#nt-after").value || null, project: $("#nt-project")?.value || null, repo: $("#nt-repo")?.value || null, later };
   const key = await call("new_ticket", args, later ? "Saved to the backlog" : "Started").catch(() => null);
   if (key) { S.view = "board"; openTicket(key); }
 }
@@ -1019,7 +1024,7 @@ async function startSetup() {
     const real = info.runtimes.filter(r => r !== "fake");
     invoke("readiness").then(r => { if (S.setup) { S.setup.ready = r; render(); } }).catch(() => {});
     S.setup = { step: 0, mode: "existing", path: "", repo: null, name: "", mission: "", runtime: real[0] || "fake", info, repoInfo,
-      folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [], color: PALETTE[S.companies.length % PALETTE.length], logo: null, logoUrl: null };
+      folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [], extra: [], color: PALETTE[S.companies.length % PALETTE.length], logo: null, logoUrl: null };
     setTemplate("startup");
   } catch (e) { return toast(String(e), true); }
   S.drawer = null;
@@ -1027,7 +1032,16 @@ async function startSetup() {
 }
 // Picking a template fills the team with its people, which you then edit freely.
 function setTemplate(key) {
-  const s = S.setup, t = s.info.templates.find(x => x.key === key);
+  const s = S.setup;
+  // Another company's team: the same people, roles, departments and personalities.
+  if (key.startsWith("co:")) {
+    const from = (s.info.teams_from || []).find(x => x.company === key.slice(3));
+    const ok = s.info.runtimes.filter(r => r !== "fake");
+    s.template = key;
+    s.people = (from?.hires || []).map(h => ({ name: h.name, role: h.role, dept: h.dept || "", runtime: ok.includes(h.runtime) ? h.runtime : s.runtime, voice: h.voice || "" }));
+    return;
+  }
+  const t = s.info.templates.find(x => x.key === key);
   s.template = key;
   s.people = t.hires.map(h => ({ name: h.name, role: h.role, dept: h.dept || "", runtime: t.runtime || s.runtime, voice: h.voice || "" }));
 }
@@ -1042,6 +1056,7 @@ function readSetup() {
   if (val("su-owner") !== undefined) s.owner = val("su-owner");
   const priv = document.getElementById("su-private");
   if (priv) s.private = priv.checked;
+  (s.extra || []).forEach((x, i) => { const v = val(`su-r${i}-name`); if (v !== undefined) x.name = v.trim(); });
   s.people.forEach((p, i) => {
     for (const k of ["name", "role", "dept", "runtime", "voice"]) {
       const v = val(`su-p${i}-${k}`);
@@ -1097,6 +1112,27 @@ function viewLaunching() {
       <ol>${l.steps.map((t, i) => `<li class="${i < l.done ? "done" : i === l.done ? "now" : ""}"><span class="n">${i < l.done ? icon("check") : i === l.done ? '<i class="spin"></i>' : ""}</span>${esc(t)}</li>`).join("")}</ol>
     </div></div>`;
 }
+// Repos beyond the main one, like an api next to the app. Each gets a short name tickets use.
+function moreRepos(s, picker) {
+  const rows = s.extra.map((x, i) => `<li><input id="su-r${i}-name" class="mono" value="${esc(x.name)}" aria-label="Name for ${esc(x.path)}" autocomplete="off" spellcheck="false">
+    <span class="mono muted" title="${esc(x.path)}">${esc(x.path)}</span><button class="x" type="button" data-su="rdel-${i}" aria-label="Remove ${esc(x.name)}">×</button></li>`).join("");
+  return `<div class="more-repos"><span class="flabel">More repos <span class="muted">(optional, like an api next to your app)</span></span>
+    ${rows ? `<ul>${rows}</ul>` : ""}
+    <div class="su-row">${picker ? `<button class="btn" type="button" data-su="add-repo-pick">Add a repo…</button>` : ""}<input id="su-more" placeholder="/Users/you/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="add-repo">Add</button></div></div>`;
+}
+async function addExtraRepo(path) {
+  const s = S.setup;
+  path = String(path || "").trim();
+  if (!path) return $("#su-more")?.focus();
+  let r;
+  try { r = await invoke("check_repo", { path }); } catch (e) { return toast(String(e), true); }
+  if (!r.ok) return toast(r.problem, true);
+  if (r.path === s.repo?.path || s.extra.some(x => x.path === r.path)) return toast("That repo is already in the list", true);
+  // Named after its folder, like notes-api. Tickets and the planner call it that.
+  const name = r.path.split("/").pop().toLowerCase().replace(/[^a-z0-9_]+/g, "-").replace(/^-|-$/g, "");
+  s.extra.push({ path: r.path, name });
+  render();
+}
 function viewSetup() {
   if (S.setup.launch) return viewLaunching();
   const s = S.setup, names = ["Connect AI", "Company", "Repo", "Team", "Launch"];
@@ -1143,7 +1179,8 @@ function viewSetup() {
         : `<input id="gh-q" placeholder="Search ${g.repos.length} repos" autocomplete="off" spellcheck="false" aria-label="Search your repos">
            <ul class="gh-list">${g.repos.map(r => `<li data-name="${esc(r.name.toLowerCase())} ${esc((r.description || "").toLowerCase())}"><button type="button" data-su="clone:${esc(r.name)}" ${s.cloning ? "disabled" : ""}>
              <b>${esc(r.name)}</b>${r.private ? `<span class="pill-state">Private</span>` : ""}<span>${esc(r.description || "")}</span>${s.cloning === r.name ? `<em>Cloning…</em>` : ""}</button></li>`).join("")}</ul>`;
-      body = `<h1>Pick one of your repos</h1><p class="muted">OneCorp clones it into ${esc(s.repoInfo?.parent || "your dev folder")}, or uses it if it's already there.</p>${tabs}${list}
+      const picked = [s.repo?.ok && s.repo.path, ...s.extra.map(x => x.path)].filter(Boolean);
+      body = `<h1>${picked.length ? "Add more of your repos" : "Pick one of your repos"}</h1><p class="muted">OneCorp clones it into ${esc(s.repoInfo?.parent || "your dev folder")}, or uses it if it's already there.${picked.length ? ` Your main repo is ${esc(s.repo.path.split("/").pop())}.` : ""}</p>${tabs}${list}
         <div class="su-nav">${back}</div>`;
     } else if (s.mode === "new") {
       const owners = s.repoInfo.owners || [];
@@ -1165,7 +1202,7 @@ function viewSetup() {
         : `<p class="su-bad">${esc(r.problem)}</p>`;
       body = `<h1>Where does ${esc(s.name)} work?</h1><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>${tabs}
         <div class="su-row">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"></div>
-        ${result}${nav("Continue")}`;
+        ${result}${moreRepos(s, picker)}${nav("Continue")}`;
     }
   } else if (s.step === 3) {
     const real = s.info.runtimes.filter(x => x !== "fake");
@@ -1183,6 +1220,7 @@ function viewSetup() {
         return `<button type="button" class="tpl-card" data-tpl="${x.key}" aria-pressed="${x.key === s.template}">
           <span class="tpl-faces">${faces}</span><b>${esc(x.name)}</b><span>${esc(x.description)}</span></button>`;
       }).join("")}</div>
+      ${(s.info.teams_from || []).length ? `<div class="copy-team"><span class="flabel">Or the same people as</span>${s.info.teams_from.map(t => `<button type="button" class="chip-btn" data-tpl="co:${esc(t.company)}" aria-pressed="${s.template === "co:" + t.company}"><span class="tpl-faces">${t.hires.slice(0, 4).map(h => face(h.name, "neutral")).join("")}</span>${esc(t.company)}</button>`).join("")}</div>` : ""}
       <ul class="people">${rows || `<li class="muted">Nobody yet. Add someone, or start empty and hire later.</li>`}</ul>
       <datalist id="su-depts">${depts.map(d => `<option value="${esc(d)}">`).join("")}</datalist>
       <button class="btn" type="button" data-su="add-person">+ Add someone</button>
@@ -1192,7 +1230,7 @@ function viewSetup() {
     body = `<h1>Ready to launch</h1><p class="muted">Everything can change later. This is just where you start.</p>
       <div class="launch">
         <header>${badge(s.name, look, "xl")}<div><b>${esc(s.name)}</b><span>${esc(s.mission || "No mission yet")}</span></div></header>
-        <dl class="kv"><dt>Repo</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span></dd>
+        <dl class="kv"><dt>${s.extra.length ? "Repos" : "Repo"}</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span>${s.extra.map(x => `<br>${esc(x.path)} <span class="muted">as ${esc(x.name)}</span>`).join("")}</dd>
           <dt>Ships</dt><dd>${ships}</dd>
           <dt>Wiki</dt><dd>Your lead writes it from the repo</dd>
           ${s.brief && s.people.length ? `<dt>First plan</dt><dd>Your planner starts right after launch</dd>` : ""}
@@ -1306,7 +1344,7 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1443,9 +1481,20 @@ document.addEventListener("click", async e => {
     return refresh(true);
   }
   if (d.commandsReset) {
-    S.settings.commands = await invoke("set_commands", { company: S.company, text: null }).catch(() => S.settings.commands);
-    S.settings.commands_custom = false; saved(); return renderSheet();
+    S.settings.repos = await invoke("set_commands", { company: S.company, repo: d.commandsReset, text: null }).catch(err => (toast(String(err), true), S.settings.repos));
+    saved(); return renderSheet();
   }
+  if (d.repoRm) {
+    try { S.settings.repos = await invoke("remove_repo", { company: S.company, name: d.repoRm }); toast(`Removed ${d.repoRm}. Its files and finished tickets stay`); } catch (err) { toast(String(err), true); }
+    renderSheet(); return refresh(true);
+  }
+  if (d.repoAdd) {
+    const path = d.repoAdd === "pick" ? await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: "Pick another repo" }).catch(() => null) : $("#repo-add-path")?.value.trim();
+    if (!path) return $("#repo-add-path")?.focus();
+    try { S.settings.repos = await invoke("add_repo", { company: S.company, path: String(path), name: null }); toast(`Added ${S.settings.repos.at(-1).name}. Tickets can work in it now`); } catch (err) { toast(String(err), true); }
+    renderSheet(); return refresh(true);
+  }
+
   if (d.faceSet) {
     try { localStorage.setItem("onecorp.faces", d.faceSet); } catch {}
     render(); return renderSheet();
@@ -1509,7 +1558,12 @@ document.addEventListener("click", async e => {
     }
     if (d.su.startsWith("clone:")) {
       s.cloning = d.su.slice(6); render();
-      try { const path = await invoke("clone_repo", { name: s.cloning }); s.cloning = null; s.mode = "existing"; await checkRepo(path); }
+      try {
+        const path = await invoke("clone_repo", { name: s.cloning }); s.cloning = null;
+        // The first pick is the main repo. Picks after that join it as more repos.
+        if (s.repo?.ok) { await addExtraRepo(path); toast(`Added ${path.split("/").pop()}`); }
+        else { s.mode = "existing"; await checkRepo(path); }
+      }
       catch (e) { s.cloning = null; render(); toast(String(e), true); }
       return;
     }
@@ -1522,6 +1576,13 @@ document.addEventListener("click", async e => {
       if (path) { s.parent = String(path); render(); }
       return;
     }
+    if (d.su === "add-repo") return addExtraRepo($("#su-more")?.value);
+    if (d.su === "add-repo-pick") {
+      const path = await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: "Pick another repo" }).catch(() => null);
+      if (path) addExtraRepo(String(path));
+      return;
+    }
+    if (d.su.startsWith("rdel-")) { s.extra.splice(Number(d.su.slice(5)), 1); return render(); }
     if (d.su === "pick") {
       const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Pick the company's repo" }).catch(() => null);
       if (path) checkRepo(String(path));
@@ -1616,7 +1677,7 @@ document.addEventListener("submit", async e => {
     const tick = setInterval(() => { if (s.launch.done < s.launch.steps.length - 1) { s.launch.done++; render(); } }, 420);
     const pace = new Promise(r => setTimeout(r, 420 * s.launch.steps.length));
     try {
-      const [name] = await Promise.all([invoke("create_company", { name: s.name, repo: s.repo.path, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo }), pace]);
+      const [name] = await Promise.all([invoke("create_company", { name: s.name, repo: s.repo.path, repos: s.extra, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo }), pace]);
       clearInterval(tick); s.launch.done = s.launch.steps.length; render();
       await new Promise(r => setTimeout(r, 450));
       S.setup = null; S.onboarding = false; S.company = name; S.view = "company"; S.snap = null; S.last = "";
@@ -1700,10 +1761,11 @@ document.addEventListener("input", e => {
   if (e.target.id === "pf-name" && S.profile && !hasPhoto()) { const m = $(".welcome .mono-av"); if (m) m.innerHTML = e.target.value.trim() ? esc(initials(e.target.value)) : icon("user"); }
 });
 document.addEventListener("change", async e => {
-  if (e.target.id === "commands-in") {
-    try { S.settings.commands = await invoke("set_commands", { company: S.company, text: e.target.value }); S.settings.commands_custom = true; saved(); } catch (err) { toast(String(err), true); }
+  if (e.target.dataset?.commands) {
+    try { S.settings.repos = await invoke("set_commands", { company: S.company, repo: e.target.dataset.commands, text: e.target.value }); saved(); } catch (err) { toast(String(err), true); }
     return renderSheet();
   }
+
   if (e.target.dataset?.price) {
     await invoke("set_price", { company: S.company, runtime: e.target.dataset.price, perMillion: Math.max(0, Number(e.target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
     return loadSpend();
@@ -1776,6 +1838,7 @@ async function previewScreen() {
   if (screen === "edit-person") { await openPerson("tomas"); S.drawer.edit = true; S.person.runtime = "codex"; renderDrawer(); }
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
   if (screen === "setup") await startSetup();
+  if (screen === "repos") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/notes"); S.setup.extra = [{ path: "/Users/you/dev/notes-api", name: "notes-api" }]; S.setup.step = 2; render(); }
   if (screen === "github") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; render(); }
   if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.companies = []; S.profile = { name: "" }; render(); }
@@ -1801,11 +1864,12 @@ function preview(cmd, args) {
     voices: VOICES,
     companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech", looks: { snowztech: { color: "#2b55c9" }, tvcask: { color: "#d97757" }, autoremind: { color: "#3a9b7a" }, pingbuddy: { color: "#8b5cf6" } } },
     snapshot: {
+      repos: [{ name: "notes", path: "/Users/you/dev/notes", main: true }, { name: "notes-web", path: "/Users/you/dev/notes-web", main: false }],
       company: "snowztech", serve: true, kickoff: { brief: "A notes app for writers.", planner: "rui", planned: true, planning: [] }, ship: { mode: "github", forge: "GitHub", pr_word: "pull request" }, employees: team, tickets: [
         { key: "SNO-9", plan: "SNO-20", title: "Rate limit the public API", assignee: "tomas", status: "failed", spend: "40k tok" },
         { key: "SNO-11", plan: "SNO-20", title: "Pricing page", assignee: "odile", status: "review", spend: "$0.31" },
         { key: "SNO-12", plan: "SNO-20", title: "Magic link login", assignee: "maya", status: "blocked", spend: "52k tok" },
-        { key: "SNO-14", plan: "SNO-20", title: "Empty state for the notes list", assignee: "lina", status: "queued", spend: "$0.00" },
+        { key: "SNO-14", repo: "notes-web", plan: "SNO-20", title: "Empty state for the notes list", assignee: "lina", status: "queued", spend: "$0.00" },
         { key: "SNO-15", plan: "SNO-20", title: "Retry failed Stripe webhooks", assignee: "tomas", status: "doing", spend: "75k tok" },
         { key: "SNO-8", plan: "SNO-20", title: "CI pipeline", assignee: "tomas", status: "done", spend: "$0.22" },
         { key: "SNO-16", title: "Export notes as Markdown", assignee: null, status: "backlog", spend: "$0.00", created_by: "Rui Alves" },
@@ -1827,7 +1891,9 @@ function preview(cmd, args) {
     },
     wiki: "# snowztech wiki\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
     github_repos: [["snowztech/vikusha", "A Go framework for building AI agents", false], ["snowztech/onecorp", "Run a company of AI employees", false], ["lucas/notes", "Notes app for writers", true], ["snowztech/website", "", false]].map(([name, description, priv]) => ({ name, description, private: priv })),
-    setup_info: { runtimes: ["claude", "fake"], voices: VOICES, templates: [
+    setup_info: { runtimes: ["claude", "fake"], voices: VOICES,
+      teams_from: [{ company: "tvcask", hires: [{ name: "Inès Costa", role: "CTO", dept: "Engineering", runtime: "claude", voice: "calm" }, { name: "Kenji Sato", role: "Engineer", dept: "Engineering", runtime: "codex", voice: "terse" }] }],
+      templates: [
       { key: "solo", name: "Solo builder", description: "One engineer who ships. Hire more when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
       { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", voice: "calm", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", voice: "upbeat", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", voice: "terse", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", voice: "curious", role: "Product manager", dept: "Product" }, { name: "Lina Park", voice: "warm", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", voice: "dry", role: "Growth writer", dept: "Growth" }] },
       { key: "indie", name: "Indie maker", description: "Build it and launch it yourself: an engineer, a designer, and a growth marketer.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth marketer", dept: "Growth" }] },
@@ -1842,7 +1908,7 @@ function preview(cmd, args) {
     new_repo_info: { parent: "/Users/you/dev", owners: ["you", "snowztech"] },
     readiness: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4", fix: null },
       { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex" }, { level: "warn", what: "GitHub CLI", detail: "installed but not signed in", fix: "gh auth login" }],
-    settings: { commands: ["cargo build", "cargo test", "cargo check", "cargo clippy", "cargo fmt"], commands_custom: false, name: "snowztech", repo: "/Users/you/dev/snowztech", data: "/Users/you/.onecorp/companies/snowztech", home: "/Users/you/.onecorp", ship: "github", forge: "github", forge_name: "GitHub", origin: "git@github.com:snowztech/notes.git", tickets: 22, people: 6, version: "0.1.0" },
+    settings: { repos: [{ name: "notes", path: "/Users/you/dev/notes", main: true, commands: ["cargo build", "cargo test", "cargo check", "cargo clippy", "cargo fmt"], custom: false }, { name: "notes-web", path: "/Users/you/dev/notes-web", main: false, commands: ["pnpm install", "pnpm test", "pnpm run"], custom: false }], name: "snowztech", repo: "/Users/you/dev/snowztech", data: "/Users/you/.onecorp/companies/snowztech", home: "/Users/you/.onecorp", ship: "github", forge: "github", forge_name: "GitHub", origin: "git@github.com:snowztech/notes.git", tickets: 22, people: 6, version: "0.1.0" },
     health: [{ level: "ok", what: "git", detail: "git version 2.47.1", fix: null }, { level: "ok", what: "Claude Code", detail: "2.3.4 (Claude Code)", fix: null },
       { level: "warn", what: "Codex", detail: "not installed. Employees can't run on it", fix: "npm install -g @openai/codex, then run codex once to sign in" },
       { level: "ok", what: "company snowztech", detail: "opens pull requests on git@github.com:snowztech/notes.git (Logged in to github.com account you)", fix: null }],
@@ -1876,6 +1942,7 @@ function preview(cmd, args) {
   if (cmd === "chat" && String(args?.channel).startsWith("dm:")) return Promise.resolve({ channel: args.channel, messages: args.channel === "dm:tomas"
     ? [{ id: 13, at: "2026-11-09 11:40:00", author: "founder", name: "Lucas", founder: true, text: "How are the webhook retries going?", key: null, pending: false },
        { id: 14, at: "2026-11-09 11:41:00", author: "tomas", name: "Tomás Reis", text: "Close. Retries back off over 3 days now, and handlers are idempotent. Tests next, then it's in your Inbox as SNO-15.", key: "SNO-15", pending: false }] : [] });
+  if (cmd === "check_repo" && args?.path) return Promise.resolve({ ...data.check_repo, path: args.path, suggested: args.path.split("/").pop() });
   if (cmd in data) return Promise.resolve(data[cmd]);
   return Promise.reject("This is a preview. Open the OneCorp app to make changes.");
 }

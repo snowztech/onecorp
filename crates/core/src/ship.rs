@@ -17,6 +17,16 @@ pub fn forge(c: &Company) -> Result<Option<Forge>> {
     Ok(Forge::parse(&c.ship_mode()?))
 }
 
+/// The forge for one repo: the company's, when that repo's origin is on it. A second repo with
+/// no remote on the forge merges locally instead of failing.
+pub fn forge_for(c: &Company, repo: &Path) -> Result<Option<Forge>> {
+    // The main repo is what the ship mode was set and checked for, whatever its remote looks like.
+    if c.repo().is_ok_and(|main| main == repo) {
+        return forge(c);
+    }
+    Ok(forge(c)?.filter(|f| Forge::detect(repo) == Some(*f)))
+}
+
 /// The mode a new company starts with: pull requests when `origin` is on a forge and you're signed
 /// in there, local merges otherwise.
 pub fn default_mode(repo: &Path) -> &'static str {
@@ -43,7 +53,7 @@ pub fn set_mode(c: &Company, mode: &str) -> Result<()> {
 
 /// Where a new ticket's branch starts: the latest base on the forge, or the local base.
 pub fn start_point(c: &Company, repo: &Path, base: &str) -> Result<String> {
-    if forge(c)?.is_none() {
+    if forge_for(c, repo)?.is_none() {
         return Ok(base.to_string());
     }
     git::fetch(repo, base)?;
@@ -52,10 +62,11 @@ pub fn start_point(c: &Company, repo: &Path, base: &str) -> Result<String> {
 
 /// Pushes a finished ticket and opens its pull request, or updates the one it has.
 pub fn publish(c: &Company, t: &Ticket, summary: &str) -> Result<()> {
-    let Some(f) = forge(c)? else { return Ok(()) };
+    let repo = c.repo_of(t)?;
+    let Some(f) = forge_for(c, &repo)? else { return Ok(()) };
     let key = c.key(t.id);
     let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) else { bail!("{key} has no branch to push") };
-    let (repo, base) = (c.repo()?, t.base.clone().unwrap_or_else(|| "main".into()));
+    let base = t.base.clone().unwrap_or_else(|| "main".into());
     git::push(Path::new(wt), branch)?;
     if let Some(n) = t.pr_number {
         c.add_event(t.id, "pr", &format!("updated #{n}"), "")?;
@@ -94,12 +105,12 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
         s => bail!("{key} is {s}. Only tickets in review can be approved"),
     }
     let (Some(wt_s), Some(branch)) = (&t.worktree, &t.branch) else { bail!("{key} has no branch to merge") };
-    let (repo, wt) = (c.repo()?, Path::new(wt_s));
+    let (repo, wt) = (c.repo_of(t)?, Path::new(wt_s));
     let base = match &t.base {
         Some(b) => b.clone(),
         None => git::current_branch(&repo)?,
     };
-    let forge = forge(c)?;
+    let forge = forge_for(c, &repo)?;
     let who = t.assignee.as_deref().and_then(|id| c.employee(id).ok().flatten());
     let identity = who.as_ref().map(|e| git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name))).unwrap_or_default();
 
@@ -150,7 +161,7 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
 /// ticket done. If OneCorp stops halfway, the ticket is still in review and the next sync finishes
 /// the job, since every step here is safe to repeat.
 fn landed(c: &Company, t: &Ticket, forge: Option<Forge>, what: &str) -> Result<()> {
-    let repo = c.repo()?;
+    let repo = c.repo_of(t)?;
     if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
         if forge.is_some() {
             let base = t.base.clone().unwrap_or_else(|| "main".into());
@@ -175,11 +186,14 @@ fn landed(c: &Company, t: &Ticket, forge: Option<Forge>, what: &str) -> Result<(
 
 /// Picks up pull requests you merged or closed on the forge itself. Returns what changed.
 pub fn sync(c: &Company) -> Result<Vec<String>> {
-    let Some(f) = forge(c)? else { return Ok(vec![]) };
-    let repo = c.repo()?;
+    if forge(c)?.is_none() {
+        return Ok(vec![]);
+    }
     let mut changed = vec![];
     for t in c.tickets()?.iter().filter(|t| t.status == "review") {
         let Some(n) = t.pr_number else { continue };
+        let repo = c.repo_of(t)?;
+        let Some(f) = forge_for(c, &repo)? else { continue };
         let key = c.key(t.id);
         match f.state(&repo, n)? {
             PrState::Open => {}

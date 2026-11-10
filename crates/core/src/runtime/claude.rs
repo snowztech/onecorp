@@ -28,6 +28,12 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
     }
+    // Only for read-only runs: with edits accepted, an added folder could be changed outside a worktree.
+    if o.read_only {
+        for d in o.dirs {
+            cmd.arg("--add-dir").arg(d);
+        }
+    }
     if let Some(s) = o.resume {
         cmd.args(["--resume", s]);
     }

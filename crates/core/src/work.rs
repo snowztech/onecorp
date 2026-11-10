@@ -162,7 +162,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
 
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
-    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[] };
+    let opts = runtime::Opts { cwd: &cwd, model: lead.model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &other_repos(c)? };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -234,7 +234,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     let (id, key, title) = (t.id, c.key(t.id), t.title.as_str());
     let e = employee_of(c, t)?;
     let wt = c.dir.join("wt").join(key.to_lowercase());
-    let repo = c.repo()?;
+    let repo = c.repo_of(t)?;
     let started = git::current_branch(&repo).and_then(|base| {
         // With pull requests, start from what's on the forge, not whatever is checked out locally.
         let from = ship::start_point(c, &repo, &base)?;
@@ -254,7 +254,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          Your ticket is {key}: {title}\n\n{details}\
-         You are in a git worktree on branch {branch}. {abilities} Don't commit: when you finish, \
+         You are in a git worktree on branch {branch}{in_repo}. {abilities} Don't commit: when you finish, \
          OneCorp commits your changes under your name. \
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
          You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
@@ -268,7 +268,12 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         role = e.role,
         company = c.name,
         bio = crate::voice::intro(c, &e)?,
-        abilities = runtime::abilities(&e.runtime, &crate::commands::list(c)?),
+        abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?),
+        in_repo = match &t.repo {
+            Some(r) => format!(", in the {r} repo"),
+            None if c.repos()?.len() > 1 => format!(", in the {} repo", c.repos()?[0].name),
+            None => String::new(),
+        },
         details = ticket_details(c, t)?,
         knowledge = company_knowledge(c)?,
         notes = own_notes(c, &e.id)?,
@@ -359,7 +364,7 @@ pub fn delete(c: &Company, t: &Ticket) -> Result<()> {
         && t.kind != "plan"
         && let (Some(wt), Some(branch)) = (t.worktree.as_deref(), t.branch.as_deref())
     {
-        git::discard(&c.repo()?, Path::new(wt), branch, &c.dir.join("wt"));
+        git::discard(&c.repo_of(t)?, Path::new(wt), branch, &c.dir.join("wt"));
     }
     c.forget_ticket(t.id)?;
     out(&format!("Deleted {key}."));
@@ -470,7 +475,8 @@ fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
          - is small enough to finish in a day, and has a clear title\n\
          - says in its description what done looks like, so whoever picks it up needs nothing else\n\
          - goes to the teammate who fits it best, by role, from the team list\n\
-         - waits for an earlier ticket with after only when it really can't start without it, so work can run in parallel\n\n\
+         - waits for an earlier ticket with after only when it really can't start without it, so work can run in parallel\n\
+         {repos}\n\
          Create them one by one. Each call tells you the new ticket's key, for use in after. If something the plan depends on \
          is the founder's call, ask with ask_human. End with a short summary: the milestones, what runs in parallel, and the risks.\n\n\
          {knowledge}",
@@ -484,6 +490,11 @@ fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
             format!("plan the project \"{}\". What the founder wants from it:\n\n{}\n\nThe brief below is the product it's part of.", t.title, t.description.trim())
         },
         size = if t.description.trim().is_empty() { "5 to 12" } else { "2 to 10" },
+        repos = if c.repos()?.len() > 1 {
+            "- happens in one repo, named with repo. Work that spans repos becomes one ticket per repo, the later waiting for the earlier with after, like the api before the app that calls it\n"
+        } else {
+            ""
+        },
         knowledge = company_knowledge(c)?,
     );
     drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
@@ -557,7 +568,17 @@ pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
         out.push_str(&format!("The company wiki. Everyone reads it, so follow it:\n\n{doc}\n\n"));
     }
     out.push_str(&format!("Who works here:\n{}", team.join("\n")));
+    let repos = c.repos()?;
+    if repos.len() > 1 {
+        let list: Vec<String> = repos.iter().map(|r| format!("- {}{}: {}", r.name, if r.main { " (main)" } else { "" }, r.path.display())).collect();
+        out.push_str(&format!("\n\nThis company works in {} repos. Each ticket happens in one of them:\n{}", repos.len(), list.join("\n")));
+    }
     Ok(out)
+}
+
+/// The other repos, for runs that read across all of them: planning, the wiki, chat replies.
+pub(crate) fn other_repos(c: &Company) -> Result<Vec<std::path::PathBuf>> {
+    Ok(c.repos()?.into_iter().filter(|r| !r.main).map(|r| r.path).collect())
 }
 
 /// The employee's own notes, newest kept when they get long.
@@ -744,7 +765,7 @@ fn requeue(c: &Company, t: &Ticket) -> Result<()> {
         return dispatch(c, t.id, Job::Resume { why: "where it stopped".into(), prompt, label: "finish after retry".into() });
     }
     if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
-        git::discard(&c.repo()?, Path::new(wt), branch, &c.dir.join("wt"));
+        git::discard(&c.repo_of(t)?, Path::new(wt), branch, &c.dir.join("wt"));
     }
     c.reset_ticket(t.id)?;
     dispatch(c, t.id, Job::Start)
@@ -785,8 +806,11 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     };
     // A plan only reads the repo and creates tickets. It must never change your checkout.
     let planning = c.ticket(id)?.is_some_and(|t| t.kind == "plan" || t.kind == "wiki");
-    let commands = if planning { vec![] } else { crate::commands::list(c)? };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands };
+    let commands = match c.ticket(id)? {
+        Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
+        _ => vec![],
+    };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &other_repos(c)? };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;

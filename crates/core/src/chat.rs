@@ -148,7 +148,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         notes = crate::work::own_notes(c, &e.id)?,
     );
     let repo = c.repo()?;
-    let opts = runtime::Opts { cwd: &repo, model: e.model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[] };
+    let opts = runtime::Opts { cwd: &repo, model: e.model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &crate::work::other_repos(c)? };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {

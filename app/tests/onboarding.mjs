@@ -97,9 +97,14 @@ try {
   assert.equal(await js(`document.querySelector(".co-card .logo").textContent`), "A");
   await cont();
 
-  // Repo: Continue checks a typed path by itself.
+  // Repo: a second repo joins under its folder name, then Continue checks the main path by itself.
   await at("Repo");
   await type("#su-path", "/Users/you/dev/acme");
+  await type("#su-more", "/Users/you/dev/acme-api");
+  await click('[data-su="add-repo"]');
+  await until(`document.querySelector("#su-r0-name")`, "the second repo");
+  assert.equal(await js(`document.querySelector("#su-r0-name").value`), "acme-api");
+  assert.equal(await js(`document.querySelector("#su-path").value`), "/Users/you/dev/acme", "the main path survives the redraw");
   await cont();
 
   // Team: templates, removing someone removes them, and the team survives redraws.
@@ -113,11 +118,16 @@ try {
   assert.equal(await js(`document.querySelector("#su-p0-voice").value`), "calm", "a template comes with its personalities");
   await click('[data-su="del-1"]');
   assert.equal(await names(), "Odile Martin, Tomás Reis, Rui Alves, Lina Park, Sam Duarte", "the row you remove is the one that goes");
+  await click('[data-tpl="co:tvcask"]');
+  assert.equal(await names(), "Inès Costa, Kenji Sato", "another company's team comes over");
+  assert.equal(await js(`document.querySelector("#su-p1-voice").value`), "terse", "with their personalities");
+  await click('[data-tpl="startup"]');
   await cont();
 
   // Launch: the summary, the setup sequence, then the company.
   await at("Launch");
   assert.equal(await js(`document.querySelector(".launch header b")?.textContent`), "acme");
+  assert.match(await js(`document.querySelector(".launch .kv dd").textContent`), /acme-api/, "the launch summary lists both repos");
   await cont();
   await until(`document.querySelector(".launching")`, "the launch sequence");
   await until(`document.querySelector("#title")?.textContent === "Company" && !document.querySelector(".onb")`, "the company page after launch");

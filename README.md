@@ -78,6 +78,7 @@ For pull requests, install the [GitHub CLI](https://cli.github.com) and run `gh 
 - **Company tools over MCP.** Each run gets a small MCP server with the company's tools: ask the founder, post in chat, create a ticket, propose a wiki change, remember something. Your own MCP servers stay out.
 - **Leads answer first.** Questions go to the department lead, who settles what the wiki and the code already decide and passes the rest to you with a reason.
 - **A shared wiki and personal memory.** Every ticket starts with the company wiki and the employee's own notes, so a decision made once is known by everyone.
+- **Several repos.** A company can work across an app, its api and a site. Each ticket happens in one repo, and the planner splits work that spans them.
 - **Shipping.** With a GitHub or GitLab remote, finished work opens a pull request and approving merges it. Otherwise approving merges on your Mac.
 
 More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Where it's going: [ROADMAP.md](ROADMAP.md).
@@ -93,6 +94,7 @@ onecorp hire "Maya Okafor" --as engineer --personality warm
 onecorp plan --brief "A notes app for writers"    # your team turns it into tickets
 onecorp approve ACM-1                             # start the plan
 onecorp run "add a --version flag" --to maya      # one ticket, right now
+onecorp repo add ~/dev/acme-api --name api        # a second repo for the same company
 onecorp inbox                                     # what your team is waiting on
 onecorp answer 1 "go with 15 minutes"
 onecorp diff ACM-2                                # what a ticket changed

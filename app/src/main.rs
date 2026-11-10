@@ -75,8 +75,10 @@ fn snapshot(company: String) -> Res<Value> {
 }
 
 /// Creates a ticket. `later` saves it to the backlog, otherwise it starts now (or waits for `after`).
+// Tauri maps each named field from the app to an argument, so the list is the form.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
-fn new_ticket(company: String, title: String, employee: Option<String>, description: Option<String>, after: Option<String>, project: Option<String>, later: bool) -> Res<String> {
+fn new_ticket(company: String, title: String, employee: Option<String>, description: Option<String>, after: Option<String>, project: Option<String>, repo: Option<String>, later: bool) -> Res<String> {
     let c = open(&company)?;
     let employee = employee.filter(|e| !e.is_empty());
     if employee.is_none() && !later {
@@ -85,7 +87,7 @@ fn new_ticket(company: String, title: String, employee: Option<String>, descript
     let after = after.filter(|a| !a.is_empty()).map(|k| ticket(&c, &k).map(|t| t.id)).transpose()?;
     // Part of a project: the ticket counts toward its progress and shows under it on the Board.
     let plan = project.filter(|p| !p.is_empty()).map(|k| ticket(&c, &k)).transpose()?.filter(|t| t.kind == "plan").map(|t| t.id);
-    let new = store::NewTicket { title, description: description.unwrap_or_default(), assignee: employee, after, plan, ..Default::default() };
+    let new = store::NewTicket { title, description: description.unwrap_or_default(), assignee: employee, after, plan, repo, ..Default::default() };
     let id = c.new_ticket(&new, "backlog").map_err(err)?;
     if !later {
         work::start(&c, &ticket(&c, &c.key(id))?).map_err(err)?;
@@ -174,20 +176,43 @@ fn settings(company: String) -> Res<Value> {
         "origin": onecorp::git::remote_url(&repo, "origin"),
         "tickets": c.tickets().map_err(err)?.len(), "people": c.employees().map_err(err)?.len(),
         "version": env!("CARGO_PKG_VERSION"),
-        "commands": onecorp::commands::list(&c).map_err(err)?, "commands_custom": c.setting("commands").map_err(err)?.is_some(),
+        "repos": repos_json(&c).map_err(err)?,
     }))
 }
 
-/// Build and test commands employees may run. Empty text goes back to what the repo suggests.
+/// Each repo with the build and test commands employees may run in it.
+fn repos_json(c: &Company) -> anyhow::Result<Vec<Value>> {
+    c.repos()?
+        .iter()
+        .map(|r| Ok(json!({"name": r.name, "path": r.path, "main": r.main, "commands": onecorp::commands::list(c, r)?, "custom": onecorp::commands::custom(c, r)?})))
+        .collect()
+}
+
+/// A repo's build and test commands. No text goes back to what the repo suggests.
 #[tauri::command(async)]
-fn set_commands(company: String, text: Option<String>) -> Res<Vec<String>> {
+fn set_commands(company: String, repo: String, text: Option<String>) -> Res<Vec<Value>> {
     let c = open(&company)?;
+    let r = c.repo_named(&repo).map_err(err)?;
     match text {
-        Some(t) => onecorp::commands::set(&c, &t),
-        None => onecorp::commands::reset(&c),
+        Some(t) => onecorp::commands::set(&c, &r, &t),
+        None => onecorp::commands::reset(&c, &r),
     }
     .map_err(err)?;
-    onecorp::commands::list(&c).map_err(err)
+    repos_json(&c).map_err(err)
+}
+
+#[tauri::command(async)]
+fn add_repo(company: String, path: String, name: Option<String>) -> Res<Vec<Value>> {
+    let c = open(&company)?;
+    c.add_repo(std::path::Path::new(path.trim()), name.as_deref()).map_err(err)?;
+    repos_json(&c).map_err(err)
+}
+
+#[tauri::command(async)]
+fn remove_repo(company: String, name: String) -> Res<Vec<Value>> {
+    let c = open(&company)?;
+    c.remove_repo(&name).map_err(err)?;
+    repos_json(&c).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -280,7 +305,25 @@ fn setup_info() -> Res<Value> {
             })
         })
         .collect();
-    Ok(json!({ "templates": teams, "runtimes": runtimes, "voices": onecorp::voice::list() }))
+    // Your other companies' teams, to start this one with the same people.
+    let mut others = vec![];
+    for name in store::list().unwrap_or_default() {
+        let Ok(c) = Company::open(&name) else { continue };
+        let depts = c.departments().unwrap_or_default();
+        let hires: Vec<Value> = c
+            .employees()
+            .unwrap_or_default()
+            .iter()
+            .map(|e| {
+                let dept = e.department.and_then(|id| depts.iter().find(|d| d.id == id)).map(|d| d.name.clone());
+                json!({"name": e.name, "role": e.role, "dept": dept, "runtime": e.runtime, "voice": onecorp::voice::of(&c, e).unwrap_or_default()})
+            })
+            .collect();
+        if !hires.is_empty() {
+            others.push(json!({"company": name, "hires": hires}));
+        }
+    }
+    Ok(json!({ "templates": teams, "runtimes": runtimes, "voices": onecorp::voice::list(), "teams_from": others }))
 }
 
 /// Checks a folder before it becomes a company's repo, and suggests a name from it.
@@ -300,7 +343,7 @@ fn check_repo(path: String) -> Res<Value> {
     let used_by: Vec<String> = store::list()
         .map_err(err)?
         .into_iter()
-        .filter(|c| Company::open(c).ok().and_then(|c| c.repo().ok()).is_some_and(|r| r == full))
+        .filter(|c| Company::open(c).ok().and_then(|c| c.repos().ok()).is_some_and(|rs| rs.iter().any(|r| r.path == full)))
         .collect();
     // How this company would ship, so the flow can say so before you create it.
     let forge = onecorp::forge::Forge::detect(&full);
@@ -313,8 +356,10 @@ fn check_repo(path: String) -> Res<Value> {
 }
 
 /// `people` is the team as you edited it: name, role, runtime, department.
+// Tauri maps each named field from the app to an argument, so the list is the form.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
-fn create_company(name: String, repo: String, mission: String, people: Vec<Value>, brief: Option<String>, color: Option<String>, logo: Option<String>) -> Res<String> {
+fn create_company(name: String, repo: String, mission: String, people: Vec<Value>, brief: Option<String>, color: Option<String>, logo: Option<String>, repos: Option<Vec<Value>>) -> Res<String> {
     let s = |v: &Value, k: &str| v[k].as_str().unwrap_or("").trim().to_string();
     let people: Vec<onecorp::templates::Person> = people
         .iter()
@@ -329,6 +374,14 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
         })
         .collect();
     let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, &people, brief.as_deref().unwrap_or("")).map_err(err)?;
+    // The other repos were checked in the flow. One that went missing since is left out, and can
+    // be added again from Settings.
+    for r in repos.unwrap_or_default() {
+        let path = s(&r, "path");
+        if let Err(e) = c.add_repo(std::path::Path::new(&path), Some(&s(&r, "name"))) {
+            eprintln!("couldn't add {path}: {e:#}");
+        }
+    }
     // The look is a nicety: the company exists either way, so a bad logo file shouldn't undo it.
     let logo = logo.filter(|l| !l.is_empty()).map(std::path::PathBuf::from);
     let _ = c.set_look(color.as_deref().unwrap_or("#2b55c9"), logo.as_deref(), logo.is_none());
@@ -631,6 +684,8 @@ fn main() {
             delete_message,
             set_voice,
             set_commands,
+            add_repo,
+            remove_repo,
             github_repos,
             clone_repo,
             voices,

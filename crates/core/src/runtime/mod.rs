@@ -49,6 +49,9 @@ pub struct Opts<'a> {
     pub on_spawn: Option<&'a dyn Fn(u32)>,
     /// Build and test commands Claude Code may run, like "cargo test". Codex has its own sandbox.
     pub commands: &'a [String],
+    /// Other repos a read-only run may look at, like an api next to the app. Codex's read-only
+    /// sandbox reads anywhere already, so only Claude Code needs them.
+    pub dirs: &'a [std::path::PathBuf],
 }
 
 pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {

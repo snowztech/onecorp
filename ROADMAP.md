@@ -102,7 +102,7 @@ Everything a solo founder needs from download to merged work, with no dead ends.
 - [ ] Real accounts per employee (GitHub bot, Slack or Discord)
 - [ ] Replay a day, weekly report card, daily standup
 - [ ] Shareable company templates
-- [ ] Several repos per company: each ticket picks its repo
+- [x] Several repos per company: each ticket picks its repo
 - [x] Install script (`scripts/install.sh`) and OneCorp.app
 - [ ] Name and brand (onecorp.dev for now)
 

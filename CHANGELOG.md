@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Several repos per company, like an app and its api. Add them in onboarding (from a folder or GitHub), in Settings, or with `onecorp repo add`. Each ticket works in one repo, from its own worktree, and ships there. The planner picks the repo for each ticket and splits work that spans two into tickets that wait for each other. Build and test commands are per repo.
+- Start a new company with the same people as another one: their roles, departments, agents and personalities come over.
 - Settings always shows the company you're on. After switching companies it could show the previous one, Delete button included.
 - Forgetting your profile keeps your companies, and coming back is a short welcome back that opens them, not the new company journey.
 - Settings → Appearance: the theme, and the face set for your team. OneCorp's own faces stay the default; Lorelei (by Lisa Wischofsky) and Notionists (by Zoish) are the other two, both CC0, bundled so they work offline.

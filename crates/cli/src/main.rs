@@ -110,6 +110,16 @@ enum Cmd {
         /// Wait for another ticket to be merged first, like SNO-3
         #[arg(long)]
         after: Option<String>,
+        /// Which repo the work happens in, when the company has several. The main one otherwise
+        #[arg(long)]
+        repo: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// The company's repos: list them, add one, remove one
+    Repo {
+        #[command(subcommand)]
+        action: Option<RepoCmd>,
         #[arg(short, long)]
         company: Option<String>,
     },
@@ -316,6 +326,19 @@ enum Cmd {
 }
 
 #[derive(Subcommand)]
+enum RepoCmd {
+    /// Add a repo next to the main one, like an api for your app
+    Add {
+        path: std::path::PathBuf,
+        /// What tickets call it. The folder name by default
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Remove a repo. Its finished tickets stay in the history
+    Rm { name: String },
+}
+
+#[derive(Subcommand)]
 enum DeptCmd {
     /// Add a department, like Engineering or Growth
     Add { name: String },
@@ -497,7 +520,7 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{:<10} {:<20} {:<18} {:<16} {n} {plural}, {}", e.id, e.name, e.role, rt, spend(cost, tokens));
             }
         }
-        Cmd::Run { task, to, description, later, after, company } => {
+        Cmd::Run { task, to, description, later, after, repo, company } => {
             let title = task.join(" ");
             if title.trim().is_empty() {
                 bail!("say what needs doing, for example: onecorp run \"add a --version flag\"");
@@ -509,13 +532,31 @@ fn run(cmd: Cmd) -> Result<()> {
                 _ => Some(assignee(&c, to)?.id),
             };
             let after = after.map(|a| find_ticket(&c, &a).map(|t| t.id)).transpose()?;
-            let new = store::NewTicket { title, description: description.unwrap_or_default(), assignee: who, after, ..Default::default() };
+            let new = store::NewTicket { title, description: description.unwrap_or_default(), assignee: who, after, repo, ..Default::default() };
             let id = c.new_ticket(&new, "backlog")?;
             let key = c.key(id);
             if later {
                 println!("{key} is in the backlog. Start it with: onecorp start {key}");
             } else {
                 work::start(&c, &find_ticket(&c, &key)?)?;
+            }
+        }
+        Cmd::Repo { action, company } => {
+            let c = open(company)?;
+            match action {
+                None => {
+                    for r in c.repos()? {
+                        println!("{:<12} {}{}", r.name, r.path.display(), if r.main { "  (main)" } else { "" });
+                    }
+                }
+                Some(RepoCmd::Add { path, name }) => {
+                    let r = c.add_repo(&path, name.as_deref())?;
+                    println!("Added {} as {}. Give it work: onecorp run \"...\" --repo {}", r.path.display(), r.name, r.name);
+                }
+                Some(RepoCmd::Rm { name }) => {
+                    c.remove_repo(&name)?;
+                    println!("Removed {name}. Its finished tickets stay in the history.");
+                }
             }
         }
         Cmd::Brief { set, edit, company } => {
@@ -706,7 +747,7 @@ fn run(cmd: Cmd) -> Result<()> {
             }
             let base = t.base.clone().unwrap_or_else(|| "HEAD".into());
             // Inherit the terminal so git's colors and pager work as usual.
-            std::process::Command::new("git").arg("-C").arg(c.repo()?).args(["diff", &format!("{base}...{branch}")]).status()?;
+            std::process::Command::new("git").arg("-C").arg(c.repo_of(&t)?).args(["diff", &format!("{base}...{branch}")]).status()?;
         }
         Cmd::Approve { ticket, company } => {
             let c = open(company)?;

@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- Repos beyond the main one (meta 'repo'), like an api next to an app.
+CREATE TABLE IF NOT EXISTS repos (name TEXT PRIMARY KEY, path TEXT NOT NULL, added_at TEXT NOT NULL DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS spend (
   id INTEGER PRIMARY KEY,
   at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -253,6 +255,8 @@ pub struct Ticket {
     pub kind: String,
     /// The plan ticket this one came from, if any.
     pub plan: Option<i64>,
+    /// Which of the company's repos it works in, by name. None is the main repo.
+    pub repo: Option<String>,
 }
 
 /// A ticket to create. Everything but the title is optional.
@@ -264,6 +268,16 @@ pub struct NewTicket {
     pub created_by: Option<String>,
     pub after: Option<i64>,
     pub plan: Option<i64>,
+    /// A repo name. None is the main repo.
+    pub repo: Option<String>,
+}
+
+/// One of the company's repos. The main one is where planning and chat look first.
+#[derive(Clone, Debug)]
+pub struct Repo {
+    pub name: String,
+    pub path: PathBuf,
+    pub main: bool,
 }
 
 pub struct Company {
@@ -450,6 +464,71 @@ impl Company {
     pub fn repo(&self) -> Result<PathBuf> {
         let repo: String = self.db.query_row("SELECT value FROM meta WHERE key = 'repo'", [], |r| r.get(0))?;
         Ok(PathBuf::from(repo))
+    }
+
+    /// Every repo, the main one first, then the others in the order they were added.
+    pub fn repos(&self) -> Result<Vec<Repo>> {
+        let main = self.repo()?;
+        let main_name = self.setting("repo.name")?.unwrap_or_else(|| crate::templates::suggest_name(&main.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| "main".into())));
+        let mut out = vec![Repo { name: main_name, path: main, main: true }];
+        let mut st = self.db.prepare("SELECT name, path FROM repos ORDER BY added_at, name")?;
+        let rows = st.query_map([], |r| Ok(Repo { name: r.get(0)?, path: PathBuf::from(r.get::<_, String>(1)?), main: false }))?;
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// A repo by name, like "api". The main repo answers to its own name.
+    pub fn repo_named(&self, name: &str) -> Result<Repo> {
+        let want = crate::templates::suggest_name(name);
+        let all = self.repos()?;
+        let names: Vec<String> = all.iter().map(|r| r.name.clone()).collect();
+        all.into_iter().find(|r| r.name == want).ok_or_else(|| anyhow::anyhow!("{} has no repo called {name}. Repos: {}", self.name, names.join(", ")))
+    }
+
+    /// Where a ticket's work happens: its own repo, or the main one.
+    pub fn repo_of(&self, t: &Ticket) -> Result<PathBuf> {
+        match &t.repo {
+            Some(name) => Ok(self.repo_named(name)?.path),
+            None => self.repo(),
+        }
+    }
+
+    /// Adds a repo next to the main one. Its name is what tickets and the planner call it.
+    pub fn add_repo(&self, path: &Path, name: Option<&str>) -> Result<Repo> {
+        let path = path.canonicalize().with_context(|| format!("repo not found: {}", path.display()))?;
+        if !path.join(".git").exists() {
+            bail!("{} is not a git repo", path.display());
+        }
+        let all = self.repos()?;
+        if let Some(r) = all.iter().find(|r| r.path == path) {
+            bail!("{} is already here, as {}", path.display(), r.name);
+        }
+        let folder = path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+        let name = crate::templates::suggest_name(name.filter(|n| !n.trim().is_empty()).unwrap_or(&folder));
+        if name.is_empty() {
+            bail!("give the repo a name with at least one letter or digit");
+        }
+        if all.iter().any(|r| r.name == name) {
+            bail!("there's already a repo called {name}. Give this one another name");
+        }
+        self.db.execute("INSERT INTO repos (name, path) VALUES (?1, ?2)", params![name, path.to_string_lossy()])?;
+        Ok(Repo { name, path, main: false })
+    }
+
+    /// Removes a repo that isn't the main one. Its finished tickets stay in the history.
+    pub fn remove_repo(&self, name: &str) -> Result<()> {
+        let r = self.repo_named(name)?;
+        if r.main {
+            bail!("{} is the main repo, so it stays", r.name);
+        }
+        let busy = self.tickets()?.into_iter().any(|t| t.repo.as_deref() == Some(&r.name) && ["doing", "blocked", "queued", "review"].contains(&t.status.as_str()));
+        if busy {
+            bail!("{} has tickets in progress. Finish or stop them first", r.name);
+        }
+        self.db.execute("DELETE FROM repos WHERE name = ?1", [&r.name])?;
+        Ok(())
     }
 
     /// Ticket keys look like SNO-12: the first three letters of the company name.
@@ -640,9 +719,17 @@ impl Company {
         {
             bail!("there's no ticket {} to wait for", self.key(after));
         }
+        // The main repo is stored as none, so a company that later renames it keeps its tickets.
+        let repo = match t.repo.as_deref().map(str::trim).filter(|r| !r.is_empty()) {
+            Some(name) => {
+                let r = self.repo_named(name)?;
+                (!r.main).then_some(r.name)
+            }
+            None => None,
+        };
         self.db.execute(
-            "INSERT INTO tickets (title, description, assignee, created_by, after, plan, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![title, t.description.trim(), t.assignee, t.created_by.as_deref().unwrap_or("founder"), t.after, t.plan, status],
+            "INSERT INTO tickets (title, description, assignee, created_by, after, plan, status, repo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![title, t.description.trim(), t.assignee, t.created_by.as_deref().unwrap_or("founder"), t.after, t.plan, status, repo],
         )?;
         Ok(self.db.last_insert_rowid())
     }
@@ -1132,12 +1219,12 @@ impl Company {
     pub fn ticket(&self, id: i64) -> Result<Option<Ticket>> {
         Ok(self
             .db
-            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after, kind, plan FROM tickets WHERE id = ?1", [id], row_to_ticket)
+            .query_row("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after, kind, plan, repo FROM tickets WHERE id = ?1", [id], row_to_ticket)
             .optional()?)
     }
 
     pub fn tickets(&self) -> Result<Vec<Ticket>> {
-        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after, kind, plan FROM tickets ORDER BY id")?;
+        let mut st = self.db.prepare("SELECT id, title, assignee, status, branch, cost_usd, worktree, session_id, tokens, base, pr_number, pr_url, description, created_by, after, kind, plan, repo FROM tickets ORDER BY id")?;
         let rows = st.query_map([], row_to_ticket)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -1182,6 +1269,7 @@ fn row_to_ticket(r: &rusqlite::Row) -> rusqlite::Result<Ticket> {
         after: r.get(14)?,
         kind: r.get(15)?,
         plan: r.get(16)?,
+        repo: r.get(17)?,
     })
 }
 
@@ -1229,6 +1317,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("tickets", "after", "INTEGER REFERENCES tickets(id)"),
         ("tickets", "kind", "TEXT NOT NULL DEFAULT 'work'"),
         ("tickets", "plan", "INTEGER REFERENCES tickets(id)"),
+        ("tickets", "repo", "TEXT"),
         ("inbox", "stage", "TEXT NOT NULL DEFAULT 'founder'"),
         ("inbox", "via", "TEXT"),
         ("inbox", "note", "TEXT"),

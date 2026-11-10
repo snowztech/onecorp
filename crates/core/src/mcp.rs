@@ -125,7 +125,8 @@ fn tools() -> Value {
                     "title": {"type": "string", "description": "What needs doing, short, like 'Add rate limiting to the public API'"},
                     "description": {"type": "string", "description": "What done looks like, and anything the person doing it should know"},
                     "assignee": {"type": "string", "description": "A teammate's first name or id, from the team list"},
-                    "after": {"type": "string", "description": "A ticket this one should wait for, like SNO-3"}
+                    "after": {"type": "string", "description": "A ticket this one should wait for, like SNO-3"},
+                    "repo": {"type": "string", "description": "Which of the company's repos the work happens in, by name, when it has more than one. Leave it out for the main repo"}
                 },
                 "required": ["title"]
             }
@@ -233,7 +234,7 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
             };
             // Created while planning, it belongs to that plan, and starts when the founder starts the plan.
             let plan = c.ticket(ctx.ticket)?.filter(|t| t.kind == "plan").map(|t| t.id);
-            let new = crate::store::NewTicket { title: s("title"), description: s("description"), assignee, created_by: Some(ctx.employee.clone()), after, plan };
+            let new = crate::store::NewTicket { title: s("title"), description: s("description"), assignee, created_by: Some(ctx.employee.clone()), after, plan, repo: Some(s("repo")).filter(|r| !r.is_empty()) };
             let id = c.new_ticket(&new, "backlog")?;
             c.add_event(id, "create", &format!("created by {} while working on {}", ctx.employee, c.key(ctx.ticket)), "")?;
             Ok(match plan {

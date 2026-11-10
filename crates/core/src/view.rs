@@ -181,6 +181,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "kickoff": kickoff,
         "projects": projects,
         "paused": c.paused()?,
+        "repos": c.repos().unwrap_or_default().iter().map(|r| json!({"name": r.name, "path": r.path, "main": r.main})).collect::<Vec<_>>(),
         // Agents on this Mac that hit their plan's usage limit, and when they're back.
         "limits": limits,
         "ship": {"mode": c.ship_mode()?, "forge": forge.map(|f| f.name()), "pr_word": forge.map(|f| f.pr_word())},
@@ -191,6 +192,8 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "tickets": tickets.iter().map(|t| json!({
             "key": c.key(t.id), "title": t.title, "assignee": t.assignee, "status": t.status,
             "spend": spend(t.cost_usd, t.tokens), "after": t.after.map(|a| c.key(a)), "kind": t.kind,
+            // Only a repo other than the main one: most tickets need no tag.
+            "repo": t.repo,
             "created_by": (t.created_by != "founder").then(|| name_of(&t.created_by)),
             "plan": t.plan.map(|p| c.key(p)),
         })).collect::<Vec<_>>(),
@@ -307,7 +310,7 @@ pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
     Ok(json!({
         "key": c.key(t.id), "title": t.title, "status": t.status, "employee": who, "name": name,
         "branch": t.branch, "base": t.base, "spend": spend(t.cost_usd, t.tokens), "log": log,
-        "pr_number": t.pr_number, "pr_url": t.pr_url,
+        "pr_number": t.pr_number, "pr_url": t.pr_url, "repo": t.repo.clone().or_else(|| c.repos().ok().filter(|r| r.len() > 1).map(|r| r[0].name.clone())),
         "description": t.description, "after": t.after.map(|a| c.key(a)),
         "created_by": (t.created_by != "founder").then(|| c.employee(&t.created_by).ok().flatten().map(|e| e.name).unwrap_or_else(|| t.created_by.clone())),
     }))
@@ -317,7 +320,7 @@ pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
 pub fn review(c: &Company, ticket: &Ticket) -> Result<Value> {
     let key = c.key(ticket.id);
     let branch = ticket.branch.clone().ok_or_else(|| anyhow::anyhow!("{key} hasn't started, so there's nothing to review"))?;
-    let repo = c.repo()?;
+    let repo = c.repo_of(ticket)?;
     let base = match &ticket.base {
         Some(b) => b.clone(),
         None => crate::git::current_branch(&repo)?,

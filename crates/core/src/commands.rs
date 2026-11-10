@@ -4,7 +4,7 @@
 //! Worked out from the repo (Cargo.toml means cargo, a pnpm lockfile means pnpm...) until you
 //! set your own list in Settings.
 
-use crate::store::Company;
+use crate::store::{Company, Repo, Ticket};
 use anyhow::Result;
 use std::path::Path;
 
@@ -40,22 +40,41 @@ pub fn detect(repo: &Path) -> Vec<String> {
     out
 }
 
-/// The list in use: yours if you set one, otherwise what the repo looks like.
-pub fn list(c: &Company) -> Result<Vec<String>> {
-    match c.setting("commands")? {
+// The main repo keeps the plain key, so lists saved before there were several repos still apply.
+fn key(r: &Repo) -> String {
+    if r.main { "commands".into() } else { format!("commands.{}", r.name) }
+}
+
+/// A repo's list: yours if you set one, otherwise what the repo looks like.
+pub fn list(c: &Company, r: &Repo) -> Result<Vec<String>> {
+    match c.setting(&key(r))? {
         Some(s) => Ok(parse(&s)),
-        None => Ok(detect(&c.repo()?)),
+        None => Ok(detect(&r.path)),
     }
 }
 
+/// Whether the list is one you set, rather than what the repo suggests.
+pub fn custom(c: &Company, r: &Repo) -> Result<bool> {
+    Ok(c.setting(&key(r))?.is_some())
+}
+
+/// The list for a ticket's own repo.
+pub fn for_ticket(c: &Company, t: &Ticket) -> Result<Vec<String>> {
+    let r = match &t.repo {
+        Some(name) => c.repo_named(name)?,
+        None => c.repos()?.remove(0),
+    };
+    list(c, &r)
+}
+
 /// Saves your own list. One command per line or comma. An empty list means none at all.
-pub fn set(c: &Company, text: &str) -> Result<()> {
-    c.set_setting("commands", &parse(text).join("\n"))
+pub fn set(c: &Company, r: &Repo, text: &str) -> Result<()> {
+    c.set_setting(&key(r), &parse(text).join("\n"))
 }
 
 /// Back to what the repo looks like.
-pub fn reset(c: &Company) -> Result<()> {
-    c.delete_setting("commands")
+pub fn reset(c: &Company, r: &Repo) -> Result<()> {
+    c.delete_setting(&key(r))
 }
 
 fn parse(text: &str) -> Vec<String> {
