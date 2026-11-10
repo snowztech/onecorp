@@ -4,6 +4,11 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Fixed
+
+- Employees on Claude Code can build and test in many more repos: Python with only loose test files, uv, Poetry, Ruby, Java and Kotlin (Maven, Gradle), .NET, Swift, Elixir, PHP, Dart and Flutter, Deno, Zig, C and C++ (CMake, Meson), Haskell, OCaml, Clojure, just and Task. On a Mac, python3 works too, and test output can be piped through tail or grep.
+- With no build or test commands found, an employee's summary says the work is untested and where to add commands, instead of calling the worktree read-only.
+
 ## [0.1.0] - 2026-11-10
 
 The first public release. Run a company of AI employees on Claude Code or Codex, on your Mac.
