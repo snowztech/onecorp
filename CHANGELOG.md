@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The Repo step is one list: add repos from a folder, from GitHub or by pasting a path, and the first is the primary one. Each shows its branch, with a warning when it isn't on main, since new tickets start from it. Your GitHub repos load in the background, cloning says what it's doing, and the new repo is highlighted when it lands.
 - A calm launch: only the OneCorp mark shows until the app knows where you land, then it fades in, so the sidebar never flashes before onboarding. The very first launch opens on a welcome screen.
 - Company colors are muted tones that sit with the app's theme, graphite first. A company with no name yet shows a small building, not a question mark.
 - Connect notices a login by itself: sign in to Codex or GitHub in Terminal, come back, and it shows as connected. No button to press.

@@ -266,7 +266,7 @@ function companySection() {
       <div class="seg">${modes.map(([m, n]) => `<button data-ship="${m}" aria-pressed="${m === st.ship}">${n}</button>`).join("")}</div></div>
     <h3 class="label repos-label">Repos</h3>
     ${(st.repos || []).map(r => `<div class="repo-set">
-      <div class="repo-h"><b>${esc(r.name)}</b>${r.main ? `<span class="pill-state">main</span>` : ""}<span class="mono muted" title="${esc(r.path)}">${esc(r.path)}</span>${reveal(r.path)}${r.main ? "" : `<button class="link-btn" data-repo-rm="${esc(r.name)}">Remove</button>`}</div>
+      <div class="repo-h"><b>${esc(r.name)}</b>${r.main ? `<span class="pill-state">primary</span>` : ""}<span class="mono muted" title="${esc(r.path)}">${esc(r.path)}</span>${reveal(r.path)}${r.main ? "" : `<button class="link-btn" data-repo-rm="${esc(r.name)}">Remove</button>`}</div>
       <label class="cmd"><span>Build and test${r.custom ? ` · <button class="link-btn" type="button" data-commands-reset="${esc(r.name)}">use what the repo suggests</button>` : ""}</span>
         <input class="mono" data-commands="${esc(r.name)}" value="${esc(r.commands.join(", "))}" placeholder="cargo test, npm test" autocomplete="off" spellcheck="false" aria-label="Build and test commands for ${esc(r.name)}"></label></div>`).join("")}
     <div class="su-row add-repo">${window.__TAURI__?.dialog ? `<button class="btn" type="button" data-repo-add="pick">Add a repo…</button>` : ""}<input id="repo-add-path" class="mono" placeholder="/Users/you/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-repo-add="path">Add</button></div>
@@ -785,7 +785,7 @@ function drawerNewTicket() {
     <form class="dbody" id="nt">
       <div class="field"><label for="nt-title">What needs doing</label><input id="nt-title" placeholder="Add magic link login" autocomplete="off"></div>
       <div class="field"><label for="nt-who">Who</label><select id="nt-who"><option value="">Nobody yet</option>${team.map(e => `<option value="${esc(e.id)}" ${e.id === pick ? "selected" : ""}>${esc(e.name)}, ${esc(e.role)}${e.status === "idle" ? " (free)" : ""}</option>`).join("")}</select></div>
-      ${(S.snap?.repos || []).length > 1 ? `<div class="field"><label for="nt-repo">Repo</label><select id="nt-repo">${S.snap.repos.map(r => `<option value="${esc(r.name)}">${esc(r.name)}${r.main ? " (main)" : ""}</option>`).join("")}</select></div>` : ""}
+      ${(S.snap?.repos || []).length > 1 ? `<div class="field"><label for="nt-repo">Repo</label><select id="nt-repo">${S.snap.repos.map(r => `<option value="${esc(r.name)}">${esc(r.name)}${r.main ? " (primary)" : ""}</option>`).join("")}</select></div>` : ""}
       <div class="field"><label for="nt-desc">Details <span class="muted">(optional)</span></label><textarea id="nt-desc" rows="5" placeholder="What done looks like, links, constraints"></textarea></div>
       ${(S.snap?.projects || []).length ? `<div class="field"><label for="nt-project">Project <span class="muted">(optional)</span></label><select id="nt-project"><option value="">None</option>${S.snap.projects.map(p => `<option value="${esc(p.key)}" ${p.key === S.project ? "selected" : ""}>${esc(p.title)}</option>`).join("")}</select></div>` : ""}
       <div class="field"><label for="nt-after">After</label><select id="nt-after"><option value="">Nothing, it can start right away</option>${open.map(t => `<option value="${esc(t.key)}">${esc(t.key)} ${esc(t.title)}</option>`).join("")}</select></div>
@@ -1113,6 +1113,11 @@ async function makeRepo() {
   } catch (e) { s.creating = false; render(); toast(String(e), true); }
 }
 const RUNTIME_NAMES = { claude: "Claude Code", codex: "Codex", fake: "Stand-in, no AI" };
+function shipLine(r) {
+  if (!r.forge) return "Approved work merges into the repo on your Mac.";
+  if (r.signed_in) return `Finished work opens ${esc(r.pr_word)}s on ${esc(r.forge)}, and approving merges them.`;
+  return `On ${esc(r.forge)}, but ${r.forge === "GitHub" ? "gh" : "glab"} isn't signed in, so work merges on your Mac for now.`;
+}
 function shipNote(r) {
   if (!r.forge) return `<p class="su-warn">Approved work merges into this repo on your Mac. Add a GitHub or GitLab remote later to ship as pull requests.</p>`;
   if (r.signed_in) return `<p class="su-ok">Finished work opens ${esc(r.pr_word)}s on ${esc(r.forge)}, and approving merges them. ${esc(r.account || "")}</p>`;
@@ -1169,25 +1174,35 @@ function viewLaunching() {
       <ol>${l.steps.map((t, i) => `<li class="${i < l.done ? "done" : i === l.done ? "now" : ""}"><span class="n">${i < l.done ? icon("check") : i === l.done ? '<i class="spin"></i>' : ""}</span>${esc(t)}</li>`).join("")}</ol>
     </div></div>`;
 }
-// Repos beyond the main one, like an api next to the app. Each gets a short name tickets use.
-function moreRepos(s, picker) {
-  const rows = s.extra.map((x, i) => `<li><input id="su-r${i}-name" class="mono" value="${esc(x.name)}" aria-label="Name for ${esc(x.path)}" autocomplete="off" spellcheck="false">
-    <span class="mono muted" title="${esc(x.path)}">${esc(x.path)}</span><button class="x" type="button" data-su="rdel-${i}" aria-label="Remove ${esc(x.name)}">×</button></li>`).join("");
-  return `<div class="more-repos"><span class="flabel">More repos <span class="muted">(optional, like an api next to your app)</span></span>
-    ${rows ? `<ul>${rows}</ul>` : ""}
-    <div class="su-row">${picker ? `<button class="btn" type="button" data-su="add-repo-pick">Add a repo…</button>` : ""}<input id="su-more" placeholder="/Users/you/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="add-repo">Add</button></div></div>`;
+// Your GitHub repos, looked up once in the background when the Repo step opens, so the list is
+// ready by the time you ask for it.
+function loadGithub() {
+  const s = S.setup;
+  if (!s || s.gh || s.ghLoading) return;
+  s.ghLoading = true;
+  invoke("github_repos").then(repos => ({ repos })).catch(e => ({ error: String(e) })).then(g => {
+    s.ghLoading = false; s.gh = g;
+    if (S.setup === s && s.mode === "github") render();
+  });
+}
+// The first repo you add is the main one. Every one after joins it.
+async function addRepo(path) {
+  path = String(path || "").trim();
+  if (!path) return $("#su-add")?.focus();
+  if (!S.setup.repo?.ok) return checkRepo(path);
+  return addExtraRepo(path);
 }
 async function addExtraRepo(path) {
   const s = S.setup;
   path = String(path || "").trim();
-  if (!path) return $("#su-more")?.focus();
+  if (!path) return $("#su-add")?.focus();
   let r;
   try { r = await invoke("check_repo", { path }); } catch (e) { return toast(String(e), true); }
   if (!r.ok) return toast(r.problem, true);
   if (r.path === s.repo?.path || s.extra.some(x => x.path === r.path)) return toast("That repo is already in the list", true);
   // Named after its folder, like notes-api. Tickets and the planner call it that.
   const name = r.path.split("/").pop().toLowerCase().replace(/[^a-z0-9_]+/g, "-").replace(/^-|-$/g, "");
-  s.extra.push({ path: r.path, name });
+  s.extra.push({ path: r.path, name, branch: r.branch });
   render();
 }
 function viewSetup() {
@@ -1229,19 +1244,17 @@ function viewSetup() {
       <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, it starts your wiki. Your lead fills in the rest from the repo)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
       ${nav("Continue")}`;
   } else if (s.step === 2) {
-    const tabs = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-su="mode-existing" aria-selected="${s.mode === "existing"}">Use an existing repo</button>
-      <button type="button" role="tab" data-su="mode-github" aria-selected="${s.mode === "github"}">From GitHub</button>
-      <button type="button" role="tab" data-su="mode-new" aria-selected="${s.mode === "new"}">Start a new one</button></div>`;
+    const toList = `<button class="btn" type="button" data-su="mode-existing">Back to your repos</button>`;
     if (s.mode === "github") {
       const g = s.gh;
-      const list = !g ? `<p class="muted">Looking up your repos…</p>`
-        : g.error ? `<p class="su-warn">Sign in to GitHub with <code>gh auth login</code>, then come back to this tab.</p>`
+      const list = !g ? `<p class="gh-loading"><i class="spin"></i>Looking up your repos on GitHub…</p>`
+        : g.error ? `<p class="su-warn">Sign in to GitHub with <code>gh auth login</code>, then come back here.</p>`
         : `<input id="gh-q" placeholder="Search ${g.repos.length} repos" autocomplete="off" spellcheck="false" aria-label="Search your repos">
            <ul class="gh-list">${g.repos.map(r => `<li data-name="${esc(r.name.toLowerCase())} ${esc((r.description || "").toLowerCase())}"><button type="button" data-su="clone:${esc(r.name)}" ${s.cloning ? "disabled" : ""}>
              <b>${esc(r.name)}</b>${r.private ? `<span class="pill-state">Private</span>` : ""}<span>${esc(r.description || "")}</span>${s.cloning === r.name ? `<em>Cloning…</em>` : ""}</button></li>`).join("")}</ul>`;
-      const picked = [s.repo?.ok && s.repo.path, ...s.extra.map(x => x.path)].filter(Boolean);
-      body = `<h1>${picked.length ? "Add more of your repos" : "Pick one of your repos"}</h1><p class="muted">OneCorp clones it into ${esc(s.repoInfo?.parent || "your dev folder")}, or uses it if it's already there.${picked.length ? ` Your main repo is ${esc(s.repo.path.split("/").pop())}.` : ""}</p>${tabs}${list}
-        <div class="su-nav">${back}</div>`;
+      const status = s.cloning ? `<p class="gh-loading"><i class="spin"></i>Cloning <b>${esc(s.cloning)}</b> into ${esc(s.repoInfo?.parent || "your dev folder")}… It shows in your list when it's done.</p>` : "";
+      body = `<h1>Add from GitHub</h1><p class="muted">Pick a repo. OneCorp clones it into ${esc(s.repoInfo?.parent || "your dev folder")}, or uses it if it's already there.</p>${status}${list}
+        <div class="su-nav">${toList}</div>`;
     } else if (s.mode === "new") {
       const owners = s.repoInfo.owners || [];
       const github = owners.length
@@ -1250,19 +1263,35 @@ function viewSetup() {
              <span class="mono muted">/${esc((s.folder || "your-repo").toLowerCase())}</span>
              <label class="su-check" for="su-private"><input type="checkbox" id="su-private" ${s.private ? "checked" : ""}> Private</label></div>` : ""}`
         : `<p class="su-warn">Sign in to GitHub with <code>gh auth login</code> to also create the repo there. You can add a remote later too.</p>`;
-      body = `<h1>Start ${esc(s.name)} from scratch</h1><p class="muted">A new folder with git, a README and a first commit, ready for your team.</p>${tabs}
+      body = `<h1>Start ${esc(s.name)} from scratch</h1><p class="muted">A new folder with git, a README and a first commit, ready for your team.</p>
         <div class="field"><label for="su-folder">Folder name</label><input id="su-folder" value="${esc(s.folder)}" placeholder="notes-app" autocomplete="off" spellcheck="false"></div>
         <div class="field"><label for="su-parent">Inside</label><div class="su-row">${picker ? `<button class="btn" type="button" data-su="parent">Choose…</button>` : ""}<input id="su-parent" value="${esc(s.parent)}" autocomplete="off" spellcheck="false"></div></div>
         ${github}
-        <div class="su-nav">${back}<button class="btn primary" type="button" data-su="create-repo" ${s.creating ? "disabled" : ""}>${s.creating ? "Creating…" : "Create the repo"}</button></div>`;
+        <div class="su-nav">${toList}<button class="btn primary" type="button" data-su="create-repo" ${s.creating ? "disabled" : ""}>${s.creating ? "Creating…" : "Create the repo"}</button></div>`;
     } else {
-      const r = s.repo;
-      const result = !r ? "" : r.ok
-        ? `<p class="su-ok">✓ A git repo on <b>${esc(r.branch)}</b>.</p>${shipNote(r)}${r.used_by.length ? `<p class="su-warn">${esc(r.used_by.join(", "))} already works on this repo. That's fine, they'll just share it.</p>` : ""}`
-        : `<p class="su-bad">${esc(r.problem)}</p>`;
-      body = `<h1>Where does ${esc(s.name)} work?</h1><p class="muted">Employees work in their own copies of it, so your checkout is never touched.</p>${tabs}
-        <div class="su-row">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<input id="su-path" value="${esc(s.path)}" placeholder="/Users/you/dev/your-repo" autocomplete="off" spellcheck="false"></div>
-        ${result}${moreRepos(s, picker)}${nav("Continue")}`;
+      loadGithub();
+      // One list: the first repo is the main one, the others sit beside it. Adding works the same
+      // for both, so there's one way to do it.
+      const r = s.repo, main = r?.ok ? r : null;
+      const folder = p => p.split("/").pop();
+      const odd = b => b && !["main", "master", "trunk", "develop"].includes(b);
+      const row = (x, i) => `<li class="repo-row ${x.path === s.justAdded ? "just" : ""}">
+          <span class="repo-name">${x.main ? `<b>${esc(folder(x.path))}</b><span class="pill-state">primary</span>` : `<input id="su-r${i}-name" class="mono" value="${esc(x.name)}" aria-label="Name for ${esc(x.path)}" autocomplete="off" spellcheck="false">`}</span>
+          <span class="mono muted repo-path" title="${esc(x.path)}">${esc(x.path)}</span>
+          ${x.branch ? `<span class="repo-branch ${odd(x.branch) ? "odd" : ""}" title="New tickets start from this branch">on ${esc(x.branch)}</span>` : "<span></span>"}
+          <button class="x" type="button" data-su="rdel-${x.main ? "main" : i}" aria-label="Remove ${esc(folder(x.path))}">×</button></li>`;
+      const rows = [main && { ...main, main: true }, ...s.extra].filter(Boolean);
+      const offBranch = rows.filter(x => odd(x.branch));
+      body = `<h1>Where does ${esc(s.name)} work?</h1><p class="muted">The repos your team works in. The first is the primary one, where planning starts. Your own checkouts are never touched.</p>
+        <ul class="repo-list">${rows.length ? (main ? row(rows[0]) : "") + s.extra.map(row).join("") : `<li class="repo-empty">No repo yet. Add the one your team works in.</li>`}</ul>
+        <div class="su-row repo-add">${picker ? `<button class="btn" type="button" data-su="pick">Choose a folder…</button>` : ""}<button class="btn" type="button" data-su="mode-github">From GitHub…</button>
+          <input id="su-add" placeholder="or paste a path, like /Users/you/dev/app" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-su="add-path">Add</button></div>
+        ${r && !r.ok ? `<p class="su-bad">${esc(r.problem)}</p>` : ""}
+        ${offBranch.map(x => `<p class="su-warn"><b>${esc(x.main ? folder(x.path) : x.name)}</b> is on <code>${esc(x.branch)}</code>, so new tickets start from that branch. Switch it to your main branch first if that's not what you want.</p>`).join("")}
+        ${main ? `<p class="fine repo-ship">${shipLine(main)}</p>` : ""}
+        ${main?.used_by?.length ? `<p class="fine">${esc(main.used_by.join(", "))} already works on this repo. They'll share it.</p>` : ""}
+        <p class="fine"><button class="link-btn inline" type="button" data-su="mode-new">Start a new repo instead</button></p>
+        ${nav("Continue")}`;
     }
   } else if (s.step === 3) {
     const real = s.info.runtimes.filter(x => x !== "fake");
@@ -1623,8 +1652,9 @@ document.addEventListener("click", async e => {
     }
     if (d.su === "mode-existing" || d.su === "mode-new") { s.mode = d.su.slice(5); return render(); }
     if (d.su === "mode-github") {
-      s.mode = "github"; render();
-      if (!s.gh?.repos) { s.gh = null; render(); s.gh = await invoke("github_repos").then(repos => ({ repos })).catch(e => ({ error: String(e) })); render(); }
+      s.mode = "github";
+      if (s.gh?.error) s.gh = null;
+      loadGithub(); render();
       return $("#gh-q")?.focus();
     }
     if (d.su.startsWith("clone:")) {
@@ -1632,8 +1662,11 @@ document.addEventListener("click", async e => {
       try {
         const path = await invoke("clone_repo", { name: s.cloning }); s.cloning = null;
         // The first pick is the main repo. Picks after that join it as more repos.
-        if (s.repo?.ok) { await addExtraRepo(path); toast(`Added ${path.split("/").pop()}`); }
-        else { s.mode = "existing"; await checkRepo(path); }
+        // Back to the list either way, so you see it land there.
+        s.mode = "existing"; s.justAdded = path;
+        if (s.repo?.ok) await addExtraRepo(path);
+        else await checkRepo(path);
+        setTimeout(() => { if (S.setup === s) s.justAdded = null; }, 2500);
       }
       catch (e) { s.cloning = null; render(); toast(String(e), true); }
       return;
@@ -1647,16 +1680,17 @@ document.addEventListener("click", async e => {
       if (path) { s.parent = String(path); render(); }
       return;
     }
-    if (d.su === "add-repo") return addExtraRepo($("#su-more")?.value);
-    if (d.su === "add-repo-pick") {
-      const path = await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: "Pick another repo" }).catch(() => null);
-      if (path) addExtraRepo(String(path));
-      return;
+    if (d.su === "add-path") { const v = $("#su-add")?.value; await addRepo(v); return; }
+    if (d.su === "rdel-main") {
+      // The next repo steps up as the main one.
+      const next = s.extra.shift();
+      if (next) return checkRepo(next.path);
+      s.repo = null; s.path = ""; s.checked = null; return render();
     }
     if (d.su.startsWith("rdel-")) { s.extra.splice(Number(d.su.slice(5)), 1); return render(); }
     if (d.su === "pick") {
       const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Pick the company's repo" }).catch(() => null);
-      if (path) checkRepo(String(path));
+      if (path) addRepo(String(path));
       return;
     }
   }
@@ -1727,10 +1761,11 @@ document.addEventListener("submit", async e => {
       s.step = 2; render(); return $("#su-path")?.focus();
     }
     if (s.step === 2) {
-      // Continue checks the path itself: typing, pasting or picking a folder all work the same.
-      if (!s.path) { toast("Pick the repo's folder, or paste its path", true); return $("#su-path")?.focus(); }
-      if (!s.repo || s.checked !== s.path) await checkRepo(s.path);
-      if (s.repo?.ok) { s.step = 3; render(); }
+      // A path still in the box gets added first, so typing it and pressing Continue just works.
+      const typed = $("#su-add")?.value.trim();
+      if (typed) await addRepo(typed);
+      if (!s.repo?.ok) { if (!typed) toast("Add the repo your team works in", true); return $("#su-add")?.focus(); }
+      s.step = 3; render();
       return;
     }
     if (s.step === 3) {
@@ -1911,7 +1946,7 @@ async function previewScreen() {
   if (screen === "edit-person") { await openPerson("tomas"); S.drawer.edit = true; S.person.runtime = "codex"; renderDrawer(); }
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
   if (screen === "setup") await startSetup();
-  if (screen === "repos") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/notes"); S.setup.extra = [{ path: "/Users/you/dev/notes-api", name: "notes-api" }]; S.setup.step = 2; render(); }
+  if (screen === "repos") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/notes"); S.setup.extra = [{ path: "/Users/you/dev/notes-api", name: "notes-api", branch: "feat/search" }]; S.setup.step = 2; render(); }
   if (screen === "github") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; render(); }
   if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.companies = []; S.profile = { name: "" }; render(); }

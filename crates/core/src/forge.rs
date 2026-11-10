@@ -158,9 +158,20 @@ impl Forge {
             bail!("browsing repos is only on GitHub for now");
         }
         let here = std::env::temp_dir();
+        // One gh call per account and org, all at once: one after another took seconds.
+        let owners = self.owners()?;
+        let lists: Vec<String> = std::thread::scope(|scope| {
+            let jobs: Vec<_> = owners
+                .iter()
+                .map(|owner| {
+                    let here = &here;
+                    scope.spawn(move || self.run(here, &["repo", "list", owner, "--limit", "100", "--json", "nameWithOwner,description,isPrivate,pushedAt"], None).unwrap_or_default())
+                })
+                .collect();
+            jobs.into_iter().map(|j| j.join().unwrap_or_default()).collect()
+        });
         let mut out = vec![];
-        for owner in self.owners()? {
-            let json = self.run(&here, &["repo", "list", &owner, "--limit", "100", "--json", "nameWithOwner,description,isPrivate,pushedAt"], None)?;
+        for json in lists {
             let list: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap_or_default();
             out.extend(list.into_iter().map(|r| {
                 let s = |k: &str| r[k].as_str().unwrap_or("").to_string();

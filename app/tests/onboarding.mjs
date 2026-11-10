@@ -108,14 +108,18 @@ try {
   assert.equal(await js(`document.querySelector(".co-card .logo").textContent`), "A");
   await cont();
 
-  // Repo: a second repo joins under its folder name, then Continue checks the main path by itself.
+  // Repo: one list. The first repo added is the main one, the next joins it under its folder name.
   await at("Repo");
-  await type("#su-path", "/Users/you/dev/acme");
-  await type("#su-more", "/Users/you/dev/acme-api");
-  await click('[data-su="add-repo"]');
+  assert.match(await js(`document.querySelector(".repo-empty")?.textContent || ""`), /No repo yet/);
+  await type("#su-add", "/Users/you/dev/acme");
+  await click('[data-su="add-path"]');
+  await until(`document.querySelector(".repo-row .pill-state")`, "the main repo in the list");
+  assert.equal(await js(`document.querySelector(".repo-row b").textContent`), "acme");
+  await type("#su-add", "/Users/you/dev/acme-api");
+  await click('[data-su="add-path"]');
   await until(`document.querySelector("#su-r0-name")`, "the second repo");
   assert.equal(await js(`document.querySelector("#su-r0-name").value`), "acme-api");
-  assert.equal(await js(`document.querySelector("#su-path").value`), "/Users/you/dev/acme", "the main path survives the redraw");
+  assert.equal(await js(`document.querySelectorAll(".repo-row").length`), 2, "both repos are listed");
   await cont();
 
   // Team: templates, removing someone removes them, and the team survives redraws.

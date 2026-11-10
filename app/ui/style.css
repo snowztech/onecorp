@@ -1164,3 +1164,22 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .welcome-hero .fine { margin: 0; font-size: 12px; color: var(--muted); }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .welcome-hero, .app.arrive, .boot .logomark { animation: none; } }
+.repo-list { list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.repo-row { display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 12px 10px 14px; }
+.repo-row + .repo-row { border-top: 1px solid var(--line); }
+.repo-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.repo-name b { font: 600 13px var(--mono); overflow: hidden; text-overflow: ellipsis; }
+.repo-name input { width: 100%; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 5px 8px; background: var(--surface-2); font: 12px var(--mono); }
+.repo-path { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo-branch { font: 11px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 2px 8px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo-branch.odd { color: var(--signal); border-color: color-mix(in srgb, var(--signal) 40%, transparent); background: var(--signal-soft); }
+.repo-row .x { border: 0; background: none; color: var(--muted); font-size: 17px; padding: 2px 6px; border-radius: 6px; }
+.repo-row .x:hover { color: var(--fg); background: var(--surface-2); }
+.repo-empty { padding: 16px 14px; color: var(--muted); font-size: 13px; }
+.repo-add input { flex: 1; min-width: 0; }
+.repo-ship { margin: 2px 0 0; color: var(--muted); }
+.gh-loading { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); font-size: 13px; color: var(--muted); }
+.gh-loading b { color: var(--fg); font-weight: 500; }
+.repo-row.just { animation: just 2.4s ease-out; }
+@keyframes just { 0%, 30% { background: var(--accent-soft); } 100% { background: transparent; } }
+.link-btn.inline { margin: 0; padding: 0; }
