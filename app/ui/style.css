@@ -439,7 +439,8 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .composer input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; }
 
 /* Focus screens: first launch and new company, full screen with nothing else around */
-.app.focus { grid-template-columns: minmax(0, 1fr); }
+/* .rail too: a sidebar folded last session would otherwise keep its 72px column and squeeze the whole screen into it. */
+.app.focus, .app.focus.rail { grid-template-columns: minmax(0, 1fr); }
 .app.focus .side, .app.focus .topbar { display: none; }
 .app.focus main { grid-template-rows: minmax(0, 1fr); }
 .app.focus main > .view { grid-row: 1; }
@@ -924,6 +925,7 @@ h1, h2, h3, .titles h1 { letter-spacing: -.02em; }
 .tool .fix { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .tool .fix code { font: 12px var(--mono); background: var(--surface-2); border: 1px solid var(--line); padding: 3px 7px; border-radius: var(--r-sm); }
 .tool .fix .link-btn { margin: 0; }
+.tool .fix .btn.sm { padding: 3px 10px; font-size: 12px; border-radius: var(--r-sm); }
 .pill-state { font: 500 11px var(--mono); padding: 3px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .tool.t-ok .pill-state { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); background: var(--good-soft); }
 .tool.t-signin .pill-state { color: var(--signal); border-color: color-mix(in srgb, var(--signal) 40%, transparent); background: var(--signal-soft); }
