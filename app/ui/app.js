@@ -1024,7 +1024,7 @@ async function startSetup() {
   try {
     const [info, repoInfo] = await Promise.all([invoke("setup_info"), invoke("new_repo_info").catch(() => ({ parent: "", owners: [] }))]);
     const real = info.runtimes.filter(r => r !== "fake");
-    invoke("readiness").then(r => { if (S.setup) { S.setup.ready = r; render(); } }).catch(() => {});
+    invoke("readiness").then(r => { if (S.setup) { S.setup.ready = r; render(); recheckTools(); } }).catch(() => {});
     S.setup = { step: 0, mode: "existing", path: "", repo: null, name: "", mission: "", runtime: real[0] || "fake", info, repoInfo,
       folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [], extra: [], color: PALETTE[S.companies.length % PALETTE.length], logo: null, logoUrl: null };
     setTemplate("startup");
@@ -1106,6 +1106,24 @@ function backToYou() {
   render();
   $("#pf-name")?.focus();
 }
+// On the Connect step, tools are checked again when you come back from Terminal and every few
+// seconds while one isn't connected, so a login shows up without a button. Only a changed
+// result redraws, and the step has no fields to lose.
+let rechecking = false, toolTimer = null;
+const onConnect = () => S.setup && S.setup.step === 0 && !S.setup.launch && !S.profile;
+const toolMissing = r => (r || []).some(h => ["Claude Code", "Codex", "GitHub CLI"].includes(h.what) && h.level !== "ok");
+async function recheckTools() {
+  const s = S.setup;
+  clearTimeout(toolTimer);
+  if (!onConnect() || rechecking) return;
+  rechecking = true;
+  const r = await invoke("readiness").catch(() => null);
+  rechecking = false;
+  if (r && S.setup === s && onConnect() && JSON.stringify(r) !== JSON.stringify(s.ready)) { s.ready = r; render(); }
+  // One timer at a time, and only while something here still isn't connected.
+  if (onConnect() && toolMissing(S.setup.ready)) toolTimer = setTimeout(recheckTools, 4000);
+}
+window.addEventListener?.("focus", recheckTools);
 function journey(at) {
   const steps = [...(S.companies.length && !S.onboarding && at !== "You" ? [] : ["You"]), "Connect", "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
   // Steps you've done are links back, so you can change anything on the way.
@@ -1169,7 +1187,7 @@ function viewSetup() {
       <h3 class="label tools-h">Code hosting <span class="muted">· optional</span></h3><div class="tools">${tools.slice(2).map(card).join("")}</div>
       ${git && git.level !== "ok" ? `<p class="su-bad">git isn't installed. Run <code>${esc(git.fix || "xcode-select --install")}</code></p>` : ""}
       ${r && !agents ? `<p class="su-warn">Your employees need Claude Code or Codex to work. Install one, sign in, then check again.</p>` : ""}
-      <p class="fine">Run a command in Terminal, then <button class="link-btn" type="button" data-recheck="1">check again</button>.</p>
+      ${r && toolMissing(r) ? `<p class="fine watching"><i class="pulse"></i>Run the command in Terminal. This page updates by itself when you're done.</p>` : ""}
       ${nav("Continue", !r || !agents)}`;
   } else if (s.step === 1) {
     const prefix = (s.name || "acme").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase() || "ACM";

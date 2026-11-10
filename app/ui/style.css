@@ -1138,3 +1138,6 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .tools-h { margin: 18px 0 8px; }
 .tools-h:first-child, h1 + p + .tools-h { margin-top: 4px; }
 .tools-h .muted { text-transform: none; letter-spacing: 0; }
+.watching { display: flex; align-items: center; gap: 8px; }
+.pulse { width: 6px; height: 6px; border-radius: 99px; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
