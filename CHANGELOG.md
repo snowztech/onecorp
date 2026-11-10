@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Signed and notarized by Apple, so OneCorp opens like any Mac app, with no right-click step. Install it with Homebrew too: `brew install --cask snowztech/tap/onecorp`.
+- onecorp.dev, a short page with what OneCorp is and where to get it.
 - Settings → About: the OneCorp mark, your version (click to copy), and links to GitHub, the changelog, reporting an issue and onecorp.dev.
 - Lighter settings: Company drops the text that said the obvious, and Spending shows its chart once there are two days to compare.
 - Where Mac apps keep them: the version in OneCorp, then About OneCorp, and Report a Bug and OneCorp on GitHub in the Help menu. Both also sit at the bottom of Settings. Your menu now holds only things about you.

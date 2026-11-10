@@ -1,0 +1,22 @@
+name: cask
+
+# When a release is published (not while it's a draft), point the Homebrew cask at it.
+on:
+  release:
+    types: [published]
+
+jobs:
+  cask:
+    # Pre-releases stay out of the tap, so brew only offers stable versions.
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update the Homebrew cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          gh release download "$tag" --pattern OneCorp.dmg --dir "$RUNNER_TEMP"
+          ./scripts/bump-cask.sh "${tag#v}" "$RUNNER_TEMP/OneCorp.dmg"

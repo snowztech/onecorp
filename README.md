@@ -8,6 +8,8 @@
 
 Hire a team on Claude Code or Codex, give them tickets, watch them work in your real repo, and approve what ships.
 
+[onecorp.dev](https://onecorp.dev)
+
 [![CI](https://github.com/snowztech/onecorp/actions/workflows/ci.yml/badge.svg)](https://github.com/snowztech/onecorp/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/snowztech/onecorp?include_prereleases&sort=semver&label=release)](https://github.com/snowztech/onecorp/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -57,9 +59,8 @@ Everything runs locally. There's no account and no server. Your agents use the C
 
 ## Get started
 
-1. Download `OneCorp.dmg` from [Releases](https://github.com/snowztech/onecorp/releases) and drag OneCorp to Applications.
-2. Open it. The app isn't signed by Apple yet, so the first time, right-click OneCorp and choose **Open**, then **Open** again.
-3. OneCorp walks you through the rest: you, your AI agents, your company, its repo (a folder on your Mac, one of your GitHub repos, or a new one) and a starting team.
+1. Install with Homebrew, `brew install --cask snowztech/tap/onecorp`, or download `OneCorp.dmg` from [Releases](https://github.com/snowztech/onecorp/releases) and drag OneCorp to Applications.
+2. Open it. OneCorp walks you through the rest: you, your AI agents, your company, its repo (a folder on your Mac, one of your GitHub repos, or a new one) and a starting team.
 
 Your employees need at least one of these, installed and signed in. OneCorp checks during setup and gives you the command for anything missing.
 
