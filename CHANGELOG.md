@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The wiki shows Markdown tables as tables, plus smaller headings and dividers. A skipped mission shows as a hint, not as text you wrote.
+- Chat reads Markdown like Slack: `code`, bold, italics, links and code blocks. Mentions and ticket links still work, and never inside code.
 - Report a bug from your menu or Settings: it opens a GitHub issue with the questions to answer and your OneCorp version filled in. The version also shows in your menu, in Settings and on the welcome screen.
 - Commits: by default the employee is the author and you're the committer, with a Co-authored-by line so the work counts as yours on GitHub. Or pick As you in Settings, under Company, for commits that are yours alone. You is your git name and email for that repo.
 - See the team think in Chat: a question to a lead, the lead's decision or hand-off to you, and your answer all appear in that team's channel, linked to the ticket.

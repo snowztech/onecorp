@@ -570,7 +570,7 @@ function viewChat() {
     const same = prev && prev.author === m.author && !prev.pending && !m.pending && sameMinutes(prev.at, m.at, 5);
     prev = m;
     const who = m.founder ? me() : face(m.name, m.pending ? "working" : "neutral");
-    const body = m.pending ? `<p class="typing">writing<span><i></i><i></i><i></i></span></p>` : `<p>${chatText(m.text)}</p>`;
+    const body = m.pending ? `<p class="typing">writing<span><i></i><i></i><i></i></span></p>` : `<div class="msg-text">${chatText(m.text)}</div>`;
     const meta = `<header><b>${esc(m.founder ? m.name : first(m.name))}</b>${m.founder ? '<span class="you">you</span>' : ""}<time>${hhmm(m.at)}</time>${m.key ? `<a class="tkey" data-ticket="${esc(m.key)}">${esc(m.key)}</a>` : ""}</header>`;
     const del = m.pending ? "" : `<button class="msg-del ${S.msgDel === m.id ? "sure" : ""}" data-msg-del="${m.id}" title="Delete message" aria-label="Delete message">${S.msgDel === m.id ? "Delete?" : icon("trash")}</button>`;
     return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}</div>${del}</li>`;
@@ -649,12 +649,19 @@ function pickMention(k) {
 }
 const sameMinutes = (a, b, n) => Math.abs(utc(b) - utc(a)) <= n * 60000;
 // Mentions and ticket keys stand out, and a ticket key opens the ticket.
+// Agents write Markdown, so chat reads it like Slack does: code, bold, italics, links and code
+// blocks. Mentions and keys are only picked out of plain text, never inside code.
 function chatText(text) {
-  return esc(text).replace(/@([\p{L}\d]+)/gu, '<span class="mention">@$1</span>').replace(/\b([A-Z]{2,5}-\d+)\b/g, '<a class="tkey" data-ticket="$1">$1</a>');
+  const blocks = String(text).split(/```(?:\w+)?\n?/);
+  return blocks.map((part, i) => {
+    if (i % 2) return `<pre class="chat-code"><code>${esc(part.replace(/\n$/, ""))}</code></pre>`;
+    return inline(part).split(/(<code>[\s\S]*?<\/code>|<a [^>]*>[\s\S]*?<\/a>)/).map((bit, j) => j % 2 ? bit
+      : bit.replace(/@([\p{L}\d]+)/gu, '<span class="mention">@$1</span>').replace(/\b([A-Z]{2,5}-\d+)\b/g, '<a class="tkey" data-ticket="$1">$1</a>')).join("");
+  }).join("");
 }
 
 /* Wiki: the company's shared knowledge, the file every employee reads before each ticket */
-// A small Markdown renderer for the wiki: headings, lists, quotes, code, bold, italics, links.
+// A small Markdown renderer for the wiki: headings, lists, tables, quotes, code, bold, italics, links.
 // Enough for a wiki page, and nothing that needs a library.
 function inline(t) {
   return esc(t)
@@ -663,12 +670,33 @@ function inline(t) {
     .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
     .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a class="link" data-open-url="$2">$1</a>');
 }
+// A table row's cells. A | inside `code` stays part of the cell.
+function cells(line) {
+  const out = [];
+  let cur = "", tick = false;
+  for (const ch of line.trim().replace(/^\|/, "").replace(/\|$/, "")) {
+    if (ch === "`") tick = !tick;
+    if (ch === "|" && !tick) { out.push(cur.trim()); cur = ""; } else cur += ch;
+  }
+  return [...out, cur.trim()];
+}
+// What OneCorp writes when you skip the mission. Shown as a hint, not as if it were yours.
+const MISSION_HINT = "What the company is for, in a sentence or two.";
 function md(text) {
   const out = [], toc = [];
-  let list = null, para = [], code = null;
+  let list = null, para = [], code = null, table = null;
   const flush = () => {
-    if (para.length) out.push(`<p>${inline(para.join(" "))}</p>`), (para = []);
+    if (para.length) {
+      const t = para.join(" ");
+      out.push(t === MISSION_HINT ? `<p class="hint">No mission yet. Edit the wiki to add one.</p>` : `<p>${inline(t)}</p>`);
+      para = [];
+    }
     if (list) out.push(`<${list.tag}>${list.items.map(i => `<li>${inline(i)}</li>`).join("")}</${list.tag}>`), (list = null);
+    if (table) {
+      const [head, ...rows] = table;
+      out.push(`<div class="table-wrap"><table class="md"><thead><tr>${head.map(c => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+      table = null;
+    }
   };
   for (const line of String(text || "").split("\n")) {
     if (code !== null) {
@@ -676,12 +704,22 @@ function md(text) {
       continue;
     }
     if (line.startsWith("```")) { flush(); code = []; continue; }
-    const h = line.match(/^(#{1,3})\s+(.*)/);
+    // Tables: a row of | cells, then a |---| line, then more rows.
+    if (line.trim().startsWith("|")) {
+      const row = cells(line);
+      if (row.every(c => /^:?-{2,}:?$/.test(c))) continue;
+      if (!table) flush();
+      (table ||= []).push(row);
+      continue;
+    }
+    if (table) flush();
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) { flush(); out.push("<hr>"); continue; }
+    const h = line.match(/^(#{1,4})\s+(.*)/);
     if (h) {
       flush();
       const n = h[1].length, id = "hb-" + toc.length;
       if (n === 2) toc.push([id, h[2]]);
-      out.push(n === 1 ? `<h1>${inline(h[2])}</h1>` : n === 2 ? `<h2 id="${id}">${inline(h[2])}</h2>` : `<h3>${inline(h[2])}</h3>`);
+      out.push(n === 1 ? `<h1>${inline(h[2])}</h1>` : n === 2 ? `<h2 id="${id}">${inline(h[2])}</h2>` : n === 3 ? `<h3>${inline(h[2])}</h3>` : `<h4>${inline(h[2])}</h4>`);
       continue;
     }
     const li = line.match(/^\s*(?:[-*]|(\d+)\.)\s+(.*)/);
@@ -2058,7 +2096,7 @@ function preview(cmd, args) {
       dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
-    wiki: "# snowztech wiki\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
+    wiki: "# snowztech wiki\n\n## Mission\n\nOpen source tools for building AI agents.\n\n## Codebase\n\n| Repo | What it is | Stack |\n| --- | --- | --- |\n| `notes` (primary) | The app | Rust, Axum, SQLite |\n| `notes-web` | Marketing site | Next.js, Tailwind |\n\n## Decisions\n\n- Standard library first. No new dependencies without asking the founder.\n- Auth tokens are hashed at rest with sha2.\n\n## Conventions\n\n- All program output is lowercase, with no trailing punctuation.\n- CLI flags are long-form, kebab-case.\n",
     github_repos: [["snowztech/vikusha", "A Go framework for building AI agents", false], ["snowztech/onecorp", "Run a company of AI employees", false], ["lucas/notes", "Notes app for writers", true], ["snowztech/website", "", false]].map(([name, description, priv]) => ({ name, description, private: priv })),
     setup_info: { runtimes: ["claude", "fake"], voices: VOICES,
       teams_from: [{ company: "tvcask", hires: [{ name: "Inès Costa", role: "CTO", dept: "Engineering", runtime: "claude", voice: "calm" }, { name: "Kenji Sato", role: "Engineer", dept: "Engineering", runtime: "codex", voice: "terse" }] }],
@@ -2095,7 +2133,7 @@ function preview(cmd, args) {
     chat: { channel: "general", messages: [
       { id: 1, at: "2026-11-09 09:12:00", author: "founder", name: "Lucas", founder: true, text: "Morning team. Goal this week: magic link login and the pricing page live.", key: null, pending: false },
       { id: 2, at: "2026-11-09 09:40:00", author: "rui", name: "Rui Alves", text: "Plan is in your inbox as SNO-20. Setup first, then login and sync in parallel.", key: "SNO-20", pending: false },
-      { id: 3, at: "2026-11-09 10:05:00", author: "maya", name: "Maya Okafor", text: "Heads up: magic links need an email provider. I'll stub it behind a trait for now.", key: "SNO-12", pending: false },
+      { id: 3, at: "2026-11-09 10:05:00", author: "maya", name: "Maya Okafor", text: "Heads up: magic links need an **email provider**. I'll stub it behind the `Mailer` trait for now, see [the Resend docs](https://resend.com/docs).", key: "SNO-12", pending: false },
       { id: 4, at: "2026-11-09 10:06:00", author: "maya", name: "Maya Okafor", text: "@odile can you look at the token hashing when you review?", key: "SNO-12", pending: false },
       { id: 5, at: "2026-11-09 11:02:00", author: "odile", name: "Odile Martin", text: "Pricing page is up for review in SNO-11. Copy needs a look on mobile.", key: "SNO-11", pending: false },
       { id: 6, at: "2026-11-09 11:20:00", author: "founder", name: "Lucas", founder: true, text: "@tomas how far are the Stripe webhook retries?", key: null, pending: false },

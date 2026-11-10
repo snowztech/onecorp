@@ -423,7 +423,7 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .msg header { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .msg time { font: 11px var(--mono); color: var(--muted); }
 .msg .you { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.msg p { margin: 2px 0 0; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg p, .msg .msg-text { margin: 2px 0 0; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mention { color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 3px; }
 .tkey { font: 11px var(--mono); color: var(--accent); cursor: pointer; }
 .typing { color: var(--muted); font-style: italic; }
@@ -1202,3 +1202,17 @@ button.path-field:hover { border-color: var(--muted); }
 .set-foot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding: 0 8px; font: 11px var(--mono); color: var(--muted); }
 .set-foot .link-btn { font: 12px var(--body); color: var(--muted); text-align: left; }
 .hero-version { font: 11px var(--mono) !important; opacity: .7; }
+/* Wiki tables, smaller headings, rules, and the hint for a skipped mission */
+.wiki h4 { margin: 16px 0 4px; font: 600 14px var(--display); }
+.wiki hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+.wiki .hint { color: var(--muted); font-style: italic; }
+.table-wrap { margin: 4px 0 14px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-md); }
+table.md { width: 100%; border-collapse: collapse; font-size: 13.5px; line-height: 1.5; }
+table.md th { text-align: left; font: 600 12px var(--body); color: var(--muted); background: var(--surface-2); padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.md td { padding: 9px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+table.md tr:first-child td { border-top: 0; }
+table.md td code { font-size: 12px; white-space: nowrap; }
+.msg .msg-text code { font: 12.5px var(--mono); background: var(--surface-2); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px; }
+.msg .msg-text b { font-weight: 600; }
+.chat-code { margin: 6px 0; padding: 10px 12px; background: var(--term-bg); color: var(--term-fg); border-radius: var(--r-md); overflow-x: auto; font: 12.5px/1.5 var(--mono); white-space: pre; }
+.chat-code code { background: none; border: 0; padding: 0; }
