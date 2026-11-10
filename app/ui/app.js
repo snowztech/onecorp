@@ -8,6 +8,12 @@ if (window.__TAURI__ || /[?&]native\b/.test(location.search)) document.documentE
 const $ = s => document.querySelector(s);
 document.getElementById("boot")?.insertAdjacentHTML("afterbegin", logo());
 // The layout appears once the first render has decided it. If loading stalls, show it anyway.
+// The app's version, from Tauri in the app and the sample in the browser preview.
+let version = "";
+(window.__TAURI__?.app?.getVersion?.() || Promise.resolve("0.1.0")).then(v => { version = v; if (isBooted && (S.welcome || S.sheet)) { render(); renderSheet(); } }).catch(() => {});
+// A bug report on GitHub, with the version already in it, so nobody has to look it up.
+const bugUrl = () => "https://github.com/snowztech/onecorp/issues/new?labels=bug&body=" + encodeURIComponent(
+  `**What happened**\n\n\n**What you expected**\n\n\n**Steps to get there**\n1. \n\n---\nOneCorp ${version || "unknown version"} on macOS`);
 let isBooted = false;
 function booted() {
   if (isBooted) return;
@@ -139,6 +145,7 @@ const ICON = {
   pause: '<path d="M9 5v14M15 5v14"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  bug: '<rect x="7" y="7" width="10" height="13" rx="5"/><path d="M12 7V4M9.5 4.5 11 7M14.5 4.5 13 7M3 12h4M17 12h4M4 18l3-2M20 18l-3-2M4 6l3 2M20 6l-3 2"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/>',
 };
 const icon = k => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
@@ -237,7 +244,8 @@ function renderSheet() {
   const tab = SECTIONS.some(([k]) => k === S.sheet) ? S.sheet : "company";
   const body = { company: companySection, spend: spendTab, agents: agentsSection, appearance: appearanceSection, you: youSection }[tab]();
   el.innerHTML = `<div class="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
-    <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}</nav>
+    <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}
+      <div class="set-foot"><button class="link-btn inline" data-open-url="${esc(bugUrl())}">Report a bug</button><span>OneCorp ${esc(version)}</span></div></nav>
     <div class="set-main"><header class="set-h"><h3>${SECTIONS.find(([k]) => k === tab)[1]}</h3><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
       <div class="sheet-body">${body}</div></div></div>`;
 }
@@ -997,6 +1005,7 @@ function viewWelcome() {
     </ul>
     <button class="btn primary big" data-welcome="1">Get started</button>
     <p class="fine">Everything stays on this Mac. There's no account.</p>
+    ${version ? `<p class="fine hero-version">Version ${esc(version)}</p>` : ""}
   </div></div>`;
 }
 function viewProfile() {
@@ -1025,7 +1034,9 @@ function renderPop() {
       ${S.spendAll !== undefined && S.companies.length > 1 ? `<div class="pm-note">${money(S.spendAll)} spent today across your ${S.companies.length} companies</div>` : ""}
       <button class="pm-item" data-settings-tab="you">${icon("user")}Edit profile</button>
       ${S.company ? `<button class="pm-item" data-settings="1">${icon("settings")}Settings<kbd>⌘,</kbd></button>` : ""}
-      <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button></div>`;
+      <button class="pm-item" data-open-url="${esc(bugUrl())}">${icon("bug")}Report a bug</button>
+      <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button>
+      ${version ? `<div class="pm-version">OneCorp ${esc(version)}</div>` : ""}</div>`;
     return;
   }
   if (S.pop === "forget") {
