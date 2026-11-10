@@ -80,6 +80,13 @@ try {
   await until(`document.querySelector(".welcome-hero")`, "the welcome");
   assert.equal(await js(`document.querySelector(".app").classList.contains("booting")`), false, "the layout is revealed");
   assert.equal(await js(`!!document.querySelector("#boot")`), false, "the launch mark is gone");
+  // A sidebar folded in an earlier session must not squeeze the full-screen welcome into its rail.
+  await js(`localStorage.setItem("onecorp.rail", "1")`);
+  await send("Page.reload");
+  await sleep(300);
+  await until(`document.querySelector(".welcome-hero")`, "the welcome after a reload");
+  assert.ok(await js(`document.querySelector("#view").getBoundingClientRect().width > 900`), "the welcome fills the window with the rail remembered");
+  await js(`localStorage.removeItem("onecorp.rail")`);
   await click('[data-welcome="1"]');
   // You: typing survives the wait, and Continue goes on to Connect.
   await until(`document.querySelector("#pf-name")`, "the You step");
