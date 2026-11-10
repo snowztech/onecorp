@@ -508,6 +508,13 @@ fn chat(company: String, channel: String) -> Res<Value> {
     onecorp::view::chat(&open(&company)?, &channel).map_err(err)
 }
 
+/// Each agent's models, for the model picker.
+#[tauri::command(async)]
+fn models() -> Value {
+    let list = |r: &str| onecorp::runtime::models(r).into_iter().map(|(id, name, about)| json!({"id": id, "name": name, "about": about})).collect::<Vec<_>>();
+    json!({"claude": list("claude"), "codex": list("codex")})
+}
+
 #[tauri::command]
 fn voices() -> Value {
     onecorp::voice::list()
@@ -702,6 +709,19 @@ fn main() {
     });
 
     tauri::Builder::default()
+        .setup(|app| {
+            menu_bar(app)?;
+            Ok(())
+        })
+        // Closing the window hides it: the team keeps working, and the menu bar brings it back.
+        // Quit (⌘Q, or from the menu bar) is what stops them.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+                still_working_note(tauri::Manager::app_handle(window));
+            }
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -720,6 +740,8 @@ fn main() {
             set_projects_folder,
             clone_target,
             voices,
+            models,
+            set_tray_count,
             say,
             settings,
             set_ship,
@@ -774,8 +796,63 @@ fn main() {
             move_to_department,
             hire
         ])
-        .run(tauri::generate_context!())
-        .expect("couldn't start the OneCorp window");
+        .build(tauri::generate_context!())
+        .expect("couldn't start the OneCorp window")
+        // Clicking the Dock icon with the window hidden shows it again.
+        .run(|app, event| {
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_window(app);
+            }
+        });
+}
+
+fn show_window(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+/// The menu bar icon: open the window, or quit and stop the team.
+fn menu_bar(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    use tauri::tray::TrayIconBuilder;
+    let open = MenuItem::with_id(app, "open", "Open OneCorp", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit OneCorp", true, Some("CmdOrCtrl+Q"))?;
+    let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &quit])?;
+    TrayIconBuilder::with_id("main")
+        .icon(tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?)
+        .icon_as_template(true)
+        .tooltip("OneCorp")
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "open" => show_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .build(app)?;
+    Ok(())
+}
+
+/// The first time the window closes, say the team is still at it, so nobody thinks it quit.
+fn still_working_note(app: &tauri::AppHandle) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use tauri_plugin_notification::NotificationExt;
+    static SAID: AtomicBool = AtomicBool::new(false);
+    if !SAID.swap(true, Ordering::Relaxed) {
+        let _ = app.notification().builder().title("OneCorp is still working").body("Your team carries on in the background. Open it from the menu bar, or quit with ⌘Q.").show();
+    }
+}
+
+/// How many things wait on you, next to the menu bar icon. Nothing when it's zero.
+#[tauri::command]
+fn set_tray_count(app: tauri::AppHandle, count: u32) {
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_title(if count > 0 { Some(count.to_string()) } else { None });
+    }
 }
 
 #[cfg(test)]

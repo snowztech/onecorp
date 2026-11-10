@@ -63,6 +63,37 @@ pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) ->
     }
 }
 
+/// The models an agent offers, newest first: (id passed to --model, name, what it's good at).
+/// Claude Code takes these ids as they are. Codex keeps its own current list in its cache, so it's
+/// read from there and never goes out of date. An empty list means "use the agent's default".
+pub fn models(runtime: &str) -> Vec<(String, String, String)> {
+    let own = |rows: &[(&str, &str, &str)]| rows.iter().map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string())).collect();
+    match runtime {
+        "claude" => own(&[
+            ("claude-opus-5-5", "Opus 5.5", "Most capable, for hard problems"),
+            ("claude-sonnet-5-5", "Sonnet 5.5", "Fast and capable, for most work"),
+            ("claude-haiku-5-5", "Haiku 5.5", "Fastest and cheapest, for simple tasks"),
+            ("claude-fable-5-1", "Fable 5.1", "The newest family member"),
+        ]),
+        "codex" => codex_models(),
+        _ => vec![],
+    }
+}
+
+fn codex_models() -> Vec<(String, String, String)> {
+    let home = std::env::var("CODEX_HOME").map(std::path::PathBuf::from).unwrap_or_else(|_| std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".codex"));
+    let Ok(text) = std::fs::read_to_string(home.join("models_cache.json")) else { return vec![] };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { return vec![] };
+    v["models"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|m| m["visibility"] == "list")
+        .filter_map(|m| Some((m["slug"].as_str()?.to_string(), m["display_name"].as_str()?.to_string(), m["description"].as_str().unwrap_or("").to_string())))
+        .take(6)
+        .collect()
+}
+
 /// One sentence for the prompt about what the agent can run, since each runtime's sandbox differs.
 pub fn abilities(runtime: &str, commands: &[String]) -> String {
     match runtime {

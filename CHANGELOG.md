@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Closing the window no longer stops your team. OneCorp keeps working from the menu bar, with how many things wait on you next to its icon. Open it from there or the Dock, and quit from there or with ⌘Q.
+- New companies start with a $10 daily budget, so a team left running overnight can't surprise you. Change it in Settings, under Spending.
+- Models by their exact names: Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.1 for Claude Code, and Codex's current list read from Codex itself.
+- Picking who does a ticket in a plan shows each person's role.
 - A polish pass from real use: every dropdown matches the other fields, Inbox questions read like messages and their buttons stay short (Keep Rui's choice), plan tickets show their details as Markdown and fold long ones, desk bubbles say what someone is doing in plain words (Reading providers.go, Running tests), and a question in chat shows who it went to, with Answer in Inbox when it's you.
 - Chat replies stay short, a few lines unless you ask for detail. When your own checkout is on a feature branch, replies know it's yours and look at main for where the team stands.
 - The wiki shows Markdown tables as tables, plus smaller headings and dividers. A skipped mission shows as a hint, not as text you wrote.

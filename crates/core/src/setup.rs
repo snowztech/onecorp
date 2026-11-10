@@ -9,12 +9,17 @@ use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Dollars a day a new company may spend before it pauses until tomorrow.
+pub const DEFAULT_BUDGET: f64 = 10.0;
+
 /// `brief` is what you're building. With a brief and a team, planning starts right away.
 pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], brief: &str) -> Result<(Company, Vec<Employee>)> {
     // Checked first, so a bad team never leaves a half-made company behind.
     templates::check(people)?;
     let c = Company::create(name, repo, mission)?;
     c.set_ship_mode(ship::default_mode(&c.repo()?))?;
+    // A team left running overnight can't spend more than this without you. One click to change.
+    crate::spend::set_budget(&c, DEFAULT_BUDGET)?;
     if let Some(notes) = repo_notes(&c.repo()?) {
         c.set_wiki_section("Codebase", &notes)?;
     }

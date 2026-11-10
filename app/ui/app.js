@@ -421,6 +421,8 @@ async function watchAll() {
 function badgeAll() {
   const total = Object.values(S.needs).reduce((a, b) => a + b, 0);
   window.__TAURI__?.window?.getCurrentWindow?.().setBadgeCount(total || undefined).catch(() => {});
+  // The same count next to the menu bar icon, for when the window is closed.
+  if (window.__TAURI__) invoke("set_tray_count", { count: total }).catch(() => {});
 }
 async function notify(title, body) {
   const n = window.__TAURI__?.notification;
@@ -532,7 +534,7 @@ function planReview(r) {
       const long = t.description.length > 220 || t.description.split("\n").length > 3, open = !long || S.open["pd-" + t.key];
       return `<div class="pt-desc ${open ? "open" : ""}">${md(t.description).html}</div>${open ? "" : `<button class="link-btn inline more-link" type="button" data-more="pd-${esc(t.key)}">Show details</button>`}`;
     })() : ""}${t.after ? `<span class="after">after ${esc(t.after)}</span>` : ""}</div>
-    <select data-plan-assign="${esc(t.key)}" aria-label="Who does ${esc(t.key)}"><option value="">Nobody yet</option>${people.map(e => `<option value="${esc(e.id)}" ${e.id === t.assignee ? "selected" : ""}>${esc(first(e.name))}</option>`).join("")}</select>
+    <select data-plan-assign="${esc(t.key)}" aria-label="Who does ${esc(t.key)}"><option value="">Nobody yet</option>${people.map(e => `<option value="${esc(e.id)}" ${e.id === t.assignee ? "selected" : ""}>${esc(first(e.name))} · ${esc(e.role)}</option>`).join("")}</select>
     <button class="x" data-plan-del="${esc(t.key)}" title="Remove from the plan" aria-label="Remove ${esc(t.key)}">×</button></li>`).join("");
   return `<article class="ask plan" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Project plan · ${esc(r.key)} · by ${esc(first(r.name))}</span><h4>${esc(r.title)}, in ${r.tickets.length} ${r.tickets.length === 1 ? "ticket" : "tickets"}</h4>
@@ -968,13 +970,18 @@ const GLYPHS = {
 const agentMark = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[k] || ""}</svg>`;
 function agentPicker(f) {
   const have = S.runtimes || Object.keys(AGENTS), a = AGENTS[f.runtime] || AGENTS.claude;
-  const models = a.models.some(([v]) => v === (f.model || "")) ? a.models : [...a.models, [f.model, f.model]];
+  // The exact models each agent offers, from the agent itself where it says. An older short name
+  // like "opus" still lights up the model it stands for.
+  const live = S.models?.[f.runtime];
+  const list = live?.length ? [["", "Default", "The agent picks"], ...live.map(m => [m.id, m.name, m.about])] : a.models;
+  const same = v => v === (f.model || "") || (f.model && v && !f.model.includes("-") && v.includes(f.model));
+  const models = list.some(([v]) => same(v)) ? list : [...list, [f.model, f.model]];
   return `<div class="field"><span class="flabel">Works on</span><div class="agents">${Object.entries(AGENTS).filter(([k]) => k !== "fake" || f.runtime === "fake").map(([k, x]) => {
       const ok = have.includes(k) || k === f.runtime;
       return `<button type="button" class="agent" data-agent="${k}" aria-pressed="${k === f.runtime}" ${ok ? "" : 'disabled title="Not installed on this Mac. Settings shows how to install it"'}>
         <span class="glyph" style="--c:${x.color}">${agentMark(k)}</span><span><b>${x.name}</b><small>${ok ? x.by : "Not installed"}</small></span></button>`;
     }).join("")}</div><input type="hidden" id="pf-rt" value="${esc(f.runtime)}"></div>
-    <div class="field"><span class="flabel">Model</span><div class="models">${models.map(([v, n]) => `<button type="button" class="mchip" data-model="${esc(v)}" aria-pressed="${v === (f.model || "")}">${esc(n)}</button>`).join("")}</div><input type="hidden" id="pf-m" value="${esc(f.model || "")}"></div>`;
+    <div class="field"><span class="flabel">Model</span><div class="models">${models.map(([v, n, about]) => `<button type="button" class="mchip" data-model="${esc(v)}" aria-pressed="${same(v)}" ${about ? `title="${esc(about)}"` : ""}>${esc(n)}</button>`).join("")}</div><input type="hidden" id="pf-m" value="${esc(f.model || "")}"></div>`;
 }
 // The fields for a person, shared by hiring and editing, so both look and behave the same.
 function avatarPicker(f) {
@@ -1464,6 +1471,7 @@ function typing() {
 }
 async function refresh(force) {
   if (!S.voices) S.voices = await invoke("voices").catch(() => null);
+  if (!S.models) S.models = await invoke("models").catch(() => null);
   // Ignore a workspace tick already queued when onboarding stopped the timer.
   if (!force && (S.profile || S.setup)) return;
   try {
@@ -2080,6 +2088,7 @@ function preview(cmd, args) {
   const VOICES = [["terse","Terse","Done. Login works, tests pass."],["warm","Warm","Login's in! Thanks for the clear ticket. Tests are green."],["thorough","Thorough","Login is in. I went with magic links over passwords: less to store. Tests cover both paths."],["dry","Dry","Login works. The tests agree, which is a first this week."],["blunt","Blunt","Login works. The old session code was broken, so I replaced it."],["curious","Curious","Login works. Should links expire after 15 minutes or an hour?"],["upbeat","Upbeat","Login shipped! On to signup next."],["calm","Calm","Login is done. 1. Link sent. 2. Token checked. 3. Session set."]].map(([key, label, sample]) => ({ key, label, sample }));
   const data = {
     voices: VOICES,
+    models: { claude: [["claude-opus-5-5", "Opus 5.5"], ["claude-sonnet-5-5", "Sonnet 5.5"], ["claude-haiku-5-5", "Haiku 5.5"], ["claude-fable-5-1", "Fable 5.1"]].map(([id, name]) => ({ id, name, about: "" })), codex: [["gpt-6.1-sol", "GPT-6.1-Sol"], ["gpt-6-astra", "GPT-6-Astra"], ["gpt-6-luna", "GPT-6-Luna"]].map(([id, name]) => ({ id, name, about: "" })) },
     companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech", looks: { snowztech: { color: "#4772ae" }, tvcask: { color: "#ae5c47" }, autoremind: { color: "#47ae88" }, pingbuddy: { color: "#27272a" } } },
     snapshot: {
       repos: [{ name: "notes", path: "/Users/you/dev/notes", main: true }, { name: "notes-web", path: "/Users/you/dev/notes-web", main: false }],
