@@ -1109,6 +1109,8 @@ async function makeRepo() {
   try {
     const path = await invoke("create_repo", { parent: s.parent, folder: s.folder, mission: s.mission, owner: s.owner || null, private: s.private });
     s.creating = false; s.mode = "existing";
+    // A folder you picked for this repo is where you keep projects: the next ones go there too.
+    if (s.parent && s.parent !== s.repoInfo?.parent) invoke("set_projects_folder", { path: s.parent }).then(p => { s.repoInfo.parent = p; }).catch(() => {});
     toast(s.owner ? `Created ${s.folder}, here and on GitHub` : `Created ${s.folder}`);
     await checkRepo(path);
   } catch (e) { s.creating = false; render(); toast(String(e), true); }
@@ -1254,7 +1256,8 @@ function viewSetup() {
            <ul class="gh-list">${g.repos.map(r => `<li data-name="${esc(r.name.toLowerCase())} ${esc((r.description || "").toLowerCase())}"><button type="button" data-su="clone:${esc(r.name)}" ${s.cloning ? "disabled" : ""}>
              <b>${esc(r.name)}</b>${r.private ? `<span class="pill-state">Private</span>` : ""}<span>${esc(r.description || "")}</span>${s.cloning === r.name ? `<em>Cloning…</em>` : ""}</button></li>`).join("")}</ul>`;
       const status = s.cloning ? `<p class="gh-loading"><i class="spin"></i>Cloning <b>${esc(s.cloning)}</b> into ${esc(s.repoInfo?.parent || "your dev folder")}… It shows in your list when it's done.</p>` : "";
-      body = `<h1>Add from GitHub</h1><p class="muted">Pick a repo. OneCorp clones it into ${esc(s.repoInfo?.parent || "your dev folder")}, or uses it if it's already there.</p>${status}${list}
+      const where = `<p class="muted">Pick a repo. OneCorp clones it into <span class="mono where">${esc(s.repoInfo?.parent || "your projects folder")}</span>${picker ? ` <button class="link-btn inline" type="button" data-su="projects-dir">Change…</button>` : ""}, or uses it if it's already there.</p>`;
+      body = `<h1>Add from GitHub</h1>${where}${status}${list}
         <div class="su-nav">${toList}</div>`;
     } else if (s.mode === "new") {
       const owners = s.repoInfo.owners || [];
@@ -1680,6 +1683,12 @@ document.addEventListener("click", async e => {
       const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Where should the new repo go?" }).catch(() => null);
       if (path) { s.parent = String(path); render(); }
       return;
+    }
+    if (d.su === "projects-dir") {
+      const dir = await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: "Where do you keep your projects?", defaultPath: s.repoInfo?.parent }).catch(() => null);
+      if (!dir) return;
+      try { const saved = await invoke("set_projects_folder", { path: String(dir) }); s.repoInfo.parent = s.parent = saved; toast("Clones go there from now on"); } catch (err) { toast(String(err), true); }
+      return render();
     }
     if (d.su === "add-path") { const v = $("#su-add")?.value; await addRepo(v); return; }
     if (d.su === "rdel-main") {

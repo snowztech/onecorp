@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Clones and new repos go where your projects already are: OneCorp looks in ~/Developer, ~/dev, ~/code, ~/Projects and the like, and picks the one holding your repos. Change it from the GitHub screen, and it's remembered for next time.
 - New tickets start from the repo's main branch (the one origin points to, or main, or master), not whatever you have checked out, and approving lands there too. Being on a feature branch in your own checkout no longer changes your team's base.
 - Name the primary repo in onboarding, like the others.
 - The Repo step is one list: add repos from a folder, from GitHub or by pasting a path, and the first is the primary one. Each shows its branch, with a warning when it isn't on main, since new tickets start from it. Your GitHub repos load in the background, cloning says what it's doing, and the new repo is highlighted when it lands.

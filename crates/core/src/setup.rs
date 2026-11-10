@@ -153,10 +153,45 @@ pub fn clone_from_github(full_name: &str) -> Result<PathBuf> {
     Ok(dest)
 }
 
+/// Where new and cloned repos go: the folder you picked, or the one that already holds your projects.
 pub fn default_parent() -> PathBuf {
-    let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
-    let dev = home.join("dev");
-    if dev.is_dir() { dev } else { home }
+    if let Ok(saved) = std::fs::read_to_string(projects_file())
+        && Path::new(saved.trim()).is_dir()
+    {
+        return PathBuf::from(saved.trim());
+    }
+    guess_parent(&PathBuf::from(std::env::var("HOME").unwrap_or_default()))
+}
+
+/// Remembers where you keep your projects, for every clone and new repo after this one.
+pub fn set_default_parent(dir: &Path) -> Result<PathBuf> {
+    let dir = dir.canonicalize().with_context(|| format!("{} doesn't exist", dir.display()))?;
+    anyhow::ensure!(dir.is_dir(), "{} isn't a folder", dir.display());
+    std::fs::create_dir_all(crate::store::home())?;
+    std::fs::write(projects_file(), dir.to_string_lossy().as_bytes())?;
+    Ok(dir)
+}
+
+fn projects_file() -> PathBuf {
+    crate::store::home().join("projects-folder")
+}
+
+/// The usual places people keep code, picking the one with the most git repos in it already.
+/// The first that exists wins a tie, and home is the fallback.
+fn guess_parent(home: &Path) -> PathBuf {
+    const USUAL: [&str; 9] = ["Developer", "dev", "code", "Code", "Projects", "projects", "src", "workspace", "repos"];
+    let repos_in = |d: &Path| std::fs::read_dir(d).map(|it| it.flatten().take(500).filter(|e| e.path().join(".git").exists()).count()).unwrap_or(0);
+    USUAL
+        .iter()
+        .map(|n| home.join(n))
+        .filter(|d| d.is_dir())
+        .map(|d| (repos_in(&d), d))
+        .fold(None::<(usize, PathBuf)>, |best, (n, d)| match best {
+            Some((b, _)) if b >= n => best,
+            _ => Some((n, d)),
+        })
+        .map(|(_, d)| d)
+        .unwrap_or_else(|| home.to_path_buf())
 }
 
 /// Where to also create the repo, besides your Mac.
@@ -195,6 +230,19 @@ pub fn create_repo(path: &Path, title: &str, mission: &str, remote: Option<Remot
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn guesses_where_your_projects_live() {
+        let home = std::env::temp_dir().join(format!("onecorp-home-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).unwrap();
+        assert_eq!(guess_parent(&home), home, "nothing usual: home");
+        std::fs::create_dir_all(home.join("dev")).unwrap();
+        std::fs::create_dir_all(home.join("code/a/.git")).unwrap();
+        std::fs::create_dir_all(home.join("code/b/.git")).unwrap();
+        assert_eq!(guess_parent(&home), home.join("code"), "the folder with your repos, not just the first that exists");
+        let _ = std::fs::remove_dir_all(&home);
+    }
 
     #[test]
     fn reads_a_repo_like_a_newcomer() {

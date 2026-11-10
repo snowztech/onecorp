@@ -404,6 +404,12 @@ fn clone_repo(name: String) -> Res<String> {
     onecorp::setup::clone_from_github(&name).map(|p| p.display().to_string()).map_err(err)
 }
 
+/// Where clones and new repos go from now on.
+#[tauri::command(async)]
+fn set_projects_folder(path: String) -> Res<String> {
+    onecorp::setup::set_default_parent(std::path::Path::new(path.trim())).map(|p| p.display().to_string()).map_err(err)
+}
+
 /// Where a new repo would go, and where you could also create it on GitHub.
 #[tauri::command(async)]
 fn new_repo_info() -> Res<Value> {
@@ -692,6 +698,7 @@ fn main() {
             remove_repo,
             github_repos,
             clone_repo,
+            set_projects_folder,
             voices,
             say,
             settings,

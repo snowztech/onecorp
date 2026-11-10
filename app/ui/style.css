@@ -1183,3 +1183,4 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .repo-row.just { animation: just 2.4s ease-out; }
 @keyframes just { 0%, 30% { background: var(--accent-soft); } 100% { background: transparent; } }
 .link-btn.inline { margin: 0; padding: 0; }
+.muted .where { color: var(--fg); font-size: 12px; }
