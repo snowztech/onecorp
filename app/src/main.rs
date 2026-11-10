@@ -733,6 +733,7 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             menu_bar(app)?;
+            help_menu(app)?;
             Ok(())
         })
         // Closing the window hides it: the team keeps working, and the menu bar brings it back.
@@ -861,6 +862,39 @@ fn menu_bar(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// The Mac menu as usual (About OneCorp shows the version), with Help holding the ways to reach us.
+fn help_menu(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{HELP_SUBMENU_ID, Menu, MenuItem, MenuItemKind};
+    let menu = Menu::default(app.handle())?;
+    if let Some(MenuItemKind::Submenu(help)) = menu.get(HELP_SUBMENU_ID) {
+        help.append(&MenuItem::with_id(app, "report-bug", "Report a Bug…", true, None::<&str>)?)?;
+        help.append(&MenuItem::with_id(app, "github", "OneCorp on GitHub", true, None::<&str>)?)?;
+    }
+    app.set_menu(menu)?;
+    app.on_menu_event(|app, event| {
+        let url = match event.id.as_ref() {
+            "report-bug" => bug_url(&app.package_info().version.to_string()),
+            "github" => "https://github.com/snowztech/onecorp".into(),
+            _ => return,
+        };
+        let _ = std::process::Command::new("open").arg(url).status();
+    });
+    Ok(())
+}
+
+/// A new GitHub issue with the questions to answer and the version already in it.
+fn bug_url(version: &str) -> String {
+    let body = format!("**What happened**\n\n\n**What you expected**\n\n\n**Steps to get there**\n1. \n\n---\nOneCorp {version} on macOS");
+    let enc: String = body
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect();
+    format!("https://github.com/snowztech/onecorp/issues/new?labels=bug&body={enc}")
+}
+
 /// The first time the window closes, say the team is still at it, so nobody thinks it quit.
 fn still_working_note(app: &tauri::AppHandle) {
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -881,6 +915,13 @@ fn set_tray_count(app: tauri::AppHandle, count: u32) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bug_reports_carry_the_version() {
+        let url = super::bug_url("0.1.0");
+        assert!(url.starts_with("https://github.com/snowztech/onecorp/issues/new?labels=bug&body="));
+        assert!(url.contains("OneCorp%200.1.0%20on%20macOS") && !url.contains('*') && !url.contains(' '), "{url}");
+    }
+
     #[test]
     fn base64_matches_the_standard() {
         assert_eq!(super::base64(b""), "");

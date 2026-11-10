@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Where Mac apps keep them: the version in OneCorp, then About OneCorp, and Report a Bug and OneCorp on GitHub in the Help menu. Both also sit at the bottom of Settings. Your menu now holds only things about you.
 - Chat replies and lead decisions use a lighter model by default (Sonnet 5.5, or Codex's fast one). They're short, so they cost a fraction, and tickets keep each person's own model. Switch to Their own model in Settings, under Spending.
 - Report a bug opens your browser. Links now open through OneCorp itself, which only accepts web links, so long ones like a prefilled issue aren't refused.
 - Closing the window no longer stops your team. OneCorp keeps working from the menu bar, with how many things wait on you next to its icon. Open it from there or the Dock, and quit from there or with ⌘Q.

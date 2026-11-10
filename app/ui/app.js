@@ -1093,9 +1093,7 @@ function renderPop() {
       ${S.spendAll !== undefined && S.companies.length > 1 ? `<div class="pm-note">${money(S.spendAll)} spent today across your ${S.companies.length} companies</div>` : ""}
       <button class="pm-item" data-settings-tab="you">${icon("user")}Edit profile</button>
       ${S.company ? `<button class="pm-item" data-settings="1">${icon("settings")}Settings<kbd>⌘,</kbd></button>` : ""}
-      <button class="pm-item" data-open-url="${esc(bugUrl())}" title="Opens a GitHub issue with your version filled in">${icon("bug")}Report a bug <span class="ext">↗</span></button>
-      <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button>
-      ${version ? `<div class="pm-version">OneCorp ${esc(version)}</div>` : ""}</div>`;
+      <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button></div>`;
     return;
   }
   if (S.pop === "forget") {
