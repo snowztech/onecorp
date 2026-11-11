@@ -33,7 +33,7 @@ export function viewCompany() {
   const working = s.employees.filter(e => e.status === "working").length;
   const facts = [`${s.employees.length} ${s.employees.length === 1 ? "person" : "people"}`, ...(working ? [`<span class="ok">${working} working</span>`] : [])];
   const items = needItems(s);
-  const needs = items.slice(0, 3).map(i => `<button class="need" data-goto="${esc(i.to)}">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
+  const needs = items.map(i => `<button class="need" data-goto="${esc(i.to)}">${face(i.name, "neutral")}<span><b>${esc(first(i.name))}</b> ${esc(i.text)}</span></button>`).join("");
   const needsCard = `<section class="side-sec needs-sec"><h3 class="label">Needs you ${items.length ? `<span class="badge">${items.length}</span>` : ""}</h3>
     ${items.length ? `<div class="needs">${needs}</div><button class="link-btn more-in" data-view="inbox">Open Inbox →</button>` : `<p class="all-clear">${icon("check")}All clear, nothing waiting on you</p>`}</section>`;
   // Nobody working and nothing waiting: say what you could do next.
