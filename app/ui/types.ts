@@ -115,7 +115,7 @@ export interface SpendReport {
   projects: (Windows & { key: string; title: string })[];
   agents: (Windows & { runtime: string; estimated: boolean; price?: number })[];
   prices: { runtime: string; price: number }[];
-  limits?: { runtime: string; times: number }[];
+  limits?: { runtime: string; times: number; elsewhere: string[] }[];
   kinds?: (Windows & { kind: string; label: string })[];
 }
 

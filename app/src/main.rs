@@ -191,7 +191,7 @@ fn settings(company: String) -> Res<Value> {
     let talk_models: serde_json::Map<String, Value> = ["cheapest", "balanced"]
         .iter()
         .map(|t| {
-            let names: Vec<String> = ["claude", "codex"].iter().filter(|r| runtimes.iter().any(|x| x == *r)).filter_map(|r| onecorp::runtime::talk_model(r, t).map(|(_, n)| n)).collect();
+            let names: Vec<String> = ["claude", "codex"].iter().filter(|r| runtimes.iter().any(|x| x == *r)).filter_map(|r| onecorp::runtime::talk_model(r, t).map(|(_, n)| format!("{n} on {}", if *r == "codex" { "Codex" } else { "Claude Code" }))).collect();
             (t.to_string(), json!(names))
         })
         .collect();

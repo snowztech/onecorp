@@ -298,7 +298,7 @@ pub fn spend_report(c: &Company) -> Result<Value> {
         "people": people, "projects": projects, "agents": agents,
         "prices": crate::spend::DEFAULT_PRICES.iter().map(|(rt, _)| json!({"runtime": rt, "price": crate::spend::price(c, rt).unwrap_or(0.0)})).collect::<Vec<_>>(),
         "estimated": rows.iter().any(|r| r.6),
-        "limits": crate::spend::limit_hits()?,
+        "limits": crate::spend::limit_hits(c)?,
     }))
 }
 

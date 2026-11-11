@@ -25,18 +25,23 @@ pub fn set_price(c: &Company, runtime: &str, per_million: f64) -> Result<()> {
     c.set_setting(&format!("price.{runtime}"), &per_million.to_string())
 }
 
-/// Agents whose plan hit its usage limit in the last week, across all your companies, since a
-/// plan is yours, not a company's. Only subscriptions have one.
-pub fn limit_hits() -> Result<Vec<Value>> {
+/// The agents `c`'s team uses whose plan hit its usage limit in the last week. A plan is yours,
+/// not a company's, so a limit hit in another company counts too, and says where.
+pub fn limit_hits(c: &Company) -> Result<Vec<Value>> {
+    let used: Vec<String> = c.employees()?.into_iter().map(|e| e.runtime).collect();
     let mut out = vec![];
-    for (runtime, label) in [("claude", "Claude Code"), ("codex", "Codex")] {
-        let mut n = 0;
+    for (runtime, label) in [("claude", "Claude Code"), ("codex", "Codex")].into_iter().filter(|(r, _)| used.iter().any(|u| u == r)) {
+        let (mut n, mut elsewhere) = (0, vec![]);
         for name in crate::store::list()? {
-            let Ok(c) = Company::open(&name) else { continue };
-            n += c.limit_waits(7)?.iter().filter(|s| s.starts_with(label)).count();
+            let Ok(other) = Company::open(&name) else { continue };
+            let here = other.limit_waits(7)?.iter().filter(|s| s.starts_with(label)).count();
+            n += here;
+            if here > 0 && other.name != c.name {
+                elsewhere.push(other.name.clone());
+            }
         }
         if n > 0 {
-            out.push(json!({"runtime": runtime, "times": n}));
+            out.push(json!({"runtime": runtime, "times": n, "elsewhere": elsewhere}));
         }
     }
     Ok(out)
