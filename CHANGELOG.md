@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-11-11
+
+The wiki opens with an Overview and a Glossary, and a stopped ticket can be retried with a note on what to do differently.
+
 ### Added
 
 - The wiki's Overview page holds what a new hire reads first: why the company exists, what you're building and for whom, and where it stands today, from idea to live. Your team drafts the sections you leave empty, and never touches the ones you wrote.
@@ -191,6 +195,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.9]: https://github.com/snowztech/onecorp/releases/tag/v0.1.9
 [0.1.8]: https://github.com/snowztech/onecorp/releases/tag/v0.1.8
 [0.1.7]: https://github.com/snowztech/onecorp/releases/tag/v0.1.7
 [0.1.6]: https://github.com/snowztech/onecorp/releases/tag/v0.1.6
