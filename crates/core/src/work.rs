@@ -666,6 +666,18 @@ pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
     follow_up(c, &q, text)
 }
 
+/// Sets a question aside without answering it. Only one that doesn't block: its asker already
+/// carried on, so nothing waits on it, and nothing is posted or resumed.
+pub fn dismiss(c: &Company, id: i64) -> Result<()> {
+    let q = c.question(id)?.filter(|q| q.answer.is_none()).ok_or_else(|| anyhow!("no open question #{id}. See: onecorp inbox"))?;
+    if q.blocking {
+        bail!("#{id} is blocking its ticket, so it needs an answer");
+    }
+    c.answer(id, "(dismissed)")?;
+    out(&format!("Dismissed #{id}."));
+    Ok(())
+}
+
 /// What an answer sets in motion, whoever gave it: it resumes the ticket when it unblocks it,
 /// or when the employee already went ahead with a different default.
 fn follow_up(c: &Company, q: &Question, text: &str) -> Result<()> {

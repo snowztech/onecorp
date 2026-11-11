@@ -126,5 +126,19 @@ fn channels_posts_and_replies() {
     c.delete_message(id).unwrap();
     assert!(c.message(id).unwrap().is_none());
 
+    // A question that doesn't block can be set aside: nothing posted, nothing resumed. A blocking one can't.
+    let ask = |args| {
+        let call = json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "ask_human", "arguments": args}});
+        let said = mcp::handle(&c, &mcp::Ctx { ticket, employee: "maya".into() }, &call).unwrap()["result"]["content"][0]["text"].as_str().unwrap().to_string();
+        said.split('#').nth(1).unwrap().split_whitespace().next().unwrap().parse::<i64>().unwrap()
+    };
+    let (aside, stuck) = (ask(json!({"question": "Dark mode too?"})), ask(json!({"question": "Which provider?", "blocking": true})));
+    let posted = c.messages(None).unwrap().len();
+    work::dismiss(&c, aside).unwrap();
+    assert_eq!(c.messages(None).unwrap().len(), posted, "dismissing says nothing in chat");
+    assert!(c.inbox().unwrap().iter().chain(&c.with_leads().unwrap()).all(|q| q.id != aside));
+    assert!(work::dismiss(&c, aside).is_err(), "only once");
+    assert!(work::dismiss(&c, stuck).is_err(), "a blocking question needs an answer");
+
     let _ = std::fs::remove_dir_all(&root);
 }

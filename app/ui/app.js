@@ -535,7 +535,10 @@ function stopped(t) {
   return `<article class="ask stopped" id="in-${esc(t.key)}">${face(t.name, "blocked")}<div>
     <span class="kind">Stopped · ${esc(t.key)}</span><h4>${esc(t.title)}</h4>
     <p>${esc(first(t.name))}'s run ${t.why && !/^stopped before/.test(t.why) ? `failed: ${esc(t.why)}` : "stopped before it finished."}</p>
-    <div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button></div></div></article>`;
+    ${S.confirm === "ticket:" + t.key
+      ? `<div class="confirm"><p>Delete ${esc(t.key)}? Its log and unfinished branch go with it.</p>
+          <div class="acts"><button class="btn danger" data-remove="${esc(t.key)}">Delete</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
+      : `<div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button><button class="btn ghost" data-confirm="ticket:${esc(t.key)}">Delete…</button></div>`}</div></article>`;
 }
 function question(q, withLead) {
   const opts = q.options.map(o => `<button class="btn primary" data-answer="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join("");
@@ -546,7 +549,7 @@ function question(q, withLead) {
   return `<article class="ask ${q.blocking ? "blocking" : ""} ${withLead ? "lead" : ""}" id="in-q${q.id}">${face(q.name, q.blocking ? "blocked" : "neutral")}<div>
     <span class="kind">${kind} · ${esc(q.key || "")}</span><div class="q-text">${md(q.question).html}</div>${via}
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
-    <div class="acts">${opts}${def}</div>
+    <div class="acts">${opts}${def}${q.blocking || withLead ? "" : `<button class="btn ghost" data-dismiss-q="${q.id}">Dismiss</button>`}</div>
     ${more(`ans-${q.id}`, "Write your own answer", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Your answer"><button class="btn">Send</button></form>`)}</div></article>`;
 }
 // Free text stays folded until asked for, so each card leads with its one-click answers.
@@ -1560,10 +1563,11 @@ document.addEventListener("click", async e => {
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
+  if (d.dismissQ) { el.disabled = true; await call("dismiss_question", { company: S.company, id: Number(d.dismissQ) }, "Dismissed").catch(() => (el.disabled = false)); return; }
   if (d.dismiss) { el.disabled = true; await call("dismiss_plan", { company: S.company, key: d.dismiss }, "Plan dismissed").catch(() => (el.disabled = false)); return; }
   if (d.replan) {
     const brief = $("#brief-text").value.trim();
@@ -1660,7 +1664,7 @@ document.addEventListener("click", async e => {
   }
   if (d.reveal) return window.__TAURI__.opener.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
   if (d.health) { S.health = null; renderSheet(); S.ready = await invoke("readiness").catch(() => S.ready); S.health = await invoke("health").catch(() => []); return renderSheet(); }
-  if ("confirm" in d) { S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); renderSheet(); return $("#del-name")?.focus(); }
+  if ("confirm" in d) { S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); else if (S.view === "inbox") render(); renderSheet(); return $("#del-name")?.focus(); }
   if (d.remove) {
     el.disabled = true;
     try { await invoke("remove_ticket", { company: S.company, key: d.remove }); }
