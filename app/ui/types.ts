@@ -73,8 +73,10 @@ export interface TicketDetail {
 
 export interface Voice { key: string; label: string; sample: string }
 
+export interface RoleInfo { key: string; label: string; playbook: string }
+
 export interface Person {
-  id: string; name: string; role: string; runtime: string; model: string | null; bio: string; playbook: string; department: number | null;
+  id: string; name: string; role: string; runtime: string; model: string | null; bio: string; kind: string; picked: boolean; playbook: string | null; lead: boolean; department: number | null;
   voice: string; voices: Voice[];
   current: { key: string; title: string; status: Status } | null;
   activity: LogLine[];
@@ -158,7 +160,8 @@ export interface Results {
   new_repo_info: NewRepoInfo;
   new_ticket: string;
   person: Person;
-  role_playbook: string;
+  roles: RoleInfo[];
+  role_for: string;
   plan_project: string;
   readiness: Check[];
   remove_repo: SettingsRepo[];
@@ -188,7 +191,7 @@ export interface PageEdit { id: number; by: string; note: string; at: string; te
 /* The UI's own state */
 
 export interface PersonForm {
-  name: string; role: string; runtime: string; model: string | null; bio: string; playbook?: string; voice?: string | null; face?: string;
+  name: string; role: string; runtime: string; model: string | null; bio: string; kind?: string | null; kindPicked?: boolean; rewrite?: string | null; rewriting?: boolean; voice?: string | null; face?: string;
   photoUrl?: string | null; photoPath?: string | null; removePhoto?: boolean; hasPhoto?: boolean;
 }
 
@@ -198,7 +201,7 @@ export interface Drawer {
   key?: string; id?: string; dept?: number; who?: string | null; edit?: boolean; form?: PersonForm | null;
 }
 
-export interface SetupPerson { name: string; role: string; dept: string; runtime: string; voice?: string; tier?: string; model?: string }
+export interface SetupPerson { name: string; role: string; dept: string; runtime: string; voice?: string; tier?: string; model?: string; pb?: string }
 export interface Setup {
   step: number; mode: string; path: string; checked?: string | null; repo: RepoCheck | null; name: string; mission: string; brief?: string;
   runtime: string; info: SetupInfo; repoInfo: NewRepoInfo; folder: string; parent: string; owner: string; private: boolean;
@@ -222,7 +225,7 @@ export interface State {
   project: string | null; rail: boolean; needs: Record<string, number>; pop: false | "menu" | "forget";
   settings: Settings | null; health: Check[] | null; ready?: Check[] | null; spend?: SpendReport;
   confirm: string | null; sheet: string | null; shown: string; customBudget?: boolean; spendAll?: number;
-  voices?: Voice[] | null; models?: Models | null; runtimes?: string[] | null;
+  voices?: Voice[] | null; roles?: RoleInfo[] | null; models?: Models | null; runtimes?: string[] | null;
   switching?: boolean; members?: string | null; msgDel?: number | null;
   mention?: { opts: (Employee | { all: true })[]; i: number } | null;
 }

@@ -77,12 +77,6 @@ fn snapshot(company: String) -> Res<Value> {
 }
 
 /// Creates a ticket. `later` saves it to the backlog, otherwise it starts now (or waits for `after`).
-/// The default playbook for a role title, so the form can show it as you type the role.
-#[tauri::command]
-fn role_playbook(role: String) -> String {
-    onecorp::roles::for_title(&role).playbook.to_string()
-}
-
 // Tauri maps each named field from the app to an argument, so the list is the form.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
@@ -723,7 +717,7 @@ fn move_to_department(company: String, employee: String, department: i64) -> Res
 /// Hires from the app's candidate cards. Returns the new employee's id.
 #[tauri::command(async)]
 #[allow(clippy::too_many_arguments)]
-fn hire(company: String, name: String, role: String, bio: String, runtime: String, model: Option<String>, department: Option<i64>, voice: Option<String>) -> Res<String> {
+fn hire(company: String, name: String, role: String, bio: String, runtime: String, model: Option<String>, department: Option<i64>, voice: Option<String>, kind: Option<String>) -> Res<String> {
     let c = open(&company)?;
     let id = store::slug(&name);
     if id.is_empty() {
@@ -733,8 +727,8 @@ fn hire(company: String, name: String, role: String, bio: String, runtime: Strin
         return Err(format!("{runtime} isn't supported yet."));
     }
     let model = model.filter(|m| !m.trim().is_empty());
-    let bio = onecorp::roles::to_store(&role, &bio);
-    c.hire(&store::Employee { id: id.clone(), name, role, runtime, model, bio, department }).map_err(err)?;
+    onecorp::roles::set(&c, &id, &role, kind.as_deref(), None).map_err(err)?;
+    c.hire(&store::Employee { id: id.clone(), name, role, runtime, model, bio: bio.trim().into(), department }).map_err(err)?;
     if let Some(v) = voice.filter(|v| !v.is_empty()) {
         onecorp::voice::set(&c, &id, &v).map_err(err)?;
     }
@@ -744,17 +738,29 @@ fn hire(company: String, name: String, role: String, bio: String, runtime: Strin
 // Tauri maps each named field from the app to an argument, so the list is the form.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
-fn update_employee(company: String, id: String, name: String, role: String, runtime: String, model: Option<String>, bio: String, voice: Option<String>) -> Res<()> {
+fn update_employee(company: String, id: String, name: String, role: String, runtime: String, model: Option<String>, bio: String, voice: Option<String>, kind: Option<String>, playbook: Option<String>) -> Res<()> {
     let c = open(&company)?;
     let e = c.employee(&id).map_err(err)?.ok_or_else(|| format!("Nobody called {id} works here."))?;
     if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
         return Err(format!("{runtime} isn't supported yet."));
     }
-    let bio = onecorp::roles::to_store(&role, &bio);
     if let Some(v) = voice.filter(|v| !v.is_empty()) {
         onecorp::voice::set(&c, &id, &v).map_err(err)?;
     }
-    c.update_employee(&store::Employee { name, role, runtime, model: model.filter(|m| !m.trim().is_empty()), bio, ..e }).map_err(err)
+    onecorp::roles::set(&c, &id, &role, kind.as_deref(), playbook.as_deref()).map_err(err)?;
+    c.update_employee(&store::Employee { name, role, runtime, model: model.filter(|m| !m.trim().is_empty()), bio: bio.trim().into(), ..e }).map_err(err)
+}
+
+/// Every playbook, for the picker in a profile.
+#[tauri::command]
+fn roles() -> Value {
+    serde_json::json!(onecorp::roles::ROLES.iter().map(|r| serde_json::json!({"key": r.key, "label": r.label, "playbook": r.playbook})).collect::<Vec<_>>())
+}
+
+/// The playbook a title means, so the form follows the role as you type it.
+#[tauri::command]
+fn role_for(title: String) -> String {
+    onecorp::roles::for_title(&title).key.to_string()
 }
 
 /// Rewrites the wiki's Codebase section from what's in the repo now.
@@ -888,7 +894,8 @@ fn main() {
             person,
             review,
             retry,
-            role_playbook,
+            roles,
+            role_for,
             stop,
             ticket_detail,
             wiki,

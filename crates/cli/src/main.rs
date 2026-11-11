@@ -930,10 +930,10 @@ fn hire_form(
     };
 
     let role = role.or(preset.map(|p| p.role.to_string())).unwrap_or_else(|| "Engineer".into());
-    // Blank keeps their role's playbook, which follows the role as OneCorp improves it.
+    // Notes add to their role's playbook, which follows the role as OneCorp improves it.
     let bio = match bio {
-        Some(b) => onecorp::roles::to_store(&role, &b),
-        None if interactive => onecorp::roles::to_store(&role, &ask(&format!("How do they work? (blank for the {role} playbook)"), "")?),
+        Some(b) => b.trim().to_string(),
+        None if interactive => ask(&format!("Notes on how they work, added to the {} playbook (blank for none)", onecorp::roles::for_title(&role).label), "")?,
         None => String::new(),
     };
     if !RUNTIMES.contains(&runtime.as_str()) {

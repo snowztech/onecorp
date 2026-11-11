@@ -59,13 +59,13 @@ pub fn set(c: &Company, id: &str, voice: &str) -> Result<()> {
     c.set_setting(&format!("voice.{id}"), voice)
 }
 
-/// The bio plus how they write, for the top of every prompt.
+/// How they write, then how they work, for the top of every prompt.
 pub fn intro(c: &Company, e: &Employee) -> Result<String> {
     let k = of(c, e)?;
     let how = VOICES.iter().find(|v| v.0 == k).map(|v| v.2).unwrap_or_default();
     Ok(format!(
-        "{how} Let it show in the tone of your chat, comments and summaries, within the company's writing rules, never in the care you put into the work.\n\nHow you work:\n{}",
-        crate::roles::playbook(e)
+        "{how} Let it show in the tone of your chat, comments and summaries, within the company's writing rules, never in the care you put into the work.\n\n{}",
+        crate::roles::brief(c, e)?
     ))
 }
 

@@ -235,7 +235,7 @@ pub fn hire(c: &Company, people: &[Person]) -> Result<Vec<Employee>> {
             role: if p.role.trim().is_empty() { "Engineer".into() } else { p.role.trim().into() },
             runtime: p.runtime.clone(),
             model: p.model.clone().filter(|m| !m.trim().is_empty()),
-            bio: crate::roles::to_store(&p.role, &p.bio),
+            bio: p.bio.trim().into(),
             department,
         };
         c.hire(&e)?;

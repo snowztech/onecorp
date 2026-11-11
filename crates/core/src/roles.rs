@@ -1,11 +1,14 @@
-//! What each role does and how they work: the playbook every ticket, chat reply and lead decision
-//! starts from. The role's title picks the default. Your own wording for someone replaces it, and
-//! only that is stored, so better defaults in a new version reach everyone you haven't customized.
+//! How each person works, in three layers. Their role's playbook, picked from their title unless
+//! you pick another. What leading asks of them, when they lead a department. And your notes for
+//! them on top. Only your choices are stored, so better playbooks in a new version reach everyone.
 
-use crate::store::Employee;
+use crate::store::{Company, Employee};
+use anyhow::Result;
 
 pub struct Role {
     pub key: &'static str,
+    /// What the picker calls it.
+    pub label: &'static str,
     /// Words in a title that mean this role, checked in the order of ROLES.
     matches: &'static [&'static str],
     pub playbook: &'static str,
@@ -14,17 +17,18 @@ pub struct Role {
 pub const ROLES: &[Role] = &[
     Role {
         key: "reviewer",
+        label: "Tech lead",
         matches: &["cto", "maintainer", "reviewer", "tech lead", "lead engineer", "head of engineering", "engineering lead", "engineering manager", "vp of engineering", "vp engineering", "architect", "staff engineer", "principal"],
         playbook: "\
 - You own the quality and direction of the code. Read a diff for what it breaks, not only what it adds.
 - Block on missing tests for changed behavior, security or data loss risks, breaking API changes, and dependencies that don't earn their place.
 - Prefer the simple design that's easy to change later over the clever one.
 - When you take a ticket yourself, hold your own work to the same bar.
-- When a teammate asks you something, decide what the code, the wiki or sound judgment settles. Pass up product direction, money, security and anything public.
-- When you split work for your team, give each ticket one owner, a clear done, and an order when one depends on another.",
+- Say what you'd change and why in a sentence each. Approve what's good enough, not only what's perfect.",
     },
     Role {
         key: "designer",
+        label: "Designer",
         matches: &["design", "ux", "ui/ux"],
         playbook: "\
 - Design in code, inside the product's existing styles, components and spacing.
@@ -36,6 +40,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "pm",
+        label: "Product manager",
         matches: &["product manager", "product owner", "product lead", "head of product", "project manager", "cpo", "pm", "program manager"],
         playbook: "\
 - Turn goals into small tickets one person can finish in a sitting, each with a clear done.
@@ -47,6 +52,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "qa",
+        label: "QA",
         matches: &["qa", "quality", "test engineer", "tester", "sdet"],
         playbook: "\
 - Start from what the user does, then the edges: empty, huge, slow, offline, twice in a row.
@@ -57,6 +63,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "devops",
+        label: "DevOps",
         matches: &["devops", "infra", "platform", "sre", "reliability", "cloud", "ops"],
         playbook: "\
 - Change infrastructure through code and config in the repo, never by hand.
@@ -68,6 +75,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "mobile",
+        label: "Mobile engineer",
         matches: &["mobile", "ios", "android", "swift", "kotlin", "flutter", "react native"],
         playbook: "\
 - Follow the platform's conventions and the patterns already in the app.
@@ -79,6 +87,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "backend",
+        label: "Backend engineer",
         matches: &["backend", "back-end", "back end", "api", "server", "data engineer", "database"],
         playbook: "\
 - Read the handlers, models and tests around a change first, and follow how errors, logging and config are already done.
@@ -91,6 +100,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "frontend",
+        label: "Frontend engineer",
         matches: &["frontend", "front-end", "front end", "web", "ui engineer", "ui developer"],
         playbook: "\
 - Reuse the components, styles and tokens already in the repo before making new ones.
@@ -103,6 +113,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "growth",
+        label: "Growth",
         matches: &["growth", "market", "seo", "acquisition"],
         playbook: "\
 - Know who the customer is from the wiki before you write a word.
@@ -114,6 +125,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "writer",
+        label: "Writer",
         matches: &["writ", "docs", "documentation", "content", "copy", "editor"],
         playbook: "\
 - Write for a reader in a hurry: the point first, short sentences, plain words.
@@ -125,6 +137,7 @@ pub const ROLES: &[Role] = &[
     },
     Role {
         key: "engineer",
+        label: "Engineer",
         matches: &[],
         playbook: "\
 - Read the code around a change before you touch it, and follow the patterns already there.
@@ -144,7 +157,7 @@ pub fn for_title(title: &str) -> &'static Role {
     ROLES.iter().find(|r| r.matches.iter().any(|m| has(m))).unwrap_or(&ROLES[ROLES.len() - 1])
 }
 
-/// What earlier versions wrote into everyone's bio. Those were never yours, so they mean the default.
+/// What earlier versions wrote into everyone's bio. Those were never yours, so they're no notes.
 const OLD_DEFAULTS: &[&str] = &[
     "Reads the code around a change before touching it. Makes the smallest diff that does the job and says what to check.",
     "Reads diffs carefully. Flags risks, missing tests and new dependencies that don't earn their place.",
@@ -153,22 +166,76 @@ const OLD_DEFAULTS: &[&str] = &[
     "Writes docs, changelogs and posts. Short sentences, plain words, no hype.",
 ];
 
-/// Your own wording for how someone works, if you wrote one.
-pub fn custom(e: &Employee) -> Option<&str> {
+pub fn by_key(key: &str) -> Option<&'static Role> {
+    ROLES.iter().find(|r| r.key == key)
+}
+
+/// Their playbook's role: the one you picked, or the one their title means.
+pub fn role_of(c: &Company, e: &Employee) -> Result<&'static Role> {
+    Ok(c.setting(&format!("kind.{}", e.id))?.and_then(|k| by_key(&k)).unwrap_or_else(|| for_title(&e.role)))
+}
+
+/// Your notes for someone, added to their playbook. The `bio` column has always held them.
+pub fn notes(e: &Employee) -> Option<&str> {
     let bio = e.bio.trim();
     (!bio.is_empty() && !OLD_DEFAULTS.contains(&bio)).then_some(bio)
 }
 
-/// How someone works: your wording for them, or their role's default.
-pub fn playbook(e: &Employee) -> &str {
-    custom(e).unwrap_or(for_title(&e.role).playbook)
+/// Your own playbook for someone, when you rewrote theirs instead of adding notes.
+pub fn rewrite(c: &Company, e: &Employee) -> Result<Option<String>> {
+    Ok(c.setting(&format!("playbook.{}", e.id))?.filter(|p| !p.trim().is_empty()))
 }
 
-/// What to store for how someone works: nothing when it's their role's default, so they keep
-/// getting the default as it improves.
-pub fn to_store(role: &str, text: &str) -> String {
-    let text = text.trim();
-    if text == for_title(role).playbook.trim() || OLD_DEFAULTS.contains(&text) { String::new() } else { text.to_string() }
+/// The playbook they follow: your rewrite, or their role's.
+pub fn playbook(c: &Company, e: &Employee) -> Result<String> {
+    Ok(rewrite(c, e)?.unwrap_or_else(|| role_of(c, e).map(|r| r.playbook).unwrap_or_default().to_string()))
+}
+
+/// Saves which playbook someone follows and how. A role that matches their title isn't stored,
+/// so it follows the title. A rewrite equal to the role's playbook isn't either, so it follows
+/// the defaults as they improve.
+pub fn set(c: &Company, id: &str, title: &str, kind: Option<&str>, rewrite: Option<&str>) -> Result<()> {
+    let role = match kind.and_then(by_key) {
+        Some(r) if r.key != for_title(title).key => {
+            c.set_setting(&format!("kind.{id}"), r.key)?;
+            r
+        }
+        _ => {
+            c.delete_setting(&format!("kind.{id}"))?;
+            for_title(title)
+        }
+    };
+    match rewrite.map(str::trim).filter(|t| !t.is_empty() && *t != role.playbook.trim()) {
+        Some(text) => c.set_setting(&format!("playbook.{id}"), text),
+        None => c.delete_setting(&format!("playbook.{id}")),
+    }
+}
+
+/// What leading means, for anyone who leads a department, whatever their title.
+pub fn lead_part(c: &Company, e: &Employee) -> Result<Option<String>> {
+    let led: Vec<String> = c.departments()?.into_iter().filter(|d| d.lead.as_deref() == Some(e.id.as_str())).map(|d| d.name).collect();
+    if led.is_empty() {
+        return Ok(None);
+    }
+    let team: Vec<String> = c.employees()?.into_iter().filter(|o| o.id != e.id && c.lead_of(&o.id).ok().flatten().is_some_and(|l| l.id == e.id)).map(|o| o.name).collect();
+    Ok(Some(format!(
+        "You lead {}{}.\n         - Questions from your team come to you first. Decide what the code, the wiki or sound judgment settles. Pass up product direction, money, security and anything public.\n         - When you split work, give each ticket one owner on your team, a clear done, and an order when one depends on another.\n         - Keep an eye on your team: who's stuck, what waits for review, what nobody owns.",
+        led.join(" and "),
+        if team.is_empty() { String::new() } else { format!(": {}", team.join(", ")) }
+    )))
+}
+
+/// Everything about how someone works, for the top of their prompts: playbook, then what leading
+/// asks of them, then your notes, which come last so they win.
+pub fn brief(c: &Company, e: &Employee) -> Result<String> {
+    let mut out = format!("How you work:\n{}", playbook(c, e)?);
+    if let Some(lead) = lead_part(c, e)? {
+        out.push_str(&format!("\n\n{lead}"));
+    }
+    if let Some(n) = notes(e) {
+        out.push_str(&format!("\n\nThe founder's notes for you, which come first:\n{n}"));
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -196,11 +263,11 @@ mod tests {
     }
 
     #[test]
-    fn an_old_default_bio_is_not_yours() {
+    fn an_old_default_bio_is_no_notes() {
         let mut e = Employee { id: "t".into(), name: "T".into(), role: "Backend engineer".into(), runtime: "claude".into(), model: None, bio: OLD_DEFAULTS[0].into(), department: None };
-        assert_eq!(custom(&e), None);
-        assert!(playbook(&e).contains("migration"));
+        assert_eq!(notes(&e), None);
         e.bio = "Writes Go like Rob Pike.".into();
-        assert_eq!(playbook(&e), "Writes Go like Rob Pike.");
+        assert_eq!(notes(&e), Some("Writes Go like Rob Pike."));
     }
+
 }

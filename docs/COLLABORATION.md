@@ -85,7 +85,7 @@ Leads are told to pass up anything about product direction, money, anything publ
 Built fresh for each run (`work::company_knowledge`):
 
 - The wiki, cut at 12,000 characters.
-- Their playbook: what their role owns and how they work. Each role title has a default, like Backend engineer or CTO, and you can rewrite it for one person in their profile (`roles.rs`).
+- How they work, in three layers (`roles.rs`). Their role's playbook, picked from their title unless you pick another one, or your rewrite of it. What leading asks of them, if they lead a department, whatever their title. Then your notes for them, which come last so they win.
 - How OneCorp works: tickets live in OneCorp, OneCorp does git, how to ask, how to write.
 - Who works here: each person's team, whether they lead it, and what they're on right now.
 - Their own notes, and recent chat.

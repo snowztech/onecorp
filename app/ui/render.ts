@@ -96,6 +96,7 @@ export function typing() {
 
 export async function refresh(force: boolean) {
   if (!S.voices) S.voices = await invoke("voices").catch(() => null);
+  if (!S.roles) S.roles = await invoke("roles").catch(() => null);
   if (!S.models) S.models = await invoke("models").catch(() => null);
   // Ignore a workspace tick already queued when onboarding stopped the timer.
   if (!force && (S.profile || S.setup)) return;
