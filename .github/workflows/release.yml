@@ -66,9 +66,11 @@ jobs:
           export APPLE_API_KEY_PATH="$RUNNER_TEMP/notary.p8"
           cargo install tauri-cli --version "^2" --locked
           # Updater artifacts only here: a local build has no signing key.
-          cd app && cargo tauri build --target universal-apple-darwin --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":true}}'
-          # Tauri notarizes the app inside. The DMG gets its own ticket, so it opens offline too.
-          dmg=$(ls ../target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          cd app && cargo tauri build --target universal-apple-darwin --bundles app --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          # Tauri notarizes the app. The disk image is ours, laid out for drag to Applications, and
+          # gets its own ticket so it opens offline too.
+          dmg="$RUNNER_TEMP/OneCorp.dmg"
+          ../scripts/dmg.sh ../target/universal-apple-darwin/release/bundle/macos/OneCorp.app "$dmg"
           xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait
           xcrun stapler staple "$dmg"
           mkdir -p "$RUNNER_TEMP/out" && cp "$dmg" "$RUNNER_TEMP/out/OneCorp.dmg"
