@@ -140,10 +140,10 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let before: Vec<Message> = c.messages(Some(&slot.channel))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
     let asked = before.iter().rev().find(|m| m.author == "founder").map(|m| m.text.clone()).unwrap_or_default();
-    let history: Vec<String> = before.iter().rev().take(20).rev().map(|m| line(c, m, &e.id)).collect();
+    let history: Vec<String> = before.iter().rev().take(20).rev().map(|m| line(c, m)).collect();
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
-         {founder} {place}. The conversation so far:\n\n{history}\n\n\
+         {founder} {place}. The conversation so far, with long messages shortened here (everyone saw them in full):\n\n{history}\n\n\
          They wrote: {asked}\n\n\
          Reply like a colleague would in chat, in your own manner: plain words, no headings, and short. \
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
@@ -238,7 +238,7 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
         .rev()
         .take(RECENT)
         .rev()
-        .map(|m| format!("{} {}", if dm_of(&m.channel).is_some() { "(direct message)".to_string() } else { format!("#{}", m.channel) }, line(c, m, &e.id)))
+        .map(|m| format!("{} {}", if dm_of(&m.channel).is_some() { "(direct message)".to_string() } else { format!("#{}", m.channel) }, line(c, m)))
         .collect();
     Ok(format!(
         "\n\nRecent team chat, newest last. Your posts go to #{home} unless you name another channel:\n{}",
@@ -246,14 +246,18 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
     ))
 }
 
-/// "Name: text", with long messages cut so one rant can't fill the prompt. The reader's own
-/// messages stay whole, or they think their earlier reply got cut off and send it again.
-fn line(c: &Company, m: &Message, reader: &str) -> String {
+/// "Name: text", with long messages cut so one rant can't fill the prompt. The cut is marked,
+/// or an employee reading its own reply thinks it failed to send and says it again.
+fn line(c: &Company, m: &Message) -> String {
     let who = if m.author == "founder" {
         format!("{} (founder)", crate::founder::name())
     } else {
         c.employee(&m.author).ok().flatten().map(|e| e.name).unwrap_or_else(|| m.author.clone())
     };
-    let text: String = if m.author == reader { m.text.clone() } else { m.text.chars().take(400).collect() };
+    const MAX: usize = 400;
+    let mut text: String = m.text.chars().take(MAX).collect();
+    if m.text.chars().count() > MAX {
+        text.push('…');
+    }
     format!("{who}: {}", text.replace('\n', " "))
 }
