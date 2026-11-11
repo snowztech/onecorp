@@ -553,7 +553,7 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 }
 
 /// What every employee should know before starting: the wiki, and who does what.
-pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
+pub fn company_knowledge(c: &Company) -> Result<String> {
     // Keeps a runaway wiki from eating the whole context window.
     const MAX: usize = 12_000;
     let mut doc = c.wiki()?.trim().to_string();
@@ -562,7 +562,7 @@ pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
         doc.truncate(cut);
         doc.push_str("\n\n(The wiki goes on. Ask the founder if you need more.)");
     }
-    let team: Vec<String> = c.employees()?.iter().map(|e| format!("- {}, {} (works on {})", e.name, e.role, e.runtime)).collect();
+    let team = who_does_what(c)?;
     let mut out = String::new();
     if let Some(f) = crate::founder::load() {
         out.push_str(&format!("You work for {}, the founder of {}. Questions with ask_human go to them.\n\n", f.name, c.name));
@@ -577,6 +577,37 @@ pub(crate) fn company_knowledge(c: &Company) -> Result<String> {
         out.push_str(&format!("\n\nThis company works in {} repos. Each ticket happens in one of them:\n{}", repos.len(), list.join("\n")));
     }
     Ok(out)
+}
+
+/// One line per person: their team, whether they lead it, and what they're on right now, so
+/// anyone can tell who's free, who's stuck and who to ask.
+fn who_does_what(c: &Company) -> Result<Vec<String>> {
+    let (tickets, depts) = (c.tickets()?, c.departments()?);
+    Ok(c.employees()?
+        .iter()
+        .map(|e| {
+            let team = match depts.iter().find(|d| Some(d.id) == e.department) {
+                Some(d) if d.lead.as_deref() == Some(e.id.as_str()) => format!(", leads {}", d.name),
+                Some(d) => format!(", in {}", d.name),
+                None => String::new(),
+            };
+            // Working beats blocked beats waiting in line beats waiting for review, like their desk shows.
+            let now = ["doing", "blocked", "queued", "review"]
+                .iter()
+                .find_map(|s| tickets.iter().find(|t| t.assignee.as_deref() == Some(e.id.as_str()) && t.status == *s))
+                .map(|t| {
+                    let what = match t.status.as_str() {
+                        "doing" => "working on",
+                        "blocked" => "blocked on",
+                        "queued" => "about to start",
+                        _ => "waiting for the founder's review on",
+                    };
+                    format!("{what} {} {}", c.key(t.id), t.title)
+                })
+                .unwrap_or_else(|| "free".into());
+            format!("- {}, {}{team} (works on {}). Now: {now}", e.name, e.role, e.runtime)
+        })
+        .collect())
 }
 
 /// The model for talk, per the company's choice (setting "talk"): "balanced" by default,

@@ -56,19 +56,22 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         return Ok(());
     }
 
+    // Markers come from this run's own ticket, so another ticket's title in the prompt (the team
+    // list says who's on what) can't steer it.
+    let own = company_ticket(o).and_then(|(c, t)| c.ticket(t).ok().flatten()).map(|t| t.title).unwrap_or_else(|| prompt.to_string());
     let first_try = o.cwd.join(".fake-tried");
-    if prompt.contains("[fail once]") && !first_try.exists() {
+    if own.contains("[fail once]") && !first_try.exists() {
         fs::write(&first_try, "")?;
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: "Failed on purpose, this once.".into() })?;
         return Ok(());
     }
     // Like a plan that ran out: Claude's own wording, with a reset an hour from now.
-    if prompt.contains("[limit]") {
+    if own.contains("[limit]") {
         let reset = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() + 3600).unwrap_or(0);
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: format!("Claude AI usage limit reached|{reset}") })?;
         return Ok(());
     }
-    if prompt.contains("[fail]") {
+    if own.contains("[fail]") {
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: "Failed on purpose.".into() })?;
         return Ok(());
     }
