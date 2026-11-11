@@ -28,7 +28,7 @@ document.addEventListener("click", async e => {
   if (S.switching && !target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.updateRestart) return restartToUpdate();
@@ -352,6 +352,15 @@ document.addEventListener("click", async e => {
     S.history = await invoke("page_history", { company: S.company, path: d.wkHistory }).catch(e => (toast(String(e), true), null));
     S.historyOf = d.wkHistory; S.version = S.history?.[0]?.id ?? null; return render();
   }
+  if (d.wkTab) {
+    // Switching tabs keeps what you typed: it only swaps what shows, no re-render.
+    const f = $("#hb-raw"), preview = d.wkTab === "preview";
+    f.classList.toggle("previewing", preview);
+    f.querySelectorAll<HTMLElement>("[data-wk-tab]").forEach(b => b.classList.toggle("on", b.dataset.wkTab === d.wkTab));
+    if (preview) $("#hb-preview").innerHTML = md($("#hb-text").value).html || `<p class="muted">Nothing written yet.</p>`;
+    else $("#hb-text").focus();
+    return;
+  }
   if (d.wkVersion) { S.version = Number(d.wkVersion); return render(); }
   if (d.wkRestore) {
     const path = await call("restore_page", { company: S.company, id: Number(d.wkRestore) }, "Restored. Everyone reads it from their next ticket").catch(() => null);
@@ -539,7 +548,7 @@ document.addEventListener("input", e => {
   }
   if (target.id === "say-text") updateMentions(target);
   if (target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (target.value.trim() || "?")[0].toUpperCase(); }
-  if (target.id === "hb-text") $("#hb-preview").innerHTML = md(target.value).html;
+  if (target.id === "wk-space") target.style.width = `${Math.max(target.value.length, 5) + 2}ch`;
   if (target.id === "pf-n" && S.drawer?.type === "hire") {
     clearTimeout(faceLater.t);
     faceLater.t = setTimeout(() => { const pic = $(".hire-face"); if (pic) { pic.innerHTML = face(target.value || "New hire", "neutral"); pic.classList.remove("swap"); void pic.offsetWidth; pic.classList.add("swap"); } }, 400);

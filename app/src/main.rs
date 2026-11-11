@@ -980,6 +980,8 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
         help.append(&MenuItem::with_id(app, "github", "OneCorp on GitHub", true, None::<&str>)?)?;
     }
     app.set_menu(menu)?;
+    #[cfg(target_os = "macos")]
+    menu_symbols();
     app.on_menu_event(|app, event| {
         // These act in the window, so it comes forward first in case it was closed.
         if let id @ ("check-updates" | "settings") = event.id.as_ref() {
@@ -998,6 +1000,26 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
         let _ = std::process::Command::new("open").arg(url).status();
     });
     Ok(())
+}
+
+/// macOS 26 draws an icon next to its own menu items (About, Hide, Quit) but not next to ones
+/// apps add. Check for Updates and Settings get the symbols Apple uses for them, so the menu
+/// lines up. Older macOS shows no menu icons, so neither do these.
+#[cfg(target_os = "macos")]
+fn menu_symbols() {
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::{MainThreadMarker, NSProcessInfo, NSString};
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    if NSProcessInfo::processInfo().operatingSystemVersion().majorVersion < 26 {
+        return;
+    }
+    let Some(menu) = NSApplication::sharedApplication(mtm).mainMenu().and_then(|m| m.itemAtIndex(0)).and_then(|i| i.submenu()) else { return };
+    for (title, symbol) in [("Check for Updates…", "arrow.triangle.2.circlepath"), ("Settings…", "gearshape")] {
+        if let Some(item) = menu.itemWithTitle(&NSString::from_str(title)) {
+            let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(&NSString::from_str(symbol), None);
+            item.setImage(image.as_deref());
+        }
+    }
 }
 
 /// A new GitHub issue with the questions to answer and the version already in it.

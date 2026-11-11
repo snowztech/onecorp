@@ -89,12 +89,17 @@ function editor(p: WikiPage | null) {
   const del = p && S.wiki!.pages.some(x => x.path === p.path) ? (S.confirm === "page:" + p.path
     ? `<span class="confirm-inline">Delete ${esc(p.title)}? Its history stays. <button class="btn danger" type="button" data-wk-delete="${esc(p.path)}">Delete</button><button class="btn ghost" type="button" data-confirm="">Keep</button></span>`
     : `<button class="link-btn danger-link" type="button" data-confirm="page:${esc(p.path)}">Delete page…</button>`) : "";
-  return `<form class="wiki-edit" id="hb-raw" data-from="${esc(p && S.wiki!.pages.some(x => x.path === p.path) ? p.path : "")}">
-    <header><div class="wk-name"><input id="wk-space" list="wk-spaces" value="${esc(space)}" aria-label="Space" placeholder="Space"><span>/</span><input id="wk-title" value="${esc(title)}" aria-label="Title" placeholder="Page title"></div>
-      <datalist id="wk-spaces">${spaces.map(s => `<option value="${esc(s)}">`).join("")}</datalist>
-      <div class="acts">${del}<button class="btn ghost" type="button" data-hb-edit="0">Cancel</button><button class="btn primary">Save</button></div></header>
-    <span class="muted fine">Markdown. ## starts a section. Everyone reads it from their next ticket.</span>
-    <div class="wiki-split"><textarea id="hb-text" spellcheck="false" placeholder="${esc(HINTS[p?.path || ""] || "Write it the way you'd brief a new teammate.")}">${esc(text)}</textarea><article class="doc wiki" id="hb-preview">${md(text).html}</article></div></form>`;
+  return `<form class="wiki-edit wk-edit" id="hb-raw" data-from="${esc(p && S.wiki!.pages.some(x => x.path === p.path) ? p.path : "")}">
+    <div class="wk-edit-top">
+      <div class="wk-crumbs"><input id="wk-space" list="wk-spaces" value="${esc(space)}" aria-label="Space" placeholder="Space" style="width:${Math.max(space.length, 5) + 2}ch"> <span>›</span></div>
+      <div class="acts"><button class="btn ghost" type="button" data-hb-edit="0">Cancel</button><button class="btn primary">Save</button></div>
+    </div>
+    <datalist id="wk-spaces">${spaces.map(s => `<option value="${esc(s)}">`).join("")}</datalist>
+    <input id="wk-title" value="${esc(title)}" aria-label="Title" placeholder="Page title" autocomplete="off">
+    <div class="wk-tabs" role="tablist"><button type="button" class="on" data-wk-tab="write">Write</button><button type="button" data-wk-tab="preview">Preview</button><span class="fine">Markdown. ## starts a section.</span></div>
+    <textarea id="hb-text" spellcheck="true" placeholder="${esc(HINTS[p?.path || ""] || "Write it the way you'd brief a new teammate.")}">${esc(text)}</textarea>
+    <article class="doc wiki" id="hb-preview"></article>
+    <footer class="wk-edit-foot"><span class="fine">Everyone reads it from their next ticket.</span>${del}</footer></form>`;
 }
 
 // Who drafts: your team splits it, or one person you pick.

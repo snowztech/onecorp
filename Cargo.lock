@@ -2666,6 +2666,8 @@ name = "onecorp-app"
 version = "0.1.8"
 dependencies = [
  "anyhow",
+ "objc2-app-kit",
+ "objc2-foundation",
  "onecorp",
  "serde_json",
  "tauri",
