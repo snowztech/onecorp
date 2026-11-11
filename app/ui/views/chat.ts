@@ -33,7 +33,7 @@ export function viewChat() {
     return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}${proposal(m.proposed)}${issueDraft(m.issue)}</div>${del}</li>`;
   }).join("");
   const empty = help
-    ? `<li class="chat-empty"><b>Ask OneCorp</b>Ask how something works, whether OneCorp can do it, or if what you saw is a bug. It reads OneCorp's docs and your company as it is now, and drafts a GitHub issue when there's something to report. It runs on your team's agent, only when you ask.</li>`
+    ? `<li class="chat-empty"><b>Ask OneCorp</b>How something works, what's possible, or whether it's a bug. It only runs when you ask.</li>`
     : person
     ? `<li class="chat-empty"><b>Message ${esc(first(person.name))}</b>Just between you two. ${esc(first(person.name))} replies to every message and reads this before their next ticket.</li>`
     : `<li class="chat-empty"><b>Nothing in #${esc(ch.name)} yet</b>Your team posts here as they work. Mention someone with @ to ask them something.</li>`;
@@ -42,11 +42,11 @@ export function viewChat() {
     <nav class="chans" aria-label="Channels"><h6>Channels</h6>${list}${dmList ? `<h6 class="dm-h">Direct messages</h6>${dmList}` : ""}
       <h6 class="dm-h">Help</h6><button class="chan dm" data-channel="help" aria-current="${help}"><span class="av help-av">${logo()}</span>Ask OneCorp</button></nav>
     <section class="room-chat">
-      <header class="chat-h">${help ? `<span class="av help-av big">${logo()}</span><div><h3>Ask OneCorp</h3><span class="muted">How OneCorp works, what it can do, and bugs worth reporting</span></div>` : `${person ? `<span class="with-agent dm-face">${face(person.name, person.status)}${agentBadge(person.runtime)}</span>` : ""}<div><h3>${person ? esc(person.name) : "#" + esc(ch.name)}</h3><span class="muted">${sub}</span></div>
+      <header class="chat-h">${help ? `<span class="av help-av big">${logo()}</span><div><h3>Ask OneCorp</h3><span class="muted">Help with OneCorp</span></div>` : `${person ? `<span class="with-agent dm-face">${face(person.name, person.status)}${agentBadge(person.runtime)}</span>` : ""}<div><h3>${person ? esc(person.name) : "#" + esc(ch.name)}</h3><span class="muted">${sub}</span></div>
         ${person ? `<button class="btn ghost" data-person="${esc(person.id)}">Profile</button>` : members(ch.name, people, lead)}`}</header>
       <ul class="msgs" id="msgs">${msgs === null ? `<li class="chat-empty muted">Loading…</li>` : rows || empty}</ul>
       <form class="composer" id="say"><div class="compose-box"><div class="mpop" id="mpop" role="listbox" hidden></div>
-        <input id="say-text" placeholder="${help ? "Ask how something works, or describe what went wrong" : person ? `Message ${esc(first(person.name))}` : `Message #${esc(ch.name)}. Type @ to ask someone, @all for everyone`}" autocomplete="off" role="combobox" aria-controls="mpop">
+        <input id="say-text" placeholder="${help ? "Ask anything about OneCorp" : person ? `Message ${esc(first(person.name))}` : `Message #${esc(ch.name)}. Type @ to ask someone, @all for everyone`}" autocomplete="off" role="combobox" aria-controls="mpop">
         <p class="calls" id="calls"></p></div><button class="btn primary">Send</button></form>
     </section></div>`;
 }
