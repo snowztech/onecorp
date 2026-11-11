@@ -42,7 +42,9 @@
 /* Thin scrollbars that only show the thumb, like the rest of macOS. */
 ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) 16%, transparent); border: 3px solid transparent; border-radius: 99px; background-clip: padding-box; }
+/* Like macOS overlay scrollbars: the thumb shows only while you're over the pane that scrolls. */
+::-webkit-scrollbar-thumb { background: transparent; border: 3px solid transparent; border-radius: 99px; background-clip: padding-box; }
+:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--fg) 16%, transparent); }
 ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--fg) 28%, transparent); }
 /* The window never scrolls as a whole: each pane scrolls on its own. */
 html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
@@ -1331,5 +1333,9 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .sidecol .side-sec { display: flex; flex-direction: column; min-height: 0; }
 .sidecol .needs-sec { flex: none; max-height: 40%; }
 .sidecol .side-sec:last-child { flex: 1; }
-.sidecol .needs, .sidecol .feed { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* No bar at all in these two: the fade at the bottom says there's more. Long text wraps, never scrolls sideways. */
+.sidecol .needs, .sidecol .feed { min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+.sidecol .needs::-webkit-scrollbar, .sidecol .feed::-webkit-scrollbar { display: none; }
+.fl > div, .need > span { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 1100px) { .sidecol { height: auto; } .sidecol .needs-sec { max-height: none; } }
