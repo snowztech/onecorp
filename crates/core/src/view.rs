@@ -239,7 +239,11 @@ pub fn spend_report(c: &Company) -> Result<Value> {
     for n in (0..14).rev() {
         let d = day(n)?;
         let cost: f64 = rows.iter().filter(|r| r.0 == d).map(|r| r.4).sum();
-        days.push(json!({"day": d, "cost": cost}));
+        let mut by = serde_json::Map::new();
+        for r in rows.iter().filter(|r| r.0 == d) {
+            *by.entry(r.7.clone()).or_insert(json!(0.0)) = json!(by.get(&r.7).and_then(Value::as_f64).unwrap_or(0.0) + r.4);
+        }
+        days.push(json!({"day": d, "cost": cost, "kinds": by}));
     }
     let team = c.employees()?;
     let people: Vec<Value> = team
@@ -277,11 +281,24 @@ pub fn spend_report(c: &Company) -> Result<Value> {
             v
         })
         .collect();
+    // Where the money goes by kind of run, in this order, leaving out kinds with nothing spent.
+    let kinds: Vec<Value> = [("ticket", "Tickets"), ("chat", "Chat replies"), ("lead", "Lead decisions"), ("help", "Ask OneCorp")]
+        .iter()
+        .filter(|(k, _)| rows.iter().any(|r| r.7 == *k))
+        .map(|(k, label)| {
+            let mut v = windows(&|r| r.7 == *k);
+            v["kind"] = json!(k);
+            v["label"] = json!(label);
+            v
+        })
+        .collect();
     Ok(json!({
+        "kinds": kinds,
         "totals": windows(&|_| true), "budget": crate::spend::budget(c)?, "days": days,
         "people": people, "projects": projects, "agents": agents,
         "prices": crate::spend::DEFAULT_PRICES.iter().map(|(rt, _)| json!({"runtime": rt, "price": crate::spend::price(c, rt).unwrap_or(0.0)})).collect::<Vec<_>>(),
         "estimated": rows.iter().any(|r| r.6),
+        "limits": crate::spend::limit_hits(c)?,
     }))
 }
 
@@ -349,11 +366,12 @@ pub fn wiki(c: &Company) -> Result<Value> {
                 "path": p.path, "space": p.space(), "title": p.title(), "text": p.text, "edits": mine.len(),
                 "by": last.map(|e| author(c, &e.author)), "at": last.map(|e| e.at.clone()), "note": last.map(|e| e.note.clone()),
                 "first_by": first.map(|e| author(c, &e.author)),
+                "rule": crate::wiki::RULES.contains(&p.path.as_str()),
             })
         })
         .collect();
     let recent: Vec<Value> = log.iter().take(8).map(|e| json!({"page": e.page, "by": author(c, &e.author), "note": e.note, "at": e.at})).collect();
-    Ok(json!({"pages": pages, "recent": recent}))
+    Ok(json!({"pages": pages, "recent": recent, "rules_tokens": crate::wiki::rules_tokens(c)?}))
 }
 
 /// Every saved version of one page, newest first.

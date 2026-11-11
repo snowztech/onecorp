@@ -191,7 +191,7 @@ fn settings(company: String) -> Res<Value> {
     let talk_models: serde_json::Map<String, Value> = ["cheapest", "balanced"]
         .iter()
         .map(|t| {
-            let names: Vec<String> = ["claude", "codex"].iter().filter(|r| runtimes.iter().any(|x| x == *r)).filter_map(|r| onecorp::runtime::talk_model(r, t).map(|(_, n)| n)).collect();
+            let names: Vec<String> = ["claude", "codex"].iter().filter(|r| runtimes.iter().any(|x| x == *r)).filter_map(|r| onecorp::runtime::talk_model(r, t).map(|(_, n)| format!("{n} on {}", if *r == "codex" { "Codex" } else { "Claude Code" }))).collect();
             (t.to_string(), json!(names))
         })
         .collect();
@@ -311,12 +311,6 @@ fn set_budget(company: String, dollars: f64) -> Res<()> {
 #[tauri::command(async)]
 fn set_cap(company: String, id: String, dollars: f64) -> Res<()> {
     open(&company)?.set_daily_cap(&id, dollars).map_err(err)
-}
-
-/// Dollars per million tokens, for estimating agents that report only tokens.
-#[tauri::command(async)]
-fn set_price(company: String, runtime: String, per_million: f64) -> Res<()> {
-    onecorp::spend::set_price(&open(&company)?, &runtime, per_million).map_err(err)
 }
 
 /// Go on past today's budget. It applies again tomorrow.
@@ -886,7 +880,6 @@ fn main() {
             spend_report,
             set_budget,
             set_cap,
-            set_price,
             keep_going_today,
             delete_company,
             forget_founder,

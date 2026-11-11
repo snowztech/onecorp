@@ -135,7 +135,8 @@ pub fn slug(name: &str) -> String {
 
 /// Everything lives under ~/.onecorp, or $ONECORP_HOME when set (handy for tests).
 /// A ledger row for reports: (local day, employee, runtime, plan, dollars, tokens, estimated).
-pub type SpendRow = (String, String, String, Option<i64>, f64, i64, bool);
+/// (day, employee, runtime, plan, dollars, tokens, estimated, kind)
+pub type SpendRow = (String, String, String, Option<i64>, f64, i64, bool, String);
 
 /// One run in the spend ledger: who, for which ticket, on what, and what it cost.
 pub struct Spent<'a> {
@@ -147,6 +148,8 @@ pub struct Spent<'a> {
     pub tokens: u64,
     /// Priced from tokens, because the agent didn't report a cost.
     pub estimated: bool,
+    /// What the run was: ticket, chat, lead (a lead deciding a question) or help (Ask OneCorp).
+    pub kind: &'a str,
 }
 
 pub fn home() -> PathBuf {
@@ -413,8 +416,8 @@ impl Company {
     /// One run's cost, in the spend ledger.
     pub fn add_spend(&self, s: &Spent) -> Result<()> {
         self.db.execute(
-            "INSERT INTO spend (employee, ticket_id, runtime, model, cost_usd, tokens, estimated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![s.employee, s.ticket, s.runtime, s.model, s.cost, s.tokens as i64, s.estimated],
+            "INSERT INTO spend (employee, ticket_id, runtime, model, cost_usd, tokens, estimated, kind) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![s.employee, s.ticket, s.runtime, s.model, s.cost, s.tokens as i64, s.estimated, s.kind],
         )?;
         Ok(())
     }
@@ -431,10 +434,10 @@ impl Company {
 
     pub fn spend_rows(&self) -> Result<Vec<SpendRow>> {
         let mut st = self.db.prepare(
-            "SELECT date(s.at, 'localtime'), s.employee, s.runtime, t.plan, s.cost_usd, s.tokens, s.estimated
+            "SELECT date(s.at, 'localtime'), s.employee, s.runtime, t.plan, s.cost_usd, s.tokens, s.estimated, s.kind
              FROM spend s LEFT JOIN tickets t ON t.id = s.ticket_id ORDER BY s.id",
         )?;
-        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)))?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
@@ -1246,6 +1249,13 @@ impl Company {
     }
 
     /// (time, kind, summary) for one ticket, oldest first.
+    /// How many times work waited for a plan's usage limit in the last `days`, by what it said.
+    pub fn limit_waits(&self, days: i64) -> Result<Vec<String>> {
+        let mut st = self.db.prepare("SELECT summary FROM events WHERE kind = 'wait' AND summary LIKE '%usage limit%' AND at >= datetime('now', '-' || ?1 || ' days')")?;
+        let rows = st.query_map([days], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     pub fn events(&self, ticket: i64) -> Result<Vec<(String, String, String)>> {
         let mut st = self.db.prepare("SELECT at, kind, summary FROM events WHERE ticket_id = ?1 ORDER BY id")?;
         let rows = st.query_map([ticket], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
@@ -1330,6 +1340,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("messages", "tokens", "INTEGER NOT NULL DEFAULT 0"),
         ("tickets", "message", "INTEGER REFERENCES messages(id)"),
         ("messages", "issue", "TEXT"),
+        ("spend", "kind", "TEXT NOT NULL DEFAULT 'ticket'"),
     ];
     for (table, column, decl) in ADDED {
         let has: bool = db.query_row(
@@ -1339,6 +1350,11 @@ fn migrate(db: &Connection) -> Result<()> {
         )?;
         if !has {
             db.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"))?;
+            // Earlier runs without a ticket were chat replies, or Ask OneCorp's. A lead deciding a
+            // question can't be told from the ticket's own run, so those stay tickets.
+            if (*table, *column) == ("spend", "kind") {
+                db.execute_batch("UPDATE spend SET kind = 'chat' WHERE ticket_id IS NULL; UPDATE spend SET kind = 'help' WHERE employee = 'onecorp';")?;
+            }
         }
     }
     Ok(())

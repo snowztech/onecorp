@@ -142,7 +142,7 @@ The consult job waits until the asker's own run is done. Without `serve`, `work:
 What employees know comes from four places, all assembled in `work::start`:
 
 - **Merged code.** Approved work is on the base branch, and every ticket starts from it.
-- **The wiki**, one markdown file per company, read in full at the start of every ticket (cut at 12,000 characters). You edit it with `onecorp wiki`, on the app's Wiki page, or by accepting a proposal.
+- **The wiki**, a markdown file per page under the company's `wiki/` folder (`wiki.rs`). Rules pages (Overview, Now, Decisions, Product/Rules, Engineering/Conventions) are in every prompt in full, and so is the space the person works in: Engineering for engineers, Product for product, design and writing (`roles::spaces`). Every other page is a line with its file, in a copy under `reading/wiki` the agent can read but whose edits change nothing (`wiki::for_prompt`, `reading_copy`). Plans and wiki drafts get it all. The full part is cut at 12,000 characters. You edit pages on the app's Wiki page, with `onecorp wiki`, or by accepting a proposal.
 - **The team list**, generated from the employees table, so it never goes stale.
 - **Personal memory**, one file per employee, newest notes kept when it gets long. Agents add with `remember`, and review feedback goes in automatically.
 

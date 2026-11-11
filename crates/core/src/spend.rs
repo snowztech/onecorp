@@ -5,6 +5,7 @@
 
 use crate::store::Company;
 use anyhow::{Result, bail};
+use serde_json::{Value, json};
 
 /// Estimated dollars per million tokens, by agent, for agents that report only tokens. Blended
 /// over input and output, so it's a rough guide: change it in Settings to match your plan.
@@ -24,8 +25,31 @@ pub fn set_price(c: &Company, runtime: &str, per_million: f64) -> Result<()> {
     c.set_setting(&format!("price.{runtime}"), &per_million.to_string())
 }
 
+/// The agents `c`'s team uses whose plan hit its usage limit in the last week. A plan is yours,
+/// not a company's, so a limit hit in another company counts too, and says where.
+pub fn limit_hits(c: &Company) -> Result<Vec<Value>> {
+    let used: Vec<String> = c.employees()?.into_iter().map(|e| e.runtime).collect();
+    let mut out = vec![];
+    for (runtime, label) in [("claude", "Claude Code"), ("codex", "Codex")].into_iter().filter(|(r, _)| used.iter().any(|u| u == r)) {
+        let (mut n, mut elsewhere) = (0, vec![]);
+        for name in crate::store::list()? {
+            let Ok(other) = Company::open(&name) else { continue };
+            let here = other.limit_waits(7)?.iter().filter(|s| s.starts_with(label)).count();
+            n += here;
+            if here > 0 && other.name != c.name {
+                elsewhere.push(other.name.clone());
+            }
+        }
+        if n > 0 {
+            out.push(json!({"runtime": runtime, "times": n, "elsewhere": elsewhere}));
+        }
+    }
+    Ok(out)
+}
+
 /// One run: what it cost and who ran it. Returns the dollars recorded, reported or estimated.
-pub fn record(c: &Company, employee: &str, ticket: Option<i64>, runtime: &str, model: Option<&str>, cost: f64, tokens: u64) -> Result<f64> {
+#[allow(clippy::too_many_arguments)]
+pub fn record(c: &Company, kind: &str, employee: &str, ticket: Option<i64>, runtime: &str, model: Option<&str>, cost: f64, tokens: u64) -> Result<f64> {
     let (dollars, estimated) = if cost > 0.0 {
         (cost, false)
     } else if tokens > 0 && runtime != "fake" {
@@ -34,7 +58,7 @@ pub fn record(c: &Company, employee: &str, ticket: Option<i64>, runtime: &str, m
         (0.0, false)
     };
     if dollars > 0.0 || tokens > 0 {
-        c.add_spend(&crate::store::Spent { employee, ticket, runtime, model, cost: dollars, tokens, estimated })?;
+        c.add_spend(&crate::store::Spent { employee, ticket, runtime, model, cost: dollars, tokens, estimated, kind })?;
     }
     check(c)?;
     Ok(dollars)

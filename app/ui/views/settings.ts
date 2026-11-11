@@ -81,12 +81,9 @@ export function agentsSection() {
       <div class="tool-main"><b>${esc(what)}</b>${h?.fix && state !== "ok" ? fixRow(h.fix, state) : `<span>${esc(h?.detail || "")}</span>`}</div>
       <span class="pill-state">${pill}</span></div>`;
   };
-  const codex = S.spend?.prices?.find(p => p.runtime === "codex")?.price ?? 5;
   const mark = { ok: "✓", warn: "!", fail: "×" };
   const others = (S.health || []).filter(h => !tools.some(([w]) => w === h.what));
   return `<h3 class="label tools-h">AI agents</h3><div class="tools">${tools.slice(0, 2).map(card).join("")}</div>
-    <div class="row-set"><div><b>Codex cost</b><span>Codex doesn't report a cost, so OneCorp estimates it from tokens.</span></div>
-      <label class="money-in inline"><span>$</span><input data-price="codex" type="number" min="0" step="0.5" value="${codex}" aria-label="Dollars per million Codex tokens"><span class="unit">/ 1M tokens</span></label></div>
     <h3 class="label tools-h">Code hosting</h3><div class="tools">${tools.slice(2).map(card).join("")}</div>
     <h3 class="label tools-h">Health</h3>
     <div class="row-set"><div><b>Everything else</b><span>Git, your repos and each company.</span></div><button class="link-btn" data-health="1">${S.health ? "Check again" : "Check"}</button></div>
@@ -160,23 +157,33 @@ export function spendTab() {
   const row = (lead: string, w: { today: { cost: number }; week: { cost: number }; all: { cost: number } }, extra = "") => `<tr><td>${lead}</td><td class="num">${money(w.today.cost)}</td><td class="num">${money(w.week.cost)}</td><td class="num">${money(w.all.cost)}</td>${extra}</tr>`;
   const head = (extra = "") => `<thead><tr><th></th><th class="num">Today</th><th class="num">7 days</th><th class="num">All time</th>${extra}</tr></thead>`;
   const people = r.people.filter(p => p.all.cost > 0 || p.cap > 0);
-  return `<div class="spend-now"><span class="label">Today</span><b>${money(t.today.cost)}</b>
+  const limits = (r.limits || []).map(l => `<p class="plan-line"><span class="tool-ic sm" style="--c:${AGENTS[l.runtime]?.color || "#888"}">${agentMark(l.runtime)}</span><span><b>${esc(AGENTS[l.runtime]?.name || l.runtime)}</b> hit its plan's usage limit ${l.times === 1 ? "once" : `${l.times} times`} in the last 7 days${l.elsewhere.length ? `, including in ${esc(l.elsewhere.join(" and "))}, which shares your plan` : ""}. Work waited and picked back up on its own.</span></p>`).join("");
+  const by = S.spendBy || "people", tabs: [string, string][] = [["people", "People"], ["kind", "Kind"], ["projects", "Projects"], ["agents", "Agents"]];
+  const kinds = r.kinds || [];
+  return `<div class="spend-now"><span class="label" title="On a subscription, what the same work would cost on the API. On an API key, what you pay.">Today, at API prices</span><b>${money(t.today.cost)}</b>
       ${b > 0 ? `<span class="meter big ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}"><i style="width:${pct}%"></i></span><span class="muted">${Math.round(pct)}% of ${money(b)}</span>` : ""}</div>
     <div class="row-set"><div><b>Daily budget</b><span>The company pauses there until tomorrow.</span></div>
       <div class="seg">${presets.map(p => `<button data-budget="${p}" aria-pressed="${p === b && !S.customBudget}">${p ? `$${p}` : "None"}</button>`).join("")}<button data-budget-custom="1" aria-pressed="${custom || !!S.customBudget}">${custom ? money(b) : "Other"}</button></div></div>
     ${S.customBudget ? `<form id="budget-form" class="row-set"><div><b>Your budget</b><span>Press Enter to save.</span></div><label class="money-in inline"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b || ""}" placeholder="12"><span class="unit">a day</span></label></form>` : ""}
+    ${limits}
     ${S.settings ? (() => {
       // Says exactly which model runs, so there's nothing to guess about "lighter".
       const t = S.settings.talk || "balanced", names = (S.settings.talk_models?.[t] || []).join(" and ");
-      const line = t === "same" ? "Each person's own model answers in chat and decides as a lead." : `${names || "A smaller model"} answers in chat and decides for leads. Tickets use each person's model.`;
+      const size = t === "cheapest" ? "cheapest" : "mid-size";
+      const line = t === "same" ? "Each person's own model answers in chat and decides as a lead." : `The ${size} model of each person's agent answers in chat and decides for leads${names ? `: ${names}` : ""}. Tickets use each person's own model.`;
       return `<div class="row-set"><div><b>Chat and lead decisions</b><span>${esc(line)}</span></div>
         <div class="seg">${[["cheapest", "Cheapest"], ["balanced", "Balanced"], ["same", "Their own"]].map(([m, n]) => `<button data-talk="${m}" aria-pressed="${m === t}">${n}</button>`).join("")}</div></div>`;
     })() : ""}
-    ${any ? `<div class="chart" role="img" aria-label="Spend over the last 14 days">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}"><i style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%"></i></div>`).join("")}${b > 0 && b < top ? `<span class="budget-line" style="bottom:${(b / top) * 100}%"></span>` : ""}</div>
-      <div class="chart-axis"><span>2 weeks ago</span><span>Today</span></div>` : `<p class="muted sp-empty">Nothing spent yet. Your team's runs add up here.</p>`}
-    ${people.length ? `<h3 class="label sp-h">People</h3><table class="sp">${head('<th class="num">Cap</th>')}<tbody>${people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(first(p.name))}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")}</tbody></table>` : ""}
-    ${r.projects.some(p => p.all.cost > 0) ? `<h3 class="label sp-h">Projects</h3><table class="sp">${head()}<tbody>${r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("")}</tbody></table>` : ""}
-    ${any && r.agents.length ? `<h3 class="label sp-h">Agents</h3><table class="sp">${head()}<tbody>${r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ' <span class="est" title="Estimated from tokens">est.</span>' : ""}</span>`, a)).join("")}</tbody></table>` : ""}`;
+    ${any ? `<div class="chart" role="img" aria-label="Spend over the last 14 days, by kind">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}${kinds.filter(k => d.kinds?.[k.kind]).map(k => `\n${k.label} ${money(d.kinds![k.kind])}`).join("")}"><span class="stack" style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%">${kinds.map(k => d.kinds?.[k.kind] ? `<i class="k-${k.kind}" style="flex:${d.kinds[k.kind]}"></i>` : "").join("")}</span></div>`).join("")}${b > 0 && b < top ? `<span class="budget-line" style="bottom:${(b / top) * 100}%"></span>` : ""}</div>
+      <div class="chart-axis"><span>2 weeks ago</span><span>Today</span></div>
+      ${kinds.length > 1 ? `<div class="legend">${kinds.map(k => `<span><i class="k-${k.kind}"></i>${esc(k.label)}</span>`).join("")}</div>` : ""}` : t.all.cost > 0 ? "" : `<p class="muted sp-empty">Nothing spent yet. Your team's runs add up here.</p>`}
+    ${t.all.cost > 0 ? `<div class="sp-switch"><div class="seg">${tabs.map(([k, n]) => `<button data-spend-by="${k}" aria-pressed="${k === by}">${n}</button>`).join("")}</div></div>
+    <table class="sp">${by === "people" ? head('<th class="num">Cap</th>') : head()}<tbody>${
+      by === "people" ? people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(first(p.name))}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")
+      : by === "kind" ? kinds.map(k => row(`<span class="who"><i class="dot-k k-${k.kind}"></i>${esc(k.label)}</span>`, k)).join("")
+      : by === "projects" ? r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("") || `<tr><td colspan="4" class="muted">No project has spent anything yet.</td></tr>`
+      : r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ` <span class="est" title="${esc(AGENTS[a.runtime]?.name || a.runtime)} reports tokens, not dollars, so this is estimated at about $${a.price ?? 5} per million tokens">est.</span>` : ""}</span>`, a)).join("")
+    }</tbody></table>` : ""}`;
 }
 
 // Back from Terminal with Settings on Integrations: show what changed.

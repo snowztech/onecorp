@@ -157,14 +157,14 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         company = c.name,
         bio = crate::voice::intro(c, &lead)?,
         title = t.title,
-        knowledge = company_knowledge(c)?,
+        knowledge = company_knowledge(c, crate::roles::spaces(crate::roles::role_of(c, &lead)?))?,
     );
     out(&format!("{key}  {} asked {}: {}", first_line(&asker), lead.name, q.question));
 
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
     let model = talk_model(c, &lead)?;
-    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &other_repos(c)? };
+    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)? };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -179,7 +179,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     })?;
-    let cost = crate::spend::record(c, &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record(c, "lead", &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens)?;
     c.add_cost(t.id, cost, tokens)?;
 
     match verdict(&said) {
@@ -259,6 +259,9 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         out(&format!("      reusing your builds in {}", warmed.join(", ")));
     }
 
+    let (bio, details) = (crate::voice::intro(c, &e)?, ticket_details(c, t)?);
+    let knowledge = company_knowledge(c, crate::roles::spaces(crate::roles::role_of(c, &e)?))?;
+    let (notes, chat) = (own_notes(c, &e.id)?, crate::chat::catch_up(c, &e)?);
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          Your ticket is {key}: {title}\n\n{details}\
@@ -278,19 +281,26 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         name = e.name,
         role = e.role,
         company = c.name,
-        bio = crate::voice::intro(c, &e)?,
         abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?),
         in_repo = match &t.repo {
             Some(r) => format!(", in the {r} repo"),
             None if c.repos()?.len() > 1 => format!(", in the {} repo", c.repos()?[0].name),
             None => String::new(),
         },
-        details = ticket_details(c, t)?,
-        knowledge = company_knowledge(c)?,
-        notes = own_notes(c, &e.id)?,
-        chat = crate::chat::catch_up(c, &e)?,
     );
+    // What the prompt is made of, so where the tokens go is something you can see on the ticket.
+    let rest = prompt.len() - bio.len() - details.len() - knowledge.len() - notes.len() - chat.len();
+    c.add_event(id, "prompt", &prompt_sizes(&[("wiki and team", knowledge.len()), ("playbook", bio.len()), ("ticket", details.len() + rest), ("their notes", notes.len()), ("chat", chat.len())]), "")?;
     drive(c, &e, id, &wt, None, &prompt, title)
+}
+
+/// "about 5.1k tokens: wiki and team 3.9k, playbook 0.3k, …", from sizes in bytes. A token is
+/// about four bytes of English, close enough to see what's big.
+fn prompt_sizes(parts: &[(&str, usize)]) -> String {
+    let k = |n: usize| format!("{:.1}k", n as f64 / 4000.0);
+    let total: usize = parts.iter().map(|(_, n)| n).sum();
+    let list: Vec<String> = parts.iter().filter(|(_, n)| *n > 0).map(|(name, n)| format!("{name} {}", k(*n))).collect();
+    format!("about {} tokens: {}", k(total), list.join(", "))
 }
 
 /// The ticket's details and who asked for it, as a paragraph for the prompt. Empty when there are none.
@@ -457,7 +467,7 @@ fn run_wiki(c: &Company, t: &Ticket) -> Result<()> {
         bio = crate::voice::intro(c, &e)?,
         pages = list.join("\n"),
         first = wiki_pages(t)[0],
-        knowledge = company_knowledge(c)?,
+        knowledge = company_knowledge(c, &["*"])?,
     );
     drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
 }
@@ -540,7 +550,7 @@ fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
         } else {
             ""
         },
-        knowledge = company_knowledge(c)?,
+        knowledge = company_knowledge(c, &["*"])?,
     );
     drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
 }
@@ -631,11 +641,12 @@ a good colleague talks. Say it once. No filler, no recap at the end, no headings
 semicolons, em dashes or double hyphens in prose: end the sentence with a full stop instead. Code, commands and file names \
 go in backticks. These rules come first. Your personality sets your tone within them, not your length.\n\n";
 
-/// What every employee should know before starting: the wiki, and who does what.
-pub fn company_knowledge(c: &Company) -> Result<String> {
+/// What every employee should know before starting: the wiki, and who does what. `spaces` are
+/// the wiki spaces read in full besides the rules: someone's own, or `["*"]` for all of it.
+pub fn company_knowledge(c: &Company, spaces: &[&str]) -> Result<String> {
     // Keeps a runaway wiki from eating the whole context window.
     const MAX: usize = 12_000;
-    let mut doc = c.wiki()?.trim().to_string();
+    let mut doc = crate::wiki::for_prompt(c, spaces)?.trim().to_string();
     if doc.len() > MAX {
         let cut = (0..=MAX).rev().find(|&i| doc.is_char_boundary(i)).unwrap_or(0);
         doc.truncate(cut);
@@ -647,7 +658,7 @@ pub fn company_knowledge(c: &Company) -> Result<String> {
         out.push_str(&format!("You work for {}, the founder of {}. Questions with ask_human go to them.\n\n", f.name, c.name));
     }
     if !doc.is_empty() {
-        out.push_str(&format!("The company wiki. Everyone reads it, so follow it:\n\n{doc}\n\n"));
+        out.push_str(&format!("The company wiki. Follow it:\n\n{doc}\n\n"));
     }
     out.push_str(HOW_WE_WORK);
     out.push_str(&format!("Who works here:\n{}", team.join("\n")));
@@ -713,6 +724,13 @@ pub fn talk_model(c: &Company, e: &Employee) -> Result<Option<String>> {
 /// The other repos, for runs that read across all of them: planning, the wiki, chat replies.
 pub(crate) fn other_repos(c: &Company) -> Result<Vec<std::path::PathBuf>> {
     Ok(c.repos()?.into_iter().filter(|r| !r.main).map(|r| r.path).collect())
+}
+
+/// Folders a run may read besides its own: the company's other repos and the wiki's reading copy.
+pub(crate) fn reading_dirs(c: &Company) -> Result<Vec<std::path::PathBuf>> {
+    let mut dirs = other_repos(c)?;
+    dirs.push(crate::wiki::reading_copy(c)?);
+    Ok(dirs)
 }
 
 /// The employee's own notes, newest kept when they get long.
@@ -1040,7 +1058,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
         _ => vec![],
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &other_repos(c)? };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)? };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
@@ -1064,6 +1082,10 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             }
             Event::ToolResult { error: true, text } => ("error", text.clone()),
             Event::ToolResult { .. } => return Ok(()),
+            Event::Usage { fresh, cached, output } => {
+                let k = |n: &u64| format!("{:.1}k", *n as f64 / 1000.0);
+                ("tokens", format!("read {} tokens, {} of them from cache, and wrote {}", k(&(fresh + cached)), k(cached), k(output)))
+            }
             Event::Done { ok, cost, tokens, text } => {
                 outcome = Some((*ok, *cost, *tokens, text.clone()));
                 let verb = if *ok { "finished" } else { "failed" };
@@ -1095,7 +1117,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
 
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     if !ok && crate::limits::hit(&e.runtime, &text)? {
-        let cost = crate::spend::record(c, &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+        let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
         c.finish_ticket(id, "failed", cost, tokens)?;
         return wait_for_limit(c, e, id);
     }
@@ -1123,7 +1145,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             c.add_event(id, "report-text", &text, "")?;
         }
     }
-    let cost = crate::spend::record(c, &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost, tokens)?;
 
     let mut t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;

@@ -11,9 +11,20 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - Ask OneCorp, under Help in Chat: ask how something works, whether OneCorp can do it, or if what you saw is a bug. It knows the docs for your version and your company as it is now, and drafts a GitHub issue you review before posting. It runs on your team's agent, only when you ask.
 - Ask someone in chat to fix or look into something, and they propose the tickets right under their reply. A lead splits the work across their team, like Odile giving the cache to Maya and the query to Tomás. Start them in one click, or open one to change who does it.
 
+### Changed
+
+- Employees read the wiki like a new hire would: rules pages on every ticket, their own space in full, and everything else when the work needs it. Each page says whether it's a Rule or Reference, and the Wiki page tells you when the rules get long. Prompts are smaller, so runs cost less.
+- Each ticket's log starts with how big its prompt was and what it's made of: wiki, playbook, ticket, notes, chat.
+- Chat replies read the last 12 messages instead of 20, and Ask OneCorp reads the longer docs only when a question needs them.
+- Spending says its dollars are at API prices: what you pay on an API key, and what the same work would cost on a subscription. When Claude Code or Codex hits its plan's usage limit, Spending says how often that happened this week.
+- The Codex cost setting is gone from Integrations. Codex spend is still estimated from its tokens, and the est. tag in Spending says how.
+- Spending splits the money by kind of run: tickets, chat replies, lead decisions and Ask OneCorp, as colors in the two-week chart. Under it, switch the table between people, kind, projects and agents. Settings is wider to fit. Earlier chat and help spend is sorted in too.
+- A Claude Code ticket's log shows how its tokens split: how many it read, how many of those came from cache, and how many it wrote.
+
 ### Fixed
 
 - A wiki page's byline shows the face of whoever wrote it last, next to their name, and your own photo when that's you. Who started the page comes after, as "first written by".
+- Spending no longer says nothing was spent yet when all of it was today.
 
 ## [0.1.9] - 2026-11-11
 
