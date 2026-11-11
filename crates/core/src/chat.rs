@@ -200,7 +200,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let text = match (run, limited) {
         (_, true) => format!("(My usage limit is reached. I'm back at {}.)", crate::limits::until(&e.runtime).map(crate::limits::label).unwrap_or_default()),
-        (Ok(()), _) if !said.trim().is_empty() => said.trim().to_string(),
+        (Ok(()), _) if !said.trim().is_empty() => runtime::plain(said.trim()),
         (Ok(()), _) => "(no reply)".into(),
         (Err(err), _) => format!("(couldn't reply: {err:#})"),
     };

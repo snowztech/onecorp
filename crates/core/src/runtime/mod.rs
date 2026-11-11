@@ -272,6 +272,74 @@ pub fn clip(s: &str, max: usize) -> String {
     format!("{}…", s.chars().take(max).collect::<String>().trim_end())
 }
 
+/// An agent's prose without the tells the writing rule forbids, for when a model slips anyway:
+/// em dashes and " -- " become commas, and a semicolon ends the sentence. Code in backticks,
+/// fenced blocks and indented lines is left exactly as it is.
+pub fn plain(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut fenced = false;
+    for (i, line) in text.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+        }
+        if fenced || line.trim_start().starts_with("```") || line.starts_with("    ") || line.starts_with('\t') {
+            out.push_str(line);
+            continue;
+        }
+        // Between backticks is code: the odd pieces.
+        for (j, part) in line.split('`').enumerate() {
+            if j > 0 {
+                out.push('`');
+            }
+            out.push_str(&if j % 2 == 1 { part.to_string() } else { prose(part) });
+        }
+    }
+    out
+}
+
+fn prose(s: &str) -> String {
+    let s = s.replace(" — ", ", ").replace(" – ", ", ").replace(" -- ", ", ").replace('—', ", ");
+    let (mut out, mut cap) = (String::with_capacity(s.len()), false);
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        // "a; b" but not "x;y" or the end of "&amp;": only a semicolon that ends a clause.
+        let word = out.rsplit(char::is_whitespace).next().unwrap_or("");
+        let entity = word.rsplit_once('&').is_some_and(|(_, e)| !e.is_empty() && e.chars().all(|x| x.is_ascii_alphanumeric() || x == '#'));
+        if c == ';' && !entity && chars.peek().is_none_or(|n| *n == ' ') {
+            out.push('.');
+            cap = true;
+            continue;
+        }
+        if cap && c.is_alphabetic() {
+            out.extend(c.to_uppercase());
+            cap = false;
+            continue;
+        }
+        if !c.is_whitespace() {
+            cap = false;
+        }
+        out.push(c);
+    }
+    out
+}
+
 pub fn first_line(s: &str) -> String {
     s.lines().find(|l| !l.trim().is_empty()).unwrap_or("").chars().take(120).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_drops_the_tells_but_never_touches_code() {
+        assert_eq!(plain("Login works — tests pass; review the middleware."), "Login works, tests pass. Review the middleware.");
+        assert_eq!(plain("Fast -- and small;"), "Fast, and small.");
+        assert_eq!(plain("Run `a; b -- c` then &amp; 3–5 pages"), "Run `a; b -- c` then &amp; 3–5 pages");
+        assert_eq!(plain("```sh\nmake build; make test\n```\nDone; merged."), "```sh\nmake build; make test\n```\nDone. Merged.");
+        assert_eq!(plain("    for x in y; do echo; done"), "    for x in y; do echo; done");
+    }
 }

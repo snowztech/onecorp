@@ -6,7 +6,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Changed
 
-- Employees write plainly: short sentences, no filler or recaps, no clauses strung together with semicolons and dashes. It applies to summaries, reports, chat, the wiki and commit messages.
+- Employees write plainly: short sentences, no filler or recaps, and never semicolons, em dashes or double hyphens in prose. It applies to everyone, whatever their personality, in summaries, reports, chat, the wiki and their questions to you. If a model slips anyway, OneCorp turns those into commas and full stops before you see them. Code is never touched.
 - Codex runs with low verbosity, so its replies are shorter and use fewer tokens.
 
 - The download opens as a small window with OneCorp next to your Applications folder: drag one onto the other to install.
