@@ -29,7 +29,11 @@ cask "onecorp" do
 
   app "OneCorp.app"
 
-  zap trash: "~/.onecorp"
+  zap trash: [
+    "~/.onecorp",
+    "~/Library/WebKit/dev.onecorp.desktop",
+    "~/Library/Caches/dev.onecorp.desktop",
+  ]
 end
 RUBY
 
