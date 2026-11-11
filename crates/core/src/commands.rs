@@ -149,7 +149,8 @@ fn key(r: &Repo) -> String {
 /// A repo's list: yours if you set one, otherwise what the repo looks like.
 pub fn list(c: &Company, r: &Repo) -> Result<Vec<String>> {
     match c.setting(&key(r))? {
-        Some(s) => Ok(parse(&s)),
+        // Lists saved before they were checked can hold what never runs, like `git rebase`.
+        Some(s) => Ok(parse(&s).into_iter().filter(|cmd| never(cmd).is_none()).collect()),
         None => Ok(detect(&r.path)),
     }
 }
