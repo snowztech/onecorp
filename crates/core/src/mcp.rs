@@ -91,6 +91,20 @@ fn tools() -> Value {
             }
         },
         {
+            "name": "ask_to_run",
+            "description": "Ask the founder to let you run a command you aren't allowed yet, like a code generator or a build step \
+                            in a subfolder. Once allowed, the whole team can run it in this repo. Ask for the shortest command \
+                            that covers it: 'make sqlc', not 'make sqlc -v'. Then stop and summarize: the ticket picks back up with the answer.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "The command, like 'xcodegen generate'. It also covers what follows it"},
+                    "why": {"type": "string", "description": "One sentence on what it's for, like 'the Xcode project is generated, I need it to build'"}
+                },
+                "required": ["command", "why"]
+            }
+        },
+        {
             "name": "post_message",
             "description": "Post a short message to the team chat. Use it for things teammates should know, not for progress logs. Mention someone with @firstname.",
             "inputSchema": {
@@ -203,6 +217,32 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
                 Ok(format!("Question #{n} went to {to}. Carry on with your default and mention it in your summary."))
             }
         }
+        "ask_to_run" => {
+            let command = s("command").split_whitespace().collect::<Vec<_>>().join(" ");
+            anyhow::ensure!(!command.is_empty(), "command is required");
+            if let Some(why) = crate::commands::never(&command) {
+                anyhow::bail!("{command} can't be allowed: {why}. Do without it.");
+            }
+            let t = c.ticket(ctx.ticket)?.ok_or_else(|| anyhow::anyhow!("no ticket"))?;
+            let have = crate::commands::for_ticket(c, &t)?;
+            if have.iter().any(|h| command == *h || command.starts_with(&format!("{h} "))) {
+                return Ok(format!("{command} is already allowed. Run it."));
+            }
+            // Straight to the founder: what runs on their Mac is their call, not a lead's.
+            let n = c.ask(&Question {
+                ticket_id: Some(ctx.ticket),
+                employee: ctx.employee.clone(),
+                question: command,
+                options: crate::commands::repo_of(c, &t)?.name,
+                blocking: true,
+                kind: "command".into(),
+                stage: "founder".into(),
+                note: Some(s("why")).filter(|w| !w.is_empty()),
+                ..Default::default()
+            })?;
+            c.set_status(ctx.ticket, "blocked")?;
+            Ok(format!("Request #{n} is in the founder's Inbox, and the ticket is marked blocked. Stop here and summarize where you are."))
+        }
         "post_message" => {
             let text = s("text");
             anyhow::ensure!(!text.is_empty(), "text is required");
@@ -296,7 +336,7 @@ mod tests {
         assert!(handle(&c, &ctx, &json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).is_none());
 
         let list = handle(&c, &ctx, &req(2, "tools/list", json!({}))).unwrap();
-        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 6);
+        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 7);
 
         let args = json!({"question": "15 or 60 minutes?", "options": ["15", "60"], "default": "15", "blocking": true});
         let ask = handle(&c, &ctx, &req(3, "tools/call", json!({"name": "ask_human", "arguments": args}))).unwrap();

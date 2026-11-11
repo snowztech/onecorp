@@ -525,9 +525,10 @@ function feed(items) {
 /* Inbox: everything that needs you, answerable in one click */
 function viewInbox() {
   const s = S.snap;
-  const blocking = s.inbox.filter(q => q.kind !== "wiki" && q.blocking), other = s.inbox.filter(q => q.kind !== "wiki" && !q.blocking), books = s.inbox.filter(q => q.kind === "wiki");
+  const asks = s.inbox.filter(q => q.kind === "question"), runs = s.inbox.filter(q => q.kind === "command");
+  const blocking = asks.filter(q => q.blocking), other = asks.filter(q => !q.blocking), books = s.inbox.filter(q => q.kind === "wiki");
   const plans = s.reviews.filter(r => r.kind === "plan"), work = s.reviews.filter(r => r.kind !== "plan");
-  const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(wiki)];
+  const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...runs.map(commandAsk), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(wiki)];
   const leads = (s.with_leads || []).map(q => question(q, true));
   const zero = `<div class="empty-state calm"><span class="empty-ic">${icon("check")}</span><b>You're all caught up</b><span>Questions, plans and reviews from your team land here when they need you.</span></div>`;
   return `<div class="inbox">${cards.length ? cards.join("") : zero}
@@ -549,10 +550,25 @@ function question(q, withLead) {
   const kind = withLead ? `With ${esc(first(q.lead_name || "their lead"))}` : q.blocking ? "Blocking" : "Question";
   const via = q.via_name ? `<p class="via"><b>${esc(first(q.via_name))}</b> passed this to you${q.note ? `: ${esc(q.note)}` : "."}</p>` : "";
   return `<article class="ask ${q.blocking ? "blocking" : ""} ${withLead ? "lead" : ""}" id="in-q${q.id}">${face(q.name, q.blocking ? "blocked" : "neutral")}<div>
-    <span class="kind">${kind} · ${esc(q.key || "")}</span><div class="q-text">${md(q.question).html}</div>${via}
+    <span class="kind">${kind} · ${esc(q.key || "")}</span>${clamp(`q-${q.id}`, `<div class="q-text">${md(q.question).html}</div>`, q.question)}${via}
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
     <div class="acts">${opts}${def}${q.blocking || withLead ? "" : `<button class="btn ghost" data-dismiss-q="${q.id}">Dismiss</button>`}</div>
     ${more(`ans-${q.id}`, "Write your own answer", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Your answer"><button class="btn">Send</button></form>`)}</div></article>`;
+}
+// Long text shows a few lines until opened, so a card never turns into a wall of text.
+function clamp(id, html, text) {
+  const long = text.length > 320 || text.split("\n").length > 5;
+  if (!long) return html;
+  const open = S.open[id];
+  return `<div class="foldable ${open ? "open" : ""}">${html}</div><button class="link-btn inline more-link" type="button" data-more="${esc(id)}">${open ? "Show less" : "Show all"}</button>`;
+}
+// Someone asks to run a command they aren't allowed yet. Allowing it adds it to the repo's list.
+function commandAsk(q) {
+  return `<article class="ask blocking" id="in-q${q.id}">${face(q.name, "blocked")}<div>
+    <span class="kind">Command · ${esc(q.key || "")}</span><h4><code class="cmd-ask">${esc(q.question)}</code></h4>
+    <p>${esc(first(q.name))} wants to run this in <b>${esc(q.repo)}</b>${q.note ? `: ${esc(q.note)}` : "."}</p>
+    <p class="muted">Allowing it lets your whole team run it in ${esc(q.repo)}. You can remove it in Settings.</p>
+    <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="allow" data-said="Allowed in ${esc(q.repo)}">Allow in ${esc(q.repo)}</button><button class="btn" data-answer="${q.id}" data-val="no" data-said="Not allowed">Not now</button></div></div></article>`;
 }
 // Free text stays folded until asked for, so each card leads with its one-click answers.
 function more(id, label, form) {
@@ -592,14 +608,14 @@ function ticketStatus(t) {
 }
 function review(r) {
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
-    <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}<p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>
+    <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>`, r.summary || "")}
     ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}</div>
     ${changes(r.key)}
     ${more(`chg-${r.key}`, "Ask for changes", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>`)}</div></article>`;
 }
 function wiki(q) {
   return `<article class="ask" id="in-q${q.id}">${face(q.name, "neutral")}<div>
-    <span class="kind">Wiki · ${esc(q.section)}</span><h4>${esc(q.question)}</h4><p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
+    <span class="kind">Wiki · ${esc(q.section)}</span>${clamp(`w-${q.id}`, `<div class="q-text">${md(q.question).html}</div>`, q.question)}<p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the wiki</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
     ${more(`ans-${q.id}`, "Add it in your own words", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="The rule, as you'd put it"><button class="btn">Add</button></form>`)}</div></article>`;
 }
@@ -1707,7 +1723,7 @@ document.addEventListener("click", async e => {
     try { await invoke("forget_founder"); } catch (err) { el.disabled = false; return toast(String(err), true); }
     S.founder = null; S.confirm = null; S.pop = false; S.sheet = null; S.profile = { name: "" }; renderPop(); renderSheet(); return render();
   }
-  if (d.more) { S.open[d.more] = true; render(); return document.getElementById(d.more)?.focus(); }
+  if (d.more) { S.open[d.more] = !S.open[d.more]; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) return openSettings("you");
   if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop; renderPop(); return $("#pf-name")?.focus(); }
   if (d.settings) return openSettings();
@@ -1908,7 +1924,7 @@ document.addEventListener("click", async e => {
   else if (d.hire) { openHire(Number(d.hire)); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
   else if (d.close) { S.drawer = null; renderDrawer(); }
-  else if (d.answer) { el.disabled = true; await call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.val === "no" ? "Left out of the wiki" : "Answered").catch(() => (el.disabled = false)); }
+  else if (d.answer) { el.disabled = true; await call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.said || (d.val === "no" ? "Left out of the wiki" : "Answered")).catch(() => (el.disabled = false)); }
   else if (d.approve) {
     const t = S.snap?.reviews.find(t => t.key === d.approve) || (S.ticket?.key === d.approve ? S.ticket : null);
     const copy = approvalCopy(t);
@@ -2211,7 +2227,9 @@ function preview(cmd, args) {
       with_leads: [{ id: 5, kind: "question", key: "SNO-15", employee: "tomas", name: "Tomás Reis", lead_name: "Odile Martin", question: "Retry webhooks 3 or 5 times?", section: "", options: ["3", "5"], default: "3", blocking: false }],
       // A question with a long default and no options, like most real ones.
       inbox_extra: null,
-      inbox: [{ id: 7, kind: "question", key: "SNO-20", employee: "rui", name: "Rui Alves", question: "Which K-drama and region did you see Viki missing on? The API already pulls TMDB's subscription tiers, so I suspect a data gap, not a filter on our side.", section: "", options: [], default: "I'll plan with an investigation ticket first, using popular K-dramas in US, KR and FR.", blocking: false }, { id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
+      inbox: [{ id: 9, kind: "command", key: "SNO-21", employee: "tomas", name: "Tomás Reis", question: "xcodegen generate", repo: "notes", note: "the Xcode project is generated from project.yml, and I need it to build the iOS target", section: "", options: [], default: "", blocking: true },
+        { id: 10, kind: "wiki", key: "SNO-11", employee: "odile", name: "Odile Martin", section: "Conventions", question: "Every API handler validates its input with the shared schema in api/schema.ts before touching the database. Errors go back as { error: { code, message } } with a 4xx status, never a 500 for bad input. Handlers stay thin: parsing, one call into the service layer, and the response. Anything with business rules lives in services/, with its tests next to it. When a handler needs data from two services, it calls a third one that composes them rather than calling both itself.", options: [], default: "", blocking: false },
+        { id: 7, kind: "question", key: "SNO-20", employee: "rui", name: "Rui Alves", question: "Which K-drama and region did you see Viki missing on? The API already pulls TMDB's subscription tiers, so I suspect a data gap, not a filter on our side.", section: "", options: [], default: "I'll plan with an investigation ticket first, using popular K-dramas in US, KR and FR.", blocking: false }, { id: 2, kind: "question", key: "SNO-12", employee: "maya", name: "Maya Okafor", question: "Magic links: 15 or 60 minute expiry?", section: "", options: ["15 minutes", "60 minutes"], default: "15 minutes", blocking: true, via: "odile", via_name: "Odile Martin", note: "it changes what users see, so it's a product call" },
         { id: 3, kind: "wiki", key: "SNO-14", employee: "lina", name: "Lina Park", question: "Empty states are one sentence and one button", section: "Conventions", options: [], default: "", blocking: false }],
       failed: [{ key: "SNO-9", title: "Rate limit the public API", employee: "tomas", name: "Tomás Reis", why: "stopped before it finished" }],
       reviews: [{ key: "SNO-20", title: "First version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",

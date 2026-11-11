@@ -4,10 +4,16 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- An employee who needs a command they can't run asks for it in your Inbox, like `xcodegen generate` with the reason. Allow it and the whole team can run it in that repo, and the ticket picks back up. Git, root and pull request commands are never asked: OneCorp handles those.
+
 ### Changed
 
+- Long questions, wiki proposals and review summaries in the Inbox show a few lines, with Show all for the rest.
+- Every employee knows how OneCorp works: tickets live in OneCorp, OneCorp does the git work and decides what they can run.
 - Each repo's commands in Settings are now a list you can edit one by one: remove one with ×, or type and press Enter to add one. Pasting a list from a Claude Code settings file works, so `Bash(make build:*)` becomes `make build`.
-- Employees know OneCorp decides which commands they can run. They no longer ask you to create `.claude/settings.json`, and tell you in their summary which command to add instead.
+- Employees know OneCorp decides which commands they can run. They no longer ask you to create `.claude/settings.json`.
 
 ### Fixed
 

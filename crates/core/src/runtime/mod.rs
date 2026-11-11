@@ -157,11 +157,11 @@ pub fn abilities(runtime: &str, commands: &[String]) -> String {
         "codex" => "You can run commands, like builds and tests, in a sandbox without network access. Run the tests before you finish.".into(),
         "fake" => "You are a stand-in with no AI.".into(),
         // Said plainly, so the agent doesn't report a read-only worktree when only commands are limited.
-        _ if commands.is_empty() => "You can read and edit files, and run read-only git commands. No build or test commands are set up for this repo, so don't try to run any, and don't create or edit .claude/settings.json: OneCorp decides what you can run. Say in your summary that the work is untested, and which commands the founder should add in Settings, under Company.".into(),
+        _ if commands.is_empty() => "You can read and edit files, and run read-only git commands. No build or test commands are set up for this repo, so don't try to run any, and don't create or edit .claude/settings.json: OneCorp decides what you can run. If you need a build or test command, ask for it with ask_to_run.".into(),
         _ => format!(
             "You can run read-only git commands and these: {}. Run the build and tests before you finish, and fix what breaks. \
              OneCorp decides what you can run, from the list the founder keeps in Settings, so don't create or edit .claude/settings.json. \
-             If you need another command, say which one and why in your summary.",
+             If you need another command, ask for it with ask_to_run.",
             commands.join(", ")
         ),
     }

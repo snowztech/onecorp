@@ -561,6 +561,12 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
     Ok(())
 }
 
+/// How OneCorp works, said once so nobody goes looking for it in the repo or in .claude/.
+const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
+start one. OneCorp does the git work: it commits, opens pull requests and merges once the founder approves. It also decides \
+which commands you can run; ask_to_run asks the founder for another one. Questions go to your lead or the founder with ask_human, \
+rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n";
+
 /// What every employee should know before starting: the wiki, and who does what.
 pub fn company_knowledge(c: &Company) -> Result<String> {
     // Keeps a runaway wiki from eating the whole context window.
@@ -579,6 +585,7 @@ pub fn company_knowledge(c: &Company) -> Result<String> {
     if !doc.is_empty() {
         out.push_str(&format!("The company wiki. Everyone reads it, so follow it:\n\n{doc}\n\n"));
     }
+    out.push_str(HOW_WE_WORK);
     out.push_str(&format!("Who works here:\n{}", team.join("\n")));
     let repos = c.repos()?;
     if repos.len() > 1 {
@@ -686,6 +693,18 @@ pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
     if text.is_empty() {
         bail!("what's the answer? For example: onecorp answer {id} \"go with 15 minutes\"");
     }
+    // A command request is allowed or not, and the answer the ticket reads says what to do next.
+    let asked = c.question(id)?.filter(|q| q.kind == "command" && q.answer.is_none());
+    let text = match &asked {
+        Some(q) if matches!(text.to_lowercase().as_str(), "allow" | "yes" | "y") => {
+            let t = c.ticket(q.ticket_id.unwrap_or_default())?.ok_or_else(|| anyhow!("its ticket is gone"))?;
+            crate::commands::allow(c, &t, &q.question)?;
+            "Allowed for the whole team in this repo. Run it now.".to_string()
+        }
+        Some(_) => "Not now. Finish without it, and say in your summary what's untested because of it.".to_string(),
+        None => text.to_string(),
+    };
+    let text = text.as_str();
     let q = c.answer(id, text)?;
     if q.kind == "wiki" {
         match text.to_lowercase().as_str() {
