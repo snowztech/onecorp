@@ -313,12 +313,6 @@ fn set_cap(company: String, id: String, dollars: f64) -> Res<()> {
     open(&company)?.set_daily_cap(&id, dollars).map_err(err)
 }
 
-/// Dollars per million tokens, for estimating agents that report only tokens.
-#[tauri::command(async)]
-fn set_price(company: String, runtime: String, per_million: f64) -> Res<()> {
-    onecorp::spend::set_price(&open(&company)?, &runtime, per_million).map_err(err)
-}
-
 /// Go on past today's budget. It applies again tomorrow.
 #[tauri::command(async)]
 fn keep_going_today(company: String) -> Res<()> {
@@ -886,7 +880,6 @@ fn main() {
             spend_report,
             set_budget,
             set_cap,
-            set_price,
             keep_going_today,
             delete_company,
             forget_founder,

@@ -81,12 +81,9 @@ export function agentsSection() {
       <div class="tool-main"><b>${esc(what)}</b>${h?.fix && state !== "ok" ? fixRow(h.fix, state) : `<span>${esc(h?.detail || "")}</span>`}</div>
       <span class="pill-state">${pill}</span></div>`;
   };
-  const codex = S.spend?.prices?.find(p => p.runtime === "codex")?.price ?? 5;
   const mark = { ok: "✓", warn: "!", fail: "×" };
   const others = (S.health || []).filter(h => !tools.some(([w]) => w === h.what));
   return `<h3 class="label tools-h">AI agents</h3><div class="tools">${tools.slice(0, 2).map(card).join("")}</div>
-    <div class="row-set"><div><b>Codex cost</b><span>Codex doesn't report a cost, so OneCorp estimates it from tokens.</span></div>
-      <label class="money-in inline"><span>$</span><input data-price="codex" type="number" min="0" step="0.5" value="${codex}" aria-label="Dollars per million Codex tokens"><span class="unit">/ 1M tokens</span></label></div>
     <h3 class="label tools-h">Code hosting</h3><div class="tools">${tools.slice(2).map(card).join("")}</div>
     <h3 class="label tools-h">Health</h3>
     <div class="row-set"><div><b>Everything else</b><span>Git, your repos and each company.</span></div><button class="link-btn" data-health="1">${S.health ? "Check again" : "Check"}</button></div>
@@ -184,7 +181,7 @@ export function spendTab() {
       by === "people" ? people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(first(p.name))}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")
       : by === "kind" ? kinds.map(k => row(`<span class="who"><i class="dot-k k-${k.kind}"></i>${esc(k.label)}</span>`, k)).join("")
       : by === "projects" ? r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("") || `<tr><td colspan="4" class="muted">No project has spent anything yet.</td></tr>`
-      : r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ' <span class="est" title="Estimated from tokens">est.</span>' : ""}</span>`, a)).join("")
+      : r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ` <span class="est" title="${esc(AGENTS[a.runtime]?.name || a.runtime)} reports tokens, not dollars, so this is estimated at about $${a.price ?? 5} per million tokens">est.</span>` : ""}</span>`, a)).join("")
     }</tbody></table>` : ""}`;
 }
 

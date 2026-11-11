@@ -600,10 +600,7 @@ document.addEventListener("change", async e => {
     return $(`[data-cmd-add="${CSS.escape(repo)}"]`)?.focus();
   }
 
-  if (target.dataset?.price) {
-    await invoke("set_price", { company: S.company, runtime: target.dataset.price, perMillion: Math.max(0, Number(target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
-    return loadSpend();
-  }
+
   if (target.id === "pf-name" && target.closest("#you-form")) {
     if (target.value.trim() && target.value.trim() !== S.founder?.name && await saveProfile()) { saved(); render(); }
     return;

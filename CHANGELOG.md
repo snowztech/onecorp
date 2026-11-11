@@ -17,6 +17,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - Each ticket's log starts with how big its prompt was and what it's made of: wiki, playbook, ticket, notes, chat.
 - Chat replies read the last 12 messages instead of 20, and Ask OneCorp reads the longer docs only when a question needs them.
 - Spending says its dollars are at API prices: what you pay on an API key, and what the same work would cost on a subscription. When Claude Code or Codex hits its plan's usage limit, Spending says how often that happened this week.
+- The Codex cost setting is gone from Integrations. Codex spend is still estimated from its tokens, and the est. tag in Spending says how.
 - Spending splits the money by kind of run: tickets, chat replies, lead decisions and Ask OneCorp, as colors in the two-week chart. Under it, switch the table between people, kind, projects and agents. Settings is wider to fit. Earlier chat and help spend is sorted in too.
 - A Claude Code ticket's log shows how its tokens split: how many it read, how many of those came from cache, and how many it wrote.
 
