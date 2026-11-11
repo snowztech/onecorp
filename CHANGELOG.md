@@ -6,7 +6,18 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Changed
 
+- Asking for changes, answering a question or rewording a wiki rule opens a small box under the card, with Cancel. ⌘↵ sends it and Esc closes it. A card shows one thing at a time: your reply, or the discard confirmation.
+- Scrollbars stay out of sight until you point at something that scrolls, like on the rest of your Mac.
+- On the Company page, Needs you and Live stay in view and scroll on their own. Needs you lists everything waiting, not just the first three.
+- The extra face sets load only when you pick one, so the app opens with less to load.
 - The app's bundle identifier is now `dev.onecorp.desktop`. macOS asks again before showing notifications, and the theme and face set go back to their defaults once. Your companies and everything in them stay as they are.
+
+### Fixed
+
+- Chat no longer shows dots on messages you've already read. What you've read is remembered per company, for direct messages too, and survives a restart.
+- Long links in the Live feed wrap instead of scrolling sideways.
+- The Send button in chat lines up with the message box.
+- The window no longer scrolls as a whole, which left a stray scrollbar and a grey square in the corner.
 
 ## [0.1.5] - 2026-11-11
 
