@@ -4,6 +4,16 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- Employees can open a draft pull request for their branch with gh or glab to see CI early, update it, and read its checks and CI logs. OneCorp links the ticket to it instead of opening a second one, and marks it ready when they finish. Merging, closing, approving and reopening pull requests stay yours, along with repo settings, releases, secrets and the GitHub API.
+- Settings suggests turning on branch protection for main on GitHub, since employees push their own branches.
+- A few more ways to delete folders are blocked, like `rm -R` and `rm --recursive`, along with moving or forcing other branches.
+
+### Fixed
+
+- If an employee's commits reach main during a run, around your approval, the ticket says so, with the commits to check.
+
 ### Added
 
 - Your employees work on their own now. They run what they need in their own copy of the repo: builds, tests, installs and scripts. Their branch is theirs: they commit as they go, rebase onto main or merge it in, fix conflicts and push it. A guard keeps each ticket's pushes on its own branch, and OneCorp still opens the pull request and merges it only when you approve. Sudo, gh and deleting folders stay off. This is on for every company, existing ones included. If you'd rather approve each command, choose Only allowed under Commands in Settings, Company.

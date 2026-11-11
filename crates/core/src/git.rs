@@ -238,6 +238,18 @@ pub fn changes(repo: &Path, base: &str, branch: &str) -> Result<Vec<Change>> {
         .collect())
 }
 
+/// The commit a ref points at, if it exists.
+pub fn rev(repo: &Path, name: &str) -> Option<String> {
+    git(repo, &["rev-parse", "--verify", "--quiet", name], &[]).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+/// "hash subject" for each commit between `from` and `to` written by `email`.
+pub fn authored_by(repo: &Path, from: &str, to: &str, email: &str) -> Vec<String> {
+    git(repo, &["log", "--format=%h %s", &format!("--author=<{email}>"), &format!("{from}..{to}")], &[])
+        .map(|s| s.lines().map(String::from).collect())
+        .unwrap_or_default()
+}
+
 /// True when `a` and `b` hold the same files: a branch like that has nothing to merge.
 pub fn same_files(repo: &Path, a: &str, b: &str) -> Result<bool> {
     Ok(git(repo, &["diff", "--name-only", a, b], &[])?.trim().is_empty())

@@ -87,6 +87,13 @@ pub fn publish(c: &Company, t: &Ticket, summary: &str) -> Result<()> {
         c.add_event(t.id, "pr", &format!("updated #{n}"), "")?;
         return Ok(());
     }
+    // The employee may have opened it already, as a draft to see CI early.
+    if let Some(pr) = f.adopt(&repo, branch) {
+        c.set_pr(t.id, pr.number, &pr.url)?;
+        c.add_event(t.id, "pr", &format!("linked #{} {}, opened by its employee", pr.number, pr.url), "")?;
+        out(&format!("  pr     #{} {} (theirs)", pr.number, pr.url));
+        return Ok(());
+    }
     let body = format!("{}{}", summary.trim(), signoff(c, t)?);
     let pr = f.open(&repo, branch, &base, &short(&format!("{key}: {}", t.title), 72), &body)?;
     c.set_pr(t.id, pr.number, &pr.url)?;

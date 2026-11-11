@@ -126,6 +126,12 @@ fn a_ticket_goes_from_start_to_merged() {
     assert_eq!(status(s2), "review", "the ticket still ran");
     onecorp::commands::set_setup(&c, &main_repo, "").unwrap();
 
+    // An employee whose commits reach main during a run, around your approval, is flagged on the ticket.
+    let sneak = c.add_ticket("quick fix [land on main]", "maya").unwrap();
+    work::dispatch(&c, sneak, Job::Start).unwrap();
+    assert!(c.events(sneak).unwrap().iter().any(|(_, kind, s)| kind == "error" && s.contains("main changed during this run") && s.contains("Maya Okafor")), "{:?}", c.events(sneak).unwrap());
+    git(&repo, &["reset", "-q", "--hard", "main"]);
+
     // Tickets saved for later, chained: the second starts by itself once the first is merged.
     let saved = |title: &str, who: &str, after: Option<i64>| {
         let new = NewTicket { title: title.into(), description: format!("Details for {title}"), assignee: Some(who.into()), after, ..Default::default() };
