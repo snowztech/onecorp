@@ -20,7 +20,10 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         .args(["--sandbox", if o.read_only { "read-only" } else { "workspace-write" }, "--cd"])
         .arg(o.cwd)
         .current_dir(o.cwd)
-        .envs(o.env.iter().map(|(k, v)| (k, v)));
+        .envs(o.env.iter().map(|(k, v)| (k, v)))
+        // Shorter replies at the source: fewer output tokens, and less to read. Models without
+        // the setting ignore it.
+        .args(["-c", "model_verbosity=\"low\""]);
     if let Some(m) = o.mcp {
         let env = m.env.iter().map(|(k, v)| format!("{k}={}", q(v))).collect::<Vec<_>>().join(",");
         cmd.args(["-c", &format!("mcp_servers.onecorp.command={}", q(&m.command))])

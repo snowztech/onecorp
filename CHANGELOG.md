@@ -6,6 +6,9 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Changed
 
+- Employees write plainly: short sentences, no filler or recaps, no clauses strung together with semicolons and dashes. It applies to summaries, reports, chat, the wiki and commit messages.
+- Codex runs with low verbosity, so its replies are shorter and use fewer tokens.
+
 - The download opens as a small window with OneCorp next to your Applications folder: drag one onto the other to install.
 
 ## [0.1.7] - 2026-11-11

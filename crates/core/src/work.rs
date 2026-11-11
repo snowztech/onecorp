@@ -568,8 +568,11 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 /// How OneCorp works, said once so nobody goes looking for it in the repo or in .claude/.
 const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
 start one. OneCorp does the git work: it commits, opens pull requests and merges once the founder approves. It also decides \
-which commands you can run; ask_to_run asks the founder for another one. Questions go to your lead or the founder with ask_human, \
-rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n";
+which commands you can run, and ask_to_run asks the founder for another one. Questions go to your lead or the founder with ask_human, \
+rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n\
+How we write, in summaries, reports, chat, the wiki, comments and commit messages: plain words and short sentences, the way \
+a good colleague talks. Say it once. No filler, no recap at the end, no headings or bullets for a few lines. Don't chain \
+clauses with semicolons or dashes, use a full stop. Code, commands and file names go in backticks.\n\n";
 
 /// What every employee should know before starting: the wiki, and who does what.
 pub fn company_knowledge(c: &Company) -> Result<String> {
