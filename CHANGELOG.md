@@ -4,24 +4,14 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
-### Fixed
-
-- Tickets in Rust repos stop rebuilding everything from scratch. A new ticket reuses the builds already in your checkout, cloned instantly on your Mac's disk.
-- A docs-only change no longer runs the full build and test suite. Employees run the checks that cover what they changed.
-- A long command in a run log shows "still running, 3 min" instead of looking stuck.
-- Asked in chat about the ticket they're on, employees see their latest steps and their worktree, so they no longer say they haven't changed anything when they have.
-
-### Changed
-
-- Run logs show what employees say in full, and whole commands and errors, wrapped under themselves instead of cut to one line.
-- The Repos section in Settings is calmer: a card per repo with its commands, Add a repo at the top, and shorter paths.
-
 ### Added
 
 - An employee who needs a command they can't run asks for it in your Inbox, like `xcodegen generate` with the reason. Allow it and the whole team can run it in that repo, and the ticket picks back up. Git, root and pull request commands are never asked: OneCorp handles those.
 
 ### Changed
 
+- Run logs show what employees say in full, and whole commands and errors, wrapped under themselves instead of cut to one line.
+- The Repos section in Settings is calmer: a card per repo with its commands, Add a repo at the top, and shorter paths.
 - Long questions, wiki proposals and review summaries in the Inbox show a few lines, with Show all for the rest.
 - Every employee knows how OneCorp works: tickets live in OneCorp, OneCorp does the git work and decides what they can run.
 - Each repo's commands in Settings are now a list you can edit one by one: remove one with ×, or type and press Enter to add one. Pasting a list from a Claude Code settings file works, so `Bash(make build:*)` becomes `make build`.
@@ -29,6 +19,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Fixed
 
+- Tickets in Rust repos stop rebuilding everything from scratch. A new ticket reuses the builds already in your checkout, cloned instantly on your Mac's disk.
+- A docs-only change no longer runs the full build and test suite. Employees run the checks that cover what they changed.
+- A long command in a run log shows "still running, 3 min" instead of looking stuck.
+- Asked in chat about the ticket they're on, employees see their latest steps and their worktree, so they no longer say they haven't changed anything when they have.
 - Wiki writing now saves and completes after a retry or usage-limit resume. Older wiki drafts stuck in review show the document and a Save wiki action instead of asking to merge a nonexistent branch. Completed wiki tasks link to the wiki; plan actions say they start a plan.
 
 ## [0.1.4] - 2026-11-11
