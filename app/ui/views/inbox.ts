@@ -108,7 +108,8 @@ export function reportReview(r: Review) {
 }
 
 export function approvalCopy(t?: { kind?: string; key?: string } | null) {
-  if (t?.kind === "work" && t.key && S.diffs[t.key]?.files.length === 0) return { label: "Close as done", busy: "Closing…", done: "Closed. Everything it had was already on main." };
+  const diff = t?.key ? S.diffs[t.key] : undefined;
+  if (t?.kind === "work" && diff && diff !== "loading" && diff.files.length === 0) return { label: "Close as done", busy: "Closing…", done: "Closed. Everything it had was already on main." };
   if (t?.kind === "report") return { label: "Close and start what it proposes", busy: "Starting…", done: "Report closed." };
   if (t?.kind === "wiki") return { label: "Save wiki", busy: "Saving…", done: "Wiki saved. Your team can read it now." };
   if (t?.kind === "plan") return { label: "Start the plan", busy: "Starting…", done: "Plan started." };
