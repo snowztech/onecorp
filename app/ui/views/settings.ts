@@ -169,7 +169,8 @@ export function spendTab() {
     ${S.settings ? (() => {
       // Says exactly which model runs, so there's nothing to guess about "lighter".
       const t = S.settings.talk || "balanced", names = (S.settings.talk_models?.[t] || []).join(" and ");
-      const line = t === "same" ? "Each person's own model answers in chat and decides as a lead." : `${names || "A smaller model"} answers in chat and decides for leads. Tickets use each person's model.`;
+      const size = t === "cheapest" ? "cheapest" : "mid-size";
+      const line = t === "same" ? "Each person's own model answers in chat and decides as a lead." : `The ${size} model of each person's agent answers in chat and decides for leads${names ? `: ${names}` : ""}. Tickets use each person's own model.`;
       return `<div class="row-set"><div><b>Chat and lead decisions</b><span>${esc(line)}</span></div>
         <div class="seg">${[["cheapest", "Cheapest"], ["balanced", "Balanced"], ["same", "Their own"]].map(([m, n]) => `<button data-talk="${m}" aria-pressed="${m === t}">${n}</button>`).join("")}</div></div>`;
     })() : ""}
