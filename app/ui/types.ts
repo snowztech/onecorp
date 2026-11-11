@@ -100,7 +100,7 @@ export interface Look { color?: string; logo?: string | null }
 export interface Companies { list: string[]; current: string | null; looks: Record<string, Look>; dev: string | null }
 export interface Founder { name: string; photo: string | null }
 
-export interface SettingsRepo { name: string; path: string; main: boolean; commands: string[]; custom: boolean }
+export interface SettingsRepo { name: string; path: string; main: boolean; commands: string[]; custom: boolean; setup?: string | null }
 export interface Settings {
   name: string; repo: string; data: string; home: string; ship: string; forge: string | null; forge_name: string | null;
   origin: string | null; tickets: number; people: number; version: string; repos: SettingsRepo[];
@@ -169,6 +169,7 @@ export interface Results {
   remove_repo: SettingsRepo[];
   rescan_commands: SettingsRepo[];
   make_main_repo: SettingsRepo[];
+  set_setup: SettingsRepo[];
   review: Diff;
   set_commands: SettingsRepo[];
   set_projects_folder: string;

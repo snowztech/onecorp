@@ -27,6 +27,13 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     // Running anything includes installs, which need the network the sandbox otherwise blocks.
     if o.run_any && !o.read_only {
         cmd.args(["-c", "sandbox_workspace_write.network_access=true"]);
+        // The branch is theirs, so commits and rebases are too. Those write to the repo's .git,
+        // which sits outside the worktree the sandbox opens.
+        let common = Command::new("git").arg("-C").arg(o.cwd).args(["rev-parse", "--path-format=absolute", "--git-common-dir"]).output();
+        if let Some(out) = common.ok().filter(|o| o.status.success()) {
+            let dir = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            cmd.args(["-c", &format!("sandbox_workspace_write.writable_roots=[{}]", serde_json::to_string(&dir)?)]);
+        }
     }
     if let Some(m) = o.mcp {
         let env = m.env.iter().map(|(k, v)| format!("{k}={}", q(v))).collect::<Vec<_>>().join(",");

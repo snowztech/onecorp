@@ -56,7 +56,7 @@ flowchart TD
 ### To you
 
 - **`ask_human`**: a question with options and a default. Blocking stops the ticket until it's answered. Non-blocking carries on with the default, and a different answer later sends the ticket back to apply it (`work::follow_up`).
-- **What they can run** is a company setting (`commands::run_any`): anything in their worktree except git changes, sudo, gh and deleting folders, or only each repo's list. New companies run anything. With a list, **`ask_to_run`** asks for every missing command in one request. It's for commands they aren't allowed yet. Always comes to you, never their lead: what runs on your Mac is your call. Allowing it lets the whole team run it in that repo.
+- **What they can run** is a company setting (`commands::run_any`), on by default: anything in their worktree, and their branch is theirs to commit, rebase and push. A pre-push hook keeps each worktree's pushes on its own branch (`git::guard_pushes`), and config, remotes, other branches, sudo, gh and deleting folders stay off (`runtime::NEVER_ANY`). OneCorp still opens the pull request and merges it when you approve. With **Only allowed**, they run each repo's list, and **`ask_to_run`** asks for every missing command in one request, which always comes to you. A repo's setup command runs in each new worktree before they start.
 - **`update_ticket` blocked**: always puts a question in your Inbox, so a blocked ticket always has something for you to answer (`store::ask_to_unblock`).
 - **The summary** at the end of a ticket run is what you read in the review.
 

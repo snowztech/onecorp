@@ -59,15 +59,6 @@ pub struct Opts<'a> {
     pub run_any: bool,
 }
 
-/// Commands nobody runs, whatever the setting. OneCorp commits, merges and opens pull requests, so
-/// anything that changes history, branches or remotes is its job. Reading git, or undoing your own
-/// edits with `git restore`, is fine. Nothing runs as root, and deleting folders is too easy to get wrong.
-pub const NEVER: &[&str] = &[
-    "git add", "git commit", "git push", "git pull", "git fetch", "git merge", "git rebase", "git reset", "git checkout", "git switch",
-    "git branch", "git tag", "git stash", "git cherry-pick", "git revert", "git clean", "git remote", "git config", "git worktree", "git am",
-    "sudo", "su", "doas", "rm -r", "rm -rf", "rm -fr", "gh", "glab",
-];
-
 pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     match runtime {
         "claude" => claude::run(o, prompt, on),
@@ -166,31 +157,44 @@ fn codex_models() -> Vec<(String, String, String)> {
 }
 
 /// One sentence for the prompt about what the agent can run, since each runtime's sandbox differs.
-pub fn abilities(runtime: &str, commands: &[String], run_any: bool) -> String {
-    const NEVER_SAID: &str = "Read git freely, and undo your own edits with git restore. Commits, branches, rebases, merges and pushes are off, along with sudo, gh and deleting folders: OneCorp commits your work when you finish and merges it when the founder approves, so you never need them.";
+pub fn abilities(runtime: &str, commands: &[String], run_any: bool, branch: &str) -> String {
+    let checks = "Before you finish, run the checks that cover what you changed and fix what breaks. A change to docs or comments alone needs no build or test: say so in your summary instead.";
+    let yours = format!(
+        "Your branch, {branch}, is yours: commit as you go, fetch and rebase onto the base branch or merge it in, fix conflicts, \
+         and push it. Push only your branch: OneCorp opens the pull request and merges it when the founder approves, so never push \
+         to the base branch or merge pull requests. Leave the git config, remotes and other branches alone. Sudo, gh and deleting folders are off."
+    );
+    let onecorp_git = "OneCorp does the git work for you: commits, merges and pushes. If a merge or a push fails, your work stays on your \
+         branch and the founder sees why: don't rebase, and don't ask for git commands or permissions.";
     match runtime {
         "fake" => "You are a stand-in with no AI.".into(),
-        "codex" if run_any => format!("You can run any command you need in your worktree, with network, like builds, tests, installs and the repo's scripts. {NEVER_SAID} Before you finish, run the checks that cover what you changed. A change to docs or comments alone needs no build or test."),
-        "codex" => "You can run commands, like builds and tests, in a sandbox without network access. Before you finish, run the checks that cover what you changed. A change to docs or comments alone needs no build or test. If something needs the network, like an install, say so in your summary: the founder can let the team run anything in Settings.".into(),
         _ if run_any => format!(
-            "You can run any command you need in your worktree, like builds, tests, installs and the repo's scripts. {NEVER_SAID} \
-             Before you finish, run the checks that cover what you changed and fix what breaks. A change to docs or comments alone needs no build or test. \
-             Keep commands plain: ones with ${{...}} variables are refused before they run. Don't create or edit .claude/settings.json."
+            "You can run any command you need in your worktree{net}, like builds, tests, installs and the repo's scripts. {yours} {checks} \
+             Keep commands plain: ones with ${{...}} variables are refused before they run. Don't create or edit .claude/settings.json.",
+            net = if runtime == "codex" { ", with network" } else { "" }
         ),
+        "codex" => format!("You can run commands, like builds and tests, in a sandbox without network access. {onecorp_git} {checks} If something needs the network, like an install, say so in your summary: the founder can let the team run anything in Settings."),
         // Said plainly, so the agent doesn't report a read-only worktree when only commands are limited.
-        _ if commands.is_empty() => "You can read and edit files, and run read-only git commands. No build or test commands are set up for this repo, so don't try to run any, and don't create or edit .claude/settings.json: OneCorp decides what you can run. If you need a build or test command, ask for it with ask_to_run.".into(),
+        _ if commands.is_empty() => format!("You can read and edit files, and run read-only git commands. No build or test commands are set up for this repo, so don't try to run any, and don't create or edit .claude/settings.json: OneCorp decides what you can run. If you need a build or test command, ask for it with ask_to_run. {onecorp_git}"),
         _ => format!(
             "You can run read-only git commands and these: {}. Run them as written, from the repo root: no `cd … &&` in front, \
              no variables before them, and a script as `tools/x.sh` or `./tools/x.sh`. Anything after a listed command is fine, \
-             like extra flags or `| tail -40`. Before you finish, run the checks that cover what you changed and fix what breaks. \
-             A change to docs or comments alone needs no build or test: say so in your summary instead. \
-             Keep commands plain: ones with ${{...}} variables are refused before they run. \
+             like extra flags or `| tail -40`. {checks} Keep commands plain: ones with ${{...}} variables are refused before they run. \
              OneCorp decides what you can run, from the list the founder keeps in Settings, so don't create or edit .claude/settings.json. \
-             If you need another command, ask once for every command you're missing with ask_to_run, not one at a time.",
+             If you need another command, ask once for every command you're missing with ask_to_run, not one at a time. {onecorp_git}",
             commands.join(", ")
         ),
     }
 }
+
+/// What an employee can't run when the team runs anything. Their branch is theirs, so commits,
+/// rebases and pushes are fine, and a push guard keeps pushes on that branch. What stays off
+/// reaches past it: other branches, remotes and config, skipping the guard, root, and folders deleted.
+pub const NEVER_ANY: &[&str] = &[
+    "git config", "git remote", "git worktree", "git checkout", "git switch", "git branch -d", "git branch -D", "git branch -m",
+    "git branch -M", "git tag", "git clean", "git push --no-verify", "git -c", "git update-ref", "git filter-branch",
+    "sudo", "su", "doas", "rm -r", "rm -rf", "rm -fr", "gh", "glab",
+];
 
 /// The PATH agent CLIs run with. Apps opened from the Dock or Finder get a bare PATH, without
 /// ~/.local/bin or Homebrew, so `claude` and `codex` wouldn't be found. This adds the login

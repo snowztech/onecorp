@@ -215,10 +215,26 @@ pub fn rescan(c: &Company, r: &Repo) -> Result<()> {
     set(c, r, &all.join("\n"))
 }
 
-/// Whether the team runs any command in its worktrees, or only the listed ones. New companies run
-/// anything: you approve the work at review, and each ticket has its own copy of the repo.
+fn setup_key(r: &Repo) -> String {
+    if r.main { "setup".into() } else { format!("setup.{}", r.name) }
+}
+
+/// What OneCorp runs in a fresh worktree before the employee starts, like `bash tools/setup-worktree.sh`.
+pub fn setup(c: &Company, r: &Repo) -> Result<Option<String>> {
+    Ok(c.setting(&setup_key(r))?.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()))
+}
+
+pub fn set_setup(c: &Company, r: &Repo, cmd: &str) -> Result<()> {
+    match cmd.trim() {
+        "" => c.delete_setting(&setup_key(r)),
+        cmd => c.set_setting(&setup_key(r), cmd),
+    }
+}
+
+/// Whether the team runs any command in its worktrees, or only the listed ones. Anything unless
+/// you chose the list: you approve the work at review, and each ticket has its own copy of the repo.
 pub fn run_any(c: &Company) -> Result<bool> {
-    Ok(c.setting("run")?.as_deref() == Some("anything"))
+    Ok(c.setting("run")?.as_deref() != Some("listed"))
 }
 
 pub fn set_run_any(c: &Company, on: bool) -> Result<()> {

@@ -313,8 +313,6 @@ impl Company {
         fs::create_dir_all(&dir)?;
         let c = Self::open_dir(name, dir)?;
         c.db.execute("INSERT INTO meta (key, value) VALUES ('repo', ?1)", [repo.to_string_lossy()])?;
-        // New companies run any command in their worktrees. Earlier ones keep their lists until you say.
-        c.set_setting("run", "anything")?;
         // The pages only you can write start empty, with a hint in the app, rather than with filler.
         for p in [wiki::OVERVIEW, wiki::NOW, wiki::DECISIONS] {
             wiki::seed(&c, p)?;
@@ -559,6 +557,7 @@ impl Company {
         let old = self.repos()?.remove(0);
         let commands = |r: &str| self.setting(r);
         let (old_cmds, new_cmds) = (commands("commands")?, commands(&format!("commands.{}", new.name))?);
+        let (old_setup, new_setup) = (commands("setup")?, commands(&format!("setup.{}", new.name))?);
         let tx = self.db.unchecked_transaction()?;
         tx.execute("UPDATE tickets SET repo = ?1 WHERE repo IS NULL", [&old.name])?;
         tx.execute("UPDATE tickets SET repo = NULL WHERE repo = ?1", [&new.name])?;
@@ -567,13 +566,14 @@ impl Company {
         tx.execute("INSERT INTO repos (name, path) VALUES (?1, ?2)", params![old.name, old.path.to_string_lossy()])?;
         tx.commit()?;
         self.set_setting("repo.name", &new.name)?;
-        for (key, value) in [("commands".to_string(), new_cmds), (format!("commands.{}", old.name), old_cmds)] {
+        for (key, value) in [("commands".to_string(), new_cmds), (format!("commands.{}", old.name), old_cmds), ("setup".to_string(), new_setup), (format!("setup.{}", old.name), old_setup)] {
             match value {
                 Some(v) => self.set_setting(&key, &v)?,
                 None => self.delete_setting(&key)?,
             }
         }
-        self.delete_setting(&format!("commands.{}", new.name))
+        self.delete_setting(&format!("commands.{}", new.name))?;
+        self.delete_setting(&format!("setup.{}", new.name))
     }
 
     /// Ticket keys look like SNO-12: the first three letters of the company name.

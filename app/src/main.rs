@@ -216,7 +216,7 @@ fn settings(company: String) -> Res<Value> {
 fn repos_json(c: &Company) -> anyhow::Result<Vec<Value>> {
     c.repos()?
         .iter()
-        .map(|r| Ok(json!({"name": r.name, "path": r.path, "main": r.main, "commands": onecorp::commands::list(c, r)?, "custom": onecorp::commands::custom(c, r)?})))
+        .map(|r| Ok(json!({"name": r.name, "path": r.path, "main": r.main, "commands": onecorp::commands::list(c, r)?, "custom": onecorp::commands::custom(c, r)?, "setup": onecorp::commands::setup(c, r)?})))
         .collect()
 }
 
@@ -246,6 +246,14 @@ fn rescan_commands(company: String, repo: String) -> Res<Vec<Value>> {
 fn make_main_repo(company: String, name: String) -> Res<Vec<Value>> {
     let c = open(&company)?;
     c.make_main(&name).map_err(err)?;
+    repos_json(&c).map_err(err)
+}
+
+/// What OneCorp runs in a fresh worktree before an employee starts. Empty means nothing.
+#[tauri::command(async)]
+fn set_setup(company: String, repo: String, command: String) -> Res<Vec<Value>> {
+    let c = open(&company)?;
+    onecorp::commands::set_setup(&c, &c.repo_named(&repo).map_err(err)?, &command).map_err(err)?;
     repos_json(&c).map_err(err)
 }
 
@@ -913,6 +921,7 @@ fn main() {
             rescan_commands,
             make_main_repo,
             set_run_any,
+            set_setup,
             roles,
             role_for,
             stop,

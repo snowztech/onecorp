@@ -621,6 +621,10 @@ document.addEventListener("change", async e => {
   }
 
 
+  if (target.dataset?.setup !== undefined) {
+    S.settings!.repos = await invoke("set_setup", { company: S.company, repo: target.dataset.setup, command: target.value }).then(r => (saved(), r)).catch(err => (toast(String(err), true), S.settings!.repos));
+    return;
+  }
   if (target.id === "pf-name" && target.closest("#you-form")) {
     if (target.value.trim() && target.value.trim() !== S.founder?.name && await saveProfile()) { saved(); render(); }
     return;

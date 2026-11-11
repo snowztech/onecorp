@@ -41,6 +41,34 @@ pub fn add_worktree(repo: &Path, path: &Path, branch: &str, from: &str) -> Resul
     Ok(name)
 }
 
+/// Lets a ticket's worktree push only its own branch: a pre-push hook in a hooks folder that's this
+/// worktree's alone, so your own checkout and other tickets are untouched. Deleting the branch on
+/// the remote is refused too. It stops mistakes, not someone set on getting around it.
+pub fn guard_pushes(repo: &Path, wt: &Path, branch: &str, hooks: &Path) -> Result<()> {
+    // A core.worktree in the repo's shared config would have to move first. That's rare, so skip the guard then.
+    if config(repo, "core.worktree").is_some() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(hooks)?;
+    let hook = hooks.join("pre-push");
+    std::fs::write(
+        &hook,
+        format!(
+            "#!/bin/sh\n# OneCorp: this ticket pushes only its own branch.\nwhile read local_ref local_sha remote_ref remote_sha; do\n  \
+             if [ \"$remote_ref\" != \"refs/heads/{branch}\" ] || [ \"$local_sha\" = \"0000000000000000000000000000000000000000\" ]; then\n    \
+             echo \"OneCorp: push only {branch}. The founder's approval merges it into the base branch.\" >&2\n    exit 1\n  fi\ndone\nexit 0\n"
+        ),
+    )?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755))?;
+    }
+    git(repo, &["config", "extensions.worktreeConfig", "true"], &[])?;
+    git(wt, &["config", "--worktree", "core.hooksPath", &hooks.to_string_lossy()], &[])?;
+    Ok(())
+}
+
 /// Gives a new worktree the Rust builds already in your checkout, so a ticket doesn't recompile
 /// every dependency from scratch. Each `target/` next to a tracked Cargo.toml is cloned with APFS
 /// copy-on-write: instant, and no extra disk until something changes. Where cloning isn't
@@ -82,8 +110,10 @@ pub fn fetch(repo: &Path, branch: &str) -> Result<()> {
 }
 
 /// Pushes a ticket's branch to origin, creating it there the first time.
+/// With a lease, since the employee may have rebased the branch: it's theirs, and the lease still
+/// refuses to overwrite anything pushed since we last saw it.
 pub fn push(wt: &Path, branch: &str) -> Result<()> {
-    git(wt, &["push", "--quiet", "-u", "origin", &format!("{branch}:{branch}")], &[])?;
+    git(wt, &["push", "--quiet", "--force-with-lease", "-u", "origin", &format!("{branch}:{branch}")], &[])?;
     Ok(())
 }
 
@@ -266,6 +296,37 @@ pub fn clean_up(repo: &Path, wt: &Path, branch: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_ticket_worktree_pushes_only_its_own_branch() {
+        let root = std::env::temp_dir().join(format!("onecorp-guard-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let (remote, repo, wt, hooks) = (root.join("remote.git"), root.join("repo"), root.join("wt"), root.join("hooks"));
+        let me = identity("Test", "test@example.com");
+        let sh = |dir: &Path, args: &[&str]| git(dir, args, &me);
+        std::fs::create_dir_all(&remote).unwrap();
+        std::fs::create_dir_all(&repo).unwrap();
+        sh(&remote, &["init", "-q", "--bare", "-b", "main"]).unwrap();
+        sh(&repo, &["init", "-q", "-b", "main"]).unwrap();
+        std::fs::write(repo.join("a.txt"), "one\n").unwrap();
+        commit_all(&repo, "init", &me).unwrap();
+        sh(&repo, &["remote", "add", "origin", &remote.to_string_lossy()]).unwrap();
+        sh(&repo, &["push", "-q", "origin", "main"]).unwrap();
+
+        let branch = add_worktree(&repo, &wt, "onecorp/acme/acm-1", "main").unwrap();
+        guard_pushes(&repo, &wt, &branch, &hooks).unwrap();
+        std::fs::write(wt.join("a.txt"), "two\n").unwrap();
+        commit_all(&wt, "work", &me).unwrap();
+
+        assert!(push(&wt, &branch).is_ok(), "its own branch, even with a lease");
+        assert!(sh(&wt, &["push", "-q", "origin", &format!("{branch}:main")]).is_err(), "never the base branch");
+        assert!(sh(&wt, &["push", "-q", "origin", "--delete", &branch]).is_err(), "nor deleting its own on the remote");
+        // Your own checkout pushes as before: the guard is that worktree's alone.
+        std::fs::write(repo.join("b.txt"), "mine\n").unwrap();
+        commit_all(&repo, "yours", &me).unwrap();
+        assert!(sh(&repo, &["push", "-q", "origin", "main"]).is_ok());
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn merges_fast_forwards_and_reports_conflicts() {

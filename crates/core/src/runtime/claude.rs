@@ -31,7 +31,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         cmd.args(["--model", m]);
     }
     if o.run_any && !o.read_only {
-        let never: Vec<String> = super::NEVER.iter().map(|c| format!("Bash({c}:*)")).collect();
+        let never: Vec<String> = super::NEVER_ANY.iter().map(|c| format!("Bash({c}:*)")).collect();
         cmd.args(["--disallowedTools", &never.join(",")]);
     }
     // Only for read-only runs: with edits accepted, an added folder could be changed outside a worktree.
