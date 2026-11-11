@@ -198,8 +198,14 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .ask h4 { margin: 2px 0 4px; font-size: 15px; }
 .ask p { margin: 0 0 10px; color: var(--muted); white-space: pre-wrap; }
 .acts { display: flex; gap: 8px; flex-wrap: wrap; }
-.reply { display: flex; gap: 6px; margin-top: 8px; }
-.reply input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 10px; }
+.reply { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); transition: border-color .15s; }
+.reply:focus-within { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.reply textarea { border: 0; background: none; resize: none; outline: none; padding: 2px 4px; min-height: 44px; font: inherit; color: var(--fg); }
+/* The composer shows focus on its frame, so the field inside draws none of its own. */
+.reply textarea:focus { border-color: transparent !important; box-shadow: none; }
+.reply:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+.reply-acts { display: flex; align-items: center; gap: 6px; }
+.reply-acts .fine { margin-right: auto; padding-left: 4px; font-size: 12px; color: var(--muted); }
 .empty-state { max-width: 420px; margin: 8vh auto 0; padding: 0 24px; text-align: center; color: var(--muted); }
 .empty-state b { display: block; font: 600 18px var(--display); color: var(--fg); margin-bottom: 6px; }
 .empty-state code { font: 12px var(--mono); background: var(--surface-2); padding: 2px 6px; border-radius: 4px; }

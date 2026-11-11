@@ -134,7 +134,10 @@ document.addEventListener("click", async e => {
   }
   if (d.reveal) return window.__TAURI__!.opener!.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
   if (d.health) { S.health = null; renderSheet(); S.ready = await invoke("readiness").catch(() => S.ready); S.health = await invoke("health").catch(() => []); return renderSheet(); }
-  if ("confirm" in d) { S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); else if (S.view === "inbox") render(); renderSheet(); return $("#del-name")?.focus(); }
+  if ("confirm" in d) {
+    // One open panel per card: asking to discard closes the reply you were writing.
+    if (d.confirm?.startsWith("discard:")) S.open["chg-" + d.confirm.slice(8)] = false;
+    S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); else if (S.view === "inbox") render(); renderSheet(); return $("#del-name")?.focus(); }
   if (d.remove) {
     el.disabled = true;
     try { await invoke("remove_ticket", { company: S.company, key: d.remove }); }
@@ -146,7 +149,7 @@ document.addEventListener("click", async e => {
     try { await invoke("forget_founder"); } catch (err) { el.disabled = false; return toast(String(err), true); }
     S.founder = null; S.confirm = null; S.pop = false; S.sheet = null; S.profile = { name: "" }; renderPop(); renderSheet(); return render();
   }
-  if (d.more) { S.open[d.more] = !S.open[d.more]; render(); return document.getElementById(d.more)?.focus(); }
+  if (d.more) { if (/^(chg|ans)-/.test(d.more)) S.confirm = null; S.open[d.more] = !S.open[d.more]; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) return openSettings("you");
   if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop as "menu" | "forget"; renderPop(); return $("#pf-name")?.focus(); }
   if (d.settings) return openSettings();
@@ -485,11 +488,11 @@ document.addEventListener("submit", async e => {
       await refresh(true);
     } catch (err) { btn.disabled = false; toast(String(err), true); }
   } else if (f.dataset.reply) {
-    const input = f.querySelector("input")!, text = input.value.trim();
+    const input = f.querySelector("textarea")!, text = input.value.trim();
     if (!text) return input.focus();
     await call("answer", { company: S.company, id: Number(f.dataset.reply), text }, "Answered").catch(() => {});
   } else if (f.dataset.changes) {
-    const input = f.querySelector("input")!, feedback = input.value.trim();
+    const input = f.querySelector("textarea")!, feedback = input.value.trim();
     if (!feedback) return input.focus();
     await call("request_changes", { company: S.company, key: f.dataset.changes, feedback }, "Sent back. It's saved to their memory too.").catch(() => {});
   }
@@ -566,6 +569,10 @@ document.addEventListener("paste", e => {
 
 document.addEventListener("keydown", e => {
   const target = e.target as HTMLInputElement;
+  // A reply under a card: ⌘↵ sends it, Esc closes it.
+  const reply = target.closest?.<HTMLFormElement>("form.reply");
+  if (reply && e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); return reply.requestSubmit(); }
+  if (reply && e.key === "Escape") { const cancel = reply.querySelector<HTMLElement>("[data-close-open]"); if (cancel) { e.preventDefault(); return cancel.click(); } }
   if (target.id === "say-text" && S.mention) {
     const n = S.mention.opts.length;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); S.mention.i = (S.mention.i + (e.key === "ArrowDown" ? 1 : n - 1)) % n; return updateMentions(target); }

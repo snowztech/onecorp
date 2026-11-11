@@ -38,7 +38,7 @@ export function question(q: Question, withLead?: boolean) {
     <span class="kind">${kind} · ${esc(q.key || "")}</span>${clamp(`q-${q.id}`, `<div class="q-text">${md(q.question).html}</div>`, q.question)}${via}
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
     <div class="acts">${opts}${def}${q.blocking || withLead ? "" : `<button class="btn ghost" data-dismiss-q="${q.id}">Dismiss</button>`}${moreBtn(`ans-${q.id}`, "Write your own answer")}</div>
-    ${S.open[`ans-${q.id}`] ? `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Your answer"><button class="btn">Send</button></form>` : ""}</div></article>`;
+    ${S.open[`ans-${q.id}`] ? `${replyForm(`ans-${q.id}`, `data-reply="${q.id}"`, "Your answer", "Send")}` : ""}</div></article>`;
 }
 
 // Long text shows a few lines until opened, so a card never turns into a wall of text.
@@ -57,6 +57,11 @@ export function commandAsk(q: Question) {
     <p class="muted">Allowing it lets your whole team run it in ${esc(q.repo)}. You can remove it in Settings.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="allow" data-said="Allowed in ${esc(q.repo)}">Allow in ${esc(q.repo)}</button><button class="btn" data-answer="${q.id}" data-val="no" data-said="Not allowed">Not now</button></div></div></article>`;
 }
+
+// A reply under a card: a few lines to write, sent with ⌘↵, closed with Esc or Cancel.
+export const replyForm = (id: string, attrs: string, placeholder: string, send: string, cancel = true) =>
+  `<form class="reply" ${attrs}><textarea id="${esc(id)}" rows="2" placeholder="${esc(placeholder)}"></textarea>
+    <div class="reply-acts"><span class="fine">⌘↵ to send${cancel ? " · Esc to cancel" : ""}</span>${cancel ? `<button class="btn ghost" type="button" data-close-open="${esc(id)}">Cancel</button>` : ""}<button class="btn primary">${send}</button></div></form>`;
 
 // The card's last action: opens a form under the row, and steps aside while it's open.
 export const moreBtn = (id: string, label: string) => S.open[id] ? "" : `<button class="btn ghost" type="button" data-more="${esc(id)}">${label}</button>`;
@@ -82,7 +87,7 @@ export function planReview(r: Review) {
     ${r.summary ? `<p>${esc(r.summary)}</p>` : ""}
     <ol class="plan-list">${rows || `<li class="muted">No tickets left. Plan again, or dismiss it.</li>`}</ol>
     <div class="acts"><button class="btn good" data-approve="${esc(r.key)}" ${r.tickets.length ? "" : "disabled"}>Start the plan</button><button class="btn" data-dismiss="${esc(r.key)}">Dismiss</button>${moreBtn(`chg-${r.key}`, "Plan it again…")}</div>
-    ${S.open[`chg-${r.key}`] ? `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Plan again</button></form>` : ""}</div></article>`;
+    ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What should change?", "Plan again")}` : ""}</div></article>`;
 }
 
 export function approvalCopy(t?: { kind?: string } | null) {
@@ -117,7 +122,7 @@ export function review(r: Review) {
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
     ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
-    ${S.open[`chg-${r.key}`] ? `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>` : ""}
+    ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What should change?", "Send back")}` : ""}
     ${discardConfirm(r)}${changes(r.key)}</div></article>`;
 }
 
@@ -125,7 +130,7 @@ export function wiki(q: Question) {
   return `<article class="ask" id="in-q${q.id}">${face(q.name, "neutral")}<div>
     <span class="kind">Wiki · ${esc(q.section)}</span>${clamp(`w-${q.id}`, `<div class="q-text">${md(q.question).html}</div>`, q.question)}<p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the wiki</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button>${moreBtn(`ans-${q.id}`, "Add it in your own words")}</div>
-    ${S.open[`ans-${q.id}`] ? `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="The rule, as you'd put it"><button class="btn">Add</button></form>` : ""}</div></article>`;
+    ${S.open[`ans-${q.id}`] ? `${replyForm(`ans-${q.id}`, `data-reply="${q.id}"`, "The rule, as you'd put it", "Add")}` : ""}</div></article>`;
 }
 
 /* The changes behind a review: commits, files, then the diff file by file. Loaded on click. */
