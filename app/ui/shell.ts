@@ -1,6 +1,7 @@
 import { $, esc, money } from "./lib.ts";
 import { badge, icon, me } from "./look.ts";
 import { S, myName, unread } from "./state.ts";
+import { updateReady } from "./update.ts";
 
 // The frame around every page: sidebar, top bar and your menu.
 export const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S.snap.failed || []).length : 0);
@@ -23,8 +24,16 @@ export function renderSide() {
         <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
     ${S.company ? `${Object.entries(pages).map(([k, v]) =>
       `<button class="navbtn" data-view="${k}" title="${v}" ${S.view === k ? 'aria-current="page"' : ""}>${icon(k)}<span>${v}</span>${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && anyUnread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
+    ${updateReady ? updateButton(updateReady) : ""}
     ${S.dev ? `<span class="dev-chip" title="A dev build, on ${esc(S.dev)}">DEV · ${esc(S.dev.replace(/^\/Users\/[^/]+/, "~"))}</span>` : ""}
     <button class="side-foot" data-pop="menu" aria-expanded="${!!S.pop}" title="You and settings">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div><span class="foot-more">${icon("more")}</span></button>`;
+}
+
+// Restarting stops runs in progress, so the button says so when someone is working.
+function updateButton(version: string) {
+  const busy = (S.snap?.employees || []).filter(e => e.status === "working").length;
+  const title = busy ? `${busy === 1 ? "1 person is" : `${busy} people are`} working. Their runs stop, and you can retry them after.` : "Restarts OneCorp on the new version.";
+  return `<button class="update-btn" data-update-restart="1" title="${esc(title)}">${icon("spark")}<span>Restart to update</span><em>${esc(version)}</em></button>`;
 }
 
 export function renderTop() {

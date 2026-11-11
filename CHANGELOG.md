@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- OneCorp updates itself. New versions download in the background, and "Restart to update" in the sidebar applies them.
+
 ### Fixed
 
 - A ticket waiting on you always has something in your Inbox to answer. When an employee marks a ticket blocked, what they need lands in your Inbox as a question, and answering it picks the ticket back up. Tickets already stuck this way get their question the next time the app opens. (#26)

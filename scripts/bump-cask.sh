@@ -27,6 +27,9 @@ cask "onecorp" do
   desc "Run a company of AI employees on your Mac"
   homepage "https://onecorp.dev"
 
+  # The app updates itself, so brew doesn't treat a newer installed version as out of date.
+  auto_updates true
+
   app "OneCorp.app"
 
   zap trash: [

@@ -25,7 +25,10 @@
     ],
     "security": {
       "csp": null,
-      "assetProtocol": { "enable": true, "scope": [] }
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
     }
   },
   "bundle": {
@@ -45,6 +48,14 @@
     "copyright": "OneCorp",
     "macOS": {
       "minimumSystemVersion": "11.0"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "PUBKEY",
+      "endpoints": [
+        "https://github.com/snowztech/onecorp/releases/latest/download/latest.json"
+      ]
     }
   }
 }
