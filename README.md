@@ -132,11 +132,11 @@ make check           # lint, tests, and a walk through onboarding in Chrome
 ```
 crates/core/   the onecorp library: everything that runs a company
 crates/cli/    the onecorp command, a thin shell over the library
-app/           the desktop app: Tauri, with plain HTML, CSS and JS in app/ui
+app/           the desktop app: Tauri, with its UI in TypeScript in app/ui, built by Vite
 docs/          architecture, design rules, brand, screenshots
 ```
 
-The UI also opens in a browser on sample data: open `app/ui/index.html`, and add a hash like `#inbox` or `#chat` to jump to a screen.
+The UI also opens in a browser on sample data: run `make ui`, open http://localhost:1420, and add a hash like `#inbox` or `#chat` to jump to a screen.
 
 ## Contributing
 

@@ -42,9 +42,12 @@
 /* Thin scrollbars that only show the thumb, like the rest of macOS. */
 ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) 16%, transparent); border: 3px solid transparent; border-radius: 99px; background-clip: padding-box; }
+/* Like macOS overlay scrollbars: the thumb shows only while you're over the pane that scrolls. */
+::-webkit-scrollbar-thumb { background: transparent; border: 3px solid transparent; border-radius: 99px; background-clip: padding-box; }
+:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--fg) 16%, transparent); }
 ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--fg) 28%, transparent); }
-html, body { height: 100%; margin: 0; }
+/* The window never scrolls as a whole: each pane scrolls on its own. */
+html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--body); -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -195,8 +198,14 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .ask h4 { margin: 2px 0 4px; font-size: 15px; }
 .ask p { margin: 0 0 10px; color: var(--muted); white-space: pre-wrap; }
 .acts { display: flex; gap: 8px; flex-wrap: wrap; }
-.reply { display: flex; gap: 6px; margin-top: 8px; }
-.reply input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 10px; }
+.reply { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); transition: border-color .15s; }
+.reply:focus-within { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.reply textarea { border: 0; background: none; resize: none; outline: none; padding: 2px 4px; min-height: 44px; font: inherit; color: var(--fg); }
+/* The composer shows focus on its frame, so the field inside draws none of its own. */
+.reply textarea:focus { border-color: transparent !important; box-shadow: none; }
+.reply:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+.reply-acts { display: flex; align-items: center; gap: 6px; }
+.reply-acts .fine { margin-right: auto; padding-left: 4px; font-size: 12px; color: var(--muted); }
 .empty-state { max-width: 420px; margin: 8vh auto 0; padding: 0 24px; text-align: center; color: var(--muted); }
 .empty-state b { display: block; font: 600 18px var(--display); color: var(--fg); margin-bottom: 6px; }
 .empty-state code { font: 12px var(--mono); background: var(--surface-2); padding: 2px 6px; border-radius: 4px; }
@@ -578,8 +587,9 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .btn.danger { background: #c23b32; border-color: #c23b32; color: #fff; }
 .btn.danger-ghost { color: #d4483e; }
 .btn.danger-ghost:hover { border-color: #d4483e; }
-.confirm { padding: 14px 16px; margin: 8px 0; border: 1px solid #d4483e; border-radius: var(--r-md); }
-.confirm p { margin: 0 0 10px; font-size: 13px; }
+.confirm { padding: 12px 14px; margin: 10px 0 0; border: 1px solid color-mix(in srgb, #d4483e 35%, transparent); border-radius: var(--r-md); background: color-mix(in srgb, #d4483e 7%, transparent); }
+.confirm p { margin: 0 0 10px; font-size: 13px; color: var(--fg); }
+.confirm .acts { margin: 0; }
 .settings > .fine { margin-top: 32px; }
 
 /* Company switcher: one row at the top, the rest in a menu */
@@ -1004,8 +1014,11 @@ h1, h2, h3, .titles h1 { letter-spacing: -.02em; }
 
 /* Mentions in chat */
 .compose-box { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.compose-box input { width: 100%; }
+.compose-box input { width: 100%; flex: none; }
 .composer { align-items: flex-start; }
+/* Send lines up with the field, not with the field plus the "will reply" line under it. */
+.composer input, .composer > .btn { height: 42px; box-sizing: border-box; }
+.composer > .btn { padding: 0 18px; flex: none; }
 .mpop { position: absolute; left: 0; bottom: calc(100% + 6px); width: 320px; max-width: 100%; z-index: 20; padding: 4px; display: flex; flex-direction: column; gap: 1px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: 0 14px 40px rgb(0 0 0 / .3); animation: pop-in .14s var(--ease); }
 .mpop[hidden] { display: none; }
@@ -1321,3 +1334,17 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 /* Throwing work away sits apart, at the end of the row, and only turns red when you reach for it. */
 .btn.quiet-danger { margin-left: auto; border-color: transparent; background: none; color: var(--muted); }
 .btn.quiet-danger:hover, .btn.quiet-danger:focus-visible { color: #d4483e; border-color: color-mix(in srgb, #d4483e 40%, transparent); }
+
+/* Company page: the side column is one block the height of the page. Needs you and Live each
+   scroll inside it, so a long feed never makes the page scroll. */
+.view:has(> .hq) { container-type: size; }
+.sidecol { height: calc(100cqh - 44px); min-height: 0; gap: 0; }
+.sidecol .side-sec { display: flex; flex-direction: column; min-height: 0; }
+.sidecol .needs-sec { flex: none; max-height: 40%; }
+.sidecol .side-sec:last-child { flex: 1; }
+/* No bar at all in these two: the fade at the bottom says there's more. Long text wraps, never scrolls sideways. */
+.sidecol .needs, .sidecol .feed { min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+.sidecol .needs::-webkit-scrollbar, .sidecol .feed::-webkit-scrollbar { display: none; }
+.fl > div, .need > span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .sidecol { height: auto; } .sidecol .needs-sec { max-height: none; } }
