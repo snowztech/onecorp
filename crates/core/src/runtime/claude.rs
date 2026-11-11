@@ -5,8 +5,8 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::process::Command;
 
-// Edits are auto-accepted inside the worktree. Bash is limited to read-only git plus the
-// company's build and test commands, and OneCorp commits the work when the agent finishes.
+// Edits are auto-accepted inside the worktree. With "Only allowed", Bash is limited to read-only
+// git plus the repo's commands. With "Anything", it's open except for NEVER_ANY.
 // The company tools are always allowed.
 // Read-only text tools too: agents pipe test output through tail or head, and one blocked
 // part of a pipe blocks the whole command.

@@ -56,7 +56,7 @@ export function commandAsk(q: Question) {
   return `<article class="ask blocking" id="in-q${q.id}">${face(q.name, "blocked")}<div>
     <span class="kind">${many ? "Commands" : "Command"} · ${esc(q.key || "")}</span><h4>${cmds.map(c => `<code class="cmd-ask">${esc(c)}</code>`).join(" ")}</h4>
     <p>${esc(first(q.name))} wants to run ${many ? "these" : "this"} in <b>${esc(q.repo)}</b>${q.note ? `: ${esc(q.note)}` : "."}</p>
-    <p class="muted">Allowing ${many ? "them" : "it"} lets your whole team run ${many ? "them" : "it"} in ${esc(q.repo)}. You can remove ${many ? "them" : "it"} in Settings. Or let your team run any command, and they won't ask again.</p>
+    <p class="muted">Once allowed, everyone can run ${many ? "them" : "it"} in ${esc(q.repo)}. Or let employees run what they need, and they won't have to ask.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="allow" data-said="Allowed in ${esc(q.repo)}">${many ? "Allow all" : "Allow"} in ${esc(q.repo)}</button><button class="btn" data-run-any-q="${q.id}">Let them run anything</button><button class="btn ghost" data-answer="${q.id}" data-val="no" data-said="Not allowed">Not now</button></div></div></article>`;
 }
 

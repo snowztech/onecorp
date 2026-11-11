@@ -270,8 +270,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          Your ticket is {key}: {title}\n\n{details}\
-         You are in a git worktree on branch {branch}{in_repo}. {abilities} Don't commit: when you finish, \
-         OneCorp commits your changes under your name. \
+         You are in a git worktree on branch {branch}{in_repo}. {abilities} {commits} \
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
          If the ticket asks for an audit, research, a review or advice rather than a change, don't write files for it: \
          your final reply is the work, a report in Markdown the founder reads in OneCorp. Turn each piece of follow-up work \
@@ -288,6 +287,11 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         role = e.role,
         company = c.name,
         abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?, crate::commands::run_any(c)?, &branch),
+        commits = if crate::commands::run_any(c)? {
+            "Commit as you go if it helps: when you finish, OneCorp commits whatever you left, under your name."
+        } else {
+            "Don't commit: when you finish, OneCorp commits your changes under your name."
+        },
         in_repo = match &t.repo {
             Some(r) => format!(", in the {r} repo"),
             None if c.repos()?.len() > 1 => format!(", in the {} repo", c.repos()?[0].name),
@@ -818,8 +822,8 @@ pub fn resume(c: &Company, q: &Question) -> Result<()> {
     };
     let prompt = format!(
         "{by} answered your question #{n}: \"{question}\"\n\nTheir answer: {answer}\n\n\
-         Pick the ticket back up from where you left off and apply this answer. Same rules as before: \
-         don't commit, and end with two or three sentences on what changed.",
+         Pick the ticket back up from where you left off and apply this answer. Same rules as before, and \
+         end with two or three sentences on what changed.",
         n = q.id,
         question = q.question,
         answer = q.answer.as_deref().unwrap_or(""),
@@ -926,7 +930,7 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
     } else {
         format!(
             "The founder reviewed your work and asked for changes:\n\n{feedback}\n\n\
-             Make them. Same rules as before: don't commit, and end with two or three sentences on what changed."
+             Make them. Same rules as before, and end with two or three sentences on what changed."
         )
     };
     c.add_event(t.id, "review", &format!("changes requested: {}", runtime::clip(feedback, 600)), "")?;
@@ -1038,7 +1042,7 @@ fn requeue(c: &Company, t: &Ticket, note: Option<&str>) -> Result<()> {
         } else {
             format!(
                 "Your last run on {key} stopped before it finished. Check what's already in your worktree, then carry on \
-             and finish the ticket: {}\n\nSame rules as before: don't commit, and end with two or three sentences on what changed.",
+             and finish the ticket: {}\n\nSame rules as before, and end with two or three sentences on what changed.",
                 t.title
             )
         };

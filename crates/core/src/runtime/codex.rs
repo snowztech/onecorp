@@ -16,7 +16,8 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     cmd.args(["exec", "--json", "--skip-git-repo-check"])
         // The user's config (and their own MCP servers) stays out. Login still works.
         .arg("--ignore-user-config")
-        // Writes stay inside the worktree. .git is read-only there, which is why OneCorp commits for the agent.
+        // Writes stay inside the worktree. .git is read-only there unless the team runs anything, so
+        // otherwise OneCorp commits for the agent.
         .args(["--sandbox", if o.read_only { "read-only" } else { "workspace-write" }, "--cd"])
         .arg(o.cwd)
         .current_dir(o.cwd)
