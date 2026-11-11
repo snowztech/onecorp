@@ -178,9 +178,19 @@ pub fn reset(c: &Company, r: &Repo) -> Result<()> {
     c.delete_setting(&key(r))
 }
 
+/// Also takes a list pasted from a Claude Code settings file: `"Bash(make build:*)",` is `make build`.
+/// Git reads are always allowed, so they're left out.
 fn parse(text: &str) -> Vec<String> {
     let mut out: Vec<String> = vec![];
-    for cmd in text.split(['\n', ',']).map(|s| s.split_whitespace().collect::<Vec<_>>().join(" ")) {
+    for item in text.split(['\n', ',']) {
+        let mut cmd = item.trim().trim_matches(|ch| ch == '"' || ch == '\'' || ch == '`').trim();
+        if let Some(inner) = cmd.strip_prefix("Bash(").and_then(|s| s.strip_suffix(')')) {
+            cmd = inner.trim_end_matches('*').trim_end_matches(':').trim();
+        }
+        let cmd = cmd.split_whitespace().collect::<Vec<_>>().join(" ");
+        if ["git status", "git diff", "git log"].contains(&cmd.as_str()) {
+            continue;
+        }
         if !cmd.is_empty() && !out.contains(&cmd) {
             out.push(cmd);
         }
@@ -233,6 +243,13 @@ mod tests {
         assert!(repo("flutter", &["pubspec.yaml"]).contains(&"flutter test".to_string()));
         assert!(repo("swift", &["Package.swift"]).contains(&"swift test".to_string()));
         assert_eq!(repo("make", &["Makefile", "justfile"]), ["make", "just"]);
+
         assert!(repo("empty", &["README.md"]).is_empty());
+    }
+
+    #[test]
+    fn a_pasted_claude_list_reads_as_commands() {
+        let pasted = "\"Bash(make build:*)\",\n\"Bash(npm ci:)\", Bash(xcodegen generate)\nBash(git status:*)\nnpm run lint\nmake build";
+        assert_eq!(parse(pasted), ["make build", "npm ci", "xcodegen generate", "npm run lint"]);
     }
 }

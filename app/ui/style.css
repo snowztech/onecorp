@@ -1143,9 +1143,17 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .repo-h b { font-size: 14px; }
 .repo-h .mono { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repo-h .link-btn { margin: 0; white-space: nowrap; }
-.repo-set .cmd { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-.repo-set .cmd .link-btn { display: inline; margin: 0; padding: 0; font-size: 12px; }
-.repo-set .cmd input { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 9px; background: var(--surface-2); font: 12px var(--mono); color: var(--fg); }
+.cmds { display: flex; flex-direction: column; gap: 6px; }
+.cmds-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 500; }
+.cmds-h .link-btn, .cmds-h .muted { margin: 0; padding: 0; font-size: 12px; font-weight: 400; }
+.cmd-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); }
+.cmd-list:focus-within { border-color: var(--accent); }
+.cmd-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); font: 12px var(--mono); }
+.cmd-chip button { border: 0; background: none; color: var(--muted); font-size: 14px; line-height: 1; padding: 0 4px; border-radius: 4px; cursor: pointer; }
+.cmd-chip button:hover { color: var(--fg); background: var(--surface-2); }
+.cmd-add { flex: 1; min-width: 140px; border: 0; outline: 0; background: none; padding: 3px 4px; font: 12px var(--mono); color: var(--fg); }
+.cmds-note { margin: 0; font-size: 12px; color: var(--muted); }
+.cmds-note code { font: 11px var(--mono); }
 .add-repo { margin-top: 12px; }
 .add-repo input { flex: 1; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 9px; background: var(--surface-2); font-size: 12px; }
 .repo-tag { align-self: flex-start; font: 500 10px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 7px; }
