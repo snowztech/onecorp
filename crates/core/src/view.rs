@@ -294,11 +294,16 @@ pub fn chat(c: &Company, channel: &str) -> Result<Value> {
         .iter()
         .skip(msgs.len().saturating_sub(SHOWN))
         .map(|m| {
-            let name = if m.author == "founder" { founder.clone() } else { c.employee(&m.author).ok().flatten().map(|e| e.name).unwrap_or_else(|| m.author.clone()) };
+            let name = if m.author == "founder" {
+                founder.clone()
+            } else if m.author == crate::chat::ONECORP {
+                "OneCorp".into()
+            } else { c.employee(&m.author).ok().flatten().map(|e| e.name).unwrap_or_else(|| m.author.clone()) };
             json!({
                 "id": m.id, "at": m.at, "author": m.author, "name": name, "text": m.text,
                 "key": m.ticket.map(|t| c.key(t)), "pending": m.pending, "founder": m.author == "founder",
                 "proposed": proposed(c, m.id),
+                "issue": c.issue_of(m.id).ok().flatten().and_then(|i| serde_json::from_str::<Value>(&i).ok()),
             })
         })
         .collect();

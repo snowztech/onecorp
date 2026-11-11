@@ -469,6 +469,11 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .prop-row .av { width: 22px; height: 22px; }
 .prop-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prop-row .muted { font-size: 12px; }
+.help-av { display: grid; place-items: center; background: var(--surface-2); padding: 4px; box-sizing: border-box; }
+.help-av.big { width: 34px; height: 34px; padding: 7px; }
+.issue-title { padding: 0 6px; font-size: 14px; }
+.issue-body { padding: 4px 6px; font-size: 13px; color: var(--muted); max-height: 180px; overflow: auto; }
+.issue-body p, .issue-body ol, .issue-body ul { margin: 0 0 6px; }
 .proposal .acts { display: flex; align-items: center; gap: 10px; padding: 6px 6px 2px; }
 .msg header { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .msg time { font: 11px var(--mono); color: var(--muted); }

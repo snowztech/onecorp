@@ -26,6 +26,13 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         return Ok(());
     }
 
+    // Ask OneCorp: a bug report draft when asked about a [bug], a plain answer otherwise.
+    if prompt.starts_with("You are Ask OneCorp") {
+        let text = if prompt.contains("[bug]") { "That's a bug.\nISSUE: bug | Drafts vanish\n**What happened**\nThe draft vanished." } else { "Leads can propose tickets for their team." };
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text: text.into() })?;
+        return Ok(());
+    }
+
     // Mentioned in the team chat: a short, friendly reply that quotes what it was asked, so tests can check it.
     if let Some(said) = prompt.lines().find_map(|l| l.strip_prefix("They wrote: ")) {
         let mut text = format!("Got it: \"{}\". I'll keep it in mind on my next ticket.", said.trim());

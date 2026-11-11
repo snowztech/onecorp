@@ -1,15 +1,17 @@
 import { $, esc, first, fold, hhmm, sameMinutes } from "../lib.ts";
 import { agentBadge, face, icon, me } from "../look.ts";
-import { inline } from "../md.ts";
-import { S, byId, employeesOf, markSeen, unread } from "../state.ts";
-import type { Employee, Message, Proposed } from "../types.ts";
+import { inline, md } from "../md.ts";
+import { logo } from "../brand.ts";
+import { S, byId, employeesOf, enc, markSeen, unread } from "../state.ts";
+import type { Employee, Issue, Message, Proposed } from "../types.ts";
 import { STATUS } from "./board.ts";
 
 /* Chat: #general and a channel per department. Your team posts as they work; @mention someone to ask them. */
 export function viewChat() {
   const s = S.snap!, chans = s.channels || [], dms = s.dms || [];
   const dmRow = dms.find(d => d.channel === S.channel), person = dmRow && byId(dmRow.id);
-  const ch: { name: string; last: number | null; department?: number | null } | undefined = person ? { name: dmRow.channel, last: dmRow.last } : chans.find(c => c.name === S.channel) || chans[0];
+  const help = S.channel === "help";
+  const ch: { name: string; last: number | null; department?: number | null } | undefined = help ? { name: "help", last: null } : person ? { name: dmRow.channel, last: dmRow.last } : chans.find(c => c.name === S.channel) || chans[0];
   if (!ch) return "";
   markSeen(ch.name, ch.last);
   const dept = person ? null : s.departments.find(d => d.id === ch.department);
@@ -24,24 +26,27 @@ export function viewChat() {
   const rows = (msgs || []).map(m => {
     const same = prev && prev.author === m.author && !prev.pending && !m.pending && sameMinutes(prev.at, m.at, 5);
     prev = m;
-    const who = m.founder ? me() : face(m.name, m.pending ? "working" : "neutral");
+    const who = m.founder ? me() : m.author === "onecorp" ? `<span class="av help-av">${logo()}</span>` : face(m.name, m.pending ? "working" : "neutral");
     const body = m.pending ? `<p class="typing">writing<span><i></i><i></i><i></i></span></p>` : `<div class="msg-text">${chatText(m.text)}</div>`;
     const meta = `<header><b>${esc(m.founder ? m.name : first(m.name))}</b>${m.founder ? '<span class="you">you</span>' : ""}<time>${hhmm(m.at)}</time>${m.key ? `<a class="tkey" data-ticket="${esc(m.key)}">${esc(m.key)}</a>` : ""}</header>`;
     const del = m.pending ? "" : `<button class="msg-del ${S.msgDel === m.id ? "sure" : ""}" data-msg-del="${m.id}" title="Delete message" aria-label="Delete message">${S.msgDel === m.id ? "Delete?" : icon("trash")}</button>`;
-    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}${proposal(m.proposed)}</div>${del}</li>`;
+    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}${proposal(m.proposed)}${issueDraft(m.issue)}</div>${del}</li>`;
   }).join("");
-  const empty = person
+  const empty = help
+    ? `<li class="chat-empty"><b>Ask OneCorp</b>Ask how something works, whether OneCorp can do it, or if what you saw is a bug. It reads OneCorp's docs and your company as it is now, and drafts a GitHub issue when there's something to report. It runs on your team's agent, only when you ask.</li>`
+    : person
     ? `<li class="chat-empty"><b>Message ${esc(first(person.name))}</b>Just between you two. ${esc(first(person.name))} replies to every message and reads this before their next ticket.</li>`
     : `<li class="chat-empty"><b>Nothing in #${esc(ch.name)} yet</b>Your team posts here as they work. Mention someone with @ to ask them something.</li>`;
   const sub = person ? `${esc(person.role)} · ${STATE[person.status] || ""}` : dept ? `${lead ? "Led by " + esc(first(lead.name)) + " · " : ""}${people.length} ${people.length === 1 ? "person" : "people"}` : ch.name === "general" ? "Everyone at " + esc(s.company) : "";
   return `<div class="chat">
-    <nav class="chans" aria-label="Channels"><h6>Channels</h6>${list}${dmList ? `<h6 class="dm-h">Direct messages</h6>${dmList}` : ""}</nav>
+    <nav class="chans" aria-label="Channels"><h6>Channels</h6>${list}${dmList ? `<h6 class="dm-h">Direct messages</h6>${dmList}` : ""}
+      <h6 class="dm-h">Help</h6><button class="chan dm" data-channel="help" aria-current="${help}"><span class="av help-av">${logo()}</span>Ask OneCorp</button></nav>
     <section class="room-chat">
-      <header class="chat-h">${person ? `<span class="with-agent dm-face">${face(person.name, person.status)}${agentBadge(person.runtime)}</span>` : ""}<div><h3>${person ? esc(person.name) : "#" + esc(ch.name)}</h3><span class="muted">${sub}</span></div>
-        ${person ? `<button class="btn ghost" data-person="${esc(person.id)}">Profile</button>` : members(ch.name, people, lead)}</header>
+      <header class="chat-h">${help ? `<span class="av help-av big">${logo()}</span><div><h3>Ask OneCorp</h3><span class="muted">How OneCorp works, what it can do, and bugs worth reporting</span></div>` : `${person ? `<span class="with-agent dm-face">${face(person.name, person.status)}${agentBadge(person.runtime)}</span>` : ""}<div><h3>${person ? esc(person.name) : "#" + esc(ch.name)}</h3><span class="muted">${sub}</span></div>
+        ${person ? `<button class="btn ghost" data-person="${esc(person.id)}">Profile</button>` : members(ch.name, people, lead)}`}</header>
       <ul class="msgs" id="msgs">${msgs === null ? `<li class="chat-empty muted">Loading…</li>` : rows || empty}</ul>
       <form class="composer" id="say"><div class="compose-box"><div class="mpop" id="mpop" role="listbox" hidden></div>
-        <input id="say-text" placeholder="${person ? `Message ${esc(first(person.name))}` : `Message #${esc(ch.name)}. Type @ to ask someone, @all for everyone`}" autocomplete="off" role="combobox" aria-controls="mpop">
+        <input id="say-text" placeholder="${help ? "Ask how something works, or describe what went wrong" : person ? `Message ${esc(first(person.name))}` : `Message #${esc(ch.name)}. Type @ to ask someone, @all for everyone`}" autocomplete="off" role="combobox" aria-controls="mpop">
         <p class="calls" id="calls"></p></div><button class="btn primary">Send</button></form>
     </section></div>`;
 }
@@ -143,4 +148,13 @@ function proposal(list: Proposed[] | undefined) {
     ? `<div class="acts"><button class="btn primary" data-start-all="${esc(waiting.join(","))}">${waiting.length === list.length ? (list.length === 1 ? "Start it" : "Start them") : `Start the other ${waiting.length}`}</button><span class="fine">Open one to change it, give it to someone else or delete it.</span></div>`
     : "";
   return `<div class="proposal"><span class="label">Proposed ${list.length === 1 ? "ticket" : "tickets"}</span>${rows}${acts}</div>`;
+}
+
+// A GitHub issue Ask OneCorp drafted. Opening it fills in GitHub's form: nothing is posted until you submit it there.
+function issueDraft(i: Issue | null | undefined) {
+  if (!i) return "";
+  const url = `https://github.com/snowztech/onecorp/issues/new?labels=${i.kind === "idea" ? "enhancement" : "bug"}&title=${enc(i.title)}&body=${enc(i.body)}`;
+  return `<div class="proposal issue"><span class="label">${i.kind === "idea" ? "Idea" : "Bug report"} for GitHub</span><b class="issue-title">${esc(i.title)}</b>
+    <div class="issue-body">${md(i.body).html}</div>
+    <div class="acts"><button class="btn primary" data-open-url="${esc(url)}">Review on GitHub</button><span class="fine">Opens GitHub with this filled in. Nothing is posted until you submit it.</span></div></div>`;
 }

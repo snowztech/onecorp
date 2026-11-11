@@ -8,6 +8,10 @@ use crate::templates::suggest_name;
 use anyhow::{Result, bail, ensure};
 
 pub const GENERAL: &str = "general";
+/// Ask OneCorp: you and OneCorp's built-in help. Not a team channel, so no employee reads it.
+pub const HELP: &str = "help";
+/// Who Ask OneCorp's replies are by. Never an employee id: those come from names, which are words.
+pub const ONECORP: &str = "onecorp";
 
 /// The direct message channel between you and one employee. Department channels only use
 /// letters, digits and dashes, so a DM can never clash with one.
@@ -31,7 +35,7 @@ pub fn channels(c: &Company) -> Result<Vec<Channel>> {
         out.push(Channel { name: suggest_name(&d.name), title: d.name, department: Some(d.id) });
     }
     for name in c.channel_names()? {
-        if dm_of(&name).is_none() && !out.iter().any(|ch| ch.name == name) {
+        if dm_of(&name).is_none() && name != HELP && !out.iter().any(|ch| ch.name == name) {
             out.push(Channel { title: name.clone(), name, department: None });
         }
     }
@@ -40,6 +44,9 @@ pub fn channels(c: &Company) -> Result<Vec<Channel>> {
 
 /// A channel from what someone typed: "#Engineering", "engineering" or just "eng". Empty means #general.
 pub fn resolve(c: &Company, typed: &str) -> Result<String> {
+    if typed.trim() == HELP {
+        return Ok(HELP.into());
+    }
     if let Some(id) = dm_of(typed.trim()) {
         c.employee(id)?.ok_or_else(|| anyhow::anyhow!("nobody called {id} works here"))?;
         return Ok(dm(id));
@@ -109,6 +116,9 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     ensure!(!text.is_empty(), "say something first");
     let channel = resolve(c, channel)?;
     c.post(&channel, "founder", text, None)?;
+    if channel == HELP {
+        return Ok(vec![c.post_pending(HELP, ONECORP)?]);
+    }
     // Replies cost money. A paused company reads your message later, with its next ticket.
     if c.paused()? {
         return Ok(vec![]);
@@ -137,6 +147,9 @@ pub fn note(c: &Company, asker: &str, author: &str, text: &str, ticket: Option<i
 /// start them.
 pub fn reply(c: &Company, id: i64) -> Result<()> {
     let Some(slot) = c.message(id)? else { return Ok(()) };
+    if slot.author == ONECORP {
+        return crate::help::reply(c, id);
+    }
     let Some(e) = c.employee(&slot.author)? else {
         return c.finish_message(id, "(they've left the company)", 0.0, 0);
     };
@@ -381,7 +394,7 @@ fn seen_elsewhere(c: &Company, e: &Employee, skip: &str) -> Result<Vec<String>> 
     let msgs: Vec<Message> = c
         .messages(None)?
         .into_iter()
-        .filter(|m| !m.pending && m.channel != skip && (m.channel == GENERAL || m.channel == home || m.channel == dm(&e.id) || m.text.to_lowercase().contains(&tag)))
+        .filter(|m| !m.pending && m.channel != skip && m.channel != HELP && (m.channel == GENERAL || m.channel == home || m.channel == dm(&e.id) || m.text.to_lowercase().contains(&tag)))
         .collect();
     Ok(msgs
         .iter()
@@ -394,7 +407,7 @@ fn seen_elsewhere(c: &Company, e: &Employee, skip: &str) -> Result<Vec<String>> 
 
 /// "Name: text", with long messages cut so one rant can't fill the prompt. The cut is marked,
 /// or an employee reading its own reply thinks it failed to send and says it again.
-fn line(c: &Company, m: &Message) -> String {
+pub(crate) fn line(c: &Company, m: &Message) -> String {
     let who = if m.author == "founder" {
         format!("{} (founder)", crate::founder::name())
     } else {
