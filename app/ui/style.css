@@ -1485,7 +1485,7 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .pay { padding: 14px 0; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
 .pay-head b { display: block; }
 .pay-head span { color: var(--muted); font-size: 13px; }
-.pay-row { display: grid; grid-template-columns: 1fr auto 170px; gap: 12px; align-items: center; }
+.pay-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
 .pay-row .who { display: flex; align-items: center; gap: 8px; }
 .plan-line { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 0 0 8px; color: var(--muted); }
 .plan-line b { color: var(--fg); font-weight: 600; }

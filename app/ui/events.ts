@@ -122,10 +122,8 @@ document.addEventListener("click", async e => {
   if (d.ask) { S.pop = false; renderPop(); S.view = "chat"; S.channel = "help"; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
   if (d.dm) { S.view = "chat"; S.channel = "dm:" + d.dm; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
   if (d.planMode) {
-    const [rt, mode] = d.planMode.split(":");
-    if (mode === "sub") { (S.planEdit ||= {})[rt] = true; renderSheet(); return $(`[data-plan="${rt}"]`)?.focus(); }
-    if (S.planEdit) S.planEdit[rt] = false;
-    await invoke("set_plan", { runtime: rt, dollars: 0 }).catch(err => toast(String(err), true));
+    const [runtime, mode] = d.planMode.split(":");
+    await invoke("set_plan", { runtime, subscription: mode === "sub" }).catch(err => toast(String(err), true));
     return loadSpend();
   }
   if (d.kpick && S.drawer?.form) { const f = S.drawer.form; f.kind = d.kpick; f.kindPicked = true; return showKind(f); }
@@ -606,10 +604,6 @@ document.addEventListener("change", async e => {
     return $(`[data-cmd-add="${CSS.escape(repo)}"]`)?.focus();
   }
 
-  if (target.dataset?.plan) {
-    await invoke("set_plan", { runtime: target.dataset.plan, dollars: Math.max(0, Number(target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
-    return loadSpend();
-  }
   if (target.dataset?.price) {
     await invoke("set_price", { company: S.company, runtime: target.dataset.price, perMillion: Math.max(0, Number(target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
     return loadSpend();

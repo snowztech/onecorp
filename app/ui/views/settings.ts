@@ -160,24 +160,20 @@ export function spendTab() {
   const row = (lead: string, w: { today: { cost: number }; week: { cost: number }; all: { cost: number } }, extra = "") => `<tr><td>${lead}</td><td class="num">${money(w.today.cost)}</td><td class="num">${money(w.week.cost)}</td><td class="num">${money(w.all.cost)}</td>${extra}</tr>`;
   const head = (extra = "") => `<thead><tr><th></th><th class="num">Today</th><th class="num">7 days</th><th class="num">All time</th>${extra}</tr></thead>`;
   const people = r.people.filter(p => p.all.cost > 0 || p.cap > 0);
-  const plans = r.plans || [], plan = (rt: string) => plans.find(p => p.runtime === rt)?.plan || 0;
+  const plans = r.plans || [], onPlan = (rt: string) => plans.some(p => p.runtime === rt);
   const agentsUsed = [...new Set([...(S.runtimes || ["claude", "codex"]).filter(x => x !== "fake"), ...plans.map(p => p.runtime)])];
   const planLines = plans.map(p => {
-    const name = AGENTS[p.runtime]?.name || p.runtime, x = p.plan > 0 ? p.month / p.plan : 0;
-    return `<p class="plan-line"><span class="tool-ic sm" style="--c:${AGENTS[p.runtime]?.color || "#888"}">${agentMark(p.runtime)}</span><span><b>${esc(name)}</b>: ${money(p.month)} of work this month across your companies, at API prices. ${x >= 0.1 ? `That's ${x.toFixed(1)}× your ${money(p.plan)} plan.` : `Your plan is ${money(p.plan)}.`}${p.limits ? ` It hit its usage limit ${p.limits === 1 ? "once" : `${p.limits} times`} in the last 7 days.` : ""}</span></p>`;
+    const name = AGENTS[p.runtime]?.name || p.runtime;
+    return `<p class="plan-line"><span class="tool-ic sm" style="--c:${AGENTS[p.runtime]?.color || "#888"}">${agentMark(p.runtime)}</span><span><b>${esc(name)}</b>: ${money(p.month)} of work this month across your companies, at API prices. Your subscription covers it up to its usage limit${p.limits ? `, which it hit ${p.limits === 1 ? "once" : `${p.limits} times`} in the last 7 days` : ""}.</span></p>`;
   }).join("");
   return `<div class="spend-now"><span class="label">${plans.length ? "Today, at API prices" : "Today"}</span><b>${money(t.today.cost)}</b>
       ${b > 0 ? `<span class="meter big ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}"><i style="width:${pct}%"></i></span><span class="muted">${Math.round(pct)}% of ${money(b)}</span>` : ""}</div>
     <div class="row-set"><div><b>Daily budget</b><span>The company pauses there until tomorrow.</span></div>
       <div class="seg">${presets.map(p => `<button data-budget="${p}" aria-pressed="${p === b && !S.customBudget}">${p ? `$${p}` : "None"}</button>`).join("")}<button data-budget-custom="1" aria-pressed="${custom || !!S.customBudget}">${custom ? money(b) : "Other"}</button></div></div>
     ${S.customBudget ? `<form id="budget-form" class="row-set"><div><b>Your budget</b><span>Press Enter to save.</span></div><label class="money-in inline"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b || ""}" placeholder="12"><span class="unit">a day</span></label></form>` : ""}
-    <div class="pay"><div class="pay-head"><b>How you pay for your agents</b><span>For all your companies. With a subscription, Spending compares what your team ran to what you pay, and the dollars here are API prices, not a bill.</span></div>
-      ${agentsUsed.map(rt => {
-        const sub = plan(rt) > 0 || !!S.planEdit?.[rt], name = AGENTS[rt]?.name || rt;
-        return `<div class="pay-row"><span class="who"><span class="tool-ic sm" style="--c:${AGENTS[rt]?.color || "#888"}">${agentMark(rt)}</span>${esc(name)}</span>
-          <div class="seg"><button data-plan-mode="${rt}:use" aria-pressed="${!sub}">Pay per use</button><button data-plan-mode="${rt}:sub" aria-pressed="${sub}">Subscription</button></div>
-          ${sub ? `<label class="money-in inline"><span>$</span><input data-plan="${rt}" type="number" min="0" step="1" value="${plan(rt) || ""}" placeholder="100" aria-label="${esc(name)} subscription, dollars a month"><span class="unit">a month</span></label>` : `<span></span>`}</div>`;
-      }).join("")}</div>
+    <div class="pay"><div class="pay-head"><b>How you pay for your agents</b><span>Pay per use is an API key: each run costs what you see here. A subscription, like Claude Max or ChatGPT Pro, covers runs up to its usage limit, so the amounts here are only what the work would cost on the API. For all your companies.</span></div>
+      ${agentsUsed.map(rt => `<div class="pay-row"><span class="who"><span class="tool-ic sm" style="--c:${AGENTS[rt]?.color || "#888"}">${agentMark(rt)}</span>${esc(AGENTS[rt]?.name || rt)}</span>
+          <div class="seg"><button data-plan-mode="${rt}:use" aria-pressed="${!onPlan(rt)}">Pay per use</button><button data-plan-mode="${rt}:sub" aria-pressed="${onPlan(rt)}">Subscription</button></div></div>`).join("")}</div>
     ${planLines}
     ${S.settings ? (() => {
       // Says exactly which model runs, so there's nothing to guess about "lighter".
