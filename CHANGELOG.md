@@ -6,6 +6,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
+- Discard work you don't want, from its review in the Inbox or on the ticket. The pull request is closed, the branch deleted, and the ticket goes back to the backlog to start again or delete.
 - An employee who needs a command they can't run asks for it in your Inbox, like `xcodegen generate` with the reason. Allow it and the whole team can run it in that repo, and the ticket picks back up. Git, root and pull request commands are never asked: OneCorp handles those.
 
 ### Changed

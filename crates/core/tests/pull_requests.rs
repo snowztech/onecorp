@@ -13,7 +13,7 @@ fn git(dir: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
-/// Just enough of `gh` for OneCorp: auth status, pr create, pr view and pr merge.
+/// Just enough of `gh` for OneCorp: auth status, pr create, pr view, pr merge and pr close.
 /// A merge pushes the PR's branch onto its base on the bare "GitHub" repo.
 const FAKE_GH: &str = r#"#!/bin/sh
 state="$(dirname "$0")/gh-state"; mkdir -p "$state"
@@ -27,6 +27,7 @@ case "$1 $2" in
     echo "$head $base" > "$state/pr-$n"; echo OPEN > "$state/state-$n"
     echo "https://github.com/acme/notes/pull/$n" ;;
   "pr merge") read head base < "$state/pr-$3"; git push -q origin "$head:$base" && echo MERGED > "$state/state-$3" ;;
+  "pr close") echo CLOSED > "$state/state-$3" ;;
   "pr view") echo "{\"state\":\"$(cat "$state/state-$3")\"}" ;;
   "repo create")
     bare="$(dirname "$0")/github/$3.git"; mkdir -p "$(dirname "$bare")"; git init -q --bare -b main "$bare"
@@ -96,6 +97,18 @@ fn work_ships_as_pull_requests() {
     assert_eq!(ship::sync(&c).unwrap(), vec!["ACM-2 was merged on GitHub".to_string()]);
     assert_eq!(ticket(b).status, "done");
 
+    // Work you don't want is discarded: the pull request closes, the branch goes, and the ticket
+    // is back in the backlog with nothing left of the attempt.
+    let e = c.add_ticket("fourth note", "maya").unwrap();
+    work::dispatch(&c, e, Job::Start).unwrap();
+    let (n, branch) = (ticket(e).pr_number.unwrap(), ticket(e).branch.unwrap());
+    work::discard(&c, &ticket(e)).unwrap();
+    assert_eq!(std::fs::read_to_string(root.join(format!("gh-state/state-{n}"))).unwrap().trim(), "CLOSED");
+    let t = ticket(e);
+    assert_eq!((t.status.as_str(), t.pr_number, t.branch.as_deref(), t.worktree.as_deref()), ("backlog", None, None, None));
+    assert!(!git(&origin, &["branch", "--list", &branch]).contains(&branch), "the branch is gone from GitHub");
+    assert!(work::discard(&c, &t).is_err(), "only work in review");
+
     // So is one closed without merging. It stops, and can be retried.
     let mate = root.join("mate");
     git(&root, &["clone", "-q", &origin.to_string_lossy(), &mate.to_string_lossy()]);
@@ -111,7 +124,7 @@ fn work_ships_as_pull_requests() {
     let r = onecorp::view::review(&c, &ticket(d)).unwrap();
     assert_eq!(r["commits"].as_array().unwrap().len(), 1, "{r}");
     assert_eq!(r["base"], "main");
-    std::fs::write(root.join("gh-state/state-3"), "CLOSED").unwrap();
+    std::fs::write(root.join(format!("gh-state/state-{}", ticket(d).pr_number.unwrap())), "CLOSED").unwrap();
     ship::sync(&c).unwrap();
     assert_eq!(ticket(d).status, "failed");
 
