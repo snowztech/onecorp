@@ -607,7 +607,13 @@ function approvalCopy(t) {
   return { label: mergeLabel(), busy: "Merging…", done: "Work merged. New tickets start from it." };
 }
 function reviewActions(t) {
-  return `<button class="btn good" data-approve="${esc(t.key)}">${approvalCopy(t).label}</button>${t.kind === "work" && !S.diffs[t.key] ? `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>` : ""}`;
+  return `<button class="btn good" data-approve="${esc(t.key)}">${approvalCopy(t).label}</button>${t.kind === "work" && !S.diffs[t.key] ? `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>` : ""}${t.kind === "work" && S.confirm !== "discard:" + t.key ? `<button class="btn danger-ghost" data-confirm="discard:${esc(t.key)}">Discard…</button>` : ""}`;
+}
+// Discarding asks once, right where you clicked: the work is gone after, the ticket isn't.
+function discardConfirm(t) {
+  if (S.confirm !== "discard:" + t.key) return "";
+  return `<div class="confirm"><p>Throw away ${esc(t.key)}'s work?${t.pr_url ? " Its pull request is closed and its branch deleted." : " Its branch is deleted."} The ticket goes back to the backlog, to start again or delete.</p>
+    <div class="acts"><button class="btn danger" data-discard="${esc(t.key)}">Discard the work</button><button class="btn ghost" data-confirm="">Keep it</button></div></div>`;
 }
 function wikiDraft(t) {
   return t.kind === "wiki" && (!t.status || t.status === "review") ? `<article class="doc wiki">${md(t.document || "No wiki draft was saved. Ask for changes to write it again.").html}</article>` : "";
@@ -620,7 +626,7 @@ function review(r) {
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
     ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}</div>
     ${S.open[`chg-${r.key}`] ? `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>` : ""}
-    ${changes(r.key)}</div></article>`;
+    ${discardConfirm(r)}${changes(r.key)}</div></article>`;
 }
 function wiki(q) {
   return `<article class="ask" id="in-q${q.id}">${face(q.name, "neutral")}<div>
@@ -933,7 +939,7 @@ function drawerTicket() {
         ${t.pr_url ? `<dt>Pull request</dt><dd>${prLink(t.pr_url, t.pr_number)}</dd>` : ""}
         ${t.repo ? `<dt>Repo</dt><dd class="mono">${esc(t.repo)}</dd>` : ""}
         ${t.branch ? `<dt>Branch</dt><dd class="mono">${esc(t.branch)}${t.base ? ` <span class="muted">from ${esc(t.base)}</span>` : ""}</dd>` : ""}</dl>
-      ${wikiDraft(t)}${acts ? `<div class="acts">${acts}</div>` : ""}${back}${changes(t.key)}
+      ${wikiDraft(t)}${acts ? `<div class="acts">${acts}</div>` : ""}${t.status === "review" ? discardConfirm(t) : ""}${back}${changes(t.key)}
       ${more(`log-${t.key}`, "Everything that happened", log ? `<div class="term tall" id="term">${log}</div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`)}
       ${["backlog", "todo", "waiting", "done", "failed"].includes(t.status) ? (S.confirm === "ticket:" + t.key
         ? `<div class="confirm"><p>Delete ${esc(t.key)}? Its log goes with it.${t.status === "done" ? (t.kind === "wiki" ? " The wiki stays saved." : t.kind === "plan" ? " Its work tickets stay." : " The merged work stays in your repo.") : t.status === "failed" ? " Its unfinished branch is thrown away." : ""}</p>
@@ -1634,11 +1640,16 @@ document.addEventListener("click", async e => {
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !e.target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
   if (d.dismissQ) { el.disabled = true; await call("dismiss_question", { company: S.company, id: Number(d.dismissQ) }, "Dismissed").catch(() => (el.disabled = false)); return; }
+  if (d.discard) {
+    el.disabled = true;
+    try { await invoke("discard_ticket", { company: S.company, key: d.discard }); toast(`Discarded the work. ${d.discard} is back in the backlog`); S.confirm = null; } catch (err) { el.disabled = false; return toast(String(err), true); }
+    return refresh(true);
+  }
   if (d.dismiss) { el.disabled = true; await call("dismiss_plan", { company: S.company, key: d.dismiss }, "Plan dismissed").catch(() => (el.disabled = false)); return; }
   if (d.replan) {
     const brief = $("#brief-text").value.trim();

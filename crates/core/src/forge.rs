@@ -199,6 +199,15 @@ impl Forge {
         Ok(out.lines().find(|l| l.starts_with("http")).unwrap_or(full_name).trim().to_string())
     }
 
+    pub fn close(self, repo: &Path, number: i64) -> Result<()> {
+        let n = number.to_string();
+        match self {
+            Forge::GitHub => self.run(repo, &["pr", "close", &n], None)?,
+            Forge::GitLab => self.run(repo, &["mr", "close", &n], None)?,
+        };
+        Ok(())
+    }
+
     /// Merges with a merge commit, not a squash, so each employee's commits keep their name.
     pub fn merge(self, repo: &Path, number: i64) -> Result<()> {
         let n = number.to_string();

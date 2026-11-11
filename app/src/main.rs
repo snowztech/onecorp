@@ -539,6 +539,14 @@ fn delete_ticket(company: String, key: String) -> Res<()> {
     c.delete_ticket(t.id).map_err(err)
 }
 
+/// Throws away a ticket's work in review. The ticket stays, back in the backlog.
+#[tauri::command(async)]
+fn discard_ticket(company: String, key: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    work::discard(&c, &t).map_err(err)
+}
+
 /// Deletes a merged, stopped or unstarted ticket from anywhere, not just a plan.
 #[tauri::command(async)]
 fn remove_ticket(company: String, key: String) -> Res<()> {
@@ -806,6 +814,7 @@ fn main() {
             set_voice,
             set_commands,
             set_pr_sign,
+            discard_ticket,
             add_repo,
             set_commits,
             set_talk,

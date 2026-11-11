@@ -837,6 +837,30 @@ pub fn stop(c: &Company, t: &Ticket) -> Result<()> {
     Ok(())
 }
 
+/// Throws away the work on a ticket in review: its pull request is closed, its branch and
+/// worktree deleted, and the ticket goes back to the backlog, to start fresh or delete.
+pub fn discard(c: &Company, t: &Ticket) -> Result<()> {
+    let key = c.key(t.id);
+    if t.status != "review" || t.kind != "work" {
+        bail!("{key} isn't work waiting for review, so there's nothing to discard");
+    }
+    let repo = c.repo_of(t)?;
+    if let (Some(n), Some(f)) = (t.pr_number, ship::forge_for(c, &repo)?) {
+        f.close(&repo, n)?;
+    }
+    if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
+        if t.pr_number.is_some() {
+            git::delete_remote_branch(&repo, branch);
+        }
+        git::discard(&repo, Path::new(wt), branch, &c.dir.join("wt"));
+    }
+    c.reset_ticket(t.id)?;
+    c.set_status(t.id, "backlog")?;
+    c.add_event(t.id, "stop", "work discarded by the founder, back to the backlog", "")?;
+    out(&format!("Discarded the work on {key}. It's back in the backlog: onecorp start {key}"));
+    Ok(())
+}
+
 /// Tries a failed ticket again. With a session and a worktree to go back to, the same session picks
 /// up where it stopped, so finished work isn't redone. Without them, it starts over cleanly.
 pub fn retry(c: &Company, t: &Ticket) -> Result<()> {
