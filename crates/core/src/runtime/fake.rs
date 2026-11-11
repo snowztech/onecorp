@@ -28,7 +28,11 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
 
     // Mentioned in the team chat: a short, friendly reply that quotes what it was asked, so tests can check it.
     if let Some(said) = prompt.lines().find_map(|l| l.strip_prefix("They wrote: ")) {
-        let text = format!("Got it: \"{}\". I'll keep it in mind on my next ticket.", said.trim());
+        let mut text = format!("Got it: \"{}\". I'll keep it in mind on my next ticket.", said.trim());
+        // Asked to [split] work: one ticket for Maya, one for Rui, and one with no title, which is dropped.
+        if said.contains("[split]") {
+            text.push_str("\nTICKET: Maya | Cache the checkout page | Under 200ms\n- TICKET: Rui | Write the release note | \nTICKET: Maya |  | nothing");
+        }
         on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
         return Ok(());
     }

@@ -462,6 +462,14 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .msg-del.sure { right: -64px; color: #d4483e; font-size: 12px; }
 .msg-del .ic { width: 14px; height: 14px; }
 .msg .av { width: 34px; height: 34px; }
+.proposal { margin: 8px 0 4px; border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: grid; gap: 2px; max-width: 560px; }
+.proposal .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 2px 6px 4px; }
+.prop-row { display: grid; grid-template-columns: 22px auto minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; text-align: left; padding: 5px 6px; border-radius: var(--r-sm); cursor: pointer; }
+.prop-row:hover { background: var(--surface-2); }
+.prop-row .av { width: 22px; height: 22px; }
+.prop-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-row .muted { font-size: 12px; }
+.proposal .acts { display: flex; align-items: center; gap: 10px; padding: 6px 6px 2px; }
 .msg header { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .msg time { font: 11px var(--mono); color: var(--muted); }
 .msg .you { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }

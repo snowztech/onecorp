@@ -298,10 +298,23 @@ pub fn chat(c: &Company, channel: &str) -> Result<Value> {
             json!({
                 "id": m.id, "at": m.at, "author": m.author, "name": name, "text": m.text,
                 "key": m.ticket.map(|t| c.key(t)), "pending": m.pending, "founder": m.author == "founder",
+                "proposed": proposed(c, m.id),
             })
         })
         .collect();
     Ok(json!({"channel": channel, "messages": shown}))
+}
+
+/// Tickets proposed in a chat message, with where each one stands now.
+fn proposed(c: &Company, message: i64) -> Vec<Value> {
+    let ids = c.proposed_in(message).unwrap_or_default();
+    ids.into_iter()
+        .filter_map(|id| c.ticket(id).ok().flatten())
+        .map(|t| {
+            let name = t.assignee.as_deref().and_then(|a| c.employee(a).ok().flatten()).map(|e| e.name);
+            json!({"key": c.key(t.id), "title": t.title, "employee": t.assignee, "name": name, "status": t.status})
+        })
+        .collect()
 }
 
 /// The document a ticket's reply is: a wiki draft, or a report.

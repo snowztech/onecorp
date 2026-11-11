@@ -2,7 +2,8 @@ import { $, esc, first, fold, hhmm, sameMinutes } from "../lib.ts";
 import { agentBadge, face, icon, me } from "../look.ts";
 import { inline } from "../md.ts";
 import { S, byId, employeesOf, markSeen, unread } from "../state.ts";
-import type { Employee, Message } from "../types.ts";
+import type { Employee, Message, Proposed } from "../types.ts";
+import { STATUS } from "./board.ts";
 
 /* Chat: #general and a channel per department. Your team posts as they work; @mention someone to ask them. */
 export function viewChat() {
@@ -27,7 +28,7 @@ export function viewChat() {
     const body = m.pending ? `<p class="typing">writing<span><i></i><i></i><i></i></span></p>` : `<div class="msg-text">${chatText(m.text)}</div>`;
     const meta = `<header><b>${esc(m.founder ? m.name : first(m.name))}</b>${m.founder ? '<span class="you">you</span>' : ""}<time>${hhmm(m.at)}</time>${m.key ? `<a class="tkey" data-ticket="${esc(m.key)}">${esc(m.key)}</a>` : ""}</header>`;
     const del = m.pending ? "" : `<button class="msg-del ${S.msgDel === m.id ? "sure" : ""}" data-msg-del="${m.id}" title="Delete message" aria-label="Delete message">${S.msgDel === m.id ? "Delete?" : icon("trash")}</button>`;
-    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}</div>${del}</li>`;
+    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}${proposal(m.proposed)}</div>${del}</li>`;
   }).join("");
   const empty = person
     ? `<li class="chat-empty"><b>Message ${esc(first(person.name))}</b>Just between you two. ${esc(first(person.name))} replies to every message and reads this before their next ticket.</li>`
@@ -131,4 +132,15 @@ export function chatText(text: string): string {
     return inline(part).split(/(<code>[\s\S]*?<\/code>|<a [^>]*>[\s\S]*?<\/a>)/).map((bit, j) => j % 2 ? bit
       : bit.replace(/@([\p{L}\d]+)/gu, '<span class="mention">@$1</span>').replace(/\b([A-Z]{2,5}-\d+)\b/g, '<a class="tkey" data-ticket="$1">$1</a>')).join("");
   }).join("");
+}
+
+// Tickets proposed in a reply: who does what, and one click to start the ones still waiting.
+function proposal(list: Proposed[] | undefined) {
+  if (!list?.length) return "";
+  const waiting = list.filter(t => t.status === "backlog").map(t => t.key);
+  const rows = list.map(t => `<button class="prop-row" data-ticket="${esc(t.key)}">${face(t.name || "", "neutral")}<b>${esc(first(t.name || "Nobody"))}</b><span class="prop-title">${esc(t.title)}</span><span class="muted">${esc(STATUS[t.status] || t.status)}</span></button>`).join("");
+  const acts = waiting.length
+    ? `<div class="acts"><button class="btn primary" data-start-all="${esc(waiting.join(","))}">${waiting.length === list.length ? (list.length === 1 ? "Start it" : "Start them") : `Start the other ${waiting.length}`}</button><span class="fine">Open one to change it, give it to someone else or delete it.</span></div>`
+    : "";
+  return `<div class="proposal"><span class="label">Proposed ${list.length === 1 ? "ticket" : "tickets"}</span>${rows}${acts}</div>`;
 }

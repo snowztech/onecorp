@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- Ask someone in chat to fix or look into something, and they propose the tickets right under their reply. A lead splits the work across their team, like Odile giving the cache to Maya and the query to Tomás. Start them in one click, or open one to change who does it.
+
 ## [0.1.9] - 2026-11-11
 
 The wiki opens with an Overview and a Glossary, and a stopped ticket can be retried with a note on what to do differently.
