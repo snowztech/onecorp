@@ -2654,7 +2654,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "onecorp"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "rusqlite",
@@ -2663,7 +2663,7 @@ dependencies = [
 
 [[package]]
 name = "onecorp-app"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "onecorp",
@@ -2679,7 +2679,7 @@ dependencies = [
 
 [[package]]
 name = "onecorp-cli"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "clap",

@@ -4,25 +4,29 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-11
+
+The wiki becomes a real company wiki, audits come back as reports instead of pull requests, and your team writes plainly. Your current wiki moves into pages on its own the first time this version opens.
+
 ### Added
 
-- Check for Updates… in the OneCorp menu, under About. It checks right away and says how it went: up to date, downloading, or ready to restart.
-- Settings… ⌘, in the OneCorp menu, where Mac apps keep it.
-- Audits, research and advice come back as reports, not pull requests. When a ticket changes no files, its reply is the work: you read it in the Inbox with the tickets it proposes, then start the ones you want or keep them for later.
-- The wiki is pages in spaces, like Product/Customers and Engineering/Conventions, instead of one long document. Each page shows who wrote it and who changed it last, and its history keeps every version, ready to restore.
-- Your team drafts the wiki from the repo without asking you anything: the engineering lead writes the Engineering pages and someone on the product side the Product ones, at the same time. Pages only you can write, like Now, wait for you with a hint. A company that starts empty gets a "Draft your wiki" card on the Wiki page once you've hired someone.
-- Redraft from the repo, from the wiki's sidebar or with `onecorp wiki redraft`, by your team or one person you pick.
-- Proposals from your team name the page they belong on, and show on that page. Ticking "Save to the wiki" when you answer a question adds it to Decisions.
+- The wiki is pages in spaces, like Product/Customers and Engineering/Conventions, instead of one long document. Each page shows who wrote it and who changed it last, and its history keeps every version, ready to restore. (#42)
+- Your team drafts the wiki from the repo without asking you anything: the engineering lead writes the Engineering pages and someone on the product side the Product ones, at the same time. Pages only you can write, like Now, wait for you with a hint. A company that starts empty gets a "Draft your wiki" card on the Wiki page once you've hired someone. (#42)
+- Redraft from the repo, from the wiki's sidebar or with `onecorp wiki redraft`, by your team or one person you pick. (#42)
+- Proposals from your team name the page they belong on, and show on that page. Ticking "Save to the wiki" when you answer a question adds it to Decisions. (#42)
+- Audits, research and advice come back as reports, not pull requests. When a ticket changes no files, its reply is the work: you read it in the Inbox with the tickets it proposes, then start the ones you want or keep them for later. (#41)
+- Check for Updates… in the OneCorp menu, under About. It checks right away and says how it went: up to date, downloading, or ready to restart. (#44)
+- Settings… ⌘, in the OneCorp menu, where Mac apps keep it. (#44)
 
 ### Changed
 
-- Employees write plainly: short sentences, no filler or recaps, and never semicolons, em dashes or double hyphens in prose. It applies to everyone, whatever their personality, in summaries, reports, chat, the wiki and their questions to you. If a model slips anyway, OneCorp turns those into commas and full stops before you see them. Code is never touched.
-- Codex runs with low verbosity, so its replies are shorter and use fewer tokens.
-- Tickets an employee creates while working show up with that work, so you see what they propose next to what they did.
-- Diffs keep their colors when you scroll sideways, and added and removed lines are easier to tell apart.
-- Your existing wiki becomes pages the first time the app opens. The old file stays next to them as `wiki-before-pages.md`.
-- `onecorp wiki edit` takes a page, like `onecorp wiki edit Company/Now`.
-- The download opens as a small window with OneCorp next to your Applications folder: drag one onto the other to install.
+- Employees write plainly: short sentences, no filler or recaps, and never semicolons, em dashes or double hyphens in prose. It applies to everyone, whatever their personality, in summaries, reports, chat, the wiki and their questions to you. If a model slips anyway, OneCorp turns those into commas and full stops before you see them. Code is never touched. (#43)
+- Codex runs with low verbosity, so its replies are shorter and use fewer tokens. (#43)
+- Tickets an employee creates while working show up with that work, so you see what they propose next to what they did. (#41)
+- Diffs keep their colors when you scroll sideways, and added and removed lines are easier to tell apart. (#41)
+- Your existing wiki becomes pages the first time the app opens. The old file stays next to them as `wiki-before-pages.md`. (#42)
+- `onecorp wiki edit` takes a page, like `onecorp wiki edit Company/Now`. (#42)
+- The download opens as a small window with OneCorp next to your Applications folder: drag one onto the other to install. (#40)
 
 ## [0.1.7] - 2026-11-11
 
@@ -169,6 +173,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.8]: https://github.com/snowztech/onecorp/releases/tag/v0.1.8
 [0.1.7]: https://github.com/snowztech/onecorp/releases/tag/v0.1.7
 [0.1.6]: https://github.com/snowztech/onecorp/releases/tag/v0.1.6
 [0.1.5]: https://github.com/snowztech/onecorp/releases/tag/v0.1.5
