@@ -284,10 +284,12 @@ function companySection() {
         : "By the employee. Set your name in git (git config user.name and user.email) to commit as you."}</span></div>
       <div class="seg">${[["team", "As your team"], ["you", "As you"]].map(([m, n]) => `<button data-commits="${m}" aria-pressed="${m === (st.commits || "team")}" ${!st.git_you && m === "you" ? "disabled" : ""}>${n}</button>`).join("")}</div></div>
     <h3 class="label repos-label">Repos</h3>
+    <p class="cmds-note">Each command covers what follows it: <code>make</code> allows every target. Git reads are always allowed, and OneCorp commits for your team.</p>
     ${(st.repos || []).map(r => `<div class="repo-set">
       <div class="repo-h"><b>${esc(r.name)}</b>${r.main ? `<span class="pill-state">primary</span>` : ""}<span class="mono muted" title="${esc(r.path)}">${esc(r.path)}</span>${reveal(r.path)}${r.main ? "" : `<button class="link-btn" data-repo-rm="${esc(r.name)}">Remove</button>`}</div>
-      <label class="cmd"><span>Build and test${r.custom ? ` · <button class="link-btn" type="button" data-commands-reset="${esc(r.name)}">use what the repo suggests</button>` : ""}</span>
-        <input class="mono" data-commands="${esc(r.name)}" value="${esc(r.commands.join(", "))}" placeholder="cargo test, npm test" autocomplete="off" spellcheck="false" aria-label="Build and test commands for ${esc(r.name)}"></label></div>`).join("")}
+      <div class="cmds"><div class="cmds-h"><span>Commands your team can run</span>${r.custom ? `<button class="link-btn" type="button" data-commands-reset="${esc(r.name)}">Reset to suggested</button>` : `<span class="muted">Suggested from the repo</span>`}</div>
+        <div class="cmd-list">${r.commands.map(cmd => `<span class="cmd-chip">${esc(cmd)}<button type="button" data-cmd-del="${esc(r.name)}" data-cmd="${esc(cmd)}" aria-label="Remove ${esc(cmd)}">×</button></span>`).join("")}
+          <input class="cmd-add" data-cmd-add="${esc(r.name)}" placeholder="${r.commands.length ? "Add a command" : "Add a command, like npm test"}" autocomplete="off" spellcheck="false" aria-label="Add a command for ${esc(r.name)}"></div></div></div>`).join("")}
     <div class="su-row add-repo">${window.__TAURI__?.dialog ? `<button class="btn" type="button" data-repo-add="pick">Add a repo…</button>` : ""}<input id="repo-add-path" class="mono" placeholder="/Users/you/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-repo-add="path">Add</button></div>
     <div class="row-set"><div><b>Data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div>
     <h3 class="label danger-label">Danger zone</h3>${del}`;
@@ -1590,7 +1592,7 @@ document.addEventListener("click", async e => {
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !e.target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1741,6 +1743,12 @@ document.addEventListener("click", async e => {
   }
   if (d.commits) {
     try { await invoke("set_commits", { company: S.company, mode: d.commits }); S.settings.commits = d.commits; saved(); } catch (err) { toast(String(err), true); }
+    return renderSheet();
+  }
+  if (d.cmdDel) {
+    const r = S.settings.repos.find(x => x.name === d.cmdDel);
+    const text = r.commands.filter(cmd => cmd !== d.cmd).join("\n");
+    S.settings.repos = await invoke("set_commands", { company: S.company, repo: d.cmdDel, text }).catch(err => (toast(String(err), true), S.settings.repos));
     return renderSheet();
   }
   if (d.commandsReset) {
@@ -2064,9 +2072,12 @@ document.addEventListener("change", async e => {
     try { const saved = await invoke("set_projects_folder", { path: e.target.value }); S.setup.repoInfo.parent = S.setup.parent = saved; toast("Clones go there from now on"); } catch (err) { toast(String(err), true); }
     return render();
   }
-  if (e.target.dataset?.commands) {
-    try { S.settings.repos = await invoke("set_commands", { company: S.company, repo: e.target.dataset.commands, text: e.target.value }); saved(); } catch (err) { toast(String(err), true); }
-    return renderSheet();
+  if (e.target.dataset?.cmdAdd && e.target.value.trim()) {
+    // Pasting several lines, or a list from a Claude Code settings file, adds them all.
+    const repo = e.target.dataset.cmdAdd, r = S.settings.repos.find(x => x.name === repo);
+    try { S.settings.repos = await invoke("set_commands", { company: S.company, repo, text: [...r.commands, e.target.value].join("\n") }); saved(); } catch (err) { toast(String(err), true); }
+    renderSheet();
+    return $(`[data-cmd-add="${CSS.escape(repo)}"]`)?.focus();
   }
 
   if (e.target.dataset?.price) {
@@ -2091,6 +2102,14 @@ document.addEventListener("change", async e => {
     await call("move_to_department", { company: S.company, employee: e.target.dataset.move, department: Number(e.target.value) }, "Moved").catch(() => {});
     if (S.drawer?.type === "person") openPerson(S.drawer.id);
   }
+});
+// A one-line input flattens a pasted list, so a multi-line paste is added as it is.
+document.addEventListener("paste", e => {
+  const box = e.target.closest?.("[data-cmd-add]"), text = e.clipboardData?.getData("text") || "";
+  if (!box || !text.includes("\n")) return;
+  e.preventDefault();
+  box.value = text;
+  box.dispatchEvent(new Event("change", { bubbles: true }));
 });
 document.addEventListener("keydown", e => {
   if (e.target.id === "say-text" && S.mention) {
