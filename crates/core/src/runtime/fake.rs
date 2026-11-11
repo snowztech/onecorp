@@ -76,6 +76,18 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: format!("Claude AI usage limit reached|{reset}") })?;
         return Ok(());
     }
+    // An audit: changes no files, proposes one follow-up, and the reply is the report.
+    if own.contains("[report]")
+        && let Some((c, ticket)) = company_ticket(o)
+    {
+        let employee = o.mcp.and_then(|m| m.args.iter().position(|a| a == "--employee").and_then(|i| m.args.get(i + 1)).cloned()).unwrap_or_default();
+        let ctx = crate::mcp::Ctx { ticket, employee: employee.clone() };
+        let call = serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "create_ticket", "arguments": {"title": "Add meta descriptions", "assignee": employee}}});
+        crate::mcp::handle(&c, &ctx, &call);
+        let text = "# SEO audit\n\nPages have no meta descriptions. Proposed a ticket to add them.".to_string();
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
+        return Ok(());
+    }
     if own.contains("[fail]") {
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: "Failed on purpose.".into() })?;
         return Ok(());

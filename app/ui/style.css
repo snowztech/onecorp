@@ -350,11 +350,19 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .file summary::before { content: "▸"; color: var(--muted); }
 .file[open] summary::before { content: "▾"; }
 .file summary .n { margin-left: auto; font: 11px var(--mono); }
-.patch { margin: 0; padding: 8px 0; font: 12px/1.55 var(--mono); overflow-x: auto; background: var(--surface); }
-.patch span { display: block; padding: 0 12px; white-space: pre; }
-.patch .add { background: color-mix(in srgb, var(--good) 14%, transparent); }
-.patch .del { background: color-mix(in srgb, #d0473a 12%, transparent); color: inherit; }
-.patch .hunk { color: var(--muted); background: var(--surface-2); }
+/* One grid column at least as wide as the box and as wide as the longest line, so a line's
+   color keeps going when you scroll sideways. */
+.patch { margin: 0; padding: 6px 0; font: 12px/1.6 var(--mono); overflow-x: auto; background: var(--surface);
+  display: grid; grid-template-columns: minmax(100%, max-content); white-space: normal; }
+.patch span { padding: 0 14px; white-space: pre; }
+.patch .add { background: color-mix(in srgb, var(--good) 9%, transparent); box-shadow: inset 2px 0 color-mix(in srgb, var(--good) 65%, transparent); }
+.patch .del { background: color-mix(in srgb, #d0473a 9%, transparent); box-shadow: inset 2px 0 color-mix(in srgb, #d0473a 65%, transparent); color: inherit; }
+.patch .hunk { color: var(--muted); background: var(--surface-2); padding-block: 3px; margin-block: 4px; }
+.patch .hunk:first-child { margin-top: -6px; }
+/* A report reads like a page, not a log line. */
+.report-doc { margin: 8px 0 12px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); max-width: none; }
+.report-doc .wiki > :first-child { margin-top: 0; }
+.report .label { display: block; margin-bottom: 4px; }
 .ask > div { min-width: 0; }
 
 /* Drawer */

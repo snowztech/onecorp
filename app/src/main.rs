@@ -116,6 +116,15 @@ fn answer(company: String, id: i64, text: String) -> Res<()> {
     work::answer(&open(&company)?, id, &text).map_err(err)
 }
 
+/// Closes a report you've read without starting what it proposed.
+#[tauri::command(async)]
+fn close_report(company: String, key: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    work::finish_report(&c, &t, false).map_err(err)?;
+    work::release_waiting(&c, t.id).map_err(err)
+}
+
 #[tauri::command(async)]
 fn dismiss_question(company: String, id: i64) -> Res<()> {
     work::dismiss(&open(&company)?, id).map_err(err)
@@ -836,6 +845,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             in_terminal,
             dismiss_question,
+            close_report,
             companies,
             use_company,
             chat,
