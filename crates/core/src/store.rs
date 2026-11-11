@@ -1159,6 +1159,16 @@ impl Company {
         Ok(())
     }
 
+    /// A GitHub issue Ask OneCorp drafted in a reply, as JSON: kind, title and body.
+    pub fn set_issue(&self, message: i64, issue: &str) -> Result<()> {
+        self.db.execute("UPDATE messages SET issue = ?2 WHERE id = ?1", params![message, issue])?;
+        Ok(())
+    }
+
+    pub fn issue_of(&self, message: i64) -> Result<Option<String>> {
+        Ok(self.db.query_row("SELECT issue FROM messages WHERE id = ?1", [message], |r| r.get(0)).optional()?.flatten())
+    }
+
     /// The tickets someone proposed in a chat message, in the order they gave them.
     pub fn proposed_in(&self, message: i64) -> Result<Vec<i64>> {
         let mut st = self.db.prepare("SELECT id FROM tickets WHERE message = ?1 ORDER BY id")?;
@@ -1319,6 +1329,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("messages", "cost_usd", "REAL NOT NULL DEFAULT 0"),
         ("messages", "tokens", "INTEGER NOT NULL DEFAULT 0"),
         ("tickets", "message", "INTEGER REFERENCES messages(id)"),
+        ("messages", "issue", "TEXT"),
     ];
     for (table, column, decl) in ADDED {
         let has: bool = db.query_row(

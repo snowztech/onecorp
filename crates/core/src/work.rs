@@ -661,7 +661,7 @@ pub fn company_knowledge(c: &Company) -> Result<String> {
 
 /// One line per person: their team, whether they lead it, and what they're on right now, so
 /// anyone can tell who's free, who's stuck and who to ask.
-fn who_does_what(c: &Company) -> Result<Vec<String>> {
+pub fn who_does_what(c: &Company) -> Result<Vec<String>> {
     let (tickets, depts) = (c.tickets()?, c.departments()?);
     Ok(c.employees()?
         .iter()

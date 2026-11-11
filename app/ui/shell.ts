@@ -61,6 +61,7 @@ export function renderPop() {
       ${S.spendAll !== undefined && S.companies.length > 1 ? `<div class="pm-note">${money(S.spendAll)} spent today across your ${S.companies.length} companies</div>` : ""}
       <button class="pm-item" data-settings-tab="you">${icon("user")}Edit profile</button>
       ${S.company ? `<button class="pm-item" data-settings="1">${icon("settings")}Settings<kbd>⌘,</kbd></button>` : ""}
+      ${S.company ? `<button class="pm-item" data-ask="1">${icon("info")}Ask OneCorp</button>` : ""}
       <hr><button class="pm-item quiet" data-pop="forget">${icon("logout")}Forget my profile…</button></div>`;
     return;
   }

@@ -97,6 +97,22 @@ fn channels_posts_and_replies() {
     assert_eq!(who, [("Cache the checkout page", "maya", "backlog"), ("Write the release note", "odile", "backlog")]);
     assert_eq!(made[0].description, "Under 200ms");
 
+    // Ask OneCorp answers in its own channel, which no employee reads, and drafts issues for bugs.
+    let slots = chat::say(&c, "help", "can leads give tickets to their team? @maya").unwrap();
+    assert_eq!(slots.len(), 1, "only OneCorp answers, even with a mention");
+    chat::reply(&c, slots[0]).unwrap();
+    assert_eq!(c.message(slots[0]).unwrap().unwrap().text, "Leads can propose tickets for their team.");
+    assert!(c.issue_of(slots[0]).unwrap().is_none());
+    let slots = chat::say(&c, "help", "my draft vanished [bug]").unwrap();
+    chat::reply(&c, slots[0]).unwrap();
+    assert_eq!(c.message(slots[0]).unwrap().unwrap().text, "That's a bug.");
+    let issue: serde_json::Value = serde_json::from_str(&c.issue_of(slots[0]).unwrap().unwrap()).unwrap();
+    assert_eq!((issue["kind"].as_str(), issue["title"].as_str()), (Some("bug"), Some("Drafts vanish")));
+    assert!(issue["body"].as_str().unwrap().contains("The draft vanished.") && issue["body"].as_str().unwrap().contains("on macOS"));
+    assert!(!chat::channels(&c).unwrap().iter().any(|ch| ch.name == "help"));
+    let maya = c.employee("maya").unwrap().unwrap();
+    assert!(!chat::catch_up(&c, &maya).unwrap().contains("vanished"), "employees don't read your help chat");
+
     let slots = chat::say(&c, "dm:rui", "how is the roadmap looking?").unwrap();
     assert_eq!(slots.len(), 1);
     chat::reply(&c, slots[0]).unwrap();

@@ -97,6 +97,14 @@ Built fresh for each run (`work::company_knowledge`):
 - **Stopped**: a run that errored, was stopped or was interrupted. Retry, with a note if you want, or delete.
 - **Usage limits**: work waits and picks back up by itself when the limit resets.
 
+## Ask OneCorp
+
+The help built into the app, under Help in Chat and in your profile menu. It isn't an employee: no desk, no tickets, no department, and nobody on your team reads what you say there. It runs on your first employee's agent with the chat model, read-only, only when you ask, and its spend counts toward your daily budget (`help.rs`).
+
+It answers from OneCorp's docs, built into the app so they match your version (this page, ARCHITECTURE.md, the README and the changelog), and from your company as it is now: who does what, open tickets and why the stopped ones stopped. When something is a bug or an idea worth sharing, it drafts a GitHub issue. Review on GitHub opens the form filled in, and nothing is posted until you submit it.
+
+Keeping these docs true is what keeps its answers true.
+
 ## Gaps we know about
 
 Ways a real company works that OneCorp doesn't yet, roughly by how much they'd change things:
