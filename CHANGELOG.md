@@ -6,7 +6,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
-- Choose what your team can run, in Settings, Company: anything in their own copy of the repo, or only the commands you've allowed. With anything, they run builds, tests, installs and scripts without asking, and you still approve every change before it merges. Git changes, sudo and deleting folders stay off either way. New companies start with anything, and a command request in the Inbox offers the switch in one click.
+- Choose what your team can run, under Commands in Settings, Company: anything, or only the commands you've allowed. With anything, they run builds, tests, installs and scripts in their own copy of the repo without asking, read git freely and undo their own edits, and you still approve every change before it merges. Commits, branches, rebases, merges and pushes stay OneCorp's job, and sudo and deleting folders stay off. New companies start with anything, and a command request in the Inbox offers the switch in one click.
 - Rescan a repo to add the commands its files suggest now, keeping yours. Make another repo the primary one, so the old one can be removed.
 
 ### Changed
