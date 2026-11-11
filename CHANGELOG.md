@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- The app's bundle identifier is now `dev.onecorp.desktop`. macOS asks again before showing notifications, and the theme and face set go back to their defaults once. Your companies and everything in them stay as they are.
+
 ## [0.1.5] - 2026-11-11
 
 Faster tickets, readable logs, and employees who ask instead of getting stuck.
