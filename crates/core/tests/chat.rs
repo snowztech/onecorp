@@ -59,6 +59,10 @@ fn channels_posts_and_replies() {
     assert!(named.contains(&format!("{key} Login")) && named.contains("Assigned to Maya"), "{named}");
     assert_eq!(chat::mentioned_tickets(&c, "nothing here, and no XYZ-1 either").unwrap(), "");
 
+    // Everyone can see who leads which team and who's free.
+    let know = work::company_knowledge(&c).unwrap();
+    assert!(know.contains("Odile Martin, CTO, leads Engineering") && know.contains("Now: free"), "{know}");
+
     // @all calls the channel: the whole company in #general, the team in a department's channel.
     assert_eq!(chat::say(&c, "engineering", "@all standup in 5").unwrap().len(), 2, "odile and maya");
     assert_eq!(chat::say(&c, "general", "@everyone shipping Friday, @maya too").unwrap().len(), 4, "everyone once, even when named twice");

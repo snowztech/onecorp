@@ -151,7 +151,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{mentioned}{notes}",
+         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{mentioned}{elsewhere}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -162,6 +162,10 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         knowledge = crate::work::company_knowledge(c)?,
         tickets = own_tickets(c, &e.id)?,
         mentioned = mentioned_tickets(c, &said.join("\n"))?,
+        elsewhere = match seen_elsewhere(c, &e, &slot.channel)? {
+            lines if lines.is_empty() => String::new(),
+            lines => format!("\n\nMeanwhile in your other channels, newest last:\n{}", lines.join("\n")),
+        },
         notes = crate::work::own_notes(c, &e.id)?,
         checkout = checkout_note(c),
     );
@@ -264,28 +268,35 @@ fn checkout_note(c: &Company) -> String {
 /// Recent chat for a ticket prompt: #general and the employee's own channel, plus anything that
 /// mentions them elsewhere. Empty when there's nothing.
 pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
+    let lines = seen_elsewhere(c, e, "")?;
+    if lines.is_empty() {
+        return Ok(String::new());
+    }
+    Ok(format!(
+        "\n\nRecent team chat, newest last. Your posts go to #{} unless you name another channel:\n{}",
+        home(c, e)?,
+        lines.join("\n")
+    ))
+}
+
+/// What someone has seen lately outside `skip`: #general, their team's channel, their DMs, and
+/// anything that @mentions them. Newest last.
+fn seen_elsewhere(c: &Company, e: &Employee, skip: &str) -> Result<Vec<String>> {
     const RECENT: usize = 15;
     let home = home(c, e)?;
     let tag = format!("@{}", e.id);
     let msgs: Vec<Message> = c
         .messages(None)?
         .into_iter()
-        .filter(|m| !m.pending && (m.channel == GENERAL || m.channel == home || m.channel == dm(&e.id) || m.text.to_lowercase().contains(&tag)))
+        .filter(|m| !m.pending && m.channel != skip && (m.channel == GENERAL || m.channel == home || m.channel == dm(&e.id) || m.text.to_lowercase().contains(&tag)))
         .collect();
-    if msgs.is_empty() {
-        return Ok(String::new());
-    }
-    let lines: Vec<String> = msgs
+    Ok(msgs
         .iter()
         .rev()
         .take(RECENT)
         .rev()
         .map(|m| format!("{} {}", if dm_of(&m.channel).is_some() { "(direct message)".to_string() } else { format!("#{}", m.channel) }, line(c, m)))
-        .collect();
-    Ok(format!(
-        "\n\nRecent team chat, newest last. Your posts go to #{home} unless you name another channel:\n{}",
-        lines.join("\n")
-    ))
+        .collect())
 }
 
 /// "Name: text", with long messages cut so one rant can't fill the prompt. The cut is marked,
