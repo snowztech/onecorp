@@ -9,7 +9,7 @@ type Windows = { today: Cost; week: Cost; all: Cost };
 
 export interface Employee {
   id: string; name: string; role: string; runtime: string; model: string | null;
-  face: string; photo: string | null; today: number; cap: number;
+  face: string; photo: string | null; photo_path: string | null; today: number; cap: number;
   status: EmployeeStatus; bubble: string; spend: string; department: number | null;
   ticket: { key: string; title: string } | null;
 }
@@ -148,7 +148,6 @@ export interface Results {
   companies: Companies;
   create_company: string;
   create_repo: string;
-  employee_photo: string | null;
   founder: Founder | null;
   github_repos: GithubRepo[];
   health: Check[];

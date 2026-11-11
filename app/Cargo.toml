@@ -10,7 +10,7 @@ repository.workspace = true
 onecorp.workspace = true
 anyhow.workspace = true
 serde_json.workspace = true
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "2", features = ["tray-icon", "image-png", "protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"

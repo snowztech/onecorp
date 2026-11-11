@@ -33,11 +33,11 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             };
             let cost = theirs.iter().fold(0.0, |s, t| s + t.cost_usd);
             let tokens: i64 = theirs.iter().map(|t| t.tokens).sum();
-            // How they look: a chosen face seed, and a stamp for their photo so the app knows when to reload it.
-            let (seed, photo) = c.avatar(&e.id).unwrap_or_default();
-            let photo = photo.and_then(|p| std::fs::metadata(&p).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs().to_string());
+            // How they look: a chosen face seed, their photo's file, and a stamp so the app knows when it changed.
+            let (seed, photo_path) = c.avatar(&e.id).unwrap_or_default();
+            let photo = photo_path.as_ref().and_then(|p| std::fs::metadata(p).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs().to_string());
             json!({
-                "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "face": seed, "photo": photo,
+                "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "face": seed, "photo": photo, "photo_path": photo_path,
                 "today": c.spent_since(0, Some(&e.id)).map(|s| s.0).unwrap_or(0.0), "cap": c.daily_cap(&e.id).unwrap_or(0.0),
                 "status": status, "bubble": bubble, "spend": spend(cost, tokens), "department": e.department,
                 "ticket": ticket.map(|t| json!({"key": c.key(t.id), "title": t.title})),
