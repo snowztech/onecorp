@@ -115,6 +115,11 @@ fn answer(company: String, id: i64, text: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
+fn dismiss_question(company: String, id: i64) -> Res<()> {
+    work::dismiss(&open(&company)?, id).map_err(err)
+}
+
+#[tauri::command(async)]
 fn approve(company: String, key: String) -> Res<()> {
     let c = open(&company)?;
     let t = ticket(&c, &key)?;
@@ -779,6 +784,7 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             in_terminal,
+            dismiss_question,
             companies,
             use_company,
             chat,
