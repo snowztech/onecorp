@@ -16,6 +16,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Fixed
 
+- Ticket details show their Markdown, like lists and `code`, instead of raw dashes and backticks.
 - Pages moved in from the old wiki show who wrote them, you or the employee who drafted it, instead of OneCorp.
 - Editing a wiki page looks like the page: the title big, one wide writing area, and Write and Preview tabs instead of a half-empty split.
 - Check for Updates… and Settings… in the OneCorp menu have icons on macOS 26, like the items around them.
