@@ -120,7 +120,7 @@ onecorp serve                                     # run queued work, several peo
 
 ## Build from source
 
-You need Rust, and Node 22 for the UI tests.
+You need Rust and Node.js 22.18 or later. The install script adds the Tauri CLI the first time.
 
 ```sh
 git clone https://github.com/snowztech/onecorp && cd onecorp

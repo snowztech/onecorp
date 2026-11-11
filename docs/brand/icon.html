@@ -1,9 +1,9 @@
 <!doctype html>
 <!-- The app icon. Re-render: open in headless Chrome at 1024x1024 with a transparent background, then cargo tauri icon. -->
 <meta charset="utf-8"><body style="margin:0;background:transparent">
-<script src="../../app/ui/brand.js"></script>
-<div class="tile"><div class="light"></div><div class="m"></div></div>
-<script>document.querySelector(".m").innerHTML = logo();</script>
+<!-- The same mark as logo() in app/ui/brand.ts: change both together. -->
+<div class="tile"><div class="light"></div><div class="m"><svg class="logomark" viewBox="0 0 32 32" aria-hidden="true"><g fill="currentColor"><circle cx="16" cy="9" r="6"/><circle cx="6" cy="24" r="4"/><circle cx="16" cy="25.5" r="4"/><circle cx="26" cy="24" r="4"/></g>
+    <path d="M12.6 13.6 8 20.3M16 15v6.5M19.4 13.6 24 20.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div></div>
 <style>
   html, body { width: 1024px; height: 1024px; background: transparent; }
   /* macOS icon grid: an 824px tile, room for its shadow. Monochrome, like the app. */

@@ -18,7 +18,7 @@ onecorp/
 ├── Cargo.toml        workspace
 ├── crates/core/      lib `onecorp`: store, work, serve, mcp, git, runtime/ (Claude Code, Codex)
 ├── crates/cli/       bin `onecorp`: the CLI, including `onecorp serve` and `onecorp mcp`
-└── app/              Tauri 2 desktop app, plain HTML/CSS/JS UI, no bundler
+└── app/              Tauri 2 desktop app, TypeScript UI built by Vite, no framework
 ```
 
 How it fits together today:
