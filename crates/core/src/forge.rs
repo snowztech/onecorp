@@ -125,6 +125,24 @@ impl Forge {
         Ok(Pr { number, url })
     }
 
+    /// The open pull request for `branch`, when the employee already opened one, so OneCorp adopts it
+    /// instead of opening a second. A draft is marked ready, since the work is.
+    pub fn adopt(self, repo: &Path, branch: &str) -> Option<Pr> {
+        let (out, num, url, open) = match self {
+            Forge::GitHub => (self.run(repo, &["pr", "view", branch, "--json", "number,url,state,isDraft"], None).ok()?, "number", "url", ("state", "OPEN")),
+            Forge::GitLab => (self.run(repo, &["mr", "view", branch, "--output", "json"], None).ok()?, "iid", "web_url", ("state", "opened")),
+        };
+        let v: Value = serde_json::from_str(&out).ok()?;
+        if v[open.0] != open.1 {
+            return None;
+        }
+        let pr = Pr { number: v[num].as_i64()?, url: v[url].as_str()?.to_string() };
+        if self == Forge::GitHub && v["isDraft"] == true {
+            let _ = self.run(repo, &["pr", "ready", &pr.number.to_string()], None);
+        }
+        Some(pr)
+    }
+
     pub fn state(self, repo: &Path, number: i64) -> Result<PrState> {
         let n = number.to_string();
         let out = match self {

@@ -304,6 +304,39 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     drive(c, &e, id, &wt, None, &prompt, title)
 }
 
+/// The base branch to watch during a run: the forge's copy when there is one, fetched now, or
+/// your local one. (repo, ref, commit)
+fn base_watch(c: &Company, id: i64) -> Result<Option<(std::path::PathBuf, String, String)>> {
+    let Some(t) = c.ticket(id)? else { return Ok(None) };
+    let repo = c.repo_of(&t)?;
+    let base = t.base.clone().unwrap_or_else(|| "main".into());
+    let name = if ship::forge_for(c, &repo)?.is_some() && git::fetch(&repo, &base).is_ok() { format!("origin/{base}") } else { base };
+    Ok(git::rev(&repo, &name).map(|sha| (repo, name, sha)))
+}
+
+/// Flags commits by this employee that reached the base branch during the run. Only your approval
+/// should put work there, so this means something went around it.
+fn check_base(c: &Company, id: i64, e: &Employee, (repo, name, before): &(std::path::PathBuf, String, String)) -> Result<()> {
+    if let Some(base) = name.strip_prefix("origin/") {
+        let _ = git::fetch(repo, base);
+    }
+    let Some(after) = git::rev(repo, name).filter(|a| a != before) else { return Ok(()) };
+    let theirs = git::authored_by(repo, before, &after, &format!("{}@{}.onecorp", e.id, c.name));
+    if theirs.is_empty() {
+        return Ok(());
+    }
+    let base = name.trim_start_matches("origin/");
+    let msg = format!(
+        "{base} changed during this run, with {} by {}: {}. Work should reach {base} only when you approve it. Check those commits, and turn on branch protection for {base}.",
+        if theirs.len() == 1 { "a commit".to_string() } else { format!("{} commits", theirs.len()) },
+        e.name,
+        theirs.join(", ")
+    );
+    out(&format!("  warning: {msg}"));
+    c.add_event(id, "error", &msg, "")?;
+    Ok(())
+}
+
 /// Runs the repo's setup command in a fresh worktree, like installing dependencies or copying
 /// .env files, so the employee starts ready to work. A failure doesn't stop the ticket: it's
 /// logged, and the employee is told, so they can work around it or say what's missing.
@@ -696,7 +729,8 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 
 /// How OneCorp works, said once so nobody goes looking for it in the repo or in .claude/.
 const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
-start one. OneCorp opens the pull request, and merges it once the founder approves. \
+start one. Your work reaches the base branch through a pull request the founder approves: OneCorp opens one for your \
+branch if you haven't, and merges it once they approve. \
 You never set a ticket's status: when you end with your summary, the ticket goes to review, and OneCorp marks it done and \
 cleans up its branch once the founder approves, or closes it when there's nothing to merge. Merging into the base branch is \
 the founder's call, never yours. Don't redo work that's waiting to merge, and don't create tickets about git or permissions. Questions go to your lead or the founder with ask_human, \
@@ -1125,6 +1159,10 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     };
     let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)? };
 
+    // Where the base branch stood before the run. Your approval is the only way work should reach
+    // it, so an employee's commits showing up there are flagged, whatever command put them there.
+    let watch = if planning { None } else { base_watch(c, id)? };
+
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
     let mut last_say = String::new();
@@ -1165,6 +1203,9 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         let _ = c.set_agent_pid(id, None);
         let _ = c.finish_ticket(id, "failed", 0.0, 0);
     });
+    if let Some(w) = &watch {
+        check_base(c, id, e, w)?;
+    }
     if let Err(err) = run {
         // A stop you asked for ends the agent on purpose. That's not an error worth shouting about.
         // The agent may print a few more lines after the stop, so look back to this run's start.

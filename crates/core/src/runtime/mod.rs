@@ -161,8 +161,9 @@ pub fn abilities(runtime: &str, commands: &[String], run_any: bool, branch: &str
     let checks = "Before you finish, run the checks that cover what you changed and fix what breaks. A change to docs or comments alone needs no build or test: say so in your summary instead.";
     let yours = format!(
         "Your branch, {branch}, is yours: commit as you go, fetch and rebase onto the base branch or merge it in, fix conflicts, \
-         and push it. Push only your branch: OneCorp opens the pull request and merges it when the founder approves, so never push \
-         to the base branch or merge pull requests. Leave the git config, remotes and other branches alone. Sudo, gh and deleting folders are off."
+         and push it. Push only your branch, never the base branch. Leave the git config, remotes and other branches alone. You can open a draft pull request \
+         for your branch with gh or glab to see CI early, update it, and read its checks and logs. OneCorp marks it ready and merges \
+         it when the founder approves: never merge, close or approve one yourself. Sudo and deleting folders are off."
     );
     let onecorp_git = "OneCorp does the git work for you: commits, merges and pushes. If a merge or a push fails, your work stays on your \
          branch and the founder sees why: don't rebase, and don't ask for git commands or permissions.";
@@ -189,11 +190,23 @@ pub fn abilities(runtime: &str, commands: &[String], run_any: bool, branch: &str
 
 /// What an employee can't run when the team runs anything. Their branch is theirs, so commits,
 /// rebases and pushes are fine, and a push guard keeps pushes on that branch. What stays off
-/// reaches past it: other branches, remotes and config, skipping the guard, root, and folders deleted.
+/// reaches past it: other branches, remotes and config, skipping the guard, root, folders deleted,
+/// and merging, closing or approving pull requests.
 pub const NEVER_ANY: &[&str] = &[
     "git config", "git remote", "git worktree", "git checkout", "git switch", "git branch -d", "git branch -D", "git branch -m",
     "git branch -M", "git tag", "git clean", "git push --no-verify", "git -c", "git update-ref", "git filter-branch",
-    "sudo", "su", "doas", "rm -r", "rm -rf", "rm -fr", "gh", "glab",
+    "git branch -f", "git branch --force", "git branch --delete", "git branch --move",
+    "sudo", "su", "doas", "rm -r", "rm -rf", "rm -fr", "rm -R", "rm -Rf", "rm -fR", "rm --recursive",
+    // Reading GitHub and GitLab is fine, like CI logs or an issue, and so is opening and updating a
+    // pull request for their branch. Merging, closing or approving one is your call, and the rest
+    // changes things outside the ticket.
+    "gh pr merge", "gh pr close", "gh pr review", "gh pr reopen",
+    "gh issue create", "gh issue close", "gh issue delete", "gh issue edit", "gh issue comment", "gh issue transfer",
+    "gh repo", "gh release", "gh secret", "gh variable", "gh workflow", "gh run rerun", "gh run cancel", "gh run delete",
+    "gh api", "gh auth", "gh label", "gh ssh-key", "gh gpg-key", "gh config", "gh extension", "gh alias", "gh codespace", "gh gist",
+    "glab mr merge", "glab mr close", "glab mr approve", "glab mr reopen",
+    "glab issue create", "glab issue close", "glab issue delete", "glab issue update", "glab issue note",
+    "glab repo", "glab release", "glab variable", "glab api", "glab auth", "glab label", "glab config", "glab ci delete", "glab ci retry", "glab ci cancel",
 ];
 
 /// The PATH agent CLIs run with. Apps opened from the Dock or Finder get a bare PATH, without

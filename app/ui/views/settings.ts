@@ -59,6 +59,7 @@ export function companySection() {
         ? "Each employee works in their own copy of the repo. They run what they need, like builds, tests and installs, and commit and push their own branch. Nothing reaches main until you approve it."
         : "Employees run only the commands on each repo's list, and ask you before using a new one. A command covers what follows it, so <code>make</code> allows every target."}</span></div>
       <div class="seg"><button data-run-any="1" aria-pressed="${!!st.run_any}">Anything</button><button data-run-any="0" aria-pressed="${!st.run_any}">Only allowed</button></div></div>
+    ${st.run_any && st.forge_name === "GitHub" && ghRepo(st.origin) ? `<p class="fine protect-tip">Employees can push their own branch. To make sure nothing reaches main without a pull request, <button class="link-btn" data-open-url="https://github.com/${esc(ghRepo(st.origin)!)}/settings/branches">turn on branch protection for main</button> on GitHub.</p>` : ""}
     ${(st.repos || []).map(r => `<div class="repo-card">
       <div class="repo-top"><b>${esc(r.name)}</b>${r.main ? `<span class="pill-state">primary</span>` : ""}<span class="mono muted repo-path" title="${esc(r.path)}">${esc(tilde(r.path))}</span>
         <span class="repo-acts">${reveal(r.path)}${r.main ? "" : `<button class="link-btn" data-repo-main="${esc(r.name)}" title="New tickets and plans start here by default">Make primary</button><button class="link-btn" data-repo-rm="${esc(r.name)}">Remove</button>`}</span></div>
@@ -192,3 +193,6 @@ export function spendTab() {
 
 // Back from Terminal with Settings on Integrations: show what changed.
 window.addEventListener?.("focus", async () => { if (S.sheet === "agents") { S.ready = await invoke("readiness").catch(() => S.ready); renderSheet(); } });
+
+// "owner/name" from a GitHub remote, https or ssh.
+const ghRepo = (origin?: string | null) => origin?.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?\/?$/)?.[1] || null;
