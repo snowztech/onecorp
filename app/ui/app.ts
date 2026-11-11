@@ -23,7 +23,13 @@ document.getElementById("boot")?.insertAdjacentHTML("afterbegin", logo());
 try { if (localStorage.getItem("onecorp.rail")) toggleRail(true); } catch {}
 
 // The update check waits for the first load, which says whether this is a dev build.
-if (window.__TAURI__) refresh(true).then(checkForUpdate); else previewScreen();
+if (window.__TAURI__) refresh(true).then(() => checkForUpdate()); else previewScreen();
+
+// Items in the OneCorp menu that act inside the window.
+window.__TAURI__?.event?.listen("menu", e => {
+  if (e.payload === "check-updates") checkForUpdate(true);
+  if (e.payload === "settings" && S.snap && !S.setup && !S.profile) openSettings();
+});
 
 // For the UI smoke test, which drives these directly.
 export { S, preview, refresh, render, renderDrawer, renderPop, renderSheet, face, review, reviewActions, approvalCopy, drawerTicket, openTicket, openHire, openPerson, openSettings, startSetup, checkRepo };

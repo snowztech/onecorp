@@ -11,6 +11,7 @@ interface Window {
     dialog?: { open(o: { multiple?: boolean; directory?: boolean; title?: string; defaultPath?: string; filters?: Filter[] }): Promise<string | string[] | null> };
     updater?: { check(): Promise<{ version: string; downloadAndInstall(): Promise<void> } | null> };
     process?: { relaunch(): Promise<void> };
+    event?: { listen(name: string, handler: (e: { payload: string }) => void): Promise<() => void> };
     opener?: { revealItemInDir(path: string): Promise<void> };
     notification?: { isPermissionGranted(): Promise<boolean>; requestPermission(): Promise<string>; sendNotification(n: { title: string; body: string }): void };
   };

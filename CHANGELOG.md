@@ -6,6 +6,8 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
+- Check for Updates… in the OneCorp menu, under About. It checks right away and says how it went: up to date, downloading, or ready to restart.
+- Settings… ⌘, in the OneCorp menu, where Mac apps keep it.
 - Audits, research and advice come back as reports, not pull requests. When a ticket changes no files, its reply is the work: you read it in the Inbox with the tickets it proposes, then start the ones you want or keep them for later.
 - The wiki is pages in spaces, like Product/Customers and Engineering/Conventions, instead of one long document. Each page shows who wrote it and who changed it last, and its history keeps every version, ready to restore.
 - Your team drafts the wiki from the repo without asking you anything: the engineering lead writes the Engineering pages and someone on the product side the Product ones, at the same time. Pages only you can write, like Now, wait for you with a hint. A company that starts empty gets a "Draft your wiki" card on the Wiki page once you've hired someone.
