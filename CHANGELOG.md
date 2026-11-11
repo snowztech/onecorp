@@ -4,22 +4,26 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-11-11
+
+Your team works more like a real one: leads split work from chat, every role has a playbook, and Ask OneCorp answers questions about the app. Prompts are leaner, and Spending shows where the money goes.
+
 ### Added
 
-- Every role comes with a playbook: what a backend, frontend or mobile engineer, tech lead, product manager, designer, writer, growth, DevOps or QA person owns and how they work, read before every ticket. The title picks it, so a Backend engineer and a Frontend engineer no longer work the same way, and you can pick another one in their profile. Add notes for one person on top, like "We write Go with table tests", and they still get better playbooks as OneCorp improves them. Rewrite the whole thing when you want, and switch back in a click. You see each person's playbook on the Team step of setup too.
-- Whoever leads a department knows what that means, whatever their title: their team's questions come to them first, they split the work and keep an eye on who's stuck.
-- Ask OneCorp, under Help in Chat: ask how something works, whether OneCorp can do it, or if what you saw is a bug. It knows the docs for your version and your company as it is now, and drafts a GitHub issue you review before posting. It runs on your team's agent, only when you ask.
 - Ask someone in chat to fix or look into something, and they propose the tickets right under their reply. A lead splits the work across their team, like Odile giving the cache to Maya and the query to Tomás. Start them in one click, or open one to change who does it.
+- Whoever leads a department knows what that means, whatever their title: their team's questions come to them first, they split the work and keep an eye on who's stuck.
+- Every role comes with a playbook: what a backend, frontend or mobile engineer, tech lead, product manager, designer, writer, growth, DevOps or QA person owns and how they work, read before every ticket. The title picks it, so a Backend engineer and a Frontend engineer no longer work the same way, and you can pick another one in their profile. Add notes for one person on top, like "We write Go with table tests", and they still get better playbooks as OneCorp improves them. Rewrite the whole thing when you want, and switch back in a click. You see each person's playbook on the Team step of setup too.
+- Ask OneCorp, under Help in Chat: ask how something works, whether OneCorp can do it, or if what you saw is a bug. It knows the docs for your version and your company as it is now, and drafts a GitHub issue you review before posting. It only runs when you ask.
 
 ### Changed
 
 - Employees read the wiki like a new hire would: rules pages on every ticket, their own space in full, and everything else when the work needs it. Each page says whether it's a Rule or Reference, and the Wiki page tells you when the rules get long. Prompts are smaller, so runs cost less.
-- Each ticket's log starts with how big its prompt was and what it's made of: wiki, playbook, ticket, notes, chat.
+- Each ticket's log starts with how big its prompt was and what it's made of: wiki, playbook, ticket, notes, chat. A Claude Code ticket's log also shows how its tokens split: how many it read, how many of those came from cache, and how many it wrote.
 - Chat replies read the last 12 messages instead of 20, and Ask OneCorp reads the longer docs only when a question needs them.
+- Spending splits the money by kind of run: tickets, chat replies, lead decisions and Ask OneCorp, as colors in the two-week chart. Under it, switch the table between people, kind, projects and agents. Settings is wider to fit.
 - Spending says its dollars are at API prices: what you pay on an API key, and what the same work would cost on a subscription. When Claude Code or Codex hits its plan's usage limit, Spending says how often that happened this week.
+- The chat and lead decisions setting says it follows each person's agent, and names each model with its agent.
 - The Codex cost setting is gone from Integrations. Codex spend is still estimated from its tokens, and the est. tag in Spending says how.
-- Spending splits the money by kind of run: tickets, chat replies, lead decisions and Ask OneCorp, as colors in the two-week chart. Under it, switch the table between people, kind, projects and agents. Settings is wider to fit. Earlier chat and help spend is sorted in too.
-- A Claude Code ticket's log shows how its tokens split: how many it read, how many of those came from cache, and how many it wrote.
 
 ### Fixed
 
@@ -217,6 +221,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.10]: https://github.com/snowztech/onecorp/releases/tag/v0.1.10
 [0.1.9]: https://github.com/snowztech/onecorp/releases/tag/v0.1.9
 [0.1.8]: https://github.com/snowztech/onecorp/releases/tag/v0.1.8
 [0.1.7]: https://github.com/snowztech/onecorp/releases/tag/v0.1.7
