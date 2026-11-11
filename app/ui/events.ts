@@ -486,7 +486,7 @@ document.addEventListener("submit", async e => {
     const id = await call("add_department", { company: S.company, name }, `${name} is set up. Hire its first person.`).catch(() => null);
     if (id !== null) { S.addingDept = false; render(); openHire(id); }
   } else if (f.id === "wk-redraft") {
-    await call("redraft_wiki", { company: S.company, by: $<HTMLSelectElement>("#wk-by").value || null }, "Redrafting. The pages update as each draft lands").then(() => { S.open.redraft = false; render(); }).catch(() => {});
+    await call("redraft_wiki", { company: S.company, by: $<HTMLSelectElement>("#wk-by").value || null }, "Drafting from the repo. Pages fill in as each draft lands").then(() => { S.open.redraft = false; render(); }).catch(() => {});
   } else if (f.id === "hb-raw") {
     const space = $("#wk-space").value.trim(), title = $("#wk-title").value.trim();
     if (!space) return $("#wk-space").focus();

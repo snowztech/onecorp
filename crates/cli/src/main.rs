@@ -456,7 +456,6 @@ fn run(cmd: Cmd) -> Result<()> {
             }
             println!("Hired {} as {} at {}, {}.", e.name, e.role, c.name, onecorp::voice::of(&c, &e)?);
             println!("Give them a ticket: onecorp run \"<task>\" --to {}", e.id);
-            onecorp::work::draft_wiki_if_new(&c)?;
         }
         Cmd::Dept { action, company } => {
             let c = open(company)?;

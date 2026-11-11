@@ -25,6 +25,7 @@ export async function previewScreen() {
   if (screen === "start") { S.snap!.tickets = []; S.snap!.projects = []; S.snap!.kickoff.brief = ""; render(); }
   if (screen === "wiki-edit") { S.view = "wiki"; S.hbEdit = true; await refresh(true); render(); }
   if (screen === "wiki-page") { S.view = "wiki"; S.page = "Product/Customers"; await refresh(true); }
+  if (screen === "wiki-start") { S.view = "wiki"; S.page = "Company/Now"; S.snap!.tickets = S.snap!.tickets.filter(t => t.kind !== "wiki"); render(); }
   if (screen === "wiki-empty") { S.view = "wiki"; S.page = "Company/Now"; await refresh(true); }
   if (screen === "wiki-history") { S.view = "wiki"; S.page = "Company/Decisions"; await refresh(true); S.history = await invoke("page_history", { company: "snowztech", path: "Company/Decisions" }); S.historyOf = "Company/Decisions"; S.version = 3; render(); }
   if (screen === "inbox-zero") { S.snap!.inbox = []; S.snap!.reviews = []; S.snap!.failed = []; S.snap!.with_leads = []; S.view = "inbox"; render(); }

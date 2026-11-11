@@ -415,8 +415,8 @@ pub fn write_wiki(c: &Company, by: Option<&str>) -> Result<Vec<i64>> {
     Ok(ids)
 }
 
-/// Drafts the wiki once there's someone to write it: at launch, or with the first hire of a
-/// company that started empty. Never again by itself after that. Redrafting is up to you.
+/// Drafts the wiki at launch when the company starts with a team. A company that starts empty
+/// drafts it when you ask, from the wiki, once you've hired someone.
 pub fn draft_wiki_if_new(c: &Company) -> Result<()> {
     let drafted = c.tickets()?.iter().any(|t| t.kind == "wiki");
     if !drafted && c.employees()?.iter().any(|e| e.runtime != "fake") {

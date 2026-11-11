@@ -52,8 +52,8 @@ function tree(pages: WikiPage[], cur: WikiPage | null) {
       }).join("")}
       <button class="wk-add" data-wk-new="${esc(s)}">+ Page</button></div>`).join("")}
     <p class="fine">Everyone reads every page before each ticket.</p>
-    ${S.open.redraft ? `<form class="wk-redraft" id="wk-redraft"><span class="label">Redraft from the repo</span>
-        <select id="wk-by" aria-label="Who drafts it"><option value="">Your team</option>${S.snap!.employees.map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join("")}</select>
+    ${!S.snap!.tickets.some(t => t.kind === "wiki") ? "" : S.open.redraft ? `<form class="wk-redraft" id="wk-redraft"><span class="label">Redraft from the repo</span>
+        ${whoDrafts()}
         <p class="fine">Drafted pages are rewritten from the repo. Pages only you write, like Now, aren't touched, and every earlier version stays in History.</p>
         <div class="acts"><button class="btn primary">Redraft</button><button class="btn ghost" type="button" data-close-open="redraft">Cancel</button></div></form>`
       : `<button class="link-btn wk-more" data-more="redraft">Redraft from the repo…</button>`}</nav>`;
@@ -97,6 +97,19 @@ function editor(p: WikiPage | null) {
     <div class="wiki-split"><textarea id="hb-text" spellcheck="false" placeholder="${esc(HINTS[p?.path || ""] || "Write it the way you'd brief a new teammate.")}">${esc(text)}</textarea><article class="doc wiki" id="hb-preview">${md(text).html}</article></div></form>`;
 }
 
+// Who drafts: your team splits it, or one person you pick.
+const whoDrafts = () => `<select id="wk-by" aria-label="Who drafts it"><option value="">Your team</option>${S.snap!.employees.map(e => `<option value="${esc(e.id)}">${esc(e.name)} · ${esc(e.role)}</option>`).join("")}</select>`;
+
+// A company that started empty never had its wiki drafted. Offer it once there's someone to do it.
+function firstDraft() {
+  const s = S.snap!;
+  if (s.tickets.some(t => t.kind === "wiki")) return "";
+  if (!s.employees.length) return `<div class="wk-start"><b>Your team drafts this wiki from the repo</b><p>Hire someone first, then come back here.</p></div>`;
+  return `<form class="wk-start" id="wk-redraft"><b>Draft your wiki from the repo</b>
+    <p>Who it's for, the product's rules, how the code is built and tested. Pages only you can write, like Now, stay yours.</p>
+    <div class="acts">${whoDrafts()}<button class="btn primary">Draft it</button></div></form>`;
+}
+
 export function viewWiki() {
   if (S.wiki === null) return `<p class="muted">Opening the wiki…</p>`;
   const pages = allPages(), p = currentPage();
@@ -107,7 +120,7 @@ export function viewWiki() {
   const body = p.text ? `<div class="wiki">${page.html}</div>`
     : `<div class="wk-empty"><p>${esc(hint || "This page is empty.")}</p><button class="btn primary" data-hb-edit="1">Write it</button></div>`;
   const learn = p.path === "Engineering/Codebase" ? `<footer class="doc-foot"><button class="link-btn" data-learn="1">Update from the repo</button></footer>` : "";
-  return `<div class="wk">${tree(pages, p)}<main class="wk-main"><article class="doc">
+  return `<div class="wk">${tree(pages, p)}<main class="wk-main">${firstDraft()}<article class="doc">
       <div class="wk-crumbs">${esc(p.space)} <span>›</span></div>
       <div class="wiki-top"><h1>${esc(p.title)}</h1>${p.text ? `<button class="btn" data-hb-edit="1">Edit</button>` : ""}</div>
       ${meta(p)}

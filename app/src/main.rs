@@ -724,10 +724,6 @@ fn hire(company: String, name: String, role: String, bio: String, runtime: Strin
     if let Some(v) = voice.filter(|v| !v.is_empty()) {
         onecorp::voice::set(&c, &id, &v).map_err(err)?;
     }
-    // A company that started empty gets its wiki drafted by its first hire. The hire stands either way.
-    if let Err(e) = onecorp::work::draft_wiki_if_new(&c) {
-        eprintln!("drafting the wiki: {e:#}");
-    }
     Ok(id)
 }
 

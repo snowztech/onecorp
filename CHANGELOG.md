@@ -7,7 +7,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 ### Added
 
 - The wiki is pages in spaces, like Product/Customers and Engineering/Conventions, instead of one long document. Each page shows who wrote it and who changed it last, and its history keeps every version, ready to restore.
-- Your team drafts the wiki from the repo without asking you anything: the engineering lead writes the Engineering pages and someone on the product side the Product ones, at the same time. Pages only you can write, like Now, wait for you with a hint. A company that starts with nobody gets its wiki drafted by the first person you hire.
+- Your team drafts the wiki from the repo without asking you anything: the engineering lead writes the Engineering pages and someone on the product side the Product ones, at the same time. Pages only you can write, like Now, wait for you with a hint. A company that starts empty gets a "Draft your wiki" card on the Wiki page once you've hired someone.
 - Redraft from the repo, from the wiki's sidebar or with `onecorp wiki redraft`, by your team or one person you pick.
 - Proposals from your team name the page they belong on, and show on that page. Ticking "Save to the wiki" when you answer a question adds it to Decisions.
 
