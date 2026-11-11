@@ -43,6 +43,8 @@ fn a_ticket_goes_from_start_to_merged() {
     git(&repo, &["commit", "-q", "-m", "init"]);
 
     let c = Company::create("acme", &repo, "Make notes simple").unwrap();
+    // The employee signs their own commits here, so this test doesn't depend on your git config.
+    c.set_setting("commits", "team").unwrap();
     hire(&c, "maya", "Maya Okafor");
     hire(&c, "tomas", "Tomás Reis");
     let status = |id: i64| c.ticket(id).unwrap().unwrap().status;

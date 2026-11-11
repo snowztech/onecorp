@@ -332,13 +332,17 @@ pub fn review(c: &Company, ticket: &Ticket) -> Result<Value> {
         Some(b) => b.clone(),
         None => crate::git::default_branch(&repo)?,
     };
-    let files = crate::git::changes(&repo, &base, &branch)?;
-    let (patch, cut) = crate::git::patch(&repo, &base, &branch, 200_000)?;
+    // With pull requests the branch starts from the forge's copy of the base, like ship::start_point.
+    // Your local one can be behind it, and then other people's merged work would show up as this ticket's.
+    let pr = crate::ship::forge_for(c, &repo)?.is_some() && crate::git::has_ref(&repo, &format!("refs/remotes/origin/{base}"));
+    let from = if pr { format!("origin/{base}") } else { base.clone() };
+    let files = crate::git::changes(&repo, &from, &branch)?;
+    let (patch, cut) = crate::git::patch(&repo, &from, &branch, 200_000)?;
     Ok(json!({
         "key": key, "title": ticket.title, "base": base, "branch": branch,
         "added": files.iter().map(|f| f.added).sum::<u32>(), "removed": files.iter().map(|f| f.removed).sum::<u32>(),
         "files": files.iter().map(|f| json!({"path": f.path, "added": f.added, "removed": f.removed})).collect::<Vec<_>>(),
-        "commits": crate::git::commits(&repo, &base, &branch)?.iter().map(|(h, a, s)| json!({"hash": h, "author": a, "subject": s})).collect::<Vec<_>>(),
+        "commits": crate::git::commits(&repo, &from, &branch)?.iter().map(|(h, a, s)| json!({"hash": h, "author": a, "subject": s})).collect::<Vec<_>>(),
         "patch": patch, "truncated": cut,
     }))
 }

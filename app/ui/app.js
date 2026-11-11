@@ -284,6 +284,8 @@ function companySection() {
         ? (st.commits === "you" ? `Every commit is yours, as ${esc(st.git_you.name)}` : `The employee writes it, you're credited too`)
         : "By the employee. Set your name in git (git config user.name and user.email) to commit as you."}</span></div>
       <div class="seg">${[["team", "As your team"], ["you", "As you"]].map(([m, n]) => `<button data-commits="${m}" aria-pressed="${m === (st.commits || "team")}" ${!st.git_you && m === "you" ? "disabled" : ""}>${n}</button>`).join("")}</div></div>
+    ${st.ship === "local" ? "" : `<div class="row-set"><div><b>Pull requests</b><span>${st.pr_sign === false ? "Just the summary" : `End with “Jonas Berg, Engineer at ${esc(st.name)} · made with OneCorp”`}</span></div>
+      <div class="seg">${[[true, "Signed"], [false, "Plain"]].map(([on, n]) => `<button data-pr-sign="${on}" aria-pressed="${on === (st.pr_sign !== false)}">${n}</button>`).join("")}</div></div>`}
     <div class="sec-h"><h3 class="label">Repos</h3>${window.__TAURI__?.dialog ? `<button class="btn sm" type="button" data-repo-add="pick">Add a repo…</button>` : ""}</div>
     <p class="sec-sub">Where your team works, and the commands they can run there. Each command covers what follows it, so <code>make</code> allows every target.</p>
     ${(st.repos || []).map(r => `<div class="repo-card">
@@ -557,8 +559,8 @@ function question(q, withLead) {
   return `<article class="ask ${q.blocking ? "blocking" : ""} ${withLead ? "lead" : ""}" id="in-q${q.id}">${face(q.name, q.blocking ? "blocked" : "neutral")}<div>
     <span class="kind">${kind} · ${esc(q.key || "")}</span>${clamp(`q-${q.id}`, `<div class="q-text">${md(q.question).html}</div>`, q.question)}${via}
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
-    <div class="acts">${opts}${def}${q.blocking || withLead ? "" : `<button class="btn ghost" data-dismiss-q="${q.id}">Dismiss</button>`}</div>
-    ${more(`ans-${q.id}`, "Write your own answer", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Your answer"><button class="btn">Send</button></form>`)}</div></article>`;
+    <div class="acts">${opts}${def}${q.blocking || withLead ? "" : `<button class="btn ghost" data-dismiss-q="${q.id}">Dismiss</button>`}${moreBtn(`ans-${q.id}`, "Write your own answer")}</div>
+    ${S.open[`ans-${q.id}`] ? `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="Your answer"><button class="btn">Send</button></form>` : ""}</div></article>`;
 }
 // Long text shows a few lines until opened, so a card never turns into a wall of text.
 function clamp(id, html, text) {
@@ -575,6 +577,8 @@ function commandAsk(q) {
     <p class="muted">Allowing it lets your whole team run it in ${esc(q.repo)}. You can remove it in Settings.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="allow" data-said="Allowed in ${esc(q.repo)}">Allow in ${esc(q.repo)}</button><button class="btn" data-answer="${q.id}" data-val="no" data-said="Not allowed">Not now</button></div></div></article>`;
 }
+// The card's last action: opens a form under the row, and steps aside while it's open.
+const moreBtn = (id, label) => S.open[id] ? "" : `<button class="btn ghost" type="button" data-more="${esc(id)}">${label}</button>`;
 // Free text stays folded until asked for, so each card leads with its one-click answers.
 function more(id, label, form) {
   return S.open[id] ? form : `<button class="link-btn" type="button" data-more="${esc(id)}">${label}</button>`;
@@ -594,8 +598,8 @@ function planReview(r) {
     <span class="kind">Project plan · ${esc(r.key)} · by ${esc(first(r.name))}</span><h4>${esc(r.title)}, in ${r.tickets.length} ${r.tickets.length === 1 ? "ticket" : "tickets"}</h4>
     ${r.summary ? `<p>${esc(r.summary)}</p>` : ""}
     <ol class="plan-list">${rows || `<li class="muted">No tickets left. Plan again, or dismiss it.</li>`}</ol>
-    <div class="acts"><button class="btn good" data-approve="${esc(r.key)}" ${r.tickets.length ? "" : "disabled"}>Start the plan</button><button class="btn" data-dismiss="${esc(r.key)}">Dismiss</button></div>
-    ${more(`chg-${r.key}`, "Plan it again…", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Plan again</button></form>`)}</div></article>`;
+    <div class="acts"><button class="btn good" data-approve="${esc(r.key)}" ${r.tickets.length ? "" : "disabled"}>Start the plan</button><button class="btn" data-dismiss="${esc(r.key)}">Dismiss</button>${moreBtn(`chg-${r.key}`, "Plan it again…")}</div>
+    ${S.open[`chg-${r.key}`] ? `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Plan again</button></form>` : ""}</div></article>`;
 }
 function approvalCopy(t) {
   if (t?.kind === "wiki") return { label: "Save wiki", busy: "Saving…", done: "Wiki saved. Your team can read it now." };
@@ -613,16 +617,16 @@ function ticketStatus(t) {
 }
 function review(r) {
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
-    <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>`, r.summary || "")}
-    ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}</div>
-    ${changes(r.key)}
-    ${more(`chg-${r.key}`, "Ask for changes", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>`)}</div></article>`;
+    <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
+    ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}</div>
+    ${S.open[`chg-${r.key}`] ? `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>` : ""}
+    ${changes(r.key)}</div></article>`;
 }
 function wiki(q) {
   return `<article class="ask" id="in-q${q.id}">${face(q.name, "neutral")}<div>
     <span class="kind">Wiki · ${esc(q.section)}</span>${clamp(`w-${q.id}`, `<div class="q-text">${md(q.question).html}</div>`, q.question)}<p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
-    <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the wiki</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div>
-    ${more(`ans-${q.id}`, "Add it in your own words", `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="The rule, as you'd put it"><button class="btn">Add</button></form>`)}</div></article>`;
+    <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the wiki</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button>${moreBtn(`ans-${q.id}`, "Add it in your own words")}</div>
+    ${S.open[`ans-${q.id}`] ? `<form class="reply" data-reply="${q.id}"><input id="ans-${q.id}" placeholder="The rule, as you'd put it"><button class="btn">Add</button></form>` : ""}</div></article>`;
 }
 
 /* Chat: #general and a channel per department. Your team posts as they work; @mention someone to ask them. */
@@ -679,10 +683,13 @@ function members(channel, people, lead) {
 // One run log line: time, what kind, and the whole text, wrapped under itself. A tool line shows
 // its tool dimmed, so the command stands out.
 function logRow(a, from) {
-  const [tool, ...rest] = a.kind === "tool" ? String(a.summary).split(" ") : [];
-  const text = a.kind === "tool" ? `<span class="tname">${esc(tool)}</span> ${esc(rest.join(" "))}` : esc(a.summary);
+  const [tool, ...rest] = a.kind === "tool" ? shortPaths(a.summary).split(" ") : [];
+  const text = a.kind === "tool" ? `<span class="tname">${esc(tool)}</span> ${esc(rest.join(" "))}`
+    : a.kind === "say" ? String(a.summary).split("\n").map(inline).join("\n") : esc(shortPaths(a.summary));
   return `<div class="lr k-${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(from, 16))}</span><span class="kd">${esc(a.kind)}</span><span class="tx">${text}</span></div>`;
 }
+// Agents park background output in long temp folders. Only the file name says anything.
+const shortPaths = t => String(t).replace(/(?:\/private)?\/tmp\/claude-[^\s"']*\/tasks\//g, "…/");
 // A command still going says so, with how long, so a long build never looks like a stuck run.
 function stillRunning(rows, doing) {
   const last = rows.at(-1);
@@ -1627,7 +1634,7 @@ document.addEventListener("click", async e => {
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !e.target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1774,6 +1781,11 @@ document.addEventListener("click", async e => {
   }
   if (d.talk) {
     try { await invoke("set_talk", { company: S.company, mode: d.talk }); S.settings.talk = d.talk; saved(); } catch (err) { toast(String(err), true); }
+    return renderSheet();
+  }
+  if (d.prSign) {
+    const on = d.prSign === "true";
+    try { await invoke("set_pr_sign", { company: S.company, on }); S.settings.pr_sign = on; saved(); } catch (err) { toast(String(err), true); }
     return renderSheet();
   }
   if (d.commits) {
@@ -2254,7 +2266,7 @@ function preview(cmd, args) {
       reviews: [{ key: "SNO-20", title: "First version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",
           tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.\n\nDone looks like:\n- `cargo build` and `cargo test` pass\n- A README that says how to run it\n- CI runs the tests on every push", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
             { key: "SNO-22", title: "Magic link login", description: "Email a one-time link, 15 minute expiry.", assignee: "tomas", name: "Tomás Reis", after: "SNO-21", status: "backlog" }] },
-        { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
+        { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans, reusing `PlanCard` from settings. `cargo test` and `pnpm lint` pass. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31", title: "Pricing page" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "start", summary: "started", title: "Retry failed Stripe webhooks" }, { at: "2026-11-09 10:31:00", key: "SNO-12", employee: "maya", name: "Maya Okafor", kind: "block", summary: "asked you about magic link expiry", title: "Magic link login" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24", today: 3.24, today_label: "$3.24", budget: 5, warn: false, paused_by_budget: false },
       dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),

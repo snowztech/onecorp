@@ -60,6 +60,18 @@ pub fn start_point(c: &Company, repo: &Path, base: &str) -> Result<String> {
     Ok(format!("origin/{base}"))
 }
 
+/// The line a pull request ends with: who did it, where, and what with. Off in Settings for a plain PR.
+pub fn signoff(c: &Company, t: &Ticket) -> Result<String> {
+    if c.setting("pr_sign")?.as_deref() == Some("off") {
+        return Ok(String::new());
+    }
+    let who = match t.assignee.as_deref().and_then(|id| c.employee(id).ok().flatten()) {
+        Some(e) => format!("{}, {} at {}", e.name, e.role, c.name),
+        None => c.name.clone(),
+    };
+    Ok(format!("\n\n---\n<sub>{who} · {} · made with [OneCorp](https://onecorp.dev)</sub>", c.key(t.id)))
+}
+
 /// Pushes a finished ticket and opens its pull request, or updates the one it has.
 pub fn publish(c: &Company, t: &Ticket, summary: &str) -> Result<()> {
     let repo = c.repo_of(t)?;
@@ -72,8 +84,7 @@ pub fn publish(c: &Company, t: &Ticket, summary: &str) -> Result<()> {
         c.add_event(t.id, "pr", &format!("updated #{n}"), "")?;
         return Ok(());
     }
-    let who = t.assignee.as_deref().and_then(|id| c.employee(id).ok().flatten()).map(|e| e.name).unwrap_or_default();
-    let body = format!("{}\n\n---\nDone by {who} on OneCorp, ticket {key}.", summary.trim());
+    let body = format!("{}{}", summary.trim(), signoff(c, t)?);
     let pr = f.open(&repo, branch, &base, &short(&format!("{key}: {}", t.title), 72), &body)?;
     c.set_pr(t.id, pr.number, &pr.url)?;
     c.add_event(t.id, "pr", &format!("opened #{} {}", pr.number, pr.url), "")?;
