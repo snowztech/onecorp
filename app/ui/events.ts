@@ -599,6 +599,10 @@ document.addEventListener("change", async e => {
     return $(`[data-cmd-add="${CSS.escape(repo)}"]`)?.focus();
   }
 
+  if (target.dataset?.plan) {
+    await invoke("set_plan", { runtime: target.dataset.plan, dollars: Math.max(0, Number(target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
+    return loadSpend();
+  }
   if (target.dataset?.price) {
     await invoke("set_price", { company: S.company, runtime: target.dataset.price, perMillion: Math.max(0, Number(target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
     return loadSpend();

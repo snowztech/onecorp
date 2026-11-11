@@ -60,7 +60,7 @@ fn channels_posts_and_replies() {
     assert_eq!(chat::mentioned_tickets(&c, "nothing here, and no XYZ-1 either").unwrap(), "");
 
     // Everyone can see who leads which team and who's free.
-    let know = work::company_knowledge(&c).unwrap();
+    let know = work::company_knowledge(&c, &[]).unwrap();
     assert!(know.contains("Odile Martin, CTO, leads Engineering") && know.contains("Now: free"), "{know}");
 
     // @all calls the channel: the whole company in #general, the team in a department's channel.

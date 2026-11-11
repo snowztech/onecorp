@@ -3,8 +3,9 @@
 //! after every run: a heads-up at 80% of the day's budget, and a pause at 100%, lifted the next
 //! day. People can have their own daily cap too.
 
-use crate::store::Company;
+use crate::store::{Company, home};
 use anyhow::{Result, bail};
+use serde_json::{Value, json};
 
 /// Estimated dollars per million tokens, by agent, for agents that report only tokens. Blended
 /// over input and output, so it's a rough guide: change it in Settings to match your plan.
@@ -22,6 +23,46 @@ pub fn set_price(c: &Company, runtime: &str, per_million: f64) -> Result<()> {
         bail!("a price is a positive number of dollars per million tokens");
     }
     c.set_setting(&format!("price.{runtime}"), &per_million.to_string())
+}
+
+/// What you pay a month for each agent's plan, like Claude Max. Yours, not a company's, so it's
+/// kept once for all of them. Nothing set means you pay per use.
+pub fn plans() -> serde_json::Map<String, Value> {
+    std::fs::read_to_string(home().join("plans.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_default()
+}
+
+pub fn set_plan(runtime: &str, dollars: f64) -> Result<()> {
+    if dollars.is_nan() || dollars < 0.0 {
+        bail!("a plan is a positive number of dollars a month, or 0 for none");
+    }
+    let mut all = plans();
+    if dollars > 0.0 {
+        all.insert(runtime.into(), json!(dollars));
+    } else {
+        all.remove(runtime);
+    }
+    std::fs::create_dir_all(home())?;
+    std::fs::write(home().join("plans.json"), serde_json::to_string_pretty(&all)?)?;
+    Ok(())
+}
+
+/// Each agent you have a plan for: what you pay, the API value of what all your companies ran
+/// on it this month, and how often it hit its usage limit this week.
+pub fn plan_use() -> Result<Vec<Value>> {
+    let plans = plans();
+    let mut out = vec![];
+    for (runtime, paid) in &plans {
+        let (mut month, mut limits) = (0.0, 0);
+        for name in crate::store::list()? {
+            let Ok(c) = Company::open(&name) else { continue };
+            let start = format!("{}-01", &c.spent_day(0)?[..7]);
+            month += c.spend_rows()?.iter().filter(|r| r.2 == *runtime && r.0 >= start).map(|r| r.4).sum::<f64>();
+            let label = if runtime == "codex" { "Codex" } else { "Claude Code" };
+            limits += c.limit_waits(7)?.iter().filter(|s| s.starts_with(label)).count();
+        }
+        out.push(json!({"runtime": runtime, "plan": paid, "month": month, "limits": limits}));
+    }
+    Ok(out)
 }
 
 /// One run: what it cost and who ran it. Returns the dollars recorded, reported or estimated.

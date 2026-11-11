@@ -282,6 +282,7 @@ pub fn spend_report(c: &Company) -> Result<Value> {
         "people": people, "projects": projects, "agents": agents,
         "prices": crate::spend::DEFAULT_PRICES.iter().map(|(rt, _)| json!({"runtime": rt, "price": crate::spend::price(c, rt).unwrap_or(0.0)})).collect::<Vec<_>>(),
         "estimated": rows.iter().any(|r| r.6),
+        "plans": crate::spend::plan_use()?,
     }))
 }
 
@@ -349,11 +350,12 @@ pub fn wiki(c: &Company) -> Result<Value> {
                 "path": p.path, "space": p.space(), "title": p.title(), "text": p.text, "edits": mine.len(),
                 "by": last.map(|e| author(c, &e.author)), "at": last.map(|e| e.at.clone()), "note": last.map(|e| e.note.clone()),
                 "first_by": first.map(|e| author(c, &e.author)),
+                "rule": crate::wiki::RULES.contains(&p.path.as_str()),
             })
         })
         .collect();
     let recent: Vec<Value> = log.iter().take(8).map(|e| json!({"page": e.page, "by": author(c, &e.author), "note": e.note, "at": e.at})).collect();
-    Ok(json!({"pages": pages, "recent": recent}))
+    Ok(json!({"pages": pages, "recent": recent, "rules_tokens": crate::wiki::rules_tokens(c)?}))
 }
 
 /// Every saved version of one page, newest first.

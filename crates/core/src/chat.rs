@@ -157,7 +157,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let asked = before.iter().rev().find(|m| m.author == "founder").map(|m| m.text.clone()).unwrap_or_default();
     let doing = in_progress(c, &e.id)?;
     let team = team_of(c, &e)?;
-    let recent: Vec<&Message> = before.iter().rev().take(20).rev().collect();
+    let recent: Vec<&Message> = before.iter().rev().take(12).rev().collect();
     let history: Vec<String> = recent.iter().map(|m| line(c, m)).collect();
     let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
     let prompt = format!(
@@ -176,7 +176,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         founder = crate::founder::name(),
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
-        knowledge = crate::work::company_knowledge(c)?,
+        knowledge = crate::work::company_knowledge(c, &[])?,
         tickets = own_tickets(c, &e.id)?,
         now = doing.as_ref().map(|(_, text)| text.clone()).unwrap_or_default(),
         mentioned = mentioned_tickets(c, &said.join("\n"))?,
@@ -190,7 +190,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     );
     let repo = c.repo()?;
     let model = crate::work::talk_model(c, &e)?;
-    let mut dirs = crate::work::other_repos(c)?;
+    let mut dirs = crate::work::reading_dirs(c)?;
     dirs.extend(doing.and_then(|(wt, _)| wt));
     let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &dirs };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);

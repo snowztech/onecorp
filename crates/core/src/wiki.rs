@@ -211,6 +211,64 @@ pub fn restore(c: &Company, edit: i64, by: &str) -> Result<String> {
 }
 
 /// The whole wiki as one document, for prompts and the CLI. Empty pages are left out.
+/// Pages everyone follows, so they're in every prompt in full. The rest are reference: listed
+/// with a line each, and read when the work touches them.
+pub const RULES: [&str; 5] = [OVERVIEW, NOW, DECISIONS, "Product/Rules", "Engineering/Conventions"];
+
+/// The wiki for a prompt: the rules and the spaces someone works in, in full, then a line for
+/// every other page and where to read it. `["*"]` means everything in full.
+pub fn for_prompt(c: &Company, spaces: &[&str]) -> Result<String> {
+    let all = spaces.contains(&"*");
+    let (full, rest): (Vec<Page>, Vec<Page>) =
+        pages(c)?.into_iter().filter(|p| !p.text.is_empty()).partition(|p| all || RULES.contains(&p.path.as_str()) || spaces.contains(&p.space()));
+    let mut out: Vec<String> = full.iter().map(|p| format!("# {} / {}\n\n{}", p.space(), p.title(), p.text)).collect();
+    if !rest.is_empty() {
+        let at = reading_copy(c)?;
+        let list: Vec<String> = rest.iter().map(|p| format!("- {}: {}", p.path, gist(&p.text))).collect();
+        out.push(format!(
+            "# More pages\n\nRead one when your work touches it. Each is a file at {}/<Space>/<Title>.md.\n{}",
+            at.display(),
+            list.join("\n")
+        ));
+    }
+    Ok(out.join("\n\n"))
+}
+
+/// The first real line of a page, as a hint of what's in it.
+fn gist(text: &str) -> String {
+    let line = text.lines().map(|l| l.trim().trim_start_matches(['#', '-', '*', ' '])).find(|l| !l.is_empty()).unwrap_or("");
+    crate::runtime::clip(line, 100)
+}
+
+/// A copy of the wiki for agents to read. It sits outside the wiki itself, so an agent that edits
+/// a file there changes nothing: the wiki only changes through you.
+pub fn reading_copy(c: &Company) -> Result<PathBuf> {
+    let to = c.dir.join("reading").join("wiki");
+    let pages = pages(c)?;
+    for p in &pages {
+        let f = to.join(format!("{}.md", p.path));
+        if fs::read_to_string(&f).ok().as_deref() != Some(p.text.as_str()) {
+            fs::create_dir_all(f.parent().unwrap_or(&to))?;
+            fs::write(&f, &p.text)?;
+        }
+    }
+    // Pages deleted since the last copy go too.
+    for space in fs::read_dir(&to).into_iter().flatten().flatten() {
+        for f in fs::read_dir(space.path()).into_iter().flatten().flatten() {
+            let path = format!("{}/{}", space.file_name().to_string_lossy(), f.path().file_stem().unwrap_or_default().to_string_lossy());
+            if !pages.iter().any(|p| p.path == path) {
+                let _ = fs::remove_file(f.path());
+            }
+        }
+    }
+    Ok(to)
+}
+
+/// About how many tokens the always-read part of the wiki is, so the Wiki page can say when it's long.
+pub fn rules_tokens(c: &Company) -> Result<usize> {
+    Ok(pages(c)?.iter().filter(|p| RULES.contains(&p.path.as_str())).map(|p| p.text.len()).sum::<usize>() / 4)
+}
+
 pub fn render(c: &Company) -> Result<String> {
     let parts: Vec<String> = pages(c)?.iter().filter(|p| !p.text.is_empty()).map(|p| format!("# {} / {}\n\n{}", p.space(), p.title(), p.text)).collect();
     Ok(parts.join("\n\n"))
@@ -388,6 +446,32 @@ fn move_old(c: &Company) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prompts_get_the_rules_and_their_space_and_a_list_of_the_rest() {
+        let dir = std::env::temp_dir().join(format!("onecorp-prompt-wiki-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let c = Company::open_dir("acme", dir.clone()).unwrap();
+        write(&c, "Engineering/Conventions", "Tabs, not spaces.", "founder", "").unwrap();
+        write(&c, "Engineering/Codebase", "Rust core, Tauri app.", "founder", "").unwrap();
+        write(&c, "Product/Customers", "## Who\n\nClinics with ten staff or fewer.", "founder", "").unwrap();
+
+        let eng = for_prompt(&c, &["Engineering"]).unwrap();
+        assert!(eng.contains("Tabs, not spaces.") && eng.contains("Rust core, Tauri app."), "{eng}");
+        assert!(eng.contains("- Product/Customers: Who") && !eng.contains("# Product / Customers"), "{eng}");
+        let product = for_prompt(&c, &["Product"]).unwrap();
+        assert!(product.contains("Tabs, not spaces.") && product.contains("Clinics with ten") && !product.contains("# Engineering / Codebase"), "rules always, and their own space");
+        assert!(for_prompt(&c, &["*"]).unwrap().contains("Rust core") && !for_prompt(&c, &["*"]).unwrap().contains("More pages"));
+
+        // The copy agents read follows the wiki, deletions too.
+        let copy = reading_copy(&c).unwrap();
+        assert_eq!(fs::read_to_string(copy.join("Product/Customers.md")).unwrap(), "## Who\n\nClinics with ten staff or fewer.");
+        remove(&c, "Product/Customers", "founder").unwrap();
+        reading_copy(&c).unwrap();
+        assert!(!copy.join("Product/Customers.md").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn mission_and_brief_become_one_overview() {

@@ -157,6 +157,14 @@ pub fn for_title(title: &str) -> &'static Role {
     ROLES.iter().find(|r| r.matches.iter().any(|m| has(m))).unwrap_or(&ROLES[ROLES.len() - 1])
 }
 
+/// The wiki spaces a role works in every day, read in full with every ticket.
+pub fn spaces(role: &Role) -> &'static [&'static str] {
+    match role.key {
+        "pm" | "designer" | "writer" | "growth" => &["Product"],
+        _ => &["Engineering"],
+    }
+}
+
 /// What earlier versions wrote into everyone's bio. Those were never yours, so they're no notes.
 const OLD_DEFAULTS: &[&str] = &[
     "Reads the code around a change before touching it. Makes the smallest diff that does the job and says what to check.",

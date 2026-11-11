@@ -1246,6 +1246,13 @@ impl Company {
     }
 
     /// (time, kind, summary) for one ticket, oldest first.
+    /// How many times work waited for a plan's usage limit in the last `days`, by what it said.
+    pub fn limit_waits(&self, days: i64) -> Result<Vec<String>> {
+        let mut st = self.db.prepare("SELECT summary FROM events WHERE kind = 'wait' AND summary LIKE '%usage limit%' AND at >= datetime('now', '-' || ?1 || ' days')")?;
+        let rows = st.query_map([days], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     pub fn events(&self, ticket: i64) -> Result<Vec<(String, String, String)>> {
         let mut st = self.db.prepare("SELECT at, kind, summary FROM events WHERE ticket_id = ?1 ORDER BY id")?;
         let rows = st.query_map([ticket], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;

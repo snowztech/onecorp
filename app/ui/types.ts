@@ -115,6 +115,7 @@ export interface SpendReport {
   projects: (Windows & { key: string; title: string })[];
   agents: (Windows & { runtime: string; estimated: boolean; price?: number })[];
   prices: { runtime: string; price: number }[];
+  plans?: { runtime: string; plan: number; month: number; limits: number }[];
 }
 
 export interface Check { level: Level; what: string; detail: string; fix: string | null }
@@ -183,9 +184,9 @@ export type Returns<K extends string> = K extends keyof Results ? Results[K] : n
 
 export interface WikiPage {
   path: string; space: string; title: string; text: string; edits: number;
-  by: string | null; at: string | null; note: string | null; first_by: string | null;
+  by: string | null; at: string | null; note: string | null; first_by: string | null; rule?: boolean;
 }
-export interface Wiki { pages: WikiPage[]; recent: { page: string; by: string; note: string; at: string }[] }
+export interface Wiki { pages: WikiPage[]; recent: { page: string; by: string; note: string; at: string }[]; rules_tokens?: number }
 export interface PageEdit { id: number; by: string; note: string; at: string; text: string }
 
 /* The UI's own state */

@@ -319,6 +319,12 @@ fn set_price(company: String, runtime: String, per_million: f64) -> Res<()> {
     onecorp::spend::set_price(&open(&company)?, &runtime, per_million).map_err(err)
 }
 
+/// What you pay a month for an agent's plan, for every company. 0 means you pay per use.
+#[tauri::command(async)]
+fn set_plan(runtime: String, dollars: f64) -> Res<()> {
+    onecorp::spend::set_plan(&runtime, dollars).map_err(err)
+}
+
 /// Go on past today's budget. It applies again tomorrow.
 #[tauri::command(async)]
 fn keep_going_today(company: String) -> Res<()> {
@@ -884,6 +890,7 @@ fn main() {
             readiness,
             attention,
             spend_report,
+            set_plan,
             set_budget,
             set_cap,
             set_price,

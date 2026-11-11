@@ -1480,3 +1480,9 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .pb-row .label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
 .pb-row ul { margin: 0; padding-left: 18px; line-height: 1.5; color: var(--muted); }
 .pb-row .fine { margin: 6px 0 0; }
+.wk-kind { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; margin-right: 4px; }
+.wk-warn { color: #c98a1a; }
+.plan-ins { display: grid; gap: 6px; justify-items: end; }
+.plan-ins .tool-ic { margin-right: 4px; }
+.plan-line { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 0 0 8px; color: var(--muted); }
+.plan-line b { color: var(--fg); font-weight: 600; }

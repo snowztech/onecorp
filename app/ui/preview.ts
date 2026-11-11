@@ -119,7 +119,7 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
       dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
-    wiki: { recent: [], pages: [
+    wiki: { recent: [], rules_tokens: 4200, pages: [
       { path: "Company/Overview", space: "Company", title: "Overview", text: "## Why we exist\n\nWriters lose work to tools built for everyone else. We make the one built for them.\n\n## What we're building\n\nA notes app for writers: fast, offline first, synced across devices.\n\n## Where we are\n\nIn beta with 40 writers. Login and notes are live, sync ships next.", edits: 2, by: "You", first_by: "Rui Alves", at: "2026-11-08 16:20:00", note: "" },
       { path: "Company/Now", space: "Company", title: "Now", text: "", edits: 0, by: null, first_by: null, at: null, note: null },
       { path: "Company/Decisions", space: "Company", title: "Decisions", text: "- Standard library first. A new dependency needs a reason in the PR.\n- Magic links expire after 15 minutes.\n- No email reminders: SMS only.", edits: 4, by: "Odile Martin", first_by: "You", at: "2026-11-10 10:05:00", note: "proposed it, and you added it" },
@@ -168,7 +168,8 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
       people: [["odile", "Odile Martin", 1.31, 6.2, 12.4, 0], ["tomas", "Tomás Reis", 1.12, 4.1, 9.8, 3], ["maya", "Maya Okafor", 0.52, 3.0, 6.1, 0], ["rui", "Rui Alves", 0.29, 1.5, 3.2, 0]].map(([id, name, t, w, a, cap]) => ({ id, name, cap, today: { cost: t }, week: { cost: w }, all: { cost: a } })),
       projects: [{ key: "SNO-20", title: "First version", today: { cost: 2.1 }, week: { cost: 11.2 }, all: { cost: 24.9 } }],
       agents: [{ runtime: "claude", estimated: false, today: { cost: 2.12 }, week: { cost: 10.7 }, all: { cost: 21.7 } }, { runtime: "codex", estimated: true, today: { cost: 1.12 }, week: { cost: 4.1 }, all: { cost: 9.8 } }],
-      prices: [{ runtime: "codex", price: 5 }, { runtime: "claude", price: 9 }] },
+      prices: [{ runtime: "codex", price: 5 }, { runtime: "claude", price: 9 }],
+      plans: [{ runtime: "claude", plan: 100, month: 342.6, limits: 3 }] },
     chat: { channel: "general", messages: [
       { id: 1, at: "2026-11-09 09:12:00", author: "founder", name: "Lucas", founder: true, text: "Morning team. Goal this week: magic link login and the pricing page live.", key: null, pending: false },
       { id: 2, at: "2026-11-09 09:40:00", author: "rui", name: "Rui Alves", text: "Plan is in your inbox as SNO-20. Setup first, then login and sync in parallel.", key: "SNO-20", pending: false },

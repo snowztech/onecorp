@@ -56,7 +56,8 @@ function tree(pages: WikiPage[], cur: WikiPage | null) {
         return `<button class="wk-link ${p.path === cur?.path && !S.wikiNew ? "on" : ""} ${p.text ? "" : "empty"}" data-wk-page="${esc(p.path)}">${esc(p.title)}${n ? `<span class="wk-badge" title="${n} proposed">${n}</span>` : ""}</button>`;
       }).join("")}
       <button class="wk-add" data-wk-new="${esc(s)}">+ Page</button></div>`).join("")}
-    <p class="fine">Everyone reads every page before each ticket.</p>
+    <p class="fine">Rules are read on every ticket. Other pages are read by the people in their space, and by anyone whose work needs them.</p>
+    ${(S.wiki?.rules_tokens || 0) > 3000 ? `<p class="fine wk-warn">Rules are long: about ${Math.round(S.wiki!.rules_tokens! * 0.75 / 100) * 100} words on every ticket. Keep them to rules, and move the rest to other pages.</p>` : ""}
     ${!S.snap!.tickets.some(t => t.kind === "wiki") || drafting().length ? "" : S.open.redraft ? `<form class="wk-redraft" id="wk-redraft"><span class="label">Redraft from the repo</span>
         ${whoDrafts()}
         <p class="fine">Drafted pages are rewritten from the repo. Pages only you write, like Now, aren't touched, and every earlier version stays in History.</p>
@@ -72,11 +73,12 @@ function proposalCards(list: Question[]) {
 }
 
 function meta(p: WikiPage) {
-  if (!p.by) return `<p class="wk-meta muted">Nobody has written this page yet.</p>`;
+  const kind = `<span class="wk-kind" title="${p.rule ? "Everyone reads it before every ticket" : "Read by the people in this space, and by anyone whose work needs it"}">${p.rule ? "Rule" : "Reference"}</span>`;
+  if (!p.by) return `<p class="wk-meta muted">${kind}Nobody has written this page yet.</p>`;
   // The face is whoever wrote what's on the page now. Whoever started it comes last.
   const edited = p.first_by && p.first_by !== p.by;
   const started = edited ? ` <span class="muted">· first written by ${p.first_by === "You" ? "you" : `<b>${esc(p.first_by!)}</b>`}</span>` : "";
-  return `<p class="wk-meta">${p.by === "You" ? me() : face(p.by, "neutral")}<span>${edited ? "Edited by" : "By"} <b>${esc(p.by)}</b> ${p.at ? `· ${esc(ago(p.at))}` : ""}${p.note ? ` <span class="muted">· ${esc(p.note)}</span>` : ""}${started}</span>
+  return `<p class="wk-meta">${kind}${p.by === "You" ? me() : face(p.by, "neutral")}<span>${edited ? "Edited by" : "By"} <b>${esc(p.by)}</b> ${p.at ? `· ${esc(ago(p.at))}` : ""}${p.note ? ` <span class="muted">· ${esc(p.note)}</span>` : ""}${started}</span>
     <button class="link-btn" data-wk-history="${esc(p.path)}">History${p.edits > 1 ? ` (${p.edits})` : ""}</button></p>`;
 }
 
