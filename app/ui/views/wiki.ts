@@ -1,7 +1,7 @@
 import { ago, esc, first } from "../lib.ts";
 import { face } from "../look.ts";
 import { md } from "../md.ts";
-import { S } from "../state.ts";
+import { S, byId } from "../state.ts";
 import type { Question, WikiPage } from "../types.ts";
 
 /* Wiki: the company's shared knowledge, in spaces and pages, each saying who wrote it.
@@ -52,7 +52,7 @@ function tree(pages: WikiPage[], cur: WikiPage | null) {
       }).join("")}
       <button class="wk-add" data-wk-new="${esc(s)}">+ Page</button></div>`).join("")}
     <p class="fine">Everyone reads every page before each ticket.</p>
-    ${!S.snap!.tickets.some(t => t.kind === "wiki") ? "" : S.open.redraft ? `<form class="wk-redraft" id="wk-redraft"><span class="label">Redraft from the repo</span>
+    ${!S.snap!.tickets.some(t => t.kind === "wiki") || drafting().length ? "" : S.open.redraft ? `<form class="wk-redraft" id="wk-redraft"><span class="label">Redraft from the repo</span>
         ${whoDrafts()}
         <p class="fine">Drafted pages are rewritten from the repo. Pages only you write, like Now, aren't touched, and every earlier version stays in History.</p>
         <div class="acts"><button class="btn primary">Redraft</button><button class="btn ghost" type="button" data-close-open="redraft">Cancel</button></div></form>`
@@ -105,6 +105,16 @@ function editor(p: WikiPage | null) {
 // Who drafts: your team splits it, or one person you pick.
 const whoDrafts = () => `<select id="wk-by" aria-label="Who drafts it"><option value="">Your team</option>${S.snap!.employees.map(e => `<option value="${esc(e.id)}">${esc(e.name)} · ${esc(e.role)}</option>`).join("")}</select>`;
 
+// Drafts being written right now, so a redraft never looks like nothing happened.
+const drafting = () => S.snap!.tickets.filter(t => t.kind === "wiki" && ["todo", "queued", "doing"].includes(t.status));
+
+function draftingNow() {
+  const live = drafting();
+  if (!live.length) return "";
+  const who = live.map(t => `<button class="link-btn inline" data-ticket="${esc(t.key)}">${esc(first(byId(t.assignee)?.name) || "Someone")}</button> ${t.status === "doing" ? "is writing" : "will write"} ${esc(t.title.replace(/^Write /, ""))}`);
+  return `<div class="wk-live" role="status"><span class="live-dot"></span><div><b>Drafting from the repo</b><p>${who.join(". ")}. Pages update as each draft lands, and earlier versions stay in History.</p></div></div>`;
+}
+
 // A company that started empty never had its wiki drafted. Offer it once there's someone to do it.
 function firstDraft() {
   const s = S.snap!;
@@ -125,7 +135,7 @@ export function viewWiki() {
   const body = p.text ? `<div class="wiki">${page.html}</div>`
     : `<div class="wk-empty"><p>${esc(hint || "This page is empty.")}</p><button class="btn primary" data-hb-edit="1">Write it</button></div>`;
   const learn = p.path === "Engineering/Codebase" ? `<footer class="doc-foot"><button class="link-btn" data-learn="1">Update from the repo</button></footer>` : "";
-  return `<div class="wk">${tree(pages, p)}<main class="wk-main">${firstDraft()}<article class="doc">
+  return `<div class="wk">${tree(pages, p)}<main class="wk-main">${draftingNow() || firstDraft()}<article class="doc">
       <div class="wk-crumbs">${esc(p.space)} <span>›</span></div>
       <div class="wiki-top"><h1>${esc(p.title)}</h1>${p.text ? `<button class="btn" data-hb-edit="1">Edit</button>` : ""}</div>
       ${meta(p)}

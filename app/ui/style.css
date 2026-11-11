@@ -1437,3 +1437,10 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .wk-start .acts { display: flex; gap: 8px; align-items: center; }
 .wk-start select { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: var(--surface-2); font-size: 13px; }
 #wk-space::-webkit-calendar-picker-indicator, #wk-space::-webkit-list-button { display: none !important; }
+.wk-live { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 28px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.wk-live b { font-weight: 600; font-size: 14px; }
+.wk-live p { margin: 2px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+.wk-live .link-btn.inline { margin: 0; font-size: 13px; color: var(--fg); }
+.live-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 99px; background: var(--good); animation: live 1.6s ease-in-out infinite; }
+@keyframes live { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
