@@ -143,13 +143,13 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let history: Vec<String> = before.iter().rev().take(20).rev().map(|m| line(c, m)).collect();
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
-         {founder} {place}. The conversation so far:\n\n{history}\n\n\
+         {founder} {place}. The conversation so far, with long messages shortened here (everyone saw them in full):\n\n{history}\n\n\
          They wrote: {asked}\n\n\
          Reply like a colleague would in chat, in your own manner: plain words, no headings, and short. \
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{notes}",
+         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -158,6 +158,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
         knowledge = crate::work::company_knowledge(c)?,
+        tickets = own_tickets(c, &e.id)?,
         notes = crate::work::own_notes(c, &e.id)?,
         checkout = checkout_note(c),
     );
@@ -194,6 +195,17 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let cost = crate::spend::record(c, &e.id, None, &e.runtime, model.as_deref(), cost, tokens)?;
     c.finish_message(id, &text, cost, tokens)
+}
+
+/// The tickets someone has been given, newest last, so a chat reply knows its own work.
+pub fn own_tickets(c: &Company, employee: &str) -> Result<String> {
+    const RECENT: usize = 10;
+    let mine: Vec<String> = c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(employee)).map(|t| format!("- {} {} ({})", c.key(t.id), t.title, t.status)).collect();
+    if mine.is_empty() {
+        return Ok(String::new());
+    }
+    let recent = &mine[mine.len().saturating_sub(RECENT)..];
+    Ok(format!("\n\nYour tickets, newest last. You did these yourself:\n{}", recent.join("\n")))
 }
 
 /// The repo a chat reply reads is the founder's own checkout, which may be on a branch of theirs.
@@ -234,13 +246,18 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
     ))
 }
 
-/// "Name: text", with long messages cut so one rant can't fill the prompt.
+/// "Name: text", with long messages cut so one rant can't fill the prompt. The cut is marked,
+/// or an employee reading its own reply thinks it failed to send and says it again.
 fn line(c: &Company, m: &Message) -> String {
     let who = if m.author == "founder" {
         format!("{} (founder)", crate::founder::name())
     } else {
         c.employee(&m.author).ok().flatten().map(|e| e.name).unwrap_or_else(|| m.author.clone())
     };
-    let text: String = m.text.chars().take(400).collect();
+    const MAX: usize = 400;
+    let mut text: String = m.text.chars().take(MAX).collect();
+    if m.text.chars().count() > MAX {
+        text.push('…');
+    }
     format!("{who}: {}", text.replace('\n', " "))
 }
