@@ -4,10 +4,21 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-11
+
+Employees talk like they work at your company: they read the tickets you name and know who's doing what.
+
+### Added
+
+- Click the faces in a channel's header to see who's in it, what each person is up to, and who leads it. Mention someone or open your DM with them from there.
+
+### Changed
+
+- Employees know their company like a colleague would. They know who leads which team, who's working on what or stuck, and who's free. They also know what was said lately in their other channels, so something decided in #engineering is known in a DM too.
+
 ### Fixed
 
 - Name a ticket in chat, like MYC-2, and the employee replying reads it: what it asks, who has it, where it stands and their last update. Before, they only knew its title and asked you to paste it.
-- Employees know their company like a colleague would. They know who leads which team, who's working on what or stuck, and who's free. They also know what was said lately in their other channels, so something decided in #engineering is known in a DM too.
 
 ## [0.1.3] - 2026-11-11
 
@@ -73,6 +84,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.4]: https://github.com/snowztech/onecorp/releases/tag/v0.1.4
 [0.1.3]: https://github.com/snowztech/onecorp/releases/tag/v0.1.3
 [0.1.2]: https://github.com/snowztech/onecorp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/snowztech/onecorp/releases/tag/v0.1.1
