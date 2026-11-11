@@ -97,6 +97,18 @@ fn a_ticket_goes_from_start_to_merged() {
     assert!(c.events(r).unwrap().iter().any(|(_, kind, s)| kind == "retry" && s.contains("check the flaky test first")));
     assert!(work::retry(&c, &c.ticket(r).unwrap().unwrap(), None).is_err(), "only failed tickets can be retried");
 
+    // Work that reached main some other way has nothing left to merge: approving closes it as done
+    // and cleans up, instead of failing on an empty merge.
+    let dup = c.add_ticket("already landed", "maya").unwrap();
+    work::dispatch(&c, dup, Job::Start).unwrap();
+    assert_eq!(status(dup), "review");
+    let d = c.ticket(dup).unwrap().unwrap();
+    git(&repo, &["merge", "-q", "--no-ff", "-m", "landed elsewhere", d.branch.as_deref().unwrap()]);
+    onecorp::ship::approve(&c, &d).unwrap();
+    assert_eq!(status(dup), "done");
+    assert!(!Path::new(d.worktree.as_deref().unwrap()).exists());
+    assert!(c.events(dup).unwrap().iter().any(|(_, kind, s)| kind == "merge" && s.contains("nothing to merge")));
+
     // Tickets saved for later, chained: the second starts by itself once the first is merged.
     let saved = |title: &str, who: &str, after: Option<i64>| {
         let new = NewTicket { title: title.into(), description: format!("Details for {title}"), assignee: Some(who.into()), after, ..Default::default() };

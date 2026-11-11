@@ -4,6 +4,11 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Fixed
+
+- A ticket whose work is already on main no longer gets stuck in review. Approving it closes it as done, closes its pull request and deletes its branch, instead of failing on an empty merge, and the button says Close as done when the changes show nothing. A run that ends with nothing new to merge comes back as a report.
+- Employees know finishing needs no tool: when they end with their summary, the ticket goes to review, and OneCorp handles its status and branch. They no longer ask you to mark tickets done or delete branches.
+
 ## [0.1.10] - 2026-11-11
 
 Your team works more like a real one: leads split work from chat, every role has a playbook, and Ask OneCorp answers questions about the app. Prompts are leaner, and Spending shows where the money goes.

@@ -162,6 +162,22 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
         return Ok(());
     }
 
+    // Once base is merged in, a branch with the same files as base adds nothing: what it had is
+    // already there. Close it as done instead of merging an empty change, which a forge refuses.
+    if git::same_files(&repo, &upstream, branch)? {
+        if let (Some(n), Some(f)) = (t.pr_number, forge) {
+            if let Err(e) = f.close(&repo, n) {
+                out(&format!("warning: couldn't close #{n}: {e:#}"));
+            }
+            git::delete_remote_branch(&repo, branch);
+        }
+        git::discard(&repo, wt, branch, &c.dir.join("wt"));
+        c.set_status(t.id, "done")?;
+        c.add_event(t.id, "merge", &format!("nothing to merge, it was already on {base}. Closed as done"), "")?;
+        out(&format!("{key} had nothing left to merge: it's all on {base} already. Closed it as done."));
+        return crate::work::release_waiting(c, t.id);
+    }
+
     match forge {
         None => {
             git::fast_forward(&repo, &base, branch)?;

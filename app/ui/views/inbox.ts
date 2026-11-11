@@ -107,7 +107,8 @@ export function reportReview(r: Review) {
     ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What else should they look into?", "Send")}` : ""}</div></article>`;
 }
 
-export function approvalCopy(t?: { kind?: string } | null) {
+export function approvalCopy(t?: { kind?: string; key?: string } | null) {
+  if (t?.kind === "work" && t.key && S.diffs[t.key]?.files.length === 0) return { label: "Close as done", busy: "Closing…", done: "Closed. Everything it had was already on main." };
   if (t?.kind === "report") return { label: "Close and start what it proposes", busy: "Starting…", done: "Report closed." };
   if (t?.kind === "wiki") return { label: "Save wiki", busy: "Saving…", done: "Wiki saved. Your team can read it now." };
   if (t?.kind === "plan") return { label: "Start the plan", busy: "Starting…", done: "Plan started." };
@@ -172,6 +173,6 @@ export function changes(key: string) {
   return `<div class="changes">
     <div class="diffsum"><b>${files} ${files === 1 ? "file" : "files"}</b> <span class="ok">+${d.added}</span> <span class="del">−${d.removed}</span> <span class="muted">· ${esc(d.branch)} into ${esc(d.base)}</span>
       <button class="btn" data-hide-diff="${esc(key)}">Hide</button></div>
-    ${commits ? `<ul class="commits">${commits}</ul>` : ""}${body || `<p class="muted">No file changes on this branch.</p>`}
+    ${commits ? `<ul class="commits">${commits}</ul>` : ""}${body || `<p class="muted">No file changes on this branch: everything it had is already on main. Close it as done.</p>`}
     ${d.truncated ? `<p class="muted">This change is too big to show in full. See the rest with <code>onecorp diff ${esc(key)}</code>.</p>` : ""}</div>`;
 }

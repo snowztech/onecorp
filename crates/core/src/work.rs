@@ -274,6 +274,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
          You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
          or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
          If something outside your control stops you, use update_ticket to mark the ticket blocked. \
+         Finishing needs no tool: when you end with your summary, OneCorp moves the ticket to review. \
          If you learn or decide something every teammate should know from now on, propose it with propose_wiki. \
          If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
          save it with remember: one line per note.\n\n\
@@ -633,7 +634,9 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 
 /// How OneCorp works, said once so nobody goes looking for it in the repo or in .claude/.
 const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
-start one. OneCorp does the git work: it commits, opens pull requests and merges once the founder approves. It also decides \
+start one. OneCorp does the git work: it commits, opens pull requests and merges once the founder approves. \
+You never set a ticket's status or delete a branch: when you end with your summary, the ticket goes to review, and \
+OneCorp marks it done and cleans up its branch once the founder approves, or closes it when there's nothing to merge. It also decides \
 which commands you can run, and ask_to_run asks the founder for another one. Questions go to your lead or the founder with ask_human, \
 rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n\
 How we write, in summaries, reports, chat, the wiki, comments and commit messages: plain words and short sentences, the way \
@@ -1139,7 +1142,12 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         }
         // A ticket that changed nothing, like an audit, is a report: its reply is the work, and
         // there's no branch to push or merge.
-        let changed = c.events(id)?.iter().any(|(_, kind, _)| kind == "commit");
+        // A branch whose files match base again, like work that landed some other way, has nothing to merge either.
+        let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+        let branch = t.branch.clone().unwrap_or_default();
+        let base = t.base.clone().unwrap_or_else(|| "main".into());
+        let same = git::same_files(&c.repo_of(&t)?, &base, &branch).unwrap_or(false);
+        let changed = !same && c.events(id)?.iter().any(|(_, kind, _)| kind == "commit");
         c.set_kind(id, if changed { "work" } else { "report" })?;
         if !changed {
             c.add_event(id, "report-text", &text, "")?;

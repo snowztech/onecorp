@@ -159,7 +159,7 @@ fn tools() -> Value {
         },
         {
             "name": "update_ticket",
-            "description": "Mark your ticket blocked, with what you need. It goes to the founder's Inbox to answer, and the ticket resumes with their answer.",
+            "description": "Only for when you can't continue: mark your ticket blocked, with what you need. It goes to the founder's Inbox to answer, and the ticket resumes with their answer. Finishing needs no tool: end with your summary and the ticket goes to review on its own.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

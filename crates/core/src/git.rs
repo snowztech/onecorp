@@ -208,6 +208,11 @@ pub fn changes(repo: &Path, base: &str, branch: &str) -> Result<Vec<Change>> {
         .collect())
 }
 
+/// True when `a` and `b` hold the same files: a branch like that has nothing to merge.
+pub fn same_files(repo: &Path, a: &str, b: &str) -> Result<bool> {
+    Ok(git(repo, &["diff", "--name-only", a, b], &[])?.trim().is_empty())
+}
+
 /// (short hash, author, subject) for each commit on `branch` that isn't on `base`, oldest first.
 pub fn commits(repo: &Path, base: &str, branch: &str) -> Result<Vec<(String, String, String)>> {
     let out = git(repo, &["log", "--reverse", "--format=%h%x09%an%x09%s", &format!("{base}..{branch}")], &[])?;
