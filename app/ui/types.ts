@@ -89,7 +89,8 @@ export interface Diff {
   patch: string; truncated: boolean;
 }
 
-export interface Message { id: number; at: string; author: string; name: string; text: string; key: string | null; pending: boolean; founder: boolean }
+export interface Proposed { key: string; title: string; employee: string | null; name: string | null; status: string }
+export interface Message { id: number; at: string; author: string; name: string; text: string; key: string | null; pending: boolean; founder: boolean; proposed?: Proposed[] }
 export interface Chat { channel: string; messages: Message[] }
 
 export interface Look { color?: string; logo?: string | null }

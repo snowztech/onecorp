@@ -1,6 +1,6 @@
 # How OneCorp works
 
-This is the map of the code as it is today. For why OneCorp exists and where it's going, see the [roadmap](../ROADMAP.md). The early design notes in [vision/architecture.md](vision/architecture.md) are a first draft and differ from the code in places.
+This is the map of the code as it is today. For why OneCorp exists and where it's going, see the [roadmap](../ROADMAP.md). The early design notes in [vision/architecture.md](vision/architecture.md) are a first draft and differ from the code in places. How employees work together, every path and the gaps, is in [COLLABORATION.md](COLLABORATION.md).
 
 ## The idea in one paragraph
 

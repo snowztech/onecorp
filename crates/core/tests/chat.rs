@@ -86,6 +86,17 @@ fn channels_posts_and_replies() {
     assert!(!seen.contains("Pricing is $6"));
 
     // A direct message: no @ needed, it always gets its answer, and stays out of the channel list.
+    // A lead asked to fix something proposes tickets for their team, under the reply. Work for
+    // someone outside the team goes to the lead. Nothing starts until the founder starts it.
+    let slots = chat::say(&c, "dm:odile", "checkout is slow, can you sort it out? [split]").unwrap();
+    chat::reply(&c, slots[0]).unwrap();
+    let reply = c.message(slots[0]).unwrap().unwrap();
+    assert!(!reply.text.contains("TICKET:"), "{}", reply.text);
+    let made: Vec<_> = c.proposed_in(slots[0]).unwrap().into_iter().map(|id| c.ticket(id).unwrap().unwrap()).collect();
+    let who: Vec<_> = made.iter().map(|t| (t.title.as_str(), t.assignee.as_deref().unwrap(), t.status.as_str())).collect();
+    assert_eq!(who, [("Cache the checkout page", "maya", "backlog"), ("Write the release note", "odile", "backlog")]);
+    assert_eq!(made[0].description, "Under 200ms");
+
     let slots = chat::say(&c, "dm:rui", "how is the roadmap looking?").unwrap();
     assert_eq!(slots.len(), 1);
     chat::reply(&c, slots[0]).unwrap();

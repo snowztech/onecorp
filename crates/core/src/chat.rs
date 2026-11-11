@@ -132,7 +132,9 @@ pub fn note(c: &Company, asker: &str, author: &str, text: &str, ticket: Option<i
 }
 
 /// A mentioned employee answers in the channel. Read-only in the repo and with no company tools,
-/// so a chat reply can look at the code but never changes it or opens tickets.
+/// so a chat reply can look at the code but never changes it. When there's work to do, the reply
+/// proposes tickets, for themselves or, from a lead, for their team. They wait for the founder to
+/// start them.
 pub fn reply(c: &Company, id: i64) -> Result<()> {
     let Some(slot) = c.message(id)? else { return Ok(()) };
     let Some(e) = c.employee(&slot.author)? else {
@@ -141,6 +143,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let before: Vec<Message> = c.messages(Some(&slot.channel))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
     let asked = before.iter().rev().find(|m| m.author == "founder").map(|m| m.text.clone()).unwrap_or_default();
     let doing = in_progress(c, &e.id)?;
+    let team = team_of(c, &e)?;
     let recent: Vec<&Message> = before.iter().rev().take(20).rev().collect();
     let history: Vec<String> = recent.iter().map(|m| line(c, m)).collect();
     let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
@@ -152,7 +155,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{now}{mentioned}{elsewhere}{notes}",
+         {propose}\n\n{knowledge}{tickets}{now}{mentioned}{elsewhere}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -170,6 +173,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         },
         notes = crate::work::own_notes(c, &e.id)?,
         checkout = checkout_note(c),
+        propose = propose_note(&e, &team),
     );
     let repo = c.repo()?;
     let model = crate::work::talk_model(c, &e)?;
@@ -198,6 +202,9 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         Some(why) => crate::limits::hit(&e.runtime, &format!("{why} {said}"))?,
         None => false,
     };
+    if run.is_ok() && !limited {
+        said = propose(c, &e, &team, id, &said)?;
+    }
     let text = match (run, limited) {
         (_, true) => format!("(My usage limit is reached. I'm back at {}.)", crate::limits::until(&e.runtime).map(crate::limits::label).unwrap_or_default()),
         (Ok(()), _) if !said.trim().is_empty() => runtime::plain(said.trim()),
@@ -206,6 +213,60 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let cost = crate::spend::record(c, &e.id, None, &e.runtime, model.as_deref(), cost, tokens)?;
     c.finish_message(id, &text, cost, tokens)
+}
+
+/// The people a lead can give work to: everyone in the departments they lead.
+fn team_of(c: &Company, e: &Employee) -> Result<Vec<Employee>> {
+    let mut team = vec![];
+    for other in c.employees()? {
+        if c.lead_of(&other.id)?.is_some_and(|l| l.id == e.id) {
+            team.push(other);
+        }
+    }
+    Ok(team)
+}
+
+const TICKET: &str = "TICKET:";
+
+fn propose_note(e: &Employee, team: &[Employee]) -> String {
+    let who = if team.is_empty() {
+        "yourself".to_string()
+    } else {
+        let names: Vec<String> = team.iter().map(|t| format!("{} ({})", t.name, t.role)).collect();
+        format!("yourself, or someone on your team: {}. You lead them, so split the work the way you would", names.join(", "))
+    };
+    format!(
+        "If they ask you to look into, fix or build something that needs real work, don't just suggest it: propose the tickets.          After your reply, add one line per ticket: {TICKET} who | title | what to do and how you'll know it's done.          Who is {who}. Keep it to the few tickets that matter. The founder sees them under your message and starts them with one click.          For a question or a chat, propose nothing. Your name here is {}.",
+        e.name
+    )
+}
+
+/// Turns the reply's ticket lines into tickets in the backlog, linked to the message, and returns
+/// the reply without them. Work for someone outside the lead's team goes to whoever proposed it.
+fn propose(c: &Company, e: &Employee, team: &[Employee], message: i64, said: &str) -> Result<String> {
+    const MOST: usize = 8;
+    let (lines, rest): (Vec<&str>, Vec<&str>) = said.lines().partition(|l| l.trim_start().trim_start_matches(['-', '*', ' ']).starts_with(TICKET));
+    for line in lines.iter().take(MOST) {
+        let body = line.trim_start().trim_start_matches(['-', '*', ' ']).trim_start_matches(TICKET);
+        let mut parts = body.splitn(3, '|').map(str::trim);
+        let (who, title, details) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+        if title.is_empty() {
+            continue;
+        }
+        let named = |x: &Employee| [x.id.as_str(), x.name.as_str(), x.name.split_whitespace().next().unwrap_or("")].iter().any(|n| crate::store::slug(n) == crate::store::slug(who));
+        let assignee = team.iter().find(|t| named(t)).map_or(e.id.clone(), |t| t.id.clone());
+        let new = crate::store::NewTicket {
+            title: title.into(),
+            description: details.into(),
+            assignee: Some(assignee),
+            created_by: Some(e.id.clone()),
+            ..Default::default()
+        };
+        let id = c.new_ticket(&new, "backlog")?;
+        c.link_message(id, message)?;
+        c.add_event(id, "create", &format!("proposed by {} in chat", e.name), "")?;
+    }
+    Ok(rest.join("\n"))
 }
 
 /// The tickets someone has been given, newest last, so a chat reply knows its own work.

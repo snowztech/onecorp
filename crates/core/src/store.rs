@@ -1153,6 +1153,19 @@ impl Company {
         Ok(())
     }
 
+    /// Marks a ticket as proposed in a chat message, so the message can show it.
+    pub fn link_message(&self, ticket: i64, message: i64) -> Result<()> {
+        self.db.execute("UPDATE tickets SET message = ?2 WHERE id = ?1", params![ticket, message])?;
+        Ok(())
+    }
+
+    /// The tickets someone proposed in a chat message, in the order they gave them.
+    pub fn proposed_in(&self, message: i64) -> Result<Vec<i64>> {
+        let mut st = self.db.prepare("SELECT id FROM tickets WHERE message = ?1 ORDER BY id")?;
+        let rows = st.query_map([message], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     /// Removes a message. Its cost stays in the spend ledger, since the run already happened.
     pub fn delete_message(&self, id: i64) -> Result<()> {
         self.db.execute("DELETE FROM messages WHERE id = ?1", [id])?;
@@ -1305,6 +1318,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("messages", "pending", "INTEGER NOT NULL DEFAULT 0"),
         ("messages", "cost_usd", "REAL NOT NULL DEFAULT 0"),
         ("messages", "tokens", "INTEGER NOT NULL DEFAULT 0"),
+        ("tickets", "message", "INTEGER REFERENCES messages(id)"),
     ];
     for (table, column, decl) in ADDED {
         let has: bool = db.query_row(
