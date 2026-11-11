@@ -92,9 +92,10 @@ fn a_ticket_goes_from_start_to_merged() {
     let r = c.add_ticket("flaky one [fail once]", "maya").unwrap();
     work::dispatch(&c, r, Job::Start).unwrap();
     assert_eq!(status(r), "failed");
-    work::retry(&c, &c.ticket(r).unwrap().unwrap()).unwrap();
+    work::retry(&c, &c.ticket(r).unwrap().unwrap(), Some("check the flaky test first")).unwrap();
     assert_eq!(status(r), "review");
-    assert!(work::retry(&c, &c.ticket(r).unwrap().unwrap()).is_err(), "only failed tickets can be retried");
+    assert!(c.events(r).unwrap().iter().any(|(_, kind, s)| kind == "retry" && s.contains("check the flaky test first")));
+    assert!(work::retry(&c, &c.ticket(r).unwrap().unwrap(), None).is_err(), "only failed tickets can be retried");
 
     // Tickets saved for later, chained: the second starts by itself once the first is merged.
     let saved = |title: &str, who: &str, after: Option<i64>| {

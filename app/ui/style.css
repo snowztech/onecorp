@@ -264,7 +264,12 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .tk .after { font: 11px var(--mono); color: var(--muted); }
 .tk.backlog { border-style: dashed; }
 .tk.waiting { box-shadow: inset 3px 0 0 var(--line); }
-.details { margin: 0; white-space: pre-wrap; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.details { margin: 0; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.details > :first-child { margin-top: 0; }
+.details > :last-child { margin-bottom: 0; }
+.details p, .details ul, .details ol { margin: 0 0 8px; line-height: 1.5; }
+.details ul, .details ol { padding-left: 20px; }
+.details code { font: 12px var(--mono); padding: 1px 5px; border-radius: 4px; background: var(--surface); border: 1px solid var(--line); }
 .field textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface-2); resize: vertical; font: inherit; }
 .acts select { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--surface); }
 

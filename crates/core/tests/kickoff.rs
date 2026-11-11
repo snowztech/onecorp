@@ -66,7 +66,7 @@ fn an_idea_becomes_a_plan_becomes_work() {
     work::dismiss_plan(&c, &c.ticket(second).unwrap().unwrap()).unwrap();
     assert_eq!(status(second), "failed");
     assert!(gone.iter().all(|id| c.ticket(*id).unwrap().is_none()));
-    work::retry(&c, &c.ticket(second).unwrap().unwrap()).unwrap();
+    work::retry(&c, &c.ticket(second).unwrap().unwrap(), None).unwrap();
     assert_eq!((status(second), c.plan_tickets(second).unwrap().len()), ("review".into(), 3));
     assert!(repo.join("README.md").exists());
 
@@ -85,7 +85,7 @@ fn an_idea_becomes_a_plan_becomes_work() {
     // A usage-limit retry resumes the existing wiki session, then saves the result too.
     wiki::write(&c, "Engineering/Codebase", "Waiting for the resumed draft", "founder", "").unwrap();
     c.set_status(hb, "failed").unwrap();
-    work::retry(&c, &c.ticket(hb).unwrap().unwrap()).unwrap();
+    work::retry(&c, &c.ticket(hb).unwrap().unwrap(), None).unwrap();
     assert_eq!(status(hb), "done", "resumed wiki work must not ask for a merge");
     assert!(wiki::read(&c, "Engineering/Codebase").unwrap().contains("From the README"));
     assert!(c.ticket(hb).unwrap().unwrap().branch.is_none());
@@ -114,7 +114,7 @@ fn an_idea_becomes_a_plan_becomes_work() {
     assert!(ship::approve(&c, &c.ticket(hb).unwrap().unwrap()).is_err());
     assert_eq!(status(hb), "failed");
     assert_eq!(c.wiki().unwrap(), saved);
-    work::retry(&c, &c.ticket(hb).unwrap().unwrap()).unwrap();
+    work::retry(&c, &c.ticket(hb).unwrap().unwrap(), None).unwrap();
     assert_eq!(status(hb), "done");
     assert!(git_status_clean(&repo));
 

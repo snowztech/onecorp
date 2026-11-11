@@ -686,10 +686,10 @@ fn stop(company: String, key: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
-fn retry(company: String, key: String) -> Res<()> {
+fn retry(company: String, key: String, note: Option<String>) -> Res<()> {
     let c = open(&company)?;
     let t = ticket(&c, &key)?;
-    work::retry(&c, &t).map_err(err)
+    work::retry(&c, &t, note.as_deref()).map_err(err)
 }
 
 #[tauri::command(async)]

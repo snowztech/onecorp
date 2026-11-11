@@ -925,19 +925,27 @@ pub fn discard(c: &Company, t: &Ticket) -> Result<()> {
 
 /// Tries a failed ticket again. With a session and a worktree to go back to, the same session picks
 /// up where it stopped, so finished work isn't redone. Without them, it starts over cleanly.
-pub fn retry(c: &Company, t: &Ticket) -> Result<()> {
+/// A note from the founder goes with it, for what to do differently this time.
+pub fn retry(c: &Company, t: &Ticket, note: Option<&str>) -> Result<()> {
     let key = c.key(t.id);
     if t.status != "failed" {
         bail!("{key} is {}. Only tickets that stopped or failed can be retried", t.status);
     }
-    c.add_event(t.id, "retry", "the founder asked to try again", "")?;
-    requeue(c, t)
+    let note = note.map(str::trim).filter(|n| !n.is_empty());
+    let said = note.map(|n| format!(": {}", runtime::clip(n, 600))).unwrap_or_default();
+    c.add_event(t.id, "retry", &format!("the founder asked to try again{said}"), "")?;
+    requeue(c, t, note)
 }
 
 /// Sends a failed ticket back to work: resumed where it stopped when its session is still there,
 /// started over otherwise.
-fn requeue(c: &Company, t: &Ticket) -> Result<()> {
+fn requeue(c: &Company, t: &Ticket, note: Option<&str>) -> Result<()> {
     let key = c.key(t.id);
+    let resumable = t.kind != "plan" && t.session_id.is_some() && t.worktree.as_deref().is_some_and(|w| Path::new(w).exists());
+    // Starting over reads the ticket again, so the note becomes part of it.
+    if let Some(note) = note.filter(|_| !resumable) {
+        c.set_description(t.id, format!("{}\n\nWhen the founder retried it: {note}", t.description).trim())?;
+    }
     // A plan starts over from the brief. It has no worktree of its own to resume or throw away:
     // it runs on your repo, read-only.
     if t.kind == "plan" {
@@ -945,9 +953,8 @@ fn requeue(c: &Company, t: &Ticket) -> Result<()> {
         c.reset_ticket(t.id)?;
         return dispatch(c, t.id, Job::Start);
     }
-    let resumable = t.session_id.is_some() && t.worktree.as_deref().is_some_and(|w| Path::new(w).exists());
     if resumable {
-        let prompt = if t.kind == "wiki" {
+        let mut prompt = if t.kind == "wiki" {
             format!("Continue writing your wiki pages for {key}. Reply with the pages and nothing else, each under its \"# Space/Title\" heading as asked before. Don't change repository files.")
         } else {
             format!(
@@ -956,6 +963,9 @@ fn requeue(c: &Company, t: &Ticket) -> Result<()> {
                 t.title
             )
         };
+        if let Some(note) = note {
+            prompt.push_str(&format!("\n\nThe founder retried it and says: {note}"));
+        }
         return dispatch(c, t.id, Job::Resume { why: "where it stopped".into(), prompt, label: "finish after retry".into() });
     }
     if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
@@ -973,7 +983,7 @@ fn wait_for_limit(c: &Company, e: &Employee, id: i64) -> Result<()> {
     c.add_event(id, "wait", &format!("{name} usage limit reached, back at {back}"), "")?;
     let t = c.ticket(id)?.ok_or_else(|| anyhow!("{} disappeared", c.key(id)))?;
     out(&format!("{} waits: {name}'s usage limit is reached. It picks up again at {back}.", c.key(id)));
-    requeue(c, &t)
+    requeue(c, &t, None)
 }
 
 /// Sends a ticket back to its employee: same session, same worktree, new instructions.

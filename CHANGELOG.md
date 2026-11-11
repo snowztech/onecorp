@@ -7,6 +7,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 ### Added
 
 - The wiki's Overview page holds what a new hire reads first: why the company exists, what you're building and for whom, and where it stands today, from idea to live. Your team drafts the sections you leave empty, and never touches the ones you wrote.
+- Retry a stopped ticket with a note, from its Inbox card or the ticket: tell them what to do differently this time. The note shows in the ticket's history. From the command line: `onecorp retry KEY --note "..."`.
 - A Glossary page in Product, drafted from the code and app copy: the words that mean something specific in your product, so nobody mixes them up.
 
 ### Changed
@@ -15,6 +16,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Fixed
 
+- Ticket details show their Markdown, like lists and `code`, instead of raw dashes and backticks.
 - Pages moved in from the old wiki show who wrote them, you or the employee who drafted it, instead of OneCorp.
 - Editing a wiki page looks like the page: the title big, one wide writing area, and Write and Preview tabs instead of a half-empty split.
 - Check for Updates… and Settings… in the OneCorp menu have icons on macOS 26, like the items around them.

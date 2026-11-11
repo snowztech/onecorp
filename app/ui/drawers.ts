@@ -1,6 +1,6 @@
 import { $, esc, first, hash, shortPaths, toast, utc } from "./lib.ts";
 import { AGENTS, agentBadge, agentMark, chip, drawFace, face, modelsOf, prLink } from "./look.ts";
-import { inline } from "./md.ts";
+import { inline, md } from "./md.ts";
 import { S, byId, call, invoke } from "./state.ts";
 import type { LogLine, PersonForm } from "./types.ts";
 import { changes, replyForm, discardBtn, discardConfirm, more, reviewActions, ticketStatus, wikiDraft } from "./views/inbox.ts";
@@ -51,11 +51,12 @@ export function drawerTicket() {
     review: reviewActions(t) + discardBtn(t),
     done: t.kind === "wiki" ? `<button class="btn" data-view="wiki" data-close="1">Read wiki</button>` : "",
   } as Record<string, string>)[t.status] || "";
-  const back = t.status === "review" ? replyForm(`chg-${t.key}`, `data-changes="${esc(t.key)}"`, "Ask for changes…", "Send back", false) : "";
+  const back = t.status === "review" ? replyForm(`chg-${t.key}`, `data-changes="${esc(t.key)}"`, "Ask for changes…", "Send back", false)
+    : t.status === "failed" ? replyForm(`rty-${t.key}`, `data-retry-note="${esc(t.key)}"`, "Retry with a note…", "Retry", false) : "";
   const log = t.log.map(a => logRow(a, 5)).join("") + stillRunning(t.log, t.status === "doing");
   return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(ticketStatus(t))}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <div class="dbody">
-      ${t.description ? `<p class="details">${esc(t.description)}</p>` : ""}
+      ${t.description ? `<div class="details">${md(t.description).html}</div>` : ""}
       <dl class="kv"><dt>Who</dt><dd>${t.employee ? `<a class="link" data-person="${esc(t.employee)}">${esc(t.name)}</a>` : "Nobody yet"}</dd><dt>Spent</dt><dd>${esc(t.spend)}</dd>
         ${t.created_by ? `<dt>Created by</dt><dd>${esc(t.created_by)}</dd>` : ""}
         ${t.after ? `<dt>After</dt><dd><a class="link" data-ticket="${esc(t.after)}">${esc(t.after)}</a></dd>` : ""}

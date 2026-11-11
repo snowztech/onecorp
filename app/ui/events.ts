@@ -141,6 +141,7 @@ document.addEventListener("click", async e => {
   if ("confirm" in d) {
     // One open panel per card: asking to discard closes the reply you were writing.
     if (d.confirm?.startsWith("discard:")) S.open["chg-" + d.confirm.slice(8)] = false;
+    if (d.confirm?.startsWith("ticket:")) S.open["rty-" + d.confirm.slice(7)] = false;
     S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); else if (S.view === "inbox") render(); renderSheet(); return $("#del-name")?.focus(); }
   if (d.remove) {
     el.disabled = true;
@@ -153,7 +154,7 @@ document.addEventListener("click", async e => {
     try { await invoke("forget_founder"); } catch (err) { el.disabled = false; return toast(String(err), true); }
     S.founder = null; S.confirm = null; S.pop = false; S.sheet = null; S.profile = { name: "" }; renderPop(); renderSheet(); return render();
   }
-  if (d.more) { if (/^(chg|ans)-/.test(d.more)) S.confirm = null; S.open[d.more] = !S.open[d.more]; render(); return document.getElementById(d.more)?.focus(); }
+  if (d.more) { if (/^(chg|ans|rty)-/.test(d.more)) S.confirm = null; S.open[d.more] = !S.open[d.more]; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) return openSettings("you");
   if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop as "menu" | "forget"; renderPop(); return $("#pf-name")?.focus(); }
   if (d.settings) return openSettings();
@@ -528,6 +529,10 @@ document.addEventListener("submit", async e => {
     const q = S.snap?.inbox.find(x => x.id === Number(f.dataset.reply));
     const ok = await call("answer", { company: S.company, id: Number(f.dataset.reply), text }, keep?.checked ? "Answered, and saved to Decisions" : "Answered").then(() => true).catch(() => false);
     if (ok && keep?.checked && q) await invoke("add_to_wiki", { company: S.company, page: "Company/Decisions", text: `${q.question.split("\n")[0].slice(0, 160)} → ${text}` }).catch(e => toast(String(e), true));
+  } else if (f.dataset.retryNote) {
+    const input = f.querySelector("textarea")!, note = input.value.trim();
+    if (!note) return input.focus();
+    await call("retry", { company: S.company, key: f.dataset.retryNote, note }, `${f.dataset.retryNote} is running again, with your note`).catch(() => {});
   } else if (f.dataset.changes) {
     const input = f.querySelector("textarea")!, feedback = input.value.trim();
     if (!feedback) return input.focus();

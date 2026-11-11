@@ -816,6 +816,11 @@ impl Company {
         Ok(())
     }
 
+    pub fn set_description(&self, ticket: i64, description: &str) -> Result<()> {
+        self.db.execute("UPDATE tickets SET description = ?2 WHERE id = ?1", params![ticket, description])?;
+        Ok(())
+    }
+
     pub fn set_after(&self, ticket: i64, after: Option<i64>) -> Result<()> {
         self.db.execute("UPDATE tickets SET after = ?2 WHERE id = ?1", params![ticket, after])?;
         Ok(())
