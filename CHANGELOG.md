@@ -4,35 +4,31 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
-### Changed
+## [0.1.11] - 2026-11-11
 
-- Employees can open a draft pull request for their branch with gh or glab to see CI early, update it, and read its checks and CI logs. OneCorp links the ticket to it instead of opening a second one, and marks it ready when they finish. Merging, closing, approving and reopening pull requests stay yours, along with repo settings, releases, secrets and the GitHub API.
-- Settings suggests turning on branch protection for main on GitHub, since employees push their own branches.
-- A few more ways to delete folders are blocked, like `rm -R` and `rm --recursive`, along with moving or forcing other branches.
-
-### Fixed
-
-- If an employee's commits reach main during a run, around your approval, the ticket says so, with the commits to check.
+Your employees work on their own, up to your approval: they run what they need, own their branch, and stop getting stuck on merges.
 
 ### Added
 
-- Your employees work on their own now. They run what they need in their own copy of the repo: builds, tests, installs and scripts. Their branch is theirs: they commit as they go, rebase onto main or merge it in, fix conflicts and push it. A guard keeps each ticket's pushes on its own branch, and OneCorp still opens the pull request and merges it only when you approve. Sudo, gh and deleting folders stay off. This is on for every company, existing ones included. If you'd rather approve each command, choose Only allowed under Commands in Settings, Company.
+- Your employees work on their own now. They run what they need in their own copy of the repo: builds, tests, installs and scripts. Their branch is theirs: they commit as they go, rebase onto main or merge it in, fix conflicts and push it. A guard keeps each ticket's pushes on its own branch, and nothing reaches main until you approve it. This is on for every company, existing ones included. If you'd rather approve each command, choose Only allowed under Commands in Settings, Company.
+- Employees can open a draft pull request for their branch with gh or glab to see CI early, update it, and read its checks and CI logs. OneCorp links the ticket to it instead of opening a second one, and marks it ready when they finish. Merging, closing, approving and reopening pull requests stay yours, along with repo settings, releases, secrets and the GitHub API. Sudo and deleting folders stay off.
 - A setup command per repo, under Settings, Company: OneCorp runs it in each new ticket's copy of the repo before the employee starts, like `npm ci`. If it fails, the employee is told and the ticket still runs.
 - Rescan a repo to add the commands its files suggest now, keeping yours. Make another repo the primary one, so the old one can be removed.
 
 ### Changed
 
-- Employees ask for every command they're missing in one request, and one Inbox card allows them all.
-- With a list, a script on it runs as `tools/x.sh` or `./tools/x.sh`, and employees are told to run listed commands as written, from the repo root. Commands that can never run, like `git rebase`, can't be added to a list.
+- With Only allowed, employees ask for every command they're missing in one request, and one Inbox card allows them all, or lets them run anything. A script on the list runs as `tools/x.sh` or `./tools/x.sh`, employees are told to run listed commands as written, and commands that can never run, like `git rebase`, can't be added.
 - On Codex, running anything also lets installs reach the network, and lets employees commit and rebase on their branch.
+- Settings suggests turning on branch protection for main on GitHub, since employees push their own branches.
 
 ### Fixed
 
-- Claude Code employees can open the wiki pages they're pointed to while working on a ticket.
 - Merging on GitHub works on repos that turn merge commits off or require a linear history. OneCorp merges the way the repo allows, falls back to a squash, and says what to check if GitHub still refuses.
 - A ticket whose work is already on main no longer gets stuck in review. Its Inbox card says there's nothing left to merge, and Close as done closes its pull request and deletes its branch, instead of failing on an empty merge. A run that ends with nothing new to merge comes back as a report.
 - A pull request you close on GitHub after its work reached main another way marks the ticket done, instead of stopped.
 - Employees know finishing needs no tool: when they end with their summary, the ticket goes to review. They no longer ask you to mark tickets done or delete branches, redo work that's waiting to merge, or file tickets about git and permissions.
+- If an employee's commits reach main during a run, around your approval, the ticket says so, with the commits to check.
+- Claude Code employees can open the wiki pages they're pointed to while working on a ticket.
 
 ## [0.1.10] - 2026-11-11
 
@@ -251,6 +247,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.11]: https://github.com/snowztech/onecorp/releases/tag/v0.1.11
 [0.1.10]: https://github.com/snowztech/onecorp/releases/tag/v0.1.10
 [0.1.9]: https://github.com/snowztech/onecorp/releases/tag/v0.1.9
 [0.1.8]: https://github.com/snowztech/onecorp/releases/tag/v0.1.8
