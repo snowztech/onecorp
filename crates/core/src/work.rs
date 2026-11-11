@@ -423,12 +423,20 @@ fn run_wiki(c: &Company, t: &Ticket) -> Result<()> {
         mission = if mission.is_empty() { "one or two sentences on what the company is for, from the README.".to_string() } else { format!("keep exactly this: {mission}") },
         knowledge = company_knowledge(c)?,
     );
-    drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)?;
+    drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
+}
+
+/// Save a completed wiki, including drafts left in review by older versions.
+pub fn finish_wiki(c: &Company, t: &Ticket) -> Result<()> {
+    let (id, key) = (t.id, c.key(t.id));
+    let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+    if t.kind != "wiki" || t.status != "review" {
+        bail!("{key} is not a wiki draft ready to save");
+    }
     // The reply is the wiki. Only a reply that looks like one replaces what's there.
     let said = c.events(id)?.into_iter().rev().find(|(_, kind, _)| kind == "wiki-text").map(|(_, _, s)| s).unwrap_or_default();
     let doc = said.trim().trim_start_matches("```markdown").trim_start_matches("```md").trim_start_matches("```").trim_end_matches("```").trim();
-    let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
-    if t.status == "review" && doc.starts_with('#') && doc.contains("\n## ") {
+    if doc.starts_with('#') && doc.contains("\n## ") {
         // What you wrote about what we're building always wins over the draft.
         let yours = c.brief()?;
         c.write_wiki(&format!("{doc}\n"))?;
@@ -438,9 +446,10 @@ fn run_wiki(c: &Company, t: &Ticket) -> Result<()> {
         c.set_status(id, "done")?;
         c.add_event(id, "wiki", "wrote the wiki", "")?;
         out(&format!("{key}  the wiki is written. Read it: onecorp wiki"));
-    } else if t.status == "review" {
+    } else {
         c.set_status(id, "failed")?;
         c.add_event(id, "error", "the reply wasn't a wiki page, so nothing was changed", "")?;
+        bail!("{key} did not return a wiki page. Retry it to write the wiki");
     }
     Ok(())
 }
@@ -748,6 +757,8 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
              Your {dropped} tickets were removed. Create the new plan from scratch with create_ticket, same rules as before, \
              and end with a short summary of it."
         )
+    } else if t.kind == "wiki" {
+        format!("The founder wants these changes to the wiki:\n\n{feedback}\n\nReturn the complete wiki in Markdown, not a summary. Do not change repository files.")
     } else {
         format!(
             "The founder reviewed your work and asked for changes:\n\n{feedback}\n\n\
@@ -827,11 +838,15 @@ fn requeue(c: &Company, t: &Ticket) -> Result<()> {
     }
     let resumable = t.session_id.is_some() && t.worktree.as_deref().is_some_and(|w| Path::new(w).exists());
     if resumable {
-        let prompt = format!(
-            "Your last run on {key} stopped before it finished. Check what's already in your worktree, then carry on \
+        let prompt = if t.kind == "wiki" {
+            format!("Continue writing the company wiki for {key}. Return the complete wiki in Markdown and nothing else. Start with \"# {} wiki\" and keep the sections requested before. Do not change repository files.", c.name)
+        } else {
+            format!(
+                "Your last run on {key} stopped before it finished. Check what's already in your worktree, then carry on \
              and finish the ticket: {}\n\nSame rules as before: don't commit, and end with two or three sentences on what changed.",
-            t.title
-        );
+                t.title
+            )
+        };
         return dispatch(c, t.id, Job::Resume { why: "where it stopped".into(), prompt, label: "finish after retry".into() });
     }
     if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
@@ -985,6 +1000,11 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost, tokens)?;
 
     let mut t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+    if t.kind == "wiki" && t.status == "review" {
+        finish_wiki(c, &t)?;
+        t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+        release_waiting(c, id)?;
+    }
     if t.status == "review" && !planning {
         ship::publish_or_note(c, &t, &text);
         t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;

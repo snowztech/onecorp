@@ -574,10 +574,24 @@ function planReview(r) {
     <div class="acts"><button class="btn good" data-approve="${esc(r.key)}" ${r.tickets.length ? "" : "disabled"}>Start the plan</button><button class="btn" data-dismiss="${esc(r.key)}">Dismiss</button></div>
     ${more(`chg-${r.key}`, "Plan it again…", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Plan again</button></form>`)}</div></article>`;
 }
+function approvalCopy(t) {
+  if (t?.kind === "wiki") return { label: "Save wiki", busy: "Saving…", done: "Wiki saved. Your team can read it now." };
+  if (t?.kind === "plan") return { label: "Start the plan", busy: "Starting…", done: "Plan started." };
+  return { label: mergeLabel(), busy: "Merging…", done: "Work merged. New tickets start from it." };
+}
+function reviewActions(t) {
+  return `<button class="btn good" data-approve="${esc(t.key)}">${approvalCopy(t).label}</button>${t.kind === "work" && !S.diffs[t.key] ? `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>` : ""}`;
+}
+function wikiDraft(t) {
+  return t.kind === "wiki" && (!t.status || t.status === "review") ? `<article class="doc wiki">${md(t.document || "No wiki draft was saved. Ask for changes to write it again.").html}</article>` : "";
+}
+function ticketStatus(t) {
+  return t.status === "done" && ["wiki", "plan"].includes(t.kind) ? (t.kind === "plan" ? "Plan started" : "Completed") : (STATUS[t.status] || t.status);
+}
 function review(r) {
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}<p>${esc(r.summary || `${first(r.name)} finished and is waiting for your review.`)}</p>
-    <div class="acts"><button class="btn good" data-approve="${esc(r.key)}">${mergeLabel()}</button>${S.diffs[r.key] ? "" : `<button class="btn" data-diff="${esc(r.key)}">Show changes</button>`}</div>
+    ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}</div>
     ${changes(r.key)}
     ${more(`chg-${r.key}`, "Ask for changes", `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>`)}</div></article>`;
 }
@@ -861,11 +875,12 @@ function drawerTicket() {
     queued: `<button class="btn" data-stop="${esc(t.key)}">Cancel</button>`,
     failed: `<button class="btn primary" data-retry="${esc(t.key)}">Retry</button>`,
     blocked: `<button class="btn primary" data-view="inbox" data-close="1">Answer it in the Inbox</button>`,
-    review: `<button class="btn good" data-approve="${esc(t.key)}">${t.kind === "plan" ? "Start the plan" : mergeLabel()}</button>${S.diffs[t.key] ? "" : `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>`}`,
+    review: reviewActions(t),
+    done: t.kind === "wiki" ? `<button class="btn" data-view="wiki" data-close="1">Read wiki</button>` : "",
   }[t.status] || "";
   const back = t.status === "review" ? `<form class="reply" data-changes="${esc(t.key)}"><input id="chg-${esc(t.key)}" placeholder="Ask for changes…"><button class="btn">Send back</button></form>` : "";
   const log = t.log.map(a => `<div class="k-${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(5, 16))}</span>${esc(a.kind)} ${esc(a.summary)}</div>`).join("");
-  return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(STATUS[t.status] || t.status)}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
+  return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(ticketStatus(t))}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <div class="dbody">
       ${t.description ? `<p class="details">${esc(t.description)}</p>` : ""}
       <dl class="kv"><dt>Who</dt><dd>${t.employee ? `<a class="link" data-person="${esc(t.employee)}">${esc(t.name)}</a>` : "Nobody yet"}</dd><dt>Spent</dt><dd>${esc(t.spend)}</dd>
@@ -874,10 +889,10 @@ function drawerTicket() {
         ${t.pr_url ? `<dt>Pull request</dt><dd>${prLink(t.pr_url, t.pr_number)}</dd>` : ""}
         ${t.repo ? `<dt>Repo</dt><dd class="mono">${esc(t.repo)}</dd>` : ""}
         ${t.branch ? `<dt>Branch</dt><dd class="mono">${esc(t.branch)}${t.base ? ` <span class="muted">from ${esc(t.base)}</span>` : ""}</dd>` : ""}</dl>
-      ${acts ? `<div class="acts">${acts}</div>` : ""}${back}${changes(t.key)}
-      <div><h5>Everything that happened</h5>${log ? `<div class="term tall" id="term">${log}</div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`}</div>
+      ${wikiDraft(t)}${acts ? `<div class="acts">${acts}</div>` : ""}${back}${changes(t.key)}
+      ${more(`log-${t.key}`, "Everything that happened", log ? `<div class="term tall" id="term">${log}</div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`)}
       ${["backlog", "todo", "waiting", "done", "failed"].includes(t.status) ? (S.confirm === "ticket:" + t.key
-        ? `<div class="confirm"><p>Delete ${esc(t.key)}? Its log goes with it.${t.status === "done" ? " The merged work stays in your repo." : t.status === "failed" ? " Its unfinished branch is thrown away." : ""}</p>
+        ? `<div class="confirm"><p>Delete ${esc(t.key)}? Its log goes with it.${t.status === "done" ? (t.kind === "wiki" ? " The wiki stays saved." : t.kind === "plan" ? " Its work tickets stay." : " The merged work stays in your repo.") : t.status === "failed" ? " Its unfinished branch is thrown away." : ""}</p>
             <div class="acts"><button class="btn danger" data-remove="${esc(t.key)}">Delete</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
         : `<div class="dfoot"><button class="link-btn danger-link" data-confirm="ticket:${esc(t.key)}">Delete ticket…</button></div>`) : ""}
     </div>`;
@@ -975,7 +990,7 @@ function renderDrawer() {
       <div class="acts"><button class="btn" data-edit-person="1">Edit</button><button class="btn" data-new-ticket="${esc(p.id)}">Give ${esc(first(p.name))} a ticket</button><button class="btn" data-dm="${esc(p.id)}">Message</button></div>
       <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free right now.</p>`}</div>
       <div><h5>What ${esc(first(p.name))} has learned</h5>${p.memory.length ? `<ul class="notes">${p.memory.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="muted" style="margin:0">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>
-      <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(STATUS[t.status] || t.status)}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
+      <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(ticketStatus(t))}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
       ${letGo}
     </div>`;
   const term = $("#term"); if (term) term.scrollTop = term.scrollHeight;
@@ -1886,7 +1901,12 @@ document.addEventListener("click", async e => {
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
   else if (d.close) { S.drawer = null; renderDrawer(); }
   else if (d.answer) { el.disabled = true; await call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.val === "no" ? "Left out of the wiki" : "Answered").catch(() => (el.disabled = false)); }
-  else if (d.approve) { el.disabled = true; el.textContent = "Merging…"; await call("approve", { company: S.company, key: d.approve }, `${d.approve} merged. New tickets start from it.`).catch(() => { el.disabled = false; el.textContent = mergeLabel(); }); }
+  else if (d.approve) {
+    const t = S.snap?.reviews.find(t => t.key === d.approve) || (S.ticket?.key === d.approve ? S.ticket : null);
+    const copy = approvalCopy(t);
+    el.disabled = true; el.textContent = copy.busy;
+    await call("approve", { company: S.company, key: d.approve }, copy.done).catch(() => { el.disabled = false; el.textContent = copy.label; });
+  }
 
 });
 document.addEventListener("submit", async e => {
@@ -2195,7 +2215,7 @@ function preview(cmd, args) {
       { key: "agency", name: "Agency", description: "Client work: a PM who plans, two engineers, a designer, and a QA reviewer who checks every change.", runtime: null, hires: [{ name: "Rui Alves", role: "Project manager", dept: "Delivery" }, { name: "Maya Okafor", role: "Engineer", dept: "Delivery" }, { name: "Tomás Reis", role: "Engineer", dept: "Delivery" }, { name: "Lina Park", role: "Product designer", dept: "Delivery" }, { name: "Odile Martin", role: "QA reviewer", dept: "Delivery" }] },
       { key: "oss", name: "Open source", description: "A maintainer who reviews every change, an engineer, and a writer for docs and changelogs.", runtime: null, hires: [{ name: "Odile Martin", role: "Maintainer", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Sam Duarte", role: "Docs writer", dept: "Docs" }] },
       { key: "empty", name: "Start empty", description: "No one yet. Add departments and hire them yourself.", runtime: null, hires: [] }] },
-    ticket_detail: { key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
+    ticket_detail: { kind: "work", key: "SNO-11", title: "Pricing page", status: "review", description: "Free and Pro plans. Pro is $6 a month.", created_by: "Rui Alves", after: null, pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41", employee: "odile", name: "Odile Martin", branch: "onecorp/snowztech/sno-11", base: "main", spend: "$0.31",
       log: [["10:40", "start", "claude (opus), started"], ["10:40", "tool", "Read src/routes/mod.rs"], ["10:41", "say", "Pricing lives next to the landing page, reusing the plan cards from settings."],
         ["10:44", "tool", "Write src/routes/pricing.rs"], ["10:47", "tool", "Edit templates/pricing.html"], ["10:49", "tool", "Bash cargo test pricing"], ["10:50", "error", "test pricing::pro_monthly ... FAILED"],
         ["10:52", "tool", "Edit src/routes/pricing.rs"], ["10:54", "tool", "Bash cargo test"], ["10:55", "say", "All 48 tests pass. Pro shows $6 a month, yearly saves two months."],

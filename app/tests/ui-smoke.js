@@ -23,6 +23,28 @@ window.__TAURI__ = { core: { invoke: (cmd, args) => { requests++; return command
   const assert = require("node:assert/strict");
   assert.equal(intervals.size, 1, "company workspace starts one polling timer");
   const workspaceTimer = [...intervals.keys()][0];
+  const wikiTicket = { key: "SNO-99", kind: "wiki", status: "review", title: "Write the wiki", name: "Odile Martin", log: [], document: "# Company wiki\\n\\n## Codebase\\n\\nA useful draft." };
+  for (const theme of ["light", "dark"]) {
+    document.documentElement.dataset.theme = theme;
+    const card = review(wikiTicket);
+    assert.match(card, /Save wiki/);
+    assert.match(card, /A useful draft/);
+    assert.doesNotMatch(card, /data-diff|Merge pull request|Approve and merge/);
+    S.ticket = wikiTicket;
+    const drawer = drawerTicket();
+    assert.match(drawer, /Save wiki/);
+    assert.doesNotMatch(drawer, /data-diff|Merge pull request|Approve and merge/);
+    S.ticket = { ...wikiTicket, status: "done" };
+    assert.match(drawerTicket(), /Completed/);
+    assert.match(drawerTicket(), /Read wiki/);
+    assert.doesNotMatch(drawerTicket(), /data-approve|Merged/);
+  }
+  assert.equal(approvalCopy({ kind: "plan" }).busy, "Starting…");
+  assert.equal(approvalCopy(wikiTicket).busy, "Saving…");
+  assert.match(reviewActions({ key: "SNO-11", kind: "work" }), /data-diff/);
+  assert.doesNotMatch(reviewActions({ key: "SNO-20", kind: "plan" }), /data-diff/);
+  S.ticket = null;
+
   for (const v of ["company", "board", "inbox", "chat", "wiki"]) { S.view = v; await refresh(true); console.log(v, document.querySelector("#view").innerHTML.length, "chars"); }
   assert.deepEqual([...intervals.keys()], [workspaceTimer], "renders reuse the workspace timer");
   await openTicket("SNO-11"); console.log("ticket drawer", document.querySelector("#drawer").innerHTML.length, "chars");

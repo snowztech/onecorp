@@ -98,6 +98,10 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
     if t.kind == "plan" {
         return crate::work::start_plan(c, t);
     }
+    if t.kind == "wiki" {
+        crate::work::finish_wiki(c, t)?;
+        return crate::work::release_waiting(c, t.id);
+    }
     let key = c.key(t.id);
     match t.status.as_str() {
         "review" => {}
