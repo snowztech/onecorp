@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-11
+
+OneCorp now updates itself, and blocked tickets always reach your Inbox. This is the last version to install by hand: run `brew upgrade --cask onecorp` or download the DMG once, and later versions come to you.
+
 ### Added
 
 - OneCorp updates itself. New versions download in the background, and "Restart to update" in the sidebar applies them.
@@ -145,6 +149,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.7]: https://github.com/snowztech/onecorp/releases/tag/v0.1.7
 [0.1.6]: https://github.com/snowztech/onecorp/releases/tag/v0.1.6
 [0.1.5]: https://github.com/snowztech/onecorp/releases/tag/v0.1.5
 [0.1.4]: https://github.com/snowztech/onecorp/releases/tag/v0.1.4
