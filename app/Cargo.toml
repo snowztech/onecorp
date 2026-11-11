@@ -17,5 +17,10 @@ tauri-plugin-notification = "2"
 tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 
+# The OneCorp menu's own items get the same SF Symbols macOS gives its built-in ones.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSMenu", "NSMenuItem", "NSImage", "NSResponder"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSProcessInfo"] }
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

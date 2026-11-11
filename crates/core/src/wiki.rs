@@ -249,6 +249,29 @@ pub fn parse(reply: &str) -> Vec<(String, String)> {
 /// A wiki from before pages, one wiki.md with ## sections, becomes pages. The old file stays
 /// next to them as wiki-before-pages.md.
 pub fn migrate(c: &Company) -> Result<()> {
+    move_old(c)?;
+    credit_moved(c)
+}
+
+/// The old wiki.md never said who wrote what, but the company knows: you wrote the mission, what
+/// we're building and the decisions, and whoever had the last "Write the wiki" ticket wrote the
+/// rest. Also fixes pages an earlier version moved in under OneCorp's name.
+fn credit_moved(c: &Company) -> Result<()> {
+    const MOVED: &str = "moved from the old wiki";
+    let moved: Vec<Edit> = edits(c, "WHERE author = 'onecorp' AND note = ?1", MOVED)?;
+    if moved.is_empty() {
+        return Ok(());
+    }
+    let writer = c.tickets()?.into_iter().rev().find(|t| t.kind == "wiki" && t.status == "done").and_then(|t| t.assignee);
+    for e in moved {
+        let yours = [MISSION, BUILDING, DECISIONS].contains(&e.page.as_str());
+        let by = if yours { "founder" } else { writer.as_deref().unwrap_or("founder") };
+        c.db.execute("UPDATE wiki_log SET author = ?2 WHERE id = ?1", params![e.id, by])?;
+    }
+    Ok(())
+}
+
+fn move_old(c: &Company) -> Result<()> {
     let old = c.dir.join("wiki.md");
     if dir(c).exists() || !old.exists() {
         return Ok(());
@@ -306,7 +329,8 @@ mod tests {
         write(&c, DECISIONS, "- Nothing", "founder", "").unwrap();
         write(&c, DECISIONS, "- Nothing", "founder", "").unwrap();
         let h = history(&c, DECISIONS).unwrap();
-        assert_eq!(h.iter().map(|e| e.author.as_str()).collect::<Vec<_>>(), ["founder", "maya", "onecorp"], "an unchanged save isn't logged");
+        assert_eq!(h.iter().map(|e| e.author.as_str()).collect::<Vec<_>>(), ["founder", "maya", "founder"], "an unchanged save isn't logged, and you wrote the old decisions");
+        assert_eq!(history(&c, "Engineering/Codebase").unwrap()[0].author, "founder", "with no wiki ticket on record, the old pages are yours");
         restore(&c, h[1].id, "founder").unwrap();
         assert_eq!(read(&c, DECISIONS).unwrap(), "- No ORMs\n- Tokens are hashed");
 

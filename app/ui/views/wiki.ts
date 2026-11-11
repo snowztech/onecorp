@@ -1,7 +1,7 @@
 import { ago, esc, first } from "../lib.ts";
 import { face } from "../look.ts";
 import { md } from "../md.ts";
-import { S } from "../state.ts";
+import { S, byId } from "../state.ts";
 import type { Question, WikiPage } from "../types.ts";
 
 /* Wiki: the company's shared knowledge, in spaces and pages, each saying who wrote it.
@@ -52,7 +52,7 @@ function tree(pages: WikiPage[], cur: WikiPage | null) {
       }).join("")}
       <button class="wk-add" data-wk-new="${esc(s)}">+ Page</button></div>`).join("")}
     <p class="fine">Everyone reads every page before each ticket.</p>
-    ${!S.snap!.tickets.some(t => t.kind === "wiki") ? "" : S.open.redraft ? `<form class="wk-redraft" id="wk-redraft"><span class="label">Redraft from the repo</span>
+    ${!S.snap!.tickets.some(t => t.kind === "wiki") || drafting().length ? "" : S.open.redraft ? `<form class="wk-redraft" id="wk-redraft"><span class="label">Redraft from the repo</span>
         ${whoDrafts()}
         <p class="fine">Drafted pages are rewritten from the repo. Pages only you write, like Now, aren't touched, and every earlier version stays in History.</p>
         <div class="acts"><button class="btn primary">Redraft</button><button class="btn ghost" type="button" data-close-open="redraft">Cancel</button></div></form>`
@@ -89,16 +89,31 @@ function editor(p: WikiPage | null) {
   const del = p && S.wiki!.pages.some(x => x.path === p.path) ? (S.confirm === "page:" + p.path
     ? `<span class="confirm-inline">Delete ${esc(p.title)}? Its history stays. <button class="btn danger" type="button" data-wk-delete="${esc(p.path)}">Delete</button><button class="btn ghost" type="button" data-confirm="">Keep</button></span>`
     : `<button class="link-btn danger-link" type="button" data-confirm="page:${esc(p.path)}">Delete page…</button>`) : "";
-  return `<form class="wiki-edit" id="hb-raw" data-from="${esc(p && S.wiki!.pages.some(x => x.path === p.path) ? p.path : "")}">
-    <header><div class="wk-name"><input id="wk-space" list="wk-spaces" value="${esc(space)}" aria-label="Space" placeholder="Space"><span>/</span><input id="wk-title" value="${esc(title)}" aria-label="Title" placeholder="Page title"></div>
-      <datalist id="wk-spaces">${spaces.map(s => `<option value="${esc(s)}">`).join("")}</datalist>
-      <div class="acts">${del}<button class="btn ghost" type="button" data-hb-edit="0">Cancel</button><button class="btn primary">Save</button></div></header>
-    <span class="muted fine">Markdown. ## starts a section. Everyone reads it from their next ticket.</span>
-    <div class="wiki-split"><textarea id="hb-text" spellcheck="false" placeholder="${esc(HINTS[p?.path || ""] || "Write it the way you'd brief a new teammate.")}">${esc(text)}</textarea><article class="doc wiki" id="hb-preview">${md(text).html}</article></div></form>`;
+  return `<form class="wiki-edit wk-edit" id="hb-raw" data-from="${esc(p && S.wiki!.pages.some(x => x.path === p.path) ? p.path : "")}">
+    <div class="wk-edit-top">
+      <div class="wk-crumbs"><input id="wk-space" list="wk-spaces" value="${esc(space)}" aria-label="Space" placeholder="Space" style="width:${Math.max(space.length, 5) + 2}ch"> <span>›</span></div>
+      <div class="acts"><button class="btn ghost" type="button" data-hb-edit="0">Cancel</button><button class="btn primary">Save</button></div>
+    </div>
+    <datalist id="wk-spaces">${spaces.map(s => `<option value="${esc(s)}">`).join("")}</datalist>
+    <input id="wk-title" value="${esc(title)}" aria-label="Title" placeholder="Page title" autocomplete="off">
+    <div class="wk-tabs" role="tablist"><button type="button" class="on" data-wk-tab="write">Write</button><button type="button" data-wk-tab="preview">Preview</button><span class="fine">Markdown. ## starts a section.</span></div>
+    <textarea id="hb-text" spellcheck="true" placeholder="${esc(HINTS[p?.path || ""] || "Write it the way you'd brief a new teammate.")}">${esc(text)}</textarea>
+    <article class="doc wiki" id="hb-preview"></article>
+    <footer class="wk-edit-foot"><span class="fine">Everyone reads it from their next ticket.</span>${del}</footer></form>`;
 }
 
 // Who drafts: your team splits it, or one person you pick.
 const whoDrafts = () => `<select id="wk-by" aria-label="Who drafts it"><option value="">Your team</option>${S.snap!.employees.map(e => `<option value="${esc(e.id)}">${esc(e.name)} · ${esc(e.role)}</option>`).join("")}</select>`;
+
+// Drafts being written right now, so a redraft never looks like nothing happened.
+const drafting = () => S.snap!.tickets.filter(t => t.kind === "wiki" && ["todo", "queued", "doing"].includes(t.status));
+
+function draftingNow() {
+  const live = drafting();
+  if (!live.length) return "";
+  const who = live.map(t => `<button class="link-btn inline" data-ticket="${esc(t.key)}">${esc(first(byId(t.assignee)?.name) || "Someone")}</button> ${t.status === "doing" ? "is writing" : "will write"} ${esc(t.title.replace(/^Write /, ""))}`);
+  return `<div class="wk-live" role="status"><span class="live-dot"></span><div><b>Drafting from the repo</b><p>${who.join(". ")}. Pages update as each draft lands, and earlier versions stay in History.</p></div></div>`;
+}
 
 // A company that started empty never had its wiki drafted. Offer it once there's someone to do it.
 function firstDraft() {
@@ -120,7 +135,7 @@ export function viewWiki() {
   const body = p.text ? `<div class="wiki">${page.html}</div>`
     : `<div class="wk-empty"><p>${esc(hint || "This page is empty.")}</p><button class="btn primary" data-hb-edit="1">Write it</button></div>`;
   const learn = p.path === "Engineering/Codebase" ? `<footer class="doc-foot"><button class="link-btn" data-learn="1">Update from the repo</button></footer>` : "";
-  return `<div class="wk">${tree(pages, p)}<main class="wk-main">${firstDraft()}<article class="doc">
+  return `<div class="wk">${tree(pages, p)}<main class="wk-main">${draftingNow() || firstDraft()}<article class="doc">
       <div class="wk-crumbs">${esc(p.space)} <span>›</span></div>
       <div class="wiki-top"><h1>${esc(p.title)}</h1>${p.text ? `<button class="btn" data-hb-edit="1">Edit</button>` : ""}</div>
       ${meta(p)}
