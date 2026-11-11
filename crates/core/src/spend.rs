@@ -66,7 +66,8 @@ pub fn plan_use() -> Result<Vec<Value>> {
 }
 
 /// One run: what it cost and who ran it. Returns the dollars recorded, reported or estimated.
-pub fn record(c: &Company, employee: &str, ticket: Option<i64>, runtime: &str, model: Option<&str>, cost: f64, tokens: u64) -> Result<f64> {
+#[allow(clippy::too_many_arguments)]
+pub fn record(c: &Company, kind: &str, employee: &str, ticket: Option<i64>, runtime: &str, model: Option<&str>, cost: f64, tokens: u64) -> Result<f64> {
     let (dollars, estimated) = if cost > 0.0 {
         (cost, false)
     } else if tokens > 0 && runtime != "fake" {
@@ -75,7 +76,7 @@ pub fn record(c: &Company, employee: &str, ticket: Option<i64>, runtime: &str, m
         (0.0, false)
     };
     if dollars > 0.0 || tokens > 0 {
-        c.add_spend(&crate::store::Spent { employee, ticket, runtime, model, cost: dollars, tokens, estimated })?;
+        c.add_spend(&crate::store::Spent { employee, ticket, runtime, model, cost: dollars, tokens, estimated, kind })?;
     }
     check(c)?;
     Ok(dollars)

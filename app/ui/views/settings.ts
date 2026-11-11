@@ -161,6 +161,7 @@ export function spendTab() {
   const head = (extra = "") => `<thead><tr><th></th><th class="num">Today</th><th class="num">7 days</th><th class="num">All time</th>${extra}</tr></thead>`;
   const people = r.people.filter(p => p.all.cost > 0 || p.cap > 0);
   const plans = r.plans || [], plan = (rt: string) => plans.find(p => p.runtime === rt)?.plan || 0;
+  const agentsUsed = [...new Set([...(S.runtimes || ["claude", "codex"]).filter(x => x !== "fake"), ...plans.map(p => p.runtime)])];
   const planLines = plans.map(p => {
     const name = AGENTS[p.runtime]?.name || p.runtime, x = p.plan > 0 ? p.month / p.plan : 0;
     return `<p class="plan-line"><span class="tool-ic sm" style="--c:${AGENTS[p.runtime]?.color || "#888"}">${agentMark(p.runtime)}</span><span><b>${esc(name)}</b>: ${money(p.month)} of work this month across your companies, at API prices. ${x >= 0.1 ? `That's ${x.toFixed(1)}× your ${money(p.plan)} plan.` : `Your plan is ${money(p.plan)}.`}${p.limits ? ` It hit its usage limit ${p.limits === 1 ? "once" : `${p.limits} times`} in the last 7 days.` : ""}</span></p>`;
@@ -170,8 +171,13 @@ export function spendTab() {
     <div class="row-set"><div><b>Daily budget</b><span>The company pauses there until tomorrow.</span></div>
       <div class="seg">${presets.map(p => `<button data-budget="${p}" aria-pressed="${p === b && !S.customBudget}">${p ? `$${p}` : "None"}</button>`).join("")}<button data-budget-custom="1" aria-pressed="${custom || !!S.customBudget}">${custom ? money(b) : "Other"}</button></div></div>
     ${S.customBudget ? `<form id="budget-form" class="row-set"><div><b>Your budget</b><span>Press Enter to save.</span></div><label class="money-in inline"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b || ""}" placeholder="12"><span class="unit">a day</span></label></form>` : ""}
-    <div class="row-set"><div><b>Your plans</b><span>What you pay a month, for all your companies. Leave it empty if you pay per use.</span></div>
-      <div class="plan-ins">${["claude", "codex"].map(rt => `<label class="money-in inline" title="${esc(AGENTS[rt]?.name || rt)}"><span class="tool-ic sm" style="--c:${AGENTS[rt]?.color || "#888"}">${agentMark(rt)}</span><span>$</span><input data-plan="${rt}" type="number" min="0" step="1" value="${plan(rt) || ""}" placeholder="0" aria-label="${esc(AGENTS[rt]?.name || rt)} plan, dollars a month"><span class="unit">a month</span></label>`).join("")}</div></div>
+    <div class="pay"><div class="pay-head"><b>How you pay for your agents</b><span>For all your companies. With a subscription, Spending compares what your team ran to what you pay, and the dollars here are API prices, not a bill.</span></div>
+      ${agentsUsed.map(rt => {
+        const sub = plan(rt) > 0 || !!S.planEdit?.[rt], name = AGENTS[rt]?.name || rt;
+        return `<div class="pay-row"><span class="who"><span class="tool-ic sm" style="--c:${AGENTS[rt]?.color || "#888"}">${agentMark(rt)}</span>${esc(name)}</span>
+          <div class="seg"><button data-plan-mode="${rt}:use" aria-pressed="${!sub}">Pay per use</button><button data-plan-mode="${rt}:sub" aria-pressed="${sub}">Subscription</button></div>
+          ${sub ? `<label class="money-in inline"><span>$</span><input data-plan="${rt}" type="number" min="0" step="1" value="${plan(rt) || ""}" placeholder="100" aria-label="${esc(name)} subscription, dollars a month"><span class="unit">a month</span></label>` : `<span></span>`}</div>`;
+      }).join("")}</div>
     ${planLines}
     ${S.settings ? (() => {
       // Says exactly which model runs, so there's nothing to guess about "lighter".
@@ -181,7 +187,8 @@ export function spendTab() {
         <div class="seg">${[["cheapest", "Cheapest"], ["balanced", "Balanced"], ["same", "Their own"]].map(([m, n]) => `<button data-talk="${m}" aria-pressed="${m === t}">${n}</button>`).join("")}</div></div>`;
     })() : ""}
     ${any ? `<div class="chart" role="img" aria-label="Spend over the last 14 days">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}"><i style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%"></i></div>`).join("")}${b > 0 && b < top ? `<span class="budget-line" style="bottom:${(b / top) * 100}%"></span>` : ""}</div>
-      <div class="chart-axis"><span>2 weeks ago</span><span>Today</span></div>` : `<p class="muted sp-empty">Nothing spent yet. Your team's runs add up here.</p>`}
+      <div class="chart-axis"><span>2 weeks ago</span><span>Today</span></div>` : t.all.cost > 0 ? "" : `<p class="muted sp-empty">Nothing spent yet. Your team's runs add up here.</p>`}
+    ${(r.kinds || []).length > 1 ? `<h3 class="label sp-h">By kind</h3><table class="sp">${head()}<tbody>${r.kinds!.map(k => row(esc(k.label), k)).join("")}</tbody></table>` : ""}
     ${people.length ? `<h3 class="label sp-h">People</h3><table class="sp">${head('<th class="num">Cap</th>')}<tbody>${people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(first(p.name))}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")}</tbody></table>` : ""}
     ${r.projects.some(p => p.all.cost > 0) ? `<h3 class="label sp-h">Projects</h3><table class="sp">${head()}<tbody>${r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("")}</tbody></table>` : ""}
     ${any && r.agents.length ? `<h3 class="label sp-h">Agents</h3><table class="sp">${head()}<tbody>${r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ' <span class="est" title="Estimated from tokens">est.</span>' : ""}</span>`, a)).join("")}</tbody></table>` : ""}`;

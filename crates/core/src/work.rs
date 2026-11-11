@@ -179,7 +179,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     })?;
-    let cost = crate::spend::record(c, &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record(c, "lead", &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens)?;
     c.add_cost(t.id, cost, tokens)?;
 
     match verdict(&said) {
@@ -1082,6 +1082,10 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             }
             Event::ToolResult { error: true, text } => ("error", text.clone()),
             Event::ToolResult { .. } => return Ok(()),
+            Event::Usage { fresh, cached, output } => {
+                let k = |n: &u64| format!("{:.1}k", *n as f64 / 1000.0);
+                ("tokens", format!("read {} tokens, {} of them from cache, and wrote {}", k(&(fresh + cached)), k(cached), k(output)))
+            }
             Event::Done { ok, cost, tokens, text } => {
                 outcome = Some((*ok, *cost, *tokens, text.clone()));
                 let verb = if *ok { "finished" } else { "failed" };
@@ -1113,7 +1117,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
 
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     if !ok && crate::limits::hit(&e.runtime, &text)? {
-        let cost = crate::spend::record(c, &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+        let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
         c.finish_ticket(id, "failed", cost, tokens)?;
         return wait_for_limit(c, e, id);
     }
@@ -1141,7 +1145,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             c.add_event(id, "report-text", &text, "")?;
         }
     }
-    let cost = crate::spend::record(c, &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost, tokens)?;
 
     let mut t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;

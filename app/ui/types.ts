@@ -116,6 +116,7 @@ export interface SpendReport {
   agents: (Windows & { runtime: string; estimated: boolean; price?: number })[];
   prices: { runtime: string; price: number }[];
   plans?: { runtime: string; plan: number; month: number; limits: number }[];
+  kinds?: (Windows & { kind: string; label: string })[];
 }
 
 export interface Check { level: Level; what: string; detail: string; fix: string | null }
@@ -225,7 +226,7 @@ export interface State {
   setup: Setup | null; founder: Founder | null | undefined; profile: Profile | null; welcome?: boolean; onboarding?: boolean;
   project: string | null; rail: boolean; needs: Record<string, number>; pop: false | "menu" | "forget";
   settings: Settings | null; health: Check[] | null; ready?: Check[] | null; spend?: SpendReport;
-  confirm: string | null; sheet: string | null; shown: string; customBudget?: boolean; spendAll?: number;
+  confirm: string | null; sheet: string | null; shown: string; customBudget?: boolean; planEdit?: Record<string, boolean>; spendAll?: number;
   voices?: Voice[] | null; roles?: RoleInfo[] | null; models?: Models | null; runtimes?: string[] | null;
   switching?: boolean; members?: string | null; msgDel?: number | null;
   mention?: { opts: (Employee | { all: true })[]; i: number } | null;

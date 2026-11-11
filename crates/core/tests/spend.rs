@@ -18,22 +18,26 @@ fn budgets_pause_the_company_and_caps_pause_a_person() {
     templates::apply(&c, templates::template("demo").unwrap(), "fake").unwrap();
 
     // Codex reports tokens only: priced at the company's rate, marked estimated. Claude reports dollars.
-    assert_eq!(spend::record(&c, "maya", None, "codex", None, 0.0, 1_000_000).unwrap(), 5.0);
-    assert_eq!(spend::record(&c, "odile", None, "claude", Some("opus"), 0.25, 40_000).unwrap(), 0.25);
+    assert_eq!(spend::record(&c, "ticket", "maya", None, "codex", None, 0.0, 1_000_000).unwrap(), 5.0);
+    assert_eq!(spend::record(&c, "chat", "odile", None, "claude", Some("opus"), 0.25, 40_000).unwrap(), 0.25);
     spend::set_price(&c, "codex", 2.0).unwrap();
-    assert_eq!(spend::record(&c, "maya", None, "codex", None, 0.0, 500_000).unwrap(), 1.0);
+    assert_eq!(spend::record(&c, "ticket", "maya", None, "codex", None, 0.0, 500_000).unwrap(), 1.0);
     assert!((spend::spent_today(&c).unwrap() - 6.25).abs() < 1e-9);
+    // Spending splits it by kind of run: tickets, chat, lead decisions, Ask OneCorp.
+    let kinds = onecorp::view::spend_report(&c).unwrap()["kinds"].clone();
+    let cost = |k: &str| kinds.as_array().unwrap().iter().find(|x| x["kind"] == k).map(|x| x["today"]["cost"].as_f64().unwrap());
+    assert_eq!((cost("ticket"), cost("chat"), cost("help")), (Some(6.0), Some(0.25), None));
 
     // 80% of the budget is a heads-up. Reaching it pauses the company, for budget reasons.
     spend::set_budget(&c, 7.5).unwrap();
-    spend::record(&c, "odile", None, "claude", None, 0.0, 0).unwrap();
+    spend::record(&c, "ticket", "odile", None, "claude", None, 0.0, 0).unwrap();
     assert!(spend::warned_today(&c).unwrap() && !c.paused().unwrap());
-    spend::record(&c, "odile", None, "claude", None, 1.5, 1).unwrap();
+    spend::record(&c, "ticket", "odile", None, "claude", None, 1.5, 1).unwrap();
     assert!(c.paused().unwrap() && spend::paused_by_budget(&c).unwrap());
 
     // Going on for today sticks, even as spend keeps coming in.
     spend::resume_for_today(&c).unwrap();
-    spend::record(&c, "odile", None, "claude", None, 1.0, 1).unwrap();
+    spend::record(&c, "ticket", "odile", None, "claude", None, 1.0, 1).unwrap();
     assert!(!c.paused().unwrap());
 
     // A budget pause from an earlier day lifts on its own.
@@ -44,7 +48,7 @@ fn budgets_pause_the_company_and_caps_pause_a_person() {
 
     // Raising the budget lifts today's budget pause at once.
     spend::set_budget(&c, 0.5).unwrap();
-    spend::record(&c, "odile", None, "claude", None, 0.1, 1).unwrap();
+    spend::record(&c, "ticket", "odile", None, "claude", None, 0.1, 1).unwrap();
     assert!(spend::paused_by_budget(&c).unwrap());
     spend::set_budget(&c, 100.0).unwrap();
     assert!(!c.paused().unwrap());

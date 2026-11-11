@@ -73,16 +73,17 @@ pub fn parse(line: &str) -> Vec<Event> {
             .collect(),
         Some("result") => {
             let u = &v["usage"];
-            let tokens = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"]
-                .iter()
-                .map(|k| u[k].as_u64().unwrap_or(0))
-                .sum();
-            vec![Event::Done {
+            let n = |k: &str| u[k].as_u64().unwrap_or(0);
+            let (fresh, cached, output) = (n("input_tokens") + n("cache_creation_input_tokens"), n("cache_read_input_tokens"), n("output_tokens"));
+            let tokens = fresh + cached + output;
+            let usage = (tokens > 0).then_some(Event::Usage { fresh, cached, output });
+            usage.into_iter().chain([Event::Done {
                 ok: v["subtype"] == "success" && v["is_error"] != true,
                 cost: v["total_cost_usd"].as_f64().unwrap_or(0.0),
                 tokens,
                 text: s(&v, "result"),
-            }]
+            }])
+            .collect()
         }
         _ => vec![],
     }
@@ -131,7 +132,7 @@ mod tests {
         assert_eq!(parse(res), vec![Event::ToolResult { error: true, text: "permission denied\nx".into() }]);
 
         let done = r#"{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0.42,"num_turns":7,"result":"Done","usage":{"input_tokens":10,"cache_read_input_tokens":90,"output_tokens":5}}"#;
-        assert_eq!(parse(done), vec![Event::Done { ok: true, cost: 0.42, tokens: 105, text: "Done".into() }]);
+        assert_eq!(parse(done), vec![Event::Usage { fresh: 10, cached: 90, output: 5 }, Event::Done { ok: true, cost: 0.42, tokens: 105, text: "Done".into() }]);
 
         assert!(parse("not json").is_empty());
     }

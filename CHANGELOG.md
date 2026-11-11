@@ -16,11 +16,14 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - Employees read the wiki like a new hire would: rules pages on every ticket, their own space in full, and everything else when the work needs it. Each page says whether it's a Rule or Reference, and the Wiki page tells you when the rules get long. Prompts are smaller, so runs cost less.
 - Each ticket's log starts with how big its prompt was and what it's made of: wiki, playbook, ticket, notes, chat.
 - Chat replies read the last 12 messages instead of 20, and Ask OneCorp reads the longer docs only when a question needs them.
-- Spending shows what you pay for your Claude or ChatGPT plan next to what your team ran on it this month at API prices, for all your companies, and how often it hit the plan's limit this week. On a plan, the day's total says it's at API prices, since that's not what you're charged.
+- Spending asks how you pay for each agent: per use, or a subscription and its price. With a subscription it compares what your team ran this month, at API prices and across all your companies, to what you pay, and says how often you hit the plan's limit this week. The day's total is marked as API prices, since that's not what a plan charges you.
+- Spending splits the money by kind of run: tickets, chat replies, lead decisions and Ask OneCorp. Earlier chat and help spend is sorted in too.
+- A Claude Code ticket's log shows how its tokens split: how many it read, how many of those came from cache, and how many it wrote.
 
 ### Fixed
 
 - A wiki page's byline shows the face of whoever wrote it last, next to their name, and your own photo when that's you. Who started the page comes after, as "first written by".
+- Spending no longer says nothing was spent yet when all of it was today.
 
 ## [0.1.9] - 2026-11-11
 

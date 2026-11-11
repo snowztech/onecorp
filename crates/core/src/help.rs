@@ -90,7 +90,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     });
-    let cost = crate::spend::record(c, ONECORP, None, &e.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record(c, "help", ONECORP, None, &e.runtime, model.as_deref(), cost, tokens)?;
     let text = match run {
         Err(err) => format!("(couldn't answer: {err:#})"),
         Ok(()) => {

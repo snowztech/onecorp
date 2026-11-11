@@ -277,7 +277,19 @@ pub fn spend_report(c: &Company) -> Result<Value> {
             v
         })
         .collect();
+    // Where the money goes by kind of run, in this order, leaving out kinds with nothing spent.
+    let kinds: Vec<Value> = [("ticket", "Tickets"), ("chat", "Chat replies"), ("lead", "Lead decisions"), ("help", "Ask OneCorp")]
+        .iter()
+        .filter(|(k, _)| rows.iter().any(|r| r.7 == *k))
+        .map(|(k, label)| {
+            let mut v = windows(&|r| r.7 == *k);
+            v["kind"] = json!(k);
+            v["label"] = json!(label);
+            v
+        })
+        .collect();
     Ok(json!({
+        "kinds": kinds,
         "totals": windows(&|_| true), "budget": crate::spend::budget(c)?, "days": days,
         "people": people, "projects": projects, "agents": agents,
         "prices": crate::spend::DEFAULT_PRICES.iter().map(|(rt, _)| json!({"runtime": rt, "price": crate::spend::price(c, rt).unwrap_or(0.0)})).collect::<Vec<_>>(),

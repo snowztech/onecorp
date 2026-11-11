@@ -169,7 +169,8 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
       projects: [{ key: "SNO-20", title: "First version", today: { cost: 2.1 }, week: { cost: 11.2 }, all: { cost: 24.9 } }],
       agents: [{ runtime: "claude", estimated: false, today: { cost: 2.12 }, week: { cost: 10.7 }, all: { cost: 21.7 } }, { runtime: "codex", estimated: true, today: { cost: 1.12 }, week: { cost: 4.1 }, all: { cost: 9.8 } }],
       prices: [{ runtime: "codex", price: 5 }, { runtime: "claude", price: 9 }],
-      plans: [{ runtime: "claude", plan: 100, month: 342.6, limits: 3 }] },
+      plans: [{ runtime: "claude", plan: 100, month: 342.6, limits: 3 }],
+      kinds: [{ kind: "ticket", label: "Tickets", today: { cost: 2.61, tokens: 0, label: "" }, week: { cost: 21.4, tokens: 0, label: "" }, all: { cost: 58.2, tokens: 0, label: "" } }, { kind: "chat", label: "Chat replies", today: { cost: 0.42, tokens: 0, label: "" }, week: { cost: 3.1, tokens: 0, label: "" }, all: { cost: 7.9, tokens: 0, label: "" } }, { kind: "lead", label: "Lead decisions", today: { cost: 0.12, tokens: 0, label: "" }, week: { cost: 0.9, tokens: 0, label: "" }, all: { cost: 2.2, tokens: 0, label: "" } }, { kind: "help", label: "Ask OneCorp", today: { cost: 0.09, tokens: 0, label: "" }, week: { cost: 0.3, tokens: 0, label: "" }, all: { cost: 0.3, tokens: 0, label: "" } }] },
     chat: { channel: "general", messages: [
       { id: 1, at: "2026-11-09 09:12:00", author: "founder", name: "Lucas", founder: true, text: "Morning team. Goal this week: magic link login and the pricing page live.", key: null, pending: false },
       { id: 2, at: "2026-11-09 09:40:00", author: "rui", name: "Rui Alves", text: "Plan is in your inbox as SNO-20. Setup first, then login and sync in parallel.", key: "SNO-20", pending: false },

@@ -224,7 +224,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         (Ok(()), _) => "(no reply)".into(),
         (Err(err), _) => format!("(couldn't reply: {err:#})"),
     };
-    let cost = crate::spend::record(c, &e.id, None, &e.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record(c, "chat", &e.id, None, &e.runtime, model.as_deref(), cost, tokens)?;
     c.finish_message(id, &text, cost, tokens)
 }
 
