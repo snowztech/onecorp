@@ -264,6 +264,9 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
          You are in a git worktree on branch {branch}{in_repo}. {abilities} Don't commit: when you finish, \
          OneCorp commits your changes under your name. \
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
+         If the ticket asks for an audit, research, a review or advice rather than a change, don't write files for it: \
+         your final reply is the work, a report in Markdown the founder reads in OneCorp. Turn each piece of follow-up work \
+         you recommend into a ticket with create_ticket, given to whoever fits, so the founder picks what to start.\n\n\
          You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
          or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
          If something outside your control stops you, use update_ticket to mark the ticket blocked. \
@@ -523,9 +526,37 @@ pub fn start_plan(c: &Company, plan: &Ticket) -> Result<()> {
     if plan.status != "review" {
         bail!("{key} is {}. A plan starts once it's ready for review", plan.status);
     }
-    let tickets = c.plan_tickets(plan.id)?;
+    let started = start_proposed(c, plan)?;
+    out(&format!("Started {key}: {started} tickets."));
+    Ok(())
+}
+
+/// Closes a report you've read: its empty worktree goes, and with `start` the tickets it proposed
+/// start. Without, they wait in the backlog.
+pub fn finish_report(c: &Company, t: &Ticket, start: bool) -> Result<()> {
+    let key = c.key(t.id);
+    if t.status != "review" {
+        bail!("{key} is {}. A report is closed once it's ready for review", t.status);
+    }
+    if let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) {
+        git::discard(&c.repo_of(t)?, Path::new(wt), branch, &c.dir.join("wt"));
+    }
+    if start {
+        let started = start_proposed(c, t)?;
+        out(&format!("Closed {key} and started {started} tickets."));
+    } else {
+        c.set_status(t.id, "done")?;
+        c.add_event(t.id, "merge", "the founder read it", "")?;
+        out(&format!("Closed {key}. What it proposed waits in the backlog."));
+    }
+    Ok(())
+}
+
+/// Starts the tickets a plan or a report proposed, then marks it done. Ones with nobody on them
+/// stay in the backlog. Returns how many started.
+fn start_proposed(c: &Company, from: &Ticket) -> Result<usize> {
     let (mut started, mut skipped) = (0, vec![]);
-    for t in tickets.iter().filter(|t| t.status == "backlog") {
+    for t in c.plan_tickets(from.id)?.iter().filter(|t| t.status == "backlog") {
         if t.assignee.is_none() {
             skipped.push(c.key(t.id));
             continue;
@@ -533,13 +564,12 @@ pub fn start_plan(c: &Company, plan: &Ticket) -> Result<()> {
         start(c, t)?;
         started += 1;
     }
-    c.set_status(plan.id, "done")?;
-    c.add_event(plan.id, "merge", &format!("the founder started {started} tickets"), "")?;
-    out(&format!("Started {key}: {started} tickets."));
+    c.set_status(from.id, "done")?;
+    c.add_event(from.id, "merge", &format!("the founder started {started} tickets"), "")?;
     if !skipped.is_empty() {
         out(&format!("{} have nobody on them yet, so they wait in the backlog: onecorp assign <ticket> <name>", skipped.join(", ")));
     }
-    Ok(())
+    Ok(started)
 }
 
 /// Removes the plan's tickets that haven't started. Returns how many.
@@ -780,6 +810,8 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
              Your {dropped} tickets were removed. Create the new plan from scratch with create_ticket, same rules as before, \
              and end with a short summary of it."
         )
+    } else if t.kind == "report" {
+        format!("The founder read your report and follows up:\n\n{feedback}\n\nAnswer it, then reply with the whole report again, updated. Same rules as before.")
     } else if t.kind == "wiki" {
         format!("The founder wants these changes to the wiki:\n\n{feedback}\n\nReturn the complete wiki in Markdown, not a summary. Do not change repository files.")
     } else {
@@ -1042,6 +1074,13 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         if let Some(hash) = git::commit_all(wt, &full, &sig.env)? {
             c.add_event(id, "commit", &format!("{hash} {msg}"), "")?;
             out(&format!("  commit {hash} as {}", e.name));
+        }
+        // A ticket that changed nothing, like an audit, is a report: its reply is the work, and
+        // there's no branch to push or merge.
+        let changed = c.events(id)?.iter().any(|(_, kind, _)| kind == "commit");
+        c.set_kind(id, if changed { "work" } else { "report" })?;
+        if !changed {
+            c.add_event(id, "report-text", &text, "")?;
         }
     }
     let cost = crate::spend::record(c, &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;

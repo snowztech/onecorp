@@ -71,9 +71,9 @@ export function more(id: string, label: string, form: string) {
   return S.open[id] ? form : `<button class="link-btn" type="button" data-more="${esc(id)}">${label}</button>`;
 }
 
-export function planReview(r: Review) {
+function planRows(r: Review) {
   const people = S.snap!.employees;
-  const rows = r.tickets.map(t => `<li class="pt">
+  return r.tickets.map(t => `<li class="pt">
     <span class="k">${esc(t.key)}</span>
     <div class="pt-main"><b>${esc(t.title)}</b>${t.repo ? `<span class="repo-tag">${esc(t.repo)}</span>` : ""}${t.description ? (() => {
       // Short details show whole. Long ones fold to a few lines until you open them.
@@ -81,7 +81,11 @@ export function planReview(r: Review) {
       return `<div class="pt-desc ${open ? "open" : ""}">${md(t.description).html}</div>${open ? "" : `<button class="link-btn inline more-link" type="button" data-more="pd-${esc(t.key)}">Show details</button>`}`;
     })() : ""}${t.after ? `<span class="after">after ${esc(t.after)}</span>` : ""}</div>
     <select data-plan-assign="${esc(t.key)}" aria-label="Who does ${esc(t.key)}"><option value="">Nobody yet</option>${people.map(e => `<option value="${esc(e.id)}" ${e.id === t.assignee ? "selected" : ""}>${esc(first(e.name))} · ${esc(e.role)}</option>`).join("")}</select>
-    <button class="x" data-plan-del="${esc(t.key)}" title="Remove from the plan" aria-label="Remove ${esc(t.key)}">×</button></li>`).join("");
+    <button class="x" data-plan-del="${esc(t.key)}" title="Remove it" aria-label="Remove ${esc(t.key)}">×</button></li>`).join("");
+}
+
+export function planReview(r: Review) {
+  const rows = planRows(r);
   return `<article class="ask plan" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Project plan · ${esc(r.key)} · by ${esc(first(r.name))}</span><h4>${esc(r.title)}, in ${r.tickets.length} ${r.tickets.length === 1 ? "ticket" : "tickets"}</h4>
     ${r.summary ? `<p>${esc(r.summary)}</p>` : ""}
@@ -90,7 +94,20 @@ export function planReview(r: Review) {
     ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What should change?", "Plan again")}` : ""}</div></article>`;
 }
 
+/* A report: the ticket changed no files, so its reply is the work, plus the tickets it proposes. */
+export function reportReview(r: Review) {
+  const ready = r.tickets.filter(t => t.assignee).length, n = r.tickets.length;
+  const doc = r.document || r.summary || "";
+  return `<article class="ask review report" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
+    <span class="kind">Report · ${esc(r.key)} · by ${esc(first(r.name))}</span><h4>${esc(r.title)}</h4>
+    <div class="doc report-doc">${clamp(`rp-${r.key}`, `<div class="wiki">${md(doc).html}</div>`, doc)}</div>
+    ${n ? `<span class="label">Proposed next · ${n}</span><ol class="plan-list">${planRows(r)}</ol>` : ""}
+    <div class="acts">${ready ? `<button class="btn good" data-approve="${esc(r.key)}">Start ${ready} ${ready === 1 ? "ticket" : "tickets"}</button><button class="btn" data-close-report="${esc(r.key)}">Close, keep for later</button>` : `<button class="btn good" data-close-report="${esc(r.key)}">Done</button>`}${moreBtn(`chg-${r.key}`, "Ask a follow-up")}</div>
+    ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What else should they look into?", "Send")}` : ""}</div></article>`;
+}
+
 export function approvalCopy(t?: { kind?: string } | null) {
+  if (t?.kind === "report") return { label: "Close and start what it proposes", busy: "Starting…", done: "Report closed." };
   if (t?.kind === "wiki") return { label: "Save wiki", busy: "Saving…", done: "Wiki saved. Your team can read it now." };
   if (t?.kind === "plan") return { label: "Start the plan", busy: "Starting…", done: "Plan started." };
   return { label: mergeLabel(), busy: "Merging…", done: "Work merged. New tickets start from it." };
@@ -111,14 +128,16 @@ export function discardConfirm(t: { key: string; pr_url?: string | null }) {
 }
 
 export function wikiDraft(t: { kind?: string; status?: string; document?: string | null }) {
+  if (t.kind === "report" && t.document) return `<article class="doc report-doc"><div class="wiki">${md(t.document).html}</div></article>`;
   return t.kind === "wiki" && (!t.status || t.status === "review") ? `<article class="doc wiki">${md(t.document || "No wiki draft was saved. Ask for changes to write it again.").html}</article>` : "";
 }
 
 export function ticketStatus(t: { status: string; kind?: string }) {
-  return t.status === "done" && ["wiki", "plan"].includes(t.kind ?? "") ? (t.kind === "plan" ? "Plan started" : "Completed") : (STATUS[t.status] || t.status);
+  return t.status === "done" && ["wiki", "plan", "report"].includes(t.kind ?? "") ? (t.kind === "plan" ? "Plan started" : "Completed") : (STATUS[t.status] || t.status);
 }
 
 export function review(r: Review) {
+  if (r.kind === "report") return reportReview(r);
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
     ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>

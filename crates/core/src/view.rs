@@ -76,7 +76,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         .map(|t| {
             let who = t.assignee.clone().unwrap_or_default();
             // A plan's review is its tickets, which you can change before starting it.
-            let tickets: Vec<Value> = if t.kind == "plan" {
+            let tickets: Vec<Value> = if t.kind == "plan" || t.kind == "report" {
                 c.plan_tickets(t.id).unwrap_or_default().iter().map(|p| {
                     let who = p.assignee.clone().unwrap_or_default();
                     json!({"key": c.key(p.id), "title": p.title, "description": p.description, "assignee": p.assignee, "name": name_of(&who), "after": p.after.map(|a| c.key(a)), "status": p.status})
@@ -304,9 +304,10 @@ pub fn chat(c: &Company, channel: &str) -> Result<Value> {
     Ok(json!({"channel": channel, "messages": shown}))
 }
 
+/// The document a ticket's reply is: a wiki draft, or a report.
 fn wiki_draft(c: &Company, t: &Ticket) -> Option<String> {
-    if t.kind != "wiki" { return None; }
-    c.events(t.id).ok()?.into_iter().rev().find(|(_, kind, _)| kind == "wiki-text").map(|(_, _, text)| text)
+    let want = match t.kind.as_str() { "wiki" => "wiki-text", "report" => "report-text", _ => return None };
+    c.events(t.id).ok()?.into_iter().rev().find(|(_, kind, _)| kind == want).map(|(_, _, text)| text)
 }
 
 /// One ticket for the ticket drawer: who, where, what it cost, and everything that happened.

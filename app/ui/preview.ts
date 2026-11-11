@@ -38,6 +38,7 @@ export async function previewScreen() {
   if (screen === "project") { S.view = "board"; S.project = "SNO-20"; render(); }
   if (["board", "inbox", "wiki", "chat"].includes(screen)) { S.view = screen; render(); }
   if (screen === "ticket") openTicket("SNO-11");
+  if (screen === "diff") { S.diffs["SNO-11"] = await invoke("review", { company: S.company, key: "SNO-11" }); await openTicket("SNO-11"); }
   if (screen === "person") openPerson("tomas");
   if (screen === "edit-person") { await openPerson("tomas"); S.drawer!.edit = true; S.person!.runtime = "codex"; renderDrawer(); }
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
@@ -97,6 +98,11 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
       reviews: [{ key: "SNO-20", title: "First version", employee: "rui", name: "Rui Alves", kind: "plan", summary: "Setup first, then login and sync in parallel. Risk: magic links need an email provider.", spend: "$0.21",
           tickets: [{ key: "SNO-21", title: "Set up the project", description: "A skeleton that builds, with a README.\n\nDone looks like:\n- `cargo build` and `cargo test` pass\n- A README that says how to run it\n- CI runs the tests on every push", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" },
             { key: "SNO-22", title: "Magic link login", description: "Email a one-time link, 15 minute expiry.", assignee: "tomas", name: "Tomás Reis", after: "SNO-21", status: "backlog" }] },
+        { key: "SNO-30", kind: "report", title: "Audit our SEO", employee: "lina", name: "Lina Park", summary: "", spend: "$0.18",
+          document: "## What I found\n\nThe landing page ranks for our name and little else. Three things hold it back:\n\n1. **No meta descriptions.** Google writes its own from the nav.\n2. **One page for every audience.** Writers searching for *distraction-free notes* land on a page about sync.\n3. **Slow first load** on mobile: 3.8s, mostly the hero video.\n\n## What I'd do\n\nThe three tickets below, in that order. The first is an hour of work.",
+          tickets: [{ key: "SNO-31", title: "Add meta descriptions to every page", description: "One line per page, under 155 characters.", assignee: "lina", name: "Lina Park", after: null, status: "backlog" },
+            { key: "SNO-32", title: "A landing page for writers", description: "", assignee: "rui", name: "Rui Alves", after: null, status: "backlog" },
+            { key: "SNO-33", title: "Lazy-load the hero video", description: "", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" }] },
         { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans, reusing `PlanCard` from settings. `cargo test` and `pnpm lint` pass. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31", title: "Pricing page" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "start", summary: "started", title: "Retry failed Stripe webhooks" }, { at: "2026-11-09 10:31:00", key: "SNO-12", employee: "maya", name: "Maya Okafor", kind: "block", summary: "asked you about magic link expiry", title: "Magic link login" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24", today: 3.24, today_label: "$3.24", budget: 5, warn: false, paused_by_budget: false },
@@ -152,7 +158,7 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
   data.review = { key: "SNO-11", title: "Pricing page", base: "main", branch: "onecorp/snowztech/sno-11", added: 5, removed: 1,
     files: [{ path: "web/src/pages/pricing.tsx", added: 4, removed: 1 }, { path: "README.md", added: 1, removed: 0 }],
     commits: [{ hash: "c3dbf20", author: "Odile Martin", subject: "SNO-11: pricing page" }],
-    patch: "diff --git a/web/src/pages/pricing.tsx b/web/src/pages/pricing.tsx\nindex 1..2 100644\n--- a/web/src/pages/pricing.tsx\n+++ b/web/src/pages/pricing.tsx\n@@ -1,3 +1,6 @@\n export function Pricing() {\n-  return null\n+  return <>\n+    <Plan name=\"Free\" price={0} />\n+    <Plan name=\"Pro\" price={6} />\n+  </>\n }\ndiff --git a/README.md b/README.md\nindex 3..4 100644\n--- a/README.md\n+++ b/README.md\n@@ -1 +1,2 @@\n # Notes\n+Pricing: free, or $6 a month.\n", truncated: false };
+    patch: "diff --git a/web/src/pages/pricing.tsx b/web/src/pages/pricing.tsx\nindex 1..2 100644\n--- a/web/src/pages/pricing.tsx\n+++ b/web/src/pages/pricing.tsx\n@@ -1,3 +1,6 @@\n export function Pricing() {\n-  return null\n+  return <>\n+    <Plan name=\"Free\" price={0} />\n+    <Plan name=\"Pro\" price={6} features={[\"Unlimited notes\", \"Sync across every device\", \"Version history for a year\", \"Priority support\"]} />\n+  </>\n }\ndiff --git a/README.md b/README.md\nindex 3..4 100644\n--- a/README.md\n+++ b/README.md\n@@ -1 +1,2 @@\n # Notes\n+Pricing: free, or $6 a month.\n", truncated: false };
   if (cmd === "chat" && String(args?.channel).startsWith("dm:")) return Promise.resolve({ channel: args.channel, messages: args.channel === "dm:tomas"
     ? [{ id: 13, at: "2026-11-09 11:40:00", author: "founder", name: "Lucas", founder: true, text: "How are the webhook retries going?", key: null, pending: false },
        { id: 14, at: "2026-11-09 11:41:00", author: "tomas", name: "Tomás Reis", text: "Close. Retries back off over 3 days now, and handlers are idempotent. Tests next, then it's in your Inbox as SNO-15.", key: "SNO-15", pending: false }] : [] });
