@@ -175,7 +175,8 @@ pub fn repo_of(c: &Company, t: &Ticket) -> Result<Repo> {
 pub fn allow(c: &Company, t: &Ticket, cmd: &str) -> Result<()> {
     let r = repo_of(c, t)?;
     let mut all = list(c, &r)?;
-    all.push(cmd.to_string());
+    // A request can hold several commands, one per line.
+    all.extend(cmd.lines().map(str::trim).filter(|l| !l.is_empty() && !all.iter().any(|a| a == l)).map(String::from).collect::<Vec<_>>());
     set(c, &r, &all.join("\n"))
 }
 
@@ -193,8 +194,34 @@ pub fn never(cmd: &str) -> Option<&'static str> {
 }
 
 /// Saves your own list. One command per line or comma. An empty list means none at all.
+/// Commands that could never run, like `git rebase`, are left out.
 pub fn set(c: &Company, r: &Repo, text: &str) -> Result<()> {
-    c.set_setting(&key(r), &parse(text).join("\n"))
+    let keep: Vec<String> = parse(text).into_iter().filter(|cmd| never(cmd).is_none()).collect();
+    c.set_setting(&key(r), &keep.join("\n"))
+}
+
+/// Looks at the repo again: what its files suggest now is added to your list, and yours stays.
+pub fn rescan(c: &Company, r: &Repo) -> Result<()> {
+    if !custom(c, r)? {
+        return Ok(());
+    }
+    let mut all = list(c, r)?;
+    for cmd in detect(&r.path) {
+        if !all.contains(&cmd) {
+            all.push(cmd);
+        }
+    }
+    set(c, r, &all.join("\n"))
+}
+
+/// Whether the team runs any command in its worktrees, or only the listed ones. New companies run
+/// anything: you approve the work at review, and each ticket has its own copy of the repo.
+pub fn run_any(c: &Company) -> Result<bool> {
+    Ok(c.setting("run")?.as_deref() == Some("anything"))
+}
+
+pub fn set_run_any(c: &Company, on: bool) -> Result<()> {
+    c.set_setting("run", if on { "anything" } else { "listed" })
 }
 
 /// Back to what the repo looks like.

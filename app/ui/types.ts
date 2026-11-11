@@ -104,7 +104,7 @@ export interface SettingsRepo { name: string; path: string; main: boolean; comma
 export interface Settings {
   name: string; repo: string; data: string; home: string; ship: string; forge: string | null; forge_name: string | null;
   origin: string | null; tickets: number; people: number; version: string; repos: SettingsRepo[];
-  commits: string; pr_sign: boolean; talk: string; talk_models: Record<string, string[]>;
+  commits: string; pr_sign: boolean; talk: string; talk_models: Record<string, string[]>; run_any?: boolean;
   git_you: { name: string; email: string } | null;
 }
 
@@ -167,6 +167,8 @@ export interface Results {
   plan_project: string;
   readiness: Check[];
   remove_repo: SettingsRepo[];
+  rescan_commands: SettingsRepo[];
+  make_main_repo: SettingsRepo[];
   review: Diff;
   set_commands: SettingsRepo[];
   set_projects_folder: string;

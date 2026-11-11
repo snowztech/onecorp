@@ -19,7 +19,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode])
         // Only the company server loads, if any. The user's own MCP servers stay out.
         .arg("--strict-mcp-config")
-        .args(["--allowedTools", &allowed(o.commands)])
+        .args(["--allowedTools", &allowed(o)])
         .current_dir(o.cwd)
         .envs(o.env.iter().map(|(k, v)| (k, v)));
     if let Some(m) = o.mcp {
@@ -29,6 +29,10 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     }
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
+    }
+    if o.run_any && !o.read_only {
+        let never: Vec<String> = super::NEVER.iter().map(|c| format!("Bash({c}:*)")).collect();
+        cmd.args(["--disallowedTools", &never.join(",")]);
     }
     // Only for read-only runs: with edits accepted, an added folder could be changed outside a worktree.
     if o.read_only {
@@ -43,10 +47,25 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     stream(cmd, prompt, parse, o.on_spawn, on)
 }
 
-fn allowed(commands: &[String]) -> String {
+fn allowed(o: &Opts) -> String {
     let mut out = ALLOWED.to_string();
-    for c in commands {
+    if o.run_any && !o.read_only {
+        out.push_str(",Bash");
+    }
+    for c in o.commands {
         out.push_str(&format!(",Bash({c}:*)"));
+        // A script on the list runs as `tools/x.sh` or `./tools/x.sh`, whichever the agent types.
+        match c.strip_prefix("./") {
+            Some(bare) => out.push_str(&format!(",Bash({bare}:*)")),
+            None if c.split_whitespace().next().is_some_and(|w| w.contains('/') && !w.starts_with('/')) => out.push_str(&format!(",Bash(./{c}:*)")),
+            None => {}
+        }
+    }
+    // Other folders a ticket run reads, like the wiki's reading copy: reading only. `//` is an absolute path.
+    if !o.read_only {
+        for d in o.dirs {
+            out.push_str(&format!(",Read(/{}/**)", d.display()));
+        }
     }
     out
 }
@@ -116,6 +135,19 @@ fn result_text(content: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn allowed_tools_follow_the_list_or_run_anything() {
+        let (cmds, dirs) = (vec!["tools/check.sh".to_string(), "./gradlew assembleDebug".to_string()], vec![std::path::PathBuf::from("/c/reading/wiki")]);
+        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any };
+        let listed = allowed(&opts(false, false));
+        for rule in ["Bash(tools/check.sh:*)", "Bash(./tools/check.sh:*)", "Bash(./gradlew assembleDebug:*)", "Bash(gradlew assembleDebug:*)", "Read(//c/reading/wiki/**)"] {
+            assert!(listed.split(',').any(|r| r == rule), "{rule} in {listed}");
+        }
+        assert!(!listed.split(',').any(|r| r == "Bash"));
+        assert!(allowed(&opts(true, false)).split(',').any(|r| r == "Bash"), "running anything allows every command");
+        assert!(!allowed(&opts(true, true)).split(',').any(|r| r == "Bash"), "never for a read-only run");
+    }
 
     #[test]
     fn parses_the_events_we_care_about() {

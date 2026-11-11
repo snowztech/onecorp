@@ -54,7 +54,18 @@ pub struct Opts<'a> {
     /// Other repos a read-only run may look at, like an api next to the app. Codex's read-only
     /// sandbox reads anywhere already, so only Claude Code needs them.
     pub dirs: &'a [std::path::PathBuf],
+    /// Any command in the worktree instead of only `commands`, the founder's choice in Settings.
+    /// What's never allowed stays off. Codex also gets network, for installs.
+    pub run_any: bool,
 }
+
+/// Commands nobody runs, whatever the setting: OneCorp does the git work and opens pull requests,
+/// nothing runs as root, and deleting folders is too easy to get wrong.
+pub const NEVER: &[&str] = &[
+    "git add", "git commit", "git push", "git pull", "git fetch", "git merge", "git rebase", "git reset", "git checkout", "git switch",
+    "git branch", "git tag", "git stash", "git cherry-pick", "git revert", "git rm", "git mv", "git clean", "git remote", "git config",
+    "git worktree", "git restore", "git am", "git apply", "sudo", "su", "doas", "rm -r", "rm -rf", "rm -fr", "gh", "glab",
+];
 
 pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     match runtime {
@@ -154,18 +165,27 @@ fn codex_models() -> Vec<(String, String, String)> {
 }
 
 /// One sentence for the prompt about what the agent can run, since each runtime's sandbox differs.
-pub fn abilities(runtime: &str, commands: &[String]) -> String {
+pub fn abilities(runtime: &str, commands: &[String], run_any: bool) -> String {
+    const NEVER_SAID: &str = "Git changes, sudo, gh and deleting folders are off: OneCorp does the git work.";
     match runtime {
-        "codex" => "You can run commands, like builds and tests, in a sandbox without network access. Before you finish, run the checks that cover what you changed. A change to docs or comments alone needs no build or test.".into(),
         "fake" => "You are a stand-in with no AI.".into(),
+        "codex" if run_any => format!("You can run any command you need in your worktree, with network, like builds, tests, installs and the repo's scripts. {NEVER_SAID} Before you finish, run the checks that cover what you changed. A change to docs or comments alone needs no build or test."),
+        "codex" => "You can run commands, like builds and tests, in a sandbox without network access. Before you finish, run the checks that cover what you changed. A change to docs or comments alone needs no build or test. If something needs the network, like an install, say so in your summary: the founder can let the team run anything in Settings.".into(),
+        _ if run_any => format!(
+            "You can run any command you need in your worktree, like builds, tests, installs and the repo's scripts. {NEVER_SAID} \
+             Before you finish, run the checks that cover what you changed and fix what breaks. A change to docs or comments alone needs no build or test. \
+             Keep commands plain: ones with ${{...}} variables are refused before they run. Don't create or edit .claude/settings.json."
+        ),
         // Said plainly, so the agent doesn't report a read-only worktree when only commands are limited.
         _ if commands.is_empty() => "You can read and edit files, and run read-only git commands. No build or test commands are set up for this repo, so don't try to run any, and don't create or edit .claude/settings.json: OneCorp decides what you can run. If you need a build or test command, ask for it with ask_to_run.".into(),
         _ => format!(
-            "You can run read-only git commands and these: {}. Before you finish, run the checks that cover what you changed and fix what breaks. \
+            "You can run read-only git commands and these: {}. Run them as written, from the repo root: no `cd … &&` in front, \
+             no variables before them, and a script as `tools/x.sh` or `./tools/x.sh`. Anything after a listed command is fine, \
+             like extra flags or `| tail -40`. Before you finish, run the checks that cover what you changed and fix what breaks. \
              A change to docs or comments alone needs no build or test: say so in your summary instead. \
              Keep commands plain: ones with ${{...}} variables are refused before they run. \
              OneCorp decides what you can run, from the list the founder keeps in Settings, so don't create or edit .claude/settings.json. \
-             If you need another command, ask for it with ask_to_run.",
+             If you need another command, ask once for every command you're missing with ask_to_run, not one at a time.",
             commands.join(", ")
         ),
     }

@@ -164,7 +164,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
     let model = talk_model(c, &lead)?;
-    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)? };
+    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -282,7 +282,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         name = e.name,
         role = e.role,
         company = c.name,
-        abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?),
+        abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?, crate::commands::run_any(c)?),
         in_repo = match &t.repo {
             Some(r) => format!(", in the {r} repo"),
             None if c.repos()?.len() > 1 => format!(", in the {} repo", c.repos()?[0].name),
@@ -1063,7 +1063,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
         _ => vec![],
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)? };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)? };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;

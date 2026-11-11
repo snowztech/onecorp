@@ -92,16 +92,18 @@ fn tools() -> Value {
         },
         {
             "name": "ask_to_run",
-            "description": "Ask the founder to let you run a command you aren't allowed yet, like a code generator or a build step \
-                            in a subfolder. Once allowed, the whole team can run it in this repo. Ask for the shortest command \
+            "description": "Ask the founder to let you run commands you aren't allowed yet, like a code generator or a build step \
+                            in a subfolder. Think first about everything the ticket needs and ask for all of it in one request. \
+                            Once allowed, the whole team can run them in this repo. Ask for the shortest command \
                             that covers it: 'make sqlc', not 'make sqlc -v'. Then stop and summarize: the ticket picks back up with the answer.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "The command, like 'xcodegen generate'. It also covers what follows it"},
+                    "commands": {"type": "array", "items": {"type": "string"}, "description": "Several commands at once, when you need more than one"},
                     "why": {"type": "string", "description": "One sentence on what it's for, like 'the Xcode project is generated, I need it to build'"}
                 },
-                "required": ["command", "why"]
+                "required": ["why"]
             }
         },
         {
@@ -223,16 +225,29 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
             }
         }
         "ask_to_run" => {
-            let command = s("command").split_whitespace().collect::<Vec<_>>().join(" ");
-            anyhow::ensure!(!command.is_empty(), "command is required");
-            if let Some(why) = crate::commands::never(&command) {
-                anyhow::bail!("{command} can't be allowed: {why}. Do without it.");
+            // One request for everything the ticket needs, so the founder answers once.
+            let mut asked: Vec<String> = args["commands"].as_array().into_iter().flatten().filter_map(Value::as_str).map(String::from).collect();
+            asked.push(s("command"));
+            let mut wanted: Vec<String> = vec![];
+            for cmd in asked.iter().map(|c| c.split_whitespace().collect::<Vec<_>>().join(" ")).filter(|c| !c.is_empty()) {
+                if let Some(why) = crate::commands::never(&cmd) {
+                    anyhow::bail!("{cmd} can't be allowed: {why}. Do without it, and ask again for the rest.");
+                }
+                if !wanted.contains(&cmd) {
+                    wanted.push(cmd);
+                }
+            }
+            anyhow::ensure!(!wanted.is_empty(), "command is required");
+            if crate::commands::run_any(c)? {
+                return Ok(format!("You can already run any command here, {} included. Run it. If it fails, it's not a permission: say why in your summary.", wanted.join(", ")));
             }
             let t = c.ticket(ctx.ticket)?.ok_or_else(|| anyhow::anyhow!("no ticket"))?;
             let have = crate::commands::for_ticket(c, &t)?;
-            if have.iter().any(|h| command == *h || command.starts_with(&format!("{h} "))) {
-                return Ok(format!("{command} is already allowed. Run it."));
+            wanted.retain(|cmd| !have.iter().any(|h| cmd == h || cmd.starts_with(&format!("{h} "))));
+            if wanted.is_empty() {
+                return Ok("Those are already allowed. Run them as written, from the repo root.".into());
             }
+            let command = wanted.join("\n");
             // Straight to the founder: what runs on their Mac is their call, not a lead's.
             let n = c.ask(&Question {
                 ticket_id: Some(ctx.ticket),

@@ -87,5 +87,43 @@ fn tickets_work_and_land_in_their_own_repo() {
     let on_main = Command::new("git").arg("-C").arg(&api).args(["show", "main:WORK.md"]).output().unwrap();
     assert!(on_main.status.success(), "the work is on main");
     assert!(c.remove_repo("api").is_ok());
+    // What the team can run. New companies run anything. A list never keeps what can't run.
+    use onecorp::commands;
+    assert!(commands::run_any(&c).unwrap(), "new companies run any command");
+    let main = c.repos().unwrap().remove(0);
+    commands::set(&c, &main, "make test\ngit rebase\nsudo ls\nbash tools/check.sh").unwrap();
+    assert_eq!(commands::list(&c, &main).unwrap(), ["make test", "bash tools/check.sh"], "git and sudo are never on a list");
+    std::fs::write(app.join("package.json"), r#"{"scripts":{"test":"node t.js"}}"#).unwrap();
+    commands::rescan(&c, &main).unwrap();
+    let after = commands::list(&c, &main).unwrap();
+    assert!(after.starts_with(&["make test".to_string(), "bash tools/check.sh".to_string()]) && after.len() > 2, "rescanning adds and keeps yours: {after:?}");
+
+    // Several commands in one request, and none at all once the team runs anything.
+    commands::set_run_any(&c, false).unwrap();
+    let t = c.add_ticket("needs tools", "maya").unwrap();
+    let ask = |args| mcp::handle(&c, &mcp::Ctx { ticket: t, employee: "maya".into() }, &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "ask_to_run", "arguments": args}})).unwrap();
+    ask(json!({"commands": ["docker compose up", "make test -v", "go vet ./..."], "why": "integration tests"}));
+    let q = c.inbox().unwrap().into_iter().find(|q| q.ticket_id == Some(t) && q.kind == "command").unwrap();
+    assert_eq!(q.question, "docker compose up\ngo vet ./...", "one request, without what's already allowed");
+    commands::allow(&c, &c.ticket(t).unwrap().unwrap(), &q.question).unwrap();
+    assert!(commands::list(&c, &main).unwrap().iter().any(|x| x == "go vet ./..."), "allowing it adds each one");
+    commands::set_run_any(&c, true).unwrap();
+    let t2 = c.add_ticket("more tools", "maya").unwrap();
+    let out = mcp::handle(&c, &mcp::Ctx { ticket: t2, employee: "maya".into() }, &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "ask_to_run", "arguments": {"command": "npm ci", "why": "deps"}}})).unwrap();
+    assert!(out.to_string().contains("already run any command"), "{out}");
+
+    // Making another repo primary keeps every ticket and list with its own repo.
+    if c.repo_named("api").is_err() {
+        c.add_repo(&api, Some("api")).unwrap();
+    }
+    let on_app = c.add_ticket("app work", "maya").unwrap();
+    let api_list = commands::list(&c, &c.repo_named("api").unwrap()).unwrap();
+    c.make_main("api").unwrap();
+    let names: Vec<String> = c.repos().unwrap().into_iter().map(|r| r.name).collect();
+    assert_eq!(names, ["api", "notes-app"]);
+    assert_eq!(c.ticket(on_app).unwrap().unwrap().repo.as_deref(), Some("notes-app"));
+    assert_eq!(c.repo_of(&c.ticket(on_app).unwrap().unwrap()).unwrap(), app.canonicalize().unwrap());
+    assert_eq!(commands::list(&c, &c.repos().unwrap()[0]).unwrap(), api_list, "the api keeps its own commands");
+    assert!(commands::list(&c, &c.repo_named("notes-app").unwrap()).unwrap().contains(&"bash tools/check.sh".to_string()));
     let _ = std::fs::remove_dir_all(&root);
 }

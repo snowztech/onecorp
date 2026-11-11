@@ -4,7 +4,20 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- Choose what your team can run, in Settings, Company: anything in their own copy of the repo, or only the commands you've allowed. With anything, they run builds, tests, installs and scripts without asking, and you still approve every change before it merges. Git changes, sudo and deleting folders stay off either way. New companies start with anything, and a command request in the Inbox offers the switch in one click.
+- Rescan a repo to add the commands its files suggest now, keeping yours. Make another repo the primary one, so the old one can be removed.
+
+### Changed
+
+- Employees ask for every command they're missing in one request, and one Inbox card allows them all.
+- With a list, a script on it runs as `tools/x.sh` or `./tools/x.sh`, and employees are told to run listed commands as written, from the repo root. Commands that can never run, like `git rebase`, can't be added to a list.
+- On Codex, letting the team run anything also lets installs reach the network.
+
 ### Fixed
+
+- Claude Code employees can open the wiki pages they're pointed to while working on a ticket.
 
 - Merging on GitHub works on repos that turn merge commits off or require a linear history. OneCorp merges the way the repo allows, falls back to a squash, and says what to check if GitHub still refuses.
 - A ticket whose work is already on main no longer gets stuck in review. Its Inbox card says there's nothing left to merge, and Close as done closes its pull request and deletes its branch, instead of failing on an empty merge. A run that ends with nothing new to merge comes back as a report.

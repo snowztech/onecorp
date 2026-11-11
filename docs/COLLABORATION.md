@@ -56,7 +56,7 @@ flowchart TD
 ### To you
 
 - **`ask_human`**: a question with options and a default. Blocking stops the ticket until it's answered. Non-blocking carries on with the default, and a different answer later sends the ticket back to apply it (`work::follow_up`).
-- **`ask_to_run`**: asks to run a command they aren't allowed yet. Always comes to you, never their lead: what runs on your Mac is your call. Allowing it lets the whole team run it in that repo.
+- **What they can run** is a company setting (`commands::run_any`): anything in their worktree except git changes, sudo, gh and deleting folders, or only each repo's list. New companies run anything. With a list, **`ask_to_run`** asks for every missing command in one request. It's for commands they aren't allowed yet. Always comes to you, never their lead: what runs on your Mac is your call. Allowing it lets the whole team run it in that repo.
 - **`update_ticket` blocked**: always puts a question in your Inbox, so a blocked ticket always has something for you to answer (`store::ask_to_unblock`).
 - **The summary** at the end of a ticket run is what you read in the review.
 

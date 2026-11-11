@@ -196,6 +196,7 @@ fn channels_posts_and_replies() {
     assert!(work::dismiss(&c, stuck).is_err(), "a blocking question needs an answer");
 
     // Asking to run a command: never for git, straight to the founder otherwise, and allowed for the repo.
+    onecorp::commands::set_run_any(&c, false).unwrap(); // new companies run anything, so there'd be nothing to ask
     let run = |command: &str| {
         let call = json!({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "ask_to_run", "arguments": {"command": command, "why": "codegen"}}});
         mcp::handle(&c, &mcp::Ctx { ticket, employee: "maya".into() }, &call).unwrap()["result"].clone()

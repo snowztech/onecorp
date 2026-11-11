@@ -28,7 +28,7 @@ document.addEventListener("click", async e => {
   if (S.switching && !target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-spend-by],[data-pb-reset],[data-pb-rewrite],[data-kpick],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-run-any],[data-run-any-q],[data-repo-main],[data-commands-rescan],[data-spend-by],[data-pb-reset],[data-pb-rewrite],[data-kpick],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.updateRestart) return restartToUpdate();
@@ -218,6 +218,26 @@ document.addEventListener("click", async e => {
   if (d.commandsReset) {
     S.settings!.repos = await invoke("set_commands", { company: S.company, repo: d.commandsReset, text: null }).catch(err => (toast(String(err), true), S.settings!.repos));
     saved(); return renderSheet();
+  }
+  if (d.commandsRescan) {
+    S.settings!.repos = await invoke("rescan_commands", { company: S.company, repo: d.commandsRescan }).catch(err => (toast(String(err), true), S.settings!.repos));
+    saved(); return renderSheet();
+  }
+  if (d.repoMain) {
+    try { S.settings!.repos = await invoke("make_main_repo", { company: S.company, name: d.repoMain }); toast(`${d.repoMain} is the primary repo now`); } catch (err) { toast(String(err), true); }
+    renderSheet(); return refresh(true);
+  }
+  if (d.runAny !== undefined) {
+    const on = d.runAny === "1";
+    await invoke("set_run_any", { company: S.company, on }).then(saved).catch(err => toast(String(err), true));
+    if (S.settings) S.settings.run_any = on;
+    return renderSheet();
+  }
+  if (d.runAnyQ) {
+    el.disabled = true;
+    try { await invoke("set_run_any", { company: S.company, on: true }); await invoke("answer", { company: S.company, id: Number(d.runAnyQ), text: "allow" }); toast("Your team runs any command now. Change it in Settings, Company"); }
+    catch (err) { el.disabled = false; toast(String(err), true); }
+    return refresh(true);
   }
   if (d.repoRm) {
     try { S.settings!.repos = await invoke("remove_repo", { company: S.company, name: d.repoRm }); toast(`Removed ${d.repoRm}. Its files and finished tickets stay`); } catch (err) { toast(String(err), true); }

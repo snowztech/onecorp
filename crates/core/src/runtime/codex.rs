@@ -24,6 +24,10 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         // Shorter replies at the source: fewer output tokens, and less to read. Models without
         // the setting ignore it.
         .args(["-c", "model_verbosity=\"low\""]);
+    // Running anything includes installs, which need the network the sandbox otherwise blocks.
+    if o.run_any && !o.read_only {
+        cmd.args(["-c", "sandbox_workspace_write.network_access=true"]);
+    }
     if let Some(m) = o.mcp {
         let env = m.env.iter().map(|(k, v)| format!("{k}={}", q(v))).collect::<Vec<_>>().join(",");
         cmd.args(["-c", &format!("mcp_servers.onecorp.command={}", q(&m.command))])
