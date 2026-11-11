@@ -346,7 +346,7 @@ fn setup_info() -> Res<Value> {
         .map(|t| {
             json!({
                 "key": t.key, "name": t.name, "description": t.description, "runtime": t.runtime,
-                "hires": t.people("claude").iter().map(|p| json!({"name": p.name, "role": p.role, "dept": p.department, "voice": onecorp::voice::for_role(&p.role, &store::slug(&p.name))})).collect::<Vec<_>>(),
+                "hires": t.people("claude").iter().zip(t.hires).map(|(p, h)| json!({"name": p.name, "role": p.role, "dept": p.department, "tier": onecorp::templates::tier_of(h.preset), "voice": onecorp::voice::for_role(&p.role, &store::slug(&p.name))})).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -361,7 +361,7 @@ fn setup_info() -> Res<Value> {
             .iter()
             .map(|e| {
                 let dept = e.department.and_then(|id| depts.iter().find(|d| d.id == id)).map(|d| d.name.clone());
-                json!({"name": e.name, "role": e.role, "dept": dept, "runtime": e.runtime, "voice": onecorp::voice::of(&c, e).unwrap_or_default()})
+                json!({"name": e.name, "role": e.role, "dept": dept, "runtime": e.runtime, "model": e.model, "voice": onecorp::voice::of(&c, e).unwrap_or_default()})
             })
             .collect();
         if !hires.is_empty() {
@@ -413,7 +413,8 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
             role: s(p, "role"),
             bio: onecorp::templates::bio_for(&s(p, "role")).into(),
             runtime: s(p, "runtime"),
-            model: None,
+            // A model you kept from another team, or the one the person's tier means on their agent.
+            model: Some(s(p, "model")).filter(|m| !m.is_empty()).or_else(|| onecorp::runtime::tier_model(&s(p, "runtime"), &s(p, "tier")).map(|(id, _)| id)),
             department: Some(s(p, "dept")).filter(|d| !d.is_empty()),
             voice: Some(s(p, "voice")).filter(|v| !v.is_empty()),
         })
@@ -557,7 +558,12 @@ fn open_link(url: String) -> Res<()> {
 #[tauri::command(async)]
 fn models() -> Value {
     let list = |r: &str| onecorp::runtime::models(r).into_iter().map(|(id, name, about)| json!({"id": id, "name": name, "about": about})).collect::<Vec<_>>();
-    json!({"claude": list("claude"), "codex": list("codex")})
+    // What each tier means on each agent, and what "Default" runs, so the app names real models.
+    let tier = |r: &str, t: &str| onecorp::runtime::tier_model(r, t).map(|(id, name)| json!({"id": id, "name": name}));
+    let tiers = |r: &str| json!({"strongest": tier(r, "strongest"), "balanced": tier(r, "balanced"), "cheapest": tier(r, "cheapest")});
+    json!({"claude": list("claude"), "codex": list("codex"),
+        "tiers": {"claude": tiers("claude"), "codex": tiers("codex")},
+        "defaults": {"claude": onecorp::runtime::default_model("claude"), "codex": onecorp::runtime::default_model("codex")}})
 }
 
 #[tauri::command]

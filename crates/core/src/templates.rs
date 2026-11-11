@@ -38,6 +38,16 @@ pub const PRESETS: &[Preset] = &[
     },
 ];
 
+/// The model tier a role starts on: the strongest for whoever reviews and decides, the cheapest
+/// for short writing, a balanced one for everyone else.
+pub fn tier_of(preset: &str) -> &'static str {
+    match preset {
+        "reviewer" => "strongest",
+        "writer" => "cheapest",
+        _ => "balanced",
+    }
+}
+
 pub fn preset(key: &str) -> Option<&'static Preset> {
     PRESETS.iter().find(|p| p.key.eq_ignore_ascii_case(key.trim()))
 }
@@ -183,7 +193,7 @@ impl Template {
                     role: h.role.or(p.map(|p| p.role)).unwrap_or("Engineer").into(),
                     bio: p.map(|p| p.bio).unwrap_or(PRESETS[0].bio).into(),
                     runtime: runtime.into(),
-                    model: None,
+                    model: crate::runtime::tier_model(runtime, tier_of(h.preset)).map(|(id, _)| id),
                     department: h.dept.map(String::from),
                     voice: None,
                 }
@@ -281,6 +291,17 @@ pub fn suggest_name(folder: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn roles_start_on_a_model_that_fits() {
+        let startup = TEMPLATES.iter().find(|t| t.key == "startup").unwrap().people("claude");
+        let model = |name: &str| startup.iter().find(|p| p.name.starts_with(name)).unwrap().model.clone();
+        assert_eq!(model("Odile").as_deref(), Some("claude-opus-5-5"), "the CTO reviews and decides");
+        assert_eq!(model("Maya").as_deref(), Some("claude-sonnet-5-5"));
+        assert_eq!(model("Sam").as_deref(), Some("claude-haiku-5-5"), "short writing");
+        // The stand-in has no models, so its people keep none.
+        assert!(TEMPLATES.iter().find(|t| t.key == "startup").unwrap().people("fake").iter().all(|p| p.model.is_none()));
+    }
 
     #[test]
     fn templates_set_up_a_team() {

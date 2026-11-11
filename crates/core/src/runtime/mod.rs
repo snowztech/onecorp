@@ -80,22 +80,61 @@ pub fn models(runtime: &str) -> Vec<(String, String, String)> {
     }
 }
 
-/// The model for talk (chat replies and a lead's quick decisions) at a tier: "cheapest" or
-/// "balanced". Talk is short, so a smaller model answers it well for a fraction of the cost.
-/// Returns (id, name). Codex's own list says which of its models fits each tier.
-pub fn talk_model(runtime: &str, tier: &str) -> Option<(String, String)> {
-    let cheapest = tier == "cheapest";
+/// An agent's model for a tier: "strongest" for leads and hard calls, "balanced" for most work,
+/// "cheapest" for short, simple jobs. Returns (id, name). Codex's own list says which fits each.
+pub fn tier_model(runtime: &str, tier: &str) -> Option<(String, String)> {
     match runtime {
-        "claude" => Some(if cheapest { ("claude-haiku-5-5".into(), "Haiku 5.5".into()) } else { ("claude-sonnet-5-5".into(), "Sonnet 5.5".into()) }),
+        "claude" => {
+            let (id, name) = match tier {
+                "strongest" => ("claude-opus-5-5", "Opus 5.5"),
+                "cheapest" => ("claude-haiku-5-5", "Haiku 5.5"),
+                _ => ("claude-sonnet-5-5", "Sonnet 5.5"),
+            };
+            Some((id.into(), name.into()))
+        }
         "codex" => codex_models()
             .into_iter()
             .find(|(id, _, about)| {
                 let about = about.to_lowercase();
-                if cheapest { about.contains("fast and affordable") || id.contains("luna") } else { about.contains("workhorse") }
+                match tier {
+                    "strongest" => about.contains("frontier") || about.contains("most demanding"),
+                    "cheapest" => about.contains("fast and affordable") || id.contains("luna"),
+                    _ => about.contains("workhorse"),
+                }
             })
             .map(|(id, name, _)| (id, name)),
         _ => None,
     }
+}
+
+/// The model for talk (chat replies and a lead's quick decisions): "cheapest" or "balanced".
+/// Talk is short, so a smaller model answers it well for a fraction of the cost.
+pub fn talk_model(runtime: &str, tier: &str) -> Option<(String, String)> {
+    tier_model(runtime, if tier == "cheapest" { "cheapest" } else { "balanced" })
+}
+
+/// What an agent runs when no model is set: your own setting for it, like `"model": "opus"` in
+/// Claude Code's settings. A name to show, so "Default" never hides which model does the work.
+pub fn default_model(runtime: &str) -> Option<String> {
+    let home = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default());
+    let set = match runtime {
+        "claude" => std::env::var("ANTHROPIC_MODEL").ok().filter(|m| !m.is_empty()).or_else(|| {
+            let text = std::fs::read_to_string(home.join(".claude/settings.json")).ok()?;
+            serde_json::from_str::<serde_json::Value>(&text).ok()?["model"].as_str().map(String::from)
+        }),
+        "codex" => {
+            let dir = std::env::var("CODEX_HOME").map(std::path::PathBuf::from).unwrap_or_else(|_| home.join(".codex"));
+            let text = std::fs::read_to_string(dir.join("config.toml")).ok()?;
+            text.lines().find_map(|l| {
+                let (k, v) = l.split_once('=')?;
+                (k.trim() == "model").then(|| v.trim().trim_matches('"').to_string())
+            })
+        }
+        _ => None,
+    }?;
+    // A short name like "opus" or an exact id: show the model's own name when we know it.
+    let set = set.trim().to_string();
+    Some(models(runtime).into_iter().find(|(id, _, _)| *id == set || id.contains(&format!("-{set}-")) || id.ends_with(&format!("-{set}"))).map(|(_, name, _)| name).unwrap_or(set))
 }
 
 fn codex_models() -> Vec<(String, String, String)> {
