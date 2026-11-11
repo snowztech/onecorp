@@ -25,7 +25,8 @@ export function stopped(t: Failed) {
     ${S.confirm === "ticket:" + t.key
       ? `<div class="confirm"><p>Delete ${esc(t.key)}? Its log and unfinished branch go with it.</p>
           <div class="acts"><button class="btn danger" data-remove="${esc(t.key)}">Delete</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
-      : `<div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button><button class="btn ghost" data-confirm="ticket:${esc(t.key)}">Delete…</button></div>`}</div></article>`;
+      : `<div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button>${S.open[`rty-${t.key}`] ? "" : `<button class="btn ghost" type="button" data-more="rty-${esc(t.key)}">Retry with a note…</button>`}<button class="btn ghost" data-confirm="ticket:${esc(t.key)}">Delete…</button></div>`}
+    ${S.open[`rty-${t.key}`] ? replyForm(`rty-${t.key}`, `data-retry-note="${esc(t.key)}"`, "What should they do differently?", "Retry") : ""}</div></article>`;
 }
 
 export function question(q: Question, withLead?: boolean) {

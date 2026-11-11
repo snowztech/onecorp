@@ -232,6 +232,9 @@ enum Cmd {
     /// Try a ticket that stopped or failed again
     Retry {
         ticket: String,
+        /// What to do differently this time
+        #[arg(short, long)]
+        note: Option<String>,
         #[arg(short, long)]
         company: Option<String>,
     },
@@ -760,9 +763,9 @@ fn run(cmd: Cmd) -> Result<()> {
             let c = open(company)?;
             work::stop(&c, &find_ticket(&c, &ticket)?)?;
         }
-        Cmd::Retry { ticket, company } => {
+        Cmd::Retry { ticket, note, company } => {
             let c = open(company)?;
-            work::retry(&c, &find_ticket(&c, &ticket)?)?;
+            work::retry(&c, &find_ticket(&c, &ticket)?, note.as_deref())?;
         }
         Cmd::Changes { ticket, feedback, company } => {
             let c = open(company)?;

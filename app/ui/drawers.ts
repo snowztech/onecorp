@@ -51,7 +51,8 @@ export function drawerTicket() {
     review: reviewActions(t) + discardBtn(t),
     done: t.kind === "wiki" ? `<button class="btn" data-view="wiki" data-close="1">Read wiki</button>` : "",
   } as Record<string, string>)[t.status] || "";
-  const back = t.status === "review" ? replyForm(`chg-${t.key}`, `data-changes="${esc(t.key)}"`, "Ask for changes…", "Send back", false) : "";
+  const back = t.status === "review" ? replyForm(`chg-${t.key}`, `data-changes="${esc(t.key)}"`, "Ask for changes…", "Send back", false)
+    : t.status === "failed" ? replyForm(`rty-${t.key}`, `data-retry-note="${esc(t.key)}"`, "Retry with a note…", "Retry", false) : "";
   const log = t.log.map(a => logRow(a, 5)).join("") + stillRunning(t.log, t.status === "doing");
   return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(ticketStatus(t))}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <div class="dbody">
