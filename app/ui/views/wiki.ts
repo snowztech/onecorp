@@ -1,5 +1,5 @@
 import { ago, esc, first } from "../lib.ts";
-import { face } from "../look.ts";
+import { face, me } from "../look.ts";
 import { md } from "../md.ts";
 import { S, byId } from "../state.ts";
 import type { Question, WikiPage } from "../types.ts";
@@ -73,8 +73,10 @@ function proposalCards(list: Question[]) {
 
 function meta(p: WikiPage) {
   if (!p.by) return `<p class="wk-meta muted">Nobody has written this page yet.</p>`;
-  const wrote = p.first_by && p.first_by !== p.by ? `Written by <b>${esc(p.first_by)}</b> · edited by <b>${esc(p.by)}</b>` : `By <b>${esc(p.by)}</b>`;
-  return `<p class="wk-meta">${face(p.by === "You" ? (S.founder?.name || "You") : p.by, "neutral")}<span>${wrote} ${p.at ? `· ${esc(ago(p.at))}` : ""}${p.note ? ` <span class="muted">· ${esc(p.note)}</span>` : ""}</span>
+  // The face is whoever wrote what's on the page now. Whoever started it comes last.
+  const edited = p.first_by && p.first_by !== p.by;
+  const started = edited ? ` <span class="muted">· first written by ${p.first_by === "You" ? "you" : `<b>${esc(p.first_by!)}</b>`}</span>` : "";
+  return `<p class="wk-meta">${p.by === "You" ? me() : face(p.by, "neutral")}<span>${edited ? "Edited by" : "By"} <b>${esc(p.by)}</b> ${p.at ? `· ${esc(ago(p.at))}` : ""}${p.note ? ` <span class="muted">· ${esc(p.note)}</span>` : ""}${started}</span>
     <button class="link-btn" data-wk-history="${esc(p.path)}">History${p.edits > 1 ? ` (${p.edits})` : ""}</button></p>`;
 }
 
