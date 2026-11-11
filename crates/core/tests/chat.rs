@@ -97,6 +97,24 @@ fn channels_posts_and_replies() {
     assert_eq!(who, [("Cache the checkout page", "maya", "backlog"), ("Write the release note", "odile", "backlog")]);
     assert_eq!(made[0].description, "Under 200ms");
 
+    // How someone works: their role's playbook, what leading asks of them, then your notes.
+    use onecorp::roles;
+    let odile = c.employee("odile").unwrap().unwrap();
+    let brief = roles::brief(&c, &odile).unwrap();
+    assert!(brief.contains("You lead Engineering: Maya Okafor"), "{brief}");
+    let mut maya = c.employee("maya").unwrap().unwrap();
+    assert!(!roles::brief(&c, &maya).unwrap().contains("You lead"), "only leads lead");
+    roles::set(&c, "maya", &maya.role, Some("backend"), None).unwrap();
+    assert_eq!(roles::role_of(&c, &maya).unwrap().key, "backend", "a picked playbook beats the title");
+    roles::set(&c, "maya", &maya.role, Some("backend"), Some(roles::by_key("backend").unwrap().playbook)).unwrap();
+    assert_eq!(roles::rewrite(&c, &maya).unwrap(), None, "the playbook unchanged is no rewrite, so it keeps improving");
+    roles::set(&c, "maya", &maya.role, Some("backend"), Some("- Ship it.")).unwrap();
+    maya.bio = "We write Go.".into();
+    let brief = roles::brief(&c, &maya).unwrap();
+    assert!(brief.starts_with("How you work:\n- Ship it.") && brief.ends_with("We write Go."), "{brief}");
+    roles::set(&c, "maya", &maya.role, None, None).unwrap();
+    assert_eq!((roles::role_of(&c, &maya).unwrap().key, roles::rewrite(&c, &maya).unwrap()), ("engineer", None), "back to her title");
+
     // Ask OneCorp answers in its own channel, which no employee reads, and drafts issues for bugs.
     let slots = chat::say(&c, "help", "can leads give tickets to their team? @maya").unwrap();
     assert_eq!(slots.len(), 1, "only OneCorp answers, even with a mention");

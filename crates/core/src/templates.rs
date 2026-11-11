@@ -7,34 +7,28 @@ use anyhow::Result;
 pub struct Preset {
     pub key: &'static str,
     pub role: &'static str,
-    pub bio: &'static str,
 }
 
 pub const PRESETS: &[Preset] = &[
     Preset {
         key: "engineer",
         role: "Engineer",
-        bio: "Reads the code around a change before touching it. Makes the smallest diff that does the job and says what to check.",
     },
     Preset {
         key: "reviewer",
         role: "Reviewer",
-        bio: "Reads diffs carefully. Flags risks, missing tests and new dependencies that don't earn their place.",
     },
     Preset {
         key: "designer",
         role: "Product designer",
-        bio: "Designs in code. Keeps screens simple and copy short, and follows the styles already in the repo.",
     },
     Preset {
         key: "pm",
         role: "Product manager",
-        bio: "Turns ideas into small tickets anyone can pick up. Asks one clarifying question, never five. Keeps the first version small.",
     },
     Preset {
         key: "writer",
         role: "Writer",
-        bio: "Writes docs, changelogs and posts. Short sentences, plain words, no hype.",
     },
 ];
 
@@ -191,7 +185,7 @@ impl Template {
                 Person {
                     name: h.name.into(),
                     role: h.role.or(p.map(|p| p.role)).unwrap_or("Engineer").into(),
-                    bio: p.map(|p| p.bio).unwrap_or(PRESETS[0].bio).into(),
+                    bio: String::new(),
                     runtime: runtime.into(),
                     model: crate::runtime::tier_model(runtime, tier_of(h.preset)).map(|(id, _)| id),
                     department: h.dept.map(String::from),
@@ -200,23 +194,6 @@ impl Template {
             })
             .collect()
     }
-}
-
-/// A bio for a role you typed yourself, from the preset it sounds most like.
-pub fn bio_for(role: &str) -> &'static str {
-    let r = role.to_lowercase();
-    let key = if r.contains("design") {
-        "designer"
-    } else if r.contains("product") || r.contains("pm") {
-        "pm"
-    } else if r.contains("review") || r.contains("cto") || r.contains("lead") {
-        "reviewer"
-    } else if ["writ", "doc", "market", "content", "growth"].iter().any(|w| r.contains(w)) {
-        "writer"
-    } else {
-        "engineer"
-    };
-    preset(key).map(|p| p.bio).unwrap_or(PRESETS[0].bio)
 }
 
 /// Problems with a team before anything is created: missing names, two people who would get
@@ -258,7 +235,7 @@ pub fn hire(c: &Company, people: &[Person]) -> Result<Vec<Employee>> {
             role: if p.role.trim().is_empty() { "Engineer".into() } else { p.role.trim().into() },
             runtime: p.runtime.clone(),
             model: p.model.clone().filter(|m| !m.trim().is_empty()),
-            bio: if p.bio.trim().is_empty() { bio_for(&p.role).into() } else { p.bio.clone() },
+            bio: p.bio.trim().into(),
             department,
         };
         c.hire(&e)?;
@@ -325,7 +302,6 @@ mod tests {
         team[1].name = "Inês".into();
         team[1].role = "Growth writer".into();
         assert!(check(&team).is_ok());
-        assert_eq!(bio_for("Growth writer"), preset("writer").unwrap().bio);
 
         // Editing keeps the id. Letting a lead go hands the department to the next person in it.
         let mut odile = c.employee("odile").unwrap().unwrap();

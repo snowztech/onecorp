@@ -7,6 +7,8 @@ import type { Founder } from "./types.ts";
 import { checkRepo, setTemplate, startSetup } from "./views/onboarding.ts";
 import { openSettings } from "./views/settings.ts";
 
+const BACKEND = "- Read the handlers, models and tests around a change first, and follow how errors, logging and config are already done.\n- Keep APIs backward compatible. If a change would break a client, say so and ask before making it.\n- Schema changes go in a new migration that's safe on live data. Never edit an old one.\n- Validate input at the edges, and never log secrets, tokens or personal data.\n- Watch for queries in loops, missing indexes and lists with no limit.\n- Every endpoint or job you change gets a test, the failure path included.\n- In your summary, call out migrations, config or environment changes someone has to apply.";
+
 // In a plain browser, #board, #inbox, #wiki, #ticket, #person, #new-ticket, #setup or #profile opens
 // straight onto that screen, so each one can be looked at and screenshotted. Never used in the app.
 export async function previewScreen() {
@@ -34,12 +36,14 @@ export async function previewScreen() {
   if (screen === "launching") { await startSetup(); S.setup!.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup!.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the wiki"] }; render(); }
   if (screen === "connect") await startSetup();
   if (screen === "team") { await startSetup(); setTemplate("startup"); S.setup!.step = 3; render(); }
+  if (screen === "team-playbook") { await startSetup(); setTemplate("startup"); S.roles = await invoke("roles"); S.setup!.people[0].pb = "reviewer"; S.setup!.step = 3; render(); }
   if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
   if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer!.edit = true; renderDrawer(); }
   if (screen === "spend") await openSettings("spend");
   if (screen === "paused") { S.snap!.paused = true; render(); }
   if (screen === "hire") openHire(1);
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer!.edit = true; renderDrawer(); }
+  if (screen === "person-rewrite") { await openPerson("tomas"); S.drawer!.edit = true; renderDrawer(); S.drawer!.form!.rewriting = true; S.drawer!.form!.rewrite = "- Ship small.\n- Go, with table tests."; renderDrawer(); }
   if (screen === "idle") { S.snap!.employees.forEach(e => (e.status = "idle")); S.snap!.inbox = []; S.snap!.reviews = []; S.snap!.failed = []; render(); }
   if (screen === "project") { S.view = "board"; S.project = "SNO-20"; render(); }
   if (["board", "inbox", "wiki", "chat"].includes(screen)) { S.view = screen; render(); }
@@ -173,7 +177,9 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
       { id: 5, at: "2026-11-09 11:02:00", author: "odile", name: "Odile Martin", text: "Pricing page is up for review in SNO-11. Copy needs a look on mobile.", key: "SNO-11", pending: false },
       { id: 6, at: "2026-11-09 11:20:00", author: "founder", name: "Lucas", founder: true, text: "@tomas how far are the Stripe webhook retries?", key: null, pending: false },
       { id: 7, at: "2026-11-09 11:20:00", author: "tomas", name: "Tomás Reis", text: "", key: null, pending: true }] },
-    person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, voice: "dry", voices: VOICES, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
+    role_for: "backend",
+    roles: [{ key: "backend", label: "Backend engineer", playbook: BACKEND }, { key: "frontend", label: "Frontend engineer", playbook: "- Handle every state." }, { key: "engineer", label: "Engineer", playbook: "- Read the code first." }, { key: "reviewer", label: "Tech lead", playbook: "- Read a diff for what it breaks." }],
+    person: { id: "tomas", name: "Tomás Reis", role: "Backend engineer", runtime: "codex", model: null, bio: "We write Go with table tests. Logs go through slog.", kind: "backend", picked: false, playbook: null, lead: false, department: 1, voice: "dry", voices: VOICES, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
       activity: [{ at: "2026-11-09 10:49:00", kind: "say", summary: "Retries happen in the webhook handler today, inline, so one slow Stripe call holds the request open. I'll move them to the jobs table with a backoff of 1, 5 and 30 minutes, and keep the handler idempotent with the event id.\n\nThen the tests: one for a duplicate event, one for a retry that succeeds on the second try." }, { at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:51:00", kind: "tool", summary: "Bash cargo test billing -- --nocapture 2>&1 | tail -40; echo \"exit ${PIPESTATUS[0]}\"" }, { at: "2026-11-09 10:51:00", kind: "error", summary: "A variable in braces in this command can't be checked before it runs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }, { key: "SNO-9", title: "Rate limit the public API", status: "failed", spend: "40k tok" }, { key: "SNO-8", title: "CI pipeline", status: "merged", spend: "$0.22" }, { key: "SNO-4", title: "Notes API: create and list", status: "merged", spend: "$0.48" }],
       memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing", "2026-11-08 Lucas wants errors logged with the ticket key, never swallowed", "2026-11-07 Billing code lives in src/billing, one file per provider", "2026-11-06 Run cargo test billing before the full suite, it's 10x faster"] },
   };

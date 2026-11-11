@@ -930,11 +930,11 @@ fn hire_form(
     };
 
     let role = role.or(preset.map(|p| p.role.to_string())).unwrap_or_else(|| "Engineer".into());
-    let default_bio = preset.map(|p| p.bio).unwrap_or(onecorp::templates::PRESETS[0].bio);
+    // Notes add to their role's playbook, which follows the role as OneCorp improves it.
     let bio = match bio {
-        Some(b) => b,
-        None if interactive => ask("How do they work?", default_bio)?,
-        None => default_bio.to_string(),
+        Some(b) => b.trim().to_string(),
+        None if interactive => ask(&format!("Notes on how they work, added to the {} playbook (blank for none)", onecorp::roles::for_title(&role).label), "")?,
+        None => String::new(),
     };
     if !RUNTIMES.contains(&runtime.as_str()) {
         bail!("{runtime} isn't supported yet. Available: {}", RUNTIMES.join(", "));

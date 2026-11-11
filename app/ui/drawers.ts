@@ -121,7 +121,7 @@ export function renderDrawer() {
   }
   if (S.drawer.edit) {
     d.innerHTML = `${head}<form class="dbody" id="emp-form">
-      ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, voice: p.voice, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
+      ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, kind: p.kind, kindPicked: p.picked, rewrite: p.playbook, rewriting: !!p.playbook, voice: p.voice, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
       ${personFields(S.drawer.form!)}
       <div class="field"><label for="pf-cap">Daily cap <span class="muted">(optional)</span></label><div class="money-in"><span>$</span><input id="pf-cap" type="number" min="0" step="0.5" value="${(byId(p.id)?.cap ?? 0) > 0 ? byId(p.id)!.cap : ""}" placeholder="No cap"><span class="unit">a day. They stop picking up work when they reach it</span></div></div>
       <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`;
@@ -135,13 +135,15 @@ export function renderDrawer() {
     : `<div class="dfoot"><button class="link-btn danger-link" data-confirm="fire:${esc(p.id)}">Let ${esc(first(p.name))} go…</button></div>`;
   d.innerHTML = `${head}
     <div class="dbody">
-      ${p.bio ? `<p style="margin:0">${esc(p.bio)}</p>` : ""}
       <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
           ${dept ? (leads ? `<span class="leadtag">Lead</span>` : `<button class="link-btn" data-make-lead="${esc(p.id)}">Make lead</button>`) : ""}</dd>
         <dt>Personality</dt><dd>${esc((p.voices || []).find(v => v.key === p.voice)?.label || "")}</dd>
         <dt>Works on</dt><dd>${chip(p)}</dd></dl>
       <div class="acts"><button class="btn" data-edit-person="1">Edit</button><button class="btn" data-new-ticket="${esc(p.id)}">Give ${esc(first(p.name))} a ticket</button><button class="btn" data-dm="${esc(p.id)}">Message</button></div>
       <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free right now.</p>`}</div>
+      <div class="playbook"><h5>How ${esc(first(p.name))} works <span class="muted">· ${p.playbook ? "rewritten for them" : `${esc(roleInfo(p.kind).label)} playbook`}</span></h5>${md(p.playbook || roleInfo(p.kind).playbook).html}
+        ${p.lead && dept ? `<p class="pb-lead">Leads ${esc(dept.name)}: answers the team's questions first, splits their work and keeps an eye on who's stuck.</p>` : ""}
+        ${p.bio ? `<div class="pb-notes"><span class="label">Your notes</span>${md(p.bio).html}</div>` : ""}</div>
       <div><h5>What ${esc(first(p.name))} has learned</h5>${p.memory.length ? `<ul class="notes">${p.memory.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="muted" style="margin:0">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>
       <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(ticketStatus(t))}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
       ${letGo}
@@ -199,7 +201,10 @@ export function personFields(f: PersonForm) {
     <div class="field"><label for="pf-r">Role</label><input id="pf-r" value="${esc(f.role)}" placeholder="Engineer, Designer, Writer…" autocomplete="off"></div>
     ${agentPicker({ ...f, runtime: runtimes.includes(f.runtime) ? f.runtime : runtimes[0] })}
     ${voicePicker(f)}
-    <div class="field"><label for="pf-b">How they work <span class="muted">(instructions, optional)</span></label><textarea id="pf-b" rows="3" placeholder="Replies in French. Bullet points in summaries. Always adds tests.">${esc(f.bio || "")}</textarea></div>`;
+    <div class="field"><span class="flabel">Playbook</span><div class="models" id="pf-kinds">${kindChips(f)}</div><input type="hidden" id="pf-k" value="${esc(f.kind || "engineer")}">
+      <div class="pb-box" id="pf-pb">${playbookBox(f)}</div></div>
+    <div class="field"><label for="pf-b">Notes for ${esc(first(f.name) || "them")} <span class="muted">(optional)</span></label><textarea id="pf-b" rows="3" placeholder="Added on top of their playbook. We write Go with table tests. Reply in French.">${esc(f.bio || "")}</textarea>
+      <p class="fine">Their playbook and your notes are read before every ticket. Rules for the whole team go in the wiki.</p></div>`;
 }
 
 // Personality as chips, with a reply in that voice underneath, so you hear it before you pick.
@@ -213,7 +218,37 @@ export function voicePicker(f: PersonForm) {
     <input type="hidden" id="pf-v" value="${esc(cur || "")}"></div>`;
 }
 
-export const readPerson = () => ({ name: $("#pf-n").value.trim(), role: $("#pf-r").value.trim() || "Engineer", runtime: $("#pf-rt").value, model: $("#pf-m").value.trim() || null, bio: $("#pf-b").value.trim(), voice: $("#pf-v")?.value || null });
+export const readPerson = () => ({ name: $("#pf-n").value.trim(), role: $("#pf-r").value.trim() || "Engineer", runtime: $("#pf-rt").value, model: $("#pf-m").value.trim() || null, bio: $("#pf-b").value.trim(), voice: $("#pf-v")?.value || null,
+  kind: $("#pf-k")?.value || null, playbook: $<HTMLTextAreaElement>("#pf-pb-text")?.value ?? null });
+
+export const roleInfo = (key?: string | null) => (S.roles || []).find(r => r.key === key) || S.roles?.find(r => r.key === "engineer") || { key: "engineer", label: "Engineer", playbook: "" };
+
+function kindChips(f: PersonForm) {
+  return (S.roles || []).map(r => `<button type="button" class="mchip" data-kpick="${r.key}" aria-pressed="${r.key === (f.kind || "engineer")}">${esc(r.label)}</button>`).join("");
+}
+
+// The playbook as they'll follow it, or your rewrite of it. Rewriting is for one person, so a new hire starts on the role's.
+export function playbookBox(f: PersonForm) {
+  const role = roleInfo(f.kind), mine = S.drawer?.type === "person";
+  if (f.rewriting) return `<textarea id="pf-pb-text" rows="8">${esc(f.rewrite || role.playbook)}</textarea>
+    <p class="fine pb-state">Rewritten for ${esc(first(f.name) || "them")}, so it no longer follows the ${esc(role.label)} playbook. <button type="button" class="link-btn" data-pb-reset="1">Use the ${esc(role.label)} playbook again</button></p>`;
+  return `<div class="pb-read">${md(role.playbook).html}</div>
+    <p class="fine pb-state">${f.kindPicked ? `Picked for ${esc(first(f.name) || "them")}.` : "Follows their role."} It improves as OneCorp does.${mine ? ` <button type="button" class="link-btn" data-pb-rewrite="1">Rewrite it for ${esc(first(f.name) || "them")}</button>` : ""}</p>`;
+}
+
+export function showKind(f: PersonForm) {
+  $("#pf-k").value = f.kind || "engineer";
+  $("#pf-kinds").innerHTML = kindChips(f);
+  $("#pf-pb").innerHTML = playbookBox(f);
+}
+
+// Until you pick a playbook yourself, it follows the role as you type it.
+export async function followRole() {
+  const f = S.drawer?.form;
+  if (!f || f.kindPicked || !$("#pf-r")) return;
+  f.kind = await invoke("role_for", { title: $("#pf-r").value.trim() || "Engineer" }).catch(() => f.kind);
+  showKind(f);
+}
 
 export function drawerHire() {
   const dept = S.snap!.departments.find(x => x.id === S.drawer!.dept), f = S.drawer!.form!;
@@ -226,11 +261,12 @@ export function drawerHire() {
     </form>`;
 }
 
-export function openHire(deptId: number) {
+export async function openHire(deptId: number) {
   const dept = S.snap!.departments.find(x => x.id === deptId);
   const role = !dept || /eng/i.test(dept.name) ? "Engineer" : /design/i.test(dept.name) ? "Product designer" : /product/i.test(dept.name) ? "Product manager" : dept.name + " specialist";
   const c = candidates(role)[1] || candidates(role)[0];
-  S.drawer = { type: "hire", dept: deptId, form: { name: c.name, role, runtime: c.runtime, model: c.model, bio: "" } };
+  const kind = await invoke("role_for", { title: role }).catch(() => "engineer");
+  S.drawer = { type: "hire", dept: deptId, form: { name: c.name, role, runtime: c.runtime, model: c.model, bio: "", kind } };
   renderDrawer();
 }
 

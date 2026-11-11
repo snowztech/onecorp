@@ -1,6 +1,7 @@
 import { logo } from "../brand.ts";
 import { $, esc, toast } from "../lib.ts";
 import { AGENTS, PALETTE, agentBadge, agentMark, badge, face, icon, me, monogram } from "../look.ts";
+import { md } from "../md.ts";
 import { render } from "../render.ts";
 import { S, invoke, version } from "../state.ts";
 import type { Check, RepoCheck } from "../types.ts";
@@ -108,6 +109,12 @@ export function setTemplate(key: string) {
   if (!t) return;
   s.template = key;
   s.people = t.hires.map(h => ({ name: h.name, role: h.role, dept: h.dept || "", runtime: t.runtime || s.runtime, voice: h.voice || "", tier: h.tier || "balanced" }));
+}
+
+// What someone on the team will follow, so a role is more than a title before you hire them.
+export function setupPlaybook(key: string) {
+  const r = (S.roles || []).find(x => x.key === key);
+  return r ? `<span class="label">${esc(r.label)} playbook</span>${md(r.playbook).html}<p class="fine">It follows their role. Add notes or pick another one in their profile later.</p>` : "";
 }
 
 export function readSetup() {
@@ -356,7 +363,9 @@ export function viewSetup() {
       <select id="su-p${i}-voice" class="mini-voice" aria-label="Personality" title="How they write"><option value="">Fits role</option>${(s.info.voices || []).map(v => `<option value="${v.key}" ${v.key === p.voice ? "selected" : ""}>${esc(v.label)}</option>`).join("")}</select>
       <select id="su-p${i}-tier" class="mini-voice mini-model" aria-label="Model" title="Model">${TIERS.map(([t, n]) => `<option value="${t}" ${t === (p.tier || "balanced") ? "selected" : ""}>${esc(S.models?.tiers?.[p.runtime]?.[t]?.name || n)}</option>`).join("")}</select>
       <span class="mini-agents" role="group" aria-label="Works on">${real.map(k => `<button type="button" class="mini-agent" data-su-agent="${i}:${k}" aria-pressed="${k === p.runtime}" title="${esc(AGENTS[k]?.name || k)}" style="--c:${AGENTS[k]?.color || "#888"}">${agentMark(k)}</button>`).join("")}<input type="hidden" id="su-p${i}-runtime" value="${esc(p.runtime)}"></span>
-      <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
+      <button class="pb-btn" type="button" data-su="pb-${i}" aria-expanded="${!!p.pb}" title="How they work">${icon("info")}</button>
+      <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>
+      ${p.pb ? `<li class="pb-row" id="su-p${i}-pb">${setupPlaybook(p.pb)}</li>` : ""}`).join("");
     const depts = [...new Set(s.people.map(p => p.dept).filter(Boolean).concat(["Engineering", "Product", "Design", "Growth"]))];
     body = `<h1>Who's on the team to start?</h1><p class="muted">Start from a template, then change anything: names, roles, departments. The first person in a department leads it.</p>
       <div class="tpl-cards">${s.info.templates.map(x => {
