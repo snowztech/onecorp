@@ -1305,3 +1305,6 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
   font: 600 10px var(--mono); letter-spacing: .04em; padding: 3px 7px; border-radius: 5px; color: var(--signal); background: var(--signal-soft); border: 1px solid color-mix(in srgb, var(--signal) 40%, transparent); }
 .dev-chip + .side-foot { margin-top: 0; }
 .app.rail .dev-chip { display: none; }
+.term .running .tx { color: var(--term-dim); display: flex; align-items: center; gap: 8px; }
+.term .spin { width: 8px; height: 8px; border-radius: 99px; background: var(--term-ok); animation: pulse 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .term .spin { animation: none; } }

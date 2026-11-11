@@ -683,6 +683,13 @@ function logRow(a, from) {
   const text = a.kind === "tool" ? `<span class="tname">${esc(tool)}</span> ${esc(rest.join(" "))}` : esc(a.summary);
   return `<div class="lr k-${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(from, 16))}</span><span class="kd">${esc(a.kind)}</span><span class="tx">${text}</span></div>`;
 }
+// A command still going says so, with how long, so a long build never looks like a stuck run.
+function stillRunning(rows, doing) {
+  const last = rows.at(-1);
+  if (!doing || last?.kind !== "tool") return "";
+  const min = Math.floor((Date.now() - utc(last.at)) / 60000);
+  return `<div class="lr running"><span class="at"></span><span class="kd"></span><span class="tx"><i class="spin"></i>${min >= 60 ? `still running, ${Math.floor(min / 60)} h ${min % 60} min` : min >= 1 ? `still running, ${min} min` : "running…"}</span></div>`;
+}
 // The database keeps UTC. Shown in your own time.
 const utc = at => new Date(String(at).replace(" ", "T") + "Z");
 const hhmm = at => { const d = utc(at); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
@@ -909,7 +916,7 @@ function drawerTicket() {
     done: t.kind === "wiki" ? `<button class="btn" data-view="wiki" data-close="1">Read wiki</button>` : "",
   }[t.status] || "";
   const back = t.status === "review" ? `<form class="reply" data-changes="${esc(t.key)}"><input id="chg-${esc(t.key)}" placeholder="Ask for changes…"><button class="btn">Send back</button></form>` : "";
-  const log = t.log.map(a => logRow(a, 5)).join("");
+  const log = t.log.map(a => logRow(a, 5)).join("") + stillRunning(t.log, t.status === "doing");
   return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(ticketStatus(t))}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <div class="dbody">
       ${t.description ? `<p class="details">${esc(t.description)}</p>` : ""}
@@ -1005,7 +1012,7 @@ function renderDrawer() {
     return;
   }
   const leads = dept?.lead === p.id;
-  const activity = p.activity.map(a => logRow(a, 11)).join("");
+  const activity = p.activity.map(a => logRow(a, 11)).join("") + stillRunning(p.activity, p.current?.status === "doing");
   const letGo = S.confirm === "fire:" + p.id
     ? `<div class="confirm"><p>Let ${esc(first(p.name))} go? They stop taking work. Their tickets and commits stay on record${leads ? `, and ${esc(dept.name)} passes to the next person in it` : ""}.</p>
         <div class="acts"><button class="btn danger" data-fire="${esc(p.id)}">Let go</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`

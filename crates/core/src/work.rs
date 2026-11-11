@@ -253,6 +253,10 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     };
     c.start_ticket(id, &branch, &base, &wt)?;
     out(&format!("{key}  {title}\n      {} is on it ({}), in {}\n", e.name, e.runtime, wt.display()));
+    let warmed = git::warm_builds(&repo, &wt);
+    if !warmed.is_empty() {
+        out(&format!("      reusing your builds in {}", warmed.join(", ")));
+    }
 
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\

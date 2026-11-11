@@ -140,6 +140,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let before: Vec<Message> = c.messages(Some(&slot.channel))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
     let asked = before.iter().rev().find(|m| m.author == "founder").map(|m| m.text.clone()).unwrap_or_default();
+    let doing = in_progress(c, &e.id)?;
     let recent: Vec<&Message> = before.iter().rev().take(20).rev().collect();
     let history: Vec<String> = recent.iter().map(|m| line(c, m)).collect();
     let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
@@ -151,7 +152,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{mentioned}{elsewhere}{notes}",
+         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{now}{mentioned}{elsewhere}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -161,6 +162,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         history = history.join("\n"),
         knowledge = crate::work::company_knowledge(c)?,
         tickets = own_tickets(c, &e.id)?,
+        now = doing.as_ref().map(|(_, text)| text.clone()).unwrap_or_default(),
         mentioned = mentioned_tickets(c, &said.join("\n"))?,
         elsewhere = match seen_elsewhere(c, &e, &slot.channel)? {
             lines if lines.is_empty() => String::new(),
@@ -171,7 +173,9 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     );
     let repo = c.repo()?;
     let model = crate::work::talk_model(c, &e)?;
-    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &crate::work::other_repos(c)? };
+    let mut dirs = crate::work::other_repos(c)?;
+    dirs.extend(doing.and_then(|(wt, _)| wt));
+    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &dirs };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -213,6 +217,34 @@ pub fn own_tickets(c: &Company, employee: &str) -> Result<String> {
     }
     let recent = &mine[mine.len().saturating_sub(RECENT)..];
     Ok(format!("\n\nYour tickets, newest last. You did these yourself:\n{}", recent.join("\n")))
+}
+
+/// The ticket someone is on right now, with their latest steps and where their changes are, so a
+/// chat reply about it is true. The checkout a reply reads isn't their worktree.
+fn in_progress(c: &Company, employee: &str) -> Result<Option<(Option<std::path::PathBuf>, String)>> {
+    const STEPS: usize = 12;
+    let Some(t) = c.tickets()?.into_iter().find(|t| t.assignee.as_deref() == Some(employee) && ["doing", "blocked"].contains(&t.status.as_str())) else {
+        return Ok(None);
+    };
+    let wt = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.is_dir());
+    let events = c.events(t.id)?;
+    let steps: Vec<&(String, String, String)> = events.iter().filter(|(_, k, _)| ["say", "tool", "error"].contains(&k.as_str())).collect();
+    let steps: Vec<String> = steps[steps.len().saturating_sub(STEPS)..]
+        .iter()
+        .map(|(at, k, s)| format!("{} {k} {}", at.get(11..16).unwrap_or(at), crate::runtime::clip(&s.replace('\n', " "), 200)))
+        .collect();
+    let place = match &wt {
+        Some(p) => format!(" Your changes so far are in your worktree, {}, not in the checkout you're reading: look there.", p.display()),
+        None => String::new(),
+    };
+    let text = format!(
+        "\n\nYou're on {} {} right now ({}).{place} Your latest steps, newest last:\n{}",
+        c.key(t.id),
+        t.title,
+        t.status,
+        if steps.is_empty() { "(nothing yet)".to_string() } else { steps.join("\n") }
+    );
+    Ok(Some((wt, text)))
 }
 
 /// Tickets named in the conversation, like SNO-12, in full: what they ask for, who has them and

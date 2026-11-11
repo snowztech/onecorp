@@ -4,6 +4,13 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Fixed
+
+- Tickets in Rust repos stop rebuilding everything from scratch. A new ticket reuses the builds already in your checkout, cloned instantly on your Mac's disk.
+- A docs-only change no longer runs the full build and test suite. Employees run the checks that cover what they changed.
+- A long command in a run log shows "still running, 3 min" instead of looking stuck.
+- Asked in chat about the ticket they're on, employees see their latest steps and their worktree, so they no longer say they haven't changed anything when they have.
+
 ### Changed
 
 - Run logs show what employees say in full, and whole commands and errors, wrapped under themselves instead of cut to one line.
