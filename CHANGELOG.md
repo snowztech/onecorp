@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- The download opens as a small window with OneCorp next to your Applications folder: drag one onto the other to install.
+
 ## [0.1.7] - 2026-11-11
 
 OneCorp now updates itself, and blocked tickets always reach your Inbox. This is the last version to install by hand: run `brew upgrade --cask onecorp` or download the DMG once, and later versions come to you.

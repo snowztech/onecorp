@@ -67,5 +67,5 @@ install-cli:
 	scripts/install.sh --cli
 
 bundle: $(UI_DEPS)
-	cd app && cargo tauri build --bundles app,dmg
-	@echo "Built target/release/bundle/macos/OneCorp.app and target/release/bundle/dmg/"
+	cd app && cargo tauri build --bundles app
+	scripts/dmg.sh target/release/bundle/macos/OneCorp.app target/release/bundle/dmg/OneCorp.dmg
