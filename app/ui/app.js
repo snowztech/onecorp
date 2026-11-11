@@ -621,12 +621,23 @@ function viewChat() {
     <nav class="chans" aria-label="Channels"><h6>Channels</h6>${list}${dmList ? `<h6 class="dm-h">Direct messages</h6>${dmList}` : ""}</nav>
     <section class="room-chat">
       <header class="chat-h">${person ? `<span class="with-agent dm-face">${face(person.name, person.status)}${agentBadge(person.runtime)}</span>` : ""}<div><h3>${person ? esc(person.name) : "#" + esc(ch.name)}</h3><span class="muted">${sub}</span></div>
-        ${person ? `<button class="btn ghost" data-person="${esc(person.id)}">Profile</button>` : `<div class="faces">${people.slice(0, 8).map(e => `<button class="face-btn" data-mention="${esc(e.id)}" title="Mention ${esc(first(e.name))}">${face(e.name, e.status)}</button>`).join("")}</div>`}</header>
+        ${person ? `<button class="btn ghost" data-person="${esc(person.id)}">Profile</button>` : members(ch.name, people, lead)}</header>
       <ul class="msgs" id="msgs">${msgs === null ? `<li class="chat-empty muted">Loading…</li>` : rows || empty}</ul>
       <form class="composer" id="say"><div class="compose-box"><div class="mpop" id="mpop" role="listbox" hidden></div>
         <input id="say-text" placeholder="${person ? `Message ${esc(first(person.name))}` : `Message #${esc(ch.name)}. Type @ to ask someone, @all for everyone`}" autocomplete="off" role="combobox" aria-controls="mpop">
         <p class="calls" id="calls"></p></div><button class="btn primary">Send</button></form>
     </section></div>`;
+}
+// Who's in a channel, like Slack: the face stack opens the list, with what each person is up to.
+function members(channel, people, lead) {
+  const STATE = { working: "Working", blocked: "Waiting on you", queued: "Up next", idle: "Free" };
+  const open = S.members === channel;
+  const rows = people.map(e => `<li><button class="mem" data-mention="${esc(e.id)}" title="Mention ${esc(first(e.name))}">${face(e.name, e.status)}
+      <span><b>${esc(e.name)}${lead?.id === e.id ? ' <small class="muted">lead</small>' : ""}</b><small class="muted">${esc(e.role)} · ${STATE[e.status] || ""}</small></span></button>
+      <button class="btn ghost sm" data-dm="${esc(e.id)}">Message</button></li>`).join("");
+  return `<button class="faces" data-members="${esc(channel)}" aria-expanded="${open}" title="${esc(people.map(e => first(e.name)).join(", "))}">
+      ${people.slice(0, 5).map(e => `<span class="face-btn">${face(e.name, e.status)}</span>`).join("")}<span class="faces-n">${people.length}</span></button>
+    ${open ? `<div class="members-pop" role="dialog" aria-label="People in #${esc(channel)}"><h6>${people.length} ${people.length === 1 ? "person" : "people"}</h6><ul>${rows}</ul></div>` : ""}`;
 }
 // The database keeps UTC. Shown in your own time.
 const utc = at => new Date(String(at).replace(" ", "T") + "Z");
@@ -1562,8 +1573,9 @@ document.addEventListener("click", async e => {
   if (S.pop && !e.target.closest("#pop, [data-profile], [data-pop]")) { S.pop = false; renderPop(); }
   if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
   if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
+  if (S.members && !e.target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -1583,7 +1595,9 @@ document.addEventListener("click", async e => {
     return;
   }
   if (d.channel) { S.channel = d.channel; S.chat = null; render(); return refresh(true); }
+  if (d.members) { S.members = S.members === d.members ? null : d.members; return render(); }
   if (d.mention) {
+    if (S.members) { S.members = null; render(); }
     const input = $("#say-text"), name = first(byId(d.mention)?.name || d.mention);
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
@@ -2069,6 +2083,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && S.sheet) { S.sheet = null; return renderSheet(); }
   if (e.key === "Escape" && S.switching) { S.switching = false; return renderSide(); }
   if (e.key === "Escape" && S.pop) { S.pop = false; return renderPop(); }
+  if (e.key === "Escape" && S.members) { S.members = null; return render(); }
   if (e.key === "Escape") { if (S.drawer) { S.drawer = null; renderDrawer(); } else if (S.addingDept) { S.addingDept = false; render(); } }
   if ((e.metaKey || e.ctrlKey) && e.key === "," && S.snap && !S.setup && !S.profile) { e.preventDefault(); return openSettings(); }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && S.snap && !S.setup && !S.profile) { e.preventDefault(); S.drawer = { type: "new-ticket" }; renderDrawer(); $("#nt-title")?.focus(); }
