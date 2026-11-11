@@ -10,17 +10,22 @@ use std::path::PathBuf;
 
 /// The spaces OneCorp starts with, in the order they show. You can add more.
 pub const SPACES: [&str; 3] = ["Company", "Product", "Engineering"];
-pub const MISSION: &str = "Company/Mission";
-pub const BUILDING: &str = "Company/What we're building";
+/// Why we exist, what we're building and where we are: what a new hire reads first.
+pub const OVERVIEW: &str = "Company/Overview";
+/// Its sections, in order. What we're building is the brief the planner works from.
+pub const WHY: &str = "Why we exist";
+pub const BUILDING: &str = "What we're building";
+pub const WHERE: &str = "Where we are";
 pub const NOW: &str = "Company/Now";
 pub const DECISIONS: &str = "Company/Decisions";
 
 /// The pages employees draft from the repo, and what goes in each.
-pub const DRAFTS: [(&str, &str); 7] = [
-    (BUILDING, "the product, who it's for and what it does today, in a short paragraph. The team plans from it."),
+pub const DRAFTS: [(&str, &str); 8] = [
+    (OVERVIEW, "three short sections. ## Why we exist: a line or two. ## What we're building: the product, who it's for and what it does today, in a short paragraph. ## Where we are: the stage it's at, like an idea, in development, in beta or live, and what's shipped, from the README, changelog, version and deploy setup. Sections the founder already wrote are kept as they are."),
     ("Product/Customers", "who uses it, what they're trying to get done, and what they care about."),
     ("Product/Rules", "rules that are easy to break without knowing: limits, money, privacy, legal, anything users were promised."),
     ("Product/Voice", "how the product talks to people: tone, words it uses and avoids, languages."),
+    ("Product/Glossary", "words that mean something specific here, one line each, from the code, data model and app copy. Like what counts as a customer, a booking or a reminder. Only terms a newcomer could get wrong."),
     ("Engineering/Codebase", "what isn't obvious from a quick look: the stack in a line, where the important pieces live, how a request or job flows, outside services. Not a folder-by-folder list."),
     ("Engineering/Build and test", "the exact commands to set up, run, test and lint, and what to run before calling work done."),
     ("Engineering/Conventions", "what the code already does: naming, structure, style, testing. Only what's really there."),
@@ -74,7 +79,7 @@ fn file(c: &Company, path: &str) -> PathBuf {
 fn rank(path: &str) -> (usize, String, usize, String) {
     let (space, title) = path.split_once('/').unwrap_or(("", path));
     let s = SPACES.iter().position(|x| *x == space).unwrap_or(SPACES.len());
-    let order = [MISSION, BUILDING, NOW, DECISIONS].into_iter().chain(DRAFTS.iter().map(|(p, _)| *p)).position(|p| p == path).unwrap_or(99);
+    let order = [OVERVIEW, NOW, DECISIONS].into_iter().chain(DRAFTS.iter().map(|(p, _)| *p)).position(|p| p == path).unwrap_or(99);
     (s, space.to_lowercase(), order, title.to_lowercase())
 }
 
@@ -221,7 +226,11 @@ pub fn find(c: &Company, name: &str) -> Result<String> {
     if let Some(p) = pages(c)?.into_iter().find(|p| p.title().eq_ignore_ascii_case(name)) {
         return Ok(p.path);
     }
-    let known = [MISSION, BUILDING, NOW, DECISIONS].into_iter().chain(DRAFTS.iter().map(|(p, _)| *p));
+    // The mission and the product brief were pages of their own before the Overview held them.
+    if [WHY, BUILDING, WHERE, "Mission"].iter().any(|s| s.eq_ignore_ascii_case(name)) {
+        return Ok(OVERVIEW.into());
+    }
+    let known = [OVERVIEW, NOW, DECISIONS].into_iter().chain(DRAFTS.iter().map(|(p, _)| *p));
     match known.into_iter().find(|p| p.split_once('/').is_some_and(|(_, t)| t.eq_ignore_ascii_case(name))) {
         Some(p) => Ok(p.to_string()),
         None => clean(&format!("Company/{}", if name.is_empty() { "Decisions" } else { name })),
@@ -250,7 +259,73 @@ pub fn parse(reply: &str) -> Vec<(String, String)> {
 /// next to them as wiki-before-pages.md.
 pub fn migrate(c: &Company) -> Result<()> {
     move_old(c)?;
-    credit_moved(c)
+    credit_moved(c)?;
+    merge_overview(c)
+}
+
+/// The text under a page's `## name`, without the heading. Empty when there's no such section.
+pub fn section(doc: &str, name: &str) -> String {
+    let mut lines = doc.lines().skip_while(|l| !l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case(name)));
+    lines.next();
+    lines.take_while(|l| !l.starts_with("## ")).collect::<Vec<_>>().join("\n").trim().to_string()
+}
+
+/// The page with `## name` holding `body`: replaced where it is, or put in the Overview's order.
+/// An empty body takes the section out.
+pub fn with_section(doc: &str, name: &str, body: &str) -> String {
+    let mut parts: Vec<(String, String)> = vec![];
+    let mut intro = String::new();
+    for line in doc.lines() {
+        match line.strip_prefix("## ") {
+            Some(h) => parts.push((h.trim().to_string(), String::new())),
+            None => match parts.last_mut() {
+                Some((_, b)) => b.push_str(&format!("{line}\n")),
+                None => intro.push_str(&format!("{line}\n")),
+            },
+        }
+    }
+    let order = |h: &str| [WHY, BUILDING, WHERE].iter().position(|s| s.eq_ignore_ascii_case(h)).unwrap_or(9);
+    match parts.iter().position(|(h, _)| h.eq_ignore_ascii_case(name)) {
+        Some(i) => parts[i].1 = body.to_string(),
+        None => {
+            let at = parts.iter().position(|(h, _)| order(h) > order(name)).unwrap_or(parts.len());
+            parts.insert(at, (name.to_string(), body.to_string()));
+        }
+    }
+    let mut out = intro.trim().to_string();
+    for (h, b) in parts.iter().filter(|(_, b)| !b.trim().is_empty()) {
+        out.push_str(&format!("\n\n## {h}\n\n{}", b.trim()));
+    }
+    out.trim().to_string()
+}
+
+/// A draft's Overview fills only the sections you haven't written: what you wrote always stays.
+pub fn fill_overview(now: &str, draft: &str) -> String {
+    [WHY, BUILDING, WHERE].iter().fold(now.to_string(), |doc, s| {
+        let (mine, theirs) = (section(&doc, s), section(draft, s));
+        if mine.is_empty() && !theirs.is_empty() { with_section(&doc, s, &theirs) } else { doc }
+    })
+}
+
+/// Mission and What we're building were two pages. They're sections of the Overview now, and
+/// it's credited to whoever wrote the product part, since that's most of it.
+fn merge_overview(c: &Company) -> Result<()> {
+    let (mission, building) = ("Company/Mission", "Company/What we're building");
+    if !exists(c, mission) && !exists(c, building) {
+        return Ok(());
+    }
+    let mut doc = read(c, OVERVIEW)?;
+    for (old, name) in [(mission, WHY), (building, BUILDING)] {
+        if section(&doc, name).is_empty() {
+            doc = with_section(&doc, name, &read(c, old)?);
+        }
+    }
+    let by = [building, mission].iter().find_map(|p| history(c, p).ok()?.into_iter().next()).map(|e| e.author).unwrap_or_else(|| "founder".into());
+    write(c, OVERVIEW, &doc, &by, "merged Mission and What we're building into one page")?;
+    for old in [mission, building] {
+        let _ = fs::remove_file(file(c, old));
+    }
+    Ok(())
 }
 
 /// The old wiki.md never said who wrote what, but the company knows: you wrote the mission, what
@@ -264,7 +339,7 @@ fn credit_moved(c: &Company) -> Result<()> {
     }
     let writer = c.tickets()?.into_iter().rev().find(|t| t.kind == "wiki" && t.status == "done").and_then(|t| t.assignee);
     for e in moved {
-        let yours = [MISSION, BUILDING, DECISIONS].contains(&e.page.as_str());
+        let yours = [OVERVIEW, "Company/Mission", "Company/What we're building", DECISIONS].contains(&e.page.as_str());
         let by = if yours { "founder" } else { writer.as_deref().unwrap_or("founder") };
         c.db.execute("UPDATE wiki_log SET author = ?2 WHERE id = ?1", params![e.id, by])?;
     }
@@ -295,9 +370,15 @@ fn move_old(c: &Company) -> Result<()> {
         let path = find(c, &name)?;
         let text = if name.eq_ignore_ascii_case("Mission") && body.trim() == "What the company is for, in a sentence or two." { "" } else { body.trim() };
         let now = read(c, &path)?;
-        write(c, &path, if now.is_empty() { text.to_string() } else { format!("{now}\n\n{text}") }.trim(), "onecorp", "moved from the old wiki")?;
+        let doc = match (path == OVERVIEW, name.eq_ignore_ascii_case("Mission")) {
+            (true, true) => with_section(&now, WHY, text),
+            (true, false) => with_section(&now, &name, text),
+            _ if now.is_empty() => text.to_string(),
+            _ => format!("{now}\n\n{text}"),
+        };
+        write(c, &path, doc.trim(), "onecorp", "moved from the old wiki")?;
     }
-    for p in [MISSION, BUILDING, NOW, DECISIONS] {
+    for p in [OVERVIEW, NOW, DECISIONS] {
         seed(c, p)?;
     }
     fs::rename(&old, c.dir.join("wiki-before-pages.md"))?;
@@ -309,6 +390,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn mission_and_brief_become_one_overview() {
+        let dir = std::env::temp_dir().join(format!("onecorp-overview-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("wiki/Company")).unwrap();
+        fs::write(dir.join("wiki/Company/Mission.md"), "SMS appointment reminders\n").unwrap();
+        fs::write(dir.join("wiki/Company/What we're building.md"), "Reminders for clinics.\n").unwrap();
+        let c = Company::open_dir("acme", dir.clone()).unwrap();
+
+        // Pages from 0.1.8 merge into the Overview, in order, and the old ones go.
+        assert_eq!(read(&c, OVERVIEW).unwrap(), "## Why we exist\n\nSMS appointment reminders\n\n## What we're building\n\nReminders for clinics.");
+        assert!(!exists(&c, "Company/Mission") && !exists(&c, "Company/What we're building"));
+        assert_eq!(find(&c, "Mission").unwrap(), OVERVIEW);
+
+        // A draft fills only what's missing: what you wrote stays.
+        let draft = "## Why we exist\n\nSomething else.\n\n## Where we are\n\nIn beta with 12 clinics.";
+        let filled = fill_overview(&read(&c, OVERVIEW).unwrap(), draft);
+        assert!(filled.starts_with("## Why we exist\n\nSMS appointment reminders") && filled.ends_with("## Where we are\n\nIn beta with 12 clinics."));
+        // A section lands in its place, and an empty one goes.
+        assert_eq!(with_section("## Where we are\n\nBeta", WHY, "Why"), "## Why we exist\n\nWhy\n\n## Where we are\n\nBeta");
+        assert_eq!(with_section("## Why we exist\n\nWhy", WHY, ""), "");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn pages_keep_their_history_and_old_wikis_move_in() {
         let dir = std::env::temp_dir().join(format!("onecorp-wiki-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
@@ -317,12 +422,12 @@ mod tests {
         let c = Company::open_dir("acme", dir.clone()).unwrap();
 
         // The old sections are pages now, in the space they belong to.
-        assert_eq!(read(&c, MISSION).unwrap(), "Notes for writers.");
+        assert_eq!(read(&c, OVERVIEW).unwrap(), "## Why we exist\n\nNotes for writers.");
         assert_eq!(read(&c, "Engineering/Codebase").unwrap(), "- Rust");
         assert_eq!(find(&c, "Conventions").unwrap(), "Engineering/Conventions");
         assert!(dir.join("wiki-before-pages.md").exists() && !dir.join("wiki.md").exists());
         let order: Vec<String> = pages(&c).unwrap().into_iter().map(|p| p.path).collect();
-        assert_eq!(&order[..2], [MISSION, BUILDING]);
+        assert_eq!(&order[..3], [OVERVIEW, NOW, DECISIONS]);
 
         // Who wrote what, and any version comes back.
         append(&c, DECISIONS, "Tokens are hashed", "maya", "proposed it").unwrap();
@@ -342,7 +447,7 @@ mod tests {
         // A writer's reply is split into its pages.
         let got = parse("Here you go.\n# Product/Customers\n\nClinics.\n\n# `Engineering / Codebase`\n- Next.js\n```\n");
         assert_eq!(got, vec![("Product/Customers".to_string(), "Clinics.".to_string()), ("Engineering/Codebase".to_string(), "- Next.js".to_string())]);
-        assert!(render(&c).unwrap().starts_with("# Company / Mission\n\nNotes for writers."));
+        assert!(render(&c).unwrap().starts_with("# Company / Overview\n\n## Why we exist\n\nNotes for writers."));
         let _ = fs::remove_dir_all(&dir);
     }
 }

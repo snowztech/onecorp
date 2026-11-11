@@ -571,7 +571,7 @@ fn run(cmd: Cmd) -> Result<()> {
                 c.write_brief(&text)?;
                 println!("Saved in the wiki. Everyone reads it from their next ticket. Plan it: onecorp plan");
             } else if edit {
-                edit_page(&c, onecorp::wiki::BUILDING)?;
+                edit_page(&c, onecorp::wiki::OVERVIEW)?;
             } else {
                 match c.brief()? {
                     b if b.is_empty() => println!("No brief yet. Write one: onecorp brief --set \"A notes app for writers...\""),

@@ -311,10 +311,10 @@ impl Company {
         let c = Self::open_dir(name, dir)?;
         c.db.execute("INSERT INTO meta (key, value) VALUES ('repo', ?1)", [repo.to_string_lossy()])?;
         // The pages only you can write start empty, with a hint in the app, rather than with filler.
-        for p in [wiki::MISSION, wiki::BUILDING, wiki::NOW, wiki::DECISIONS] {
+        for p in [wiki::OVERVIEW, wiki::NOW, wiki::DECISIONS] {
             wiki::seed(&c, p)?;
         }
-        wiki::write(&c, wiki::MISSION, mission, "founder", "")?;
+        wiki::write(&c, wiki::OVERVIEW, &wiki::with_section("", wiki::WHY, mission.trim()), "founder", "")?;
         Ok(c)
     }
 
@@ -800,11 +800,12 @@ impl Company {
 
     /// What you're building: the wiki's Company/What we're building page.
     pub fn brief(&self) -> Result<String> {
-        wiki::read(self, wiki::BUILDING)
+        Ok(wiki::section(&wiki::read(self, wiki::OVERVIEW)?, wiki::BUILDING))
     }
 
     pub fn write_brief(&self, text: &str) -> Result<()> {
-        wiki::write(self, wiki::BUILDING, text, "founder", "")
+        let doc = wiki::with_section(&wiki::read(self, wiki::OVERVIEW)?, wiki::BUILDING, text.trim());
+        wiki::write(self, wiki::OVERVIEW, &doc, "founder", "")
     }
 
     pub fn assign(&self, ticket: i64, employee: &str) -> Result<()> {
