@@ -219,7 +219,8 @@ pub struct Question {
     pub default_answer: String,
     pub blocking: bool,
     pub answer: Option<String>,
-    /// "question", or "wiki" for a proposed wiki addition (then `options` holds the section).
+    /// "question", "wiki" for a proposed wiki addition (then `options` holds the section), or
+    /// "command" for a command an employee asks to run (`options` holds the repo, `note` why).
     pub kind: String,
     /// "lead" while the asker's department lead looks at it, "founder" once it's yours.
     pub stage: String,

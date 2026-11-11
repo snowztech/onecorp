@@ -52,7 +52,8 @@ pub fn snapshot(c: &Company) -> Result<Value> {
                 "employee": q.employee, "name": name_of(&q.employee), "question": q.question,
                 // For a wiki proposal, `options` holds the section it goes under.
                 "section": if q.kind == "wiki" { q.options.clone() } else { String::new() },
-                "options": if q.kind == "wiki" { vec![] } else { options },
+                "options": if q.kind == "question" { options } else { vec![] },
+                "repo": if q.kind == "command" { q.options.clone() } else { String::new() },
                 "default": q.default_answer, "blocking": q.blocking,
                 "via": q.via, "via_name": q.via.as_deref().map(name_of), "note": q.note,
             })

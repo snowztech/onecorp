@@ -161,11 +161,35 @@ pub fn custom(c: &Company, r: &Repo) -> Result<bool> {
 
 /// The list for a ticket's own repo.
 pub fn for_ticket(c: &Company, t: &Ticket) -> Result<Vec<String>> {
-    let r = match &t.repo {
-        Some(name) => c.repo_named(name)?,
-        None => c.repos()?.remove(0),
-    };
-    list(c, &r)
+    list(c, &repo_of(c, t)?)
+}
+
+pub fn repo_of(c: &Company, t: &Ticket) -> Result<Repo> {
+    match &t.repo {
+        Some(name) => c.repo_named(name),
+        None => Ok(c.repos()?.remove(0)),
+    }
+}
+
+/// Adds a command to the ticket's repo, for everyone who works there from now on.
+pub fn allow(c: &Company, t: &Ticket, cmd: &str) -> Result<()> {
+    let r = repo_of(c, t)?;
+    let mut all = list(c, &r)?;
+    all.push(cmd.to_string());
+    set(c, &r, &all.join("\n"))
+}
+
+/// Why a command can never be allowed, whoever asks: it reaches past the worktree, or it's
+/// OneCorp's job. None when it's fine to ask the founder.
+pub fn never(cmd: &str) -> Option<&'static str> {
+    let first = cmd.split_whitespace().next().unwrap_or("");
+    match first {
+        "git" => Some("OneCorp does the git work: commits, branches and pushes. You can read with git status, diff and log"),
+        "sudo" | "su" | "doas" => Some("nothing runs as root"),
+        "rm" if cmd.contains("-r") || cmd.contains(" /") || cmd.contains("~") => Some("deleting folders is too easy to get wrong. Delete files one by one with your edit tools"),
+        "gh" | "glab" => Some("OneCorp opens and merges pull requests"),
+        _ => None,
+    }
 }
 
 /// Saves your own list. One command per line or comma. An empty list means none at all.
@@ -245,6 +269,12 @@ mod tests {
         assert_eq!(repo("make", &["Makefile", "justfile"]), ["make", "just"]);
 
         assert!(repo("empty", &["README.md"]).is_empty());
+    }
+
+    #[test]
+    fn some_commands_are_never_allowed() {
+        assert!(never("git push origin main").is_some() && never("sudo make install").is_some() && never("rm -rf build").is_some());
+        assert!(never("make sqlc").is_none() && never("xcodegen generate").is_none() && never("rm build.log").is_none());
     }
 
     #[test]

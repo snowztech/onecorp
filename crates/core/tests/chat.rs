@@ -150,5 +150,21 @@ fn channels_posts_and_replies() {
     assert!(work::dismiss(&c, aside).is_err(), "only once");
     assert!(work::dismiss(&c, stuck).is_err(), "a blocking question needs an answer");
 
+    // Asking to run a command: never for git, straight to the founder otherwise, and allowed for the repo.
+    let run = |command: &str| {
+        let call = json!({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "ask_to_run", "arguments": {"command": command, "why": "codegen"}}});
+        mcp::handle(&c, &mcp::Ctx { ticket, employee: "maya".into() }, &call).unwrap()["result"].clone()
+    };
+    assert_eq!(run("git push origin main")["isError"], true);
+    run("xcodegen generate");
+    let req = c.inbox().unwrap().into_iter().find(|q| q.kind == "command").unwrap();
+    assert_eq!((req.question.as_str(), req.blocking, req.stage.as_str()), ("xcodegen generate", true, "founder"));
+    assert_eq!(c.ticket(ticket).unwrap().unwrap().status, "blocked");
+    // Not resumed here: this ticket never ran, so it has no session to pick back up.
+    c.set_status(ticket, "doing").unwrap();
+    work::answer(&c, req.id, "allow").unwrap();
+    assert!(onecorp::commands::for_ticket(&c, &c.ticket(ticket).unwrap().unwrap()).unwrap().contains(&"xcodegen generate".to_string()));
+    assert!(run("xcodegen generate --spec x.yml")["content"][0]["text"].as_str().unwrap().contains("already allowed"));
+
     let _ = std::fs::remove_dir_all(&root);
 }
