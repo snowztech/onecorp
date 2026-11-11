@@ -335,11 +335,10 @@ mod tests {
         c.fire("odile").unwrap();
         assert_eq!(c.department("Engineering").unwrap().unwrap().lead.as_deref(), Some("maya"));
 
-        // OneCorp's own sections replace themselves instead of piling up.
-        c.write_wiki("# acme wiki\n\n## Mission\n\nNotes.\n\n## Codebase\n\nold\n\n## Decisions\n\n- Keep it small.\n").unwrap();
+        // What OneCorp reads from the repo replaces its page instead of piling up.
+        c.set_wiki_section("codebase", "old").unwrap();
         c.set_wiki_section("codebase", "- Stack: Rust").unwrap();
-        let book = c.wiki().unwrap();
-        assert!(book.contains("## Codebase\n\n- Stack: Rust") && !book.contains("old") && book.contains("- Keep it small."));
+        assert_eq!(crate::wiki::read(&c, "Engineering/Codebase").unwrap(), "- Stack: Rust");
 
         assert_eq!(suggest_name("My Notes App"), "my-notes-app");
         assert_eq!(suggest_name("  snowztech.com "), "snowztech-com");

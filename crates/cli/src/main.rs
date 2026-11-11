@@ -353,12 +353,18 @@ enum WikiCmd {
     /// Add a line, like "No ORMs" or "Tokens are hashed at rest"
     Add {
         text: String,
-        /// Which section it goes under
-        #[arg(long, default_value = "Decisions")]
-        section: String,
+        /// The page it goes on, like Engineering/Conventions
+        #[arg(long, alias = "section", default_value = "Company/Decisions")]
+        page: String,
     },
-    /// Open it in $EDITOR
-    Edit,
+    /// Edit a page in $EDITOR, like Product/Customers
+    Edit { page: String },
+    /// Draft the pages from the repo again. Earlier versions stay in each page's history
+    Redraft {
+        /// Who writes them all. By default the engineering lead and someone on the product side split them
+        #[arg(long)]
+        by: Option<String>,
+    },
 }
 
 
@@ -414,7 +420,7 @@ fn run(cmd: Cmd) -> Result<()> {
                 Some(f) => println!("Finished work opens {}s on {}. Change it with: onecorp ship local", f.pr_word(), f.name()),
                 None => println!("Approved work merges into your local repo. To open pull requests instead: onecorp ship github"),
             }
-            println!("Its wiki is at {}. Everyone reads it before each ticket.", c.wiki_path().display());
+            println!("Its wiki is at {}. Everyone reads it before each ticket.", onecorp::wiki::dir(&c).display());
             match hired.first() {
                 Some(e) => println!("Next, give someone a ticket: onecorp run \"<task>\" --to {}", e.id),
                 None => println!("Next, hire someone: onecorp hire"),
@@ -565,11 +571,7 @@ fn run(cmd: Cmd) -> Result<()> {
                 c.write_brief(&text)?;
                 println!("Saved in the wiki. Everyone reads it from their next ticket. Plan it: onecorp plan");
             } else if edit {
-                // It's a section of the wiki now, so editing it opens the wiki.
-                if c.brief()?.is_empty() {
-                    c.write_brief("What you're building, who it's for, and what the first version needs.")?;
-                }
-                open_in_editor(&c.wiki_path())?;
+                edit_page(&c, onecorp::wiki::BUILDING)?;
             } else {
                 match c.brief()? {
                     b if b.is_empty() => println!("No brief yet. Write one: onecorp brief --set \"A notes app for writers...\""),
@@ -676,19 +678,20 @@ fn run(cmd: Cmd) -> Result<()> {
                         print!("{doc}");
                     }
                 }
-                Some(WikiCmd::Add { text, section }) => {
+                Some(WikiCmd::Add { text, page }) => {
                     if text.trim().is_empty() {
                         bail!("what should everyone know? For example: onecorp wiki add \"No new dependencies without asking\"");
                     }
-                    c.add_to_wiki(section.trim(), &text)?;
-                    println!("Added to {}. Everyone sees it from their next ticket.", section.trim());
+                    let page = onecorp::wiki::find(&c, &page)?;
+                    c.add_to_wiki(&page, &text, "founder")?;
+                    println!("Added to {page}. Everyone sees it from their next ticket.");
                 }
-                Some(WikiCmd::Edit) => {
-                    let path = c.wiki_path();
-                    if !path.exists() {
-                        c.add_to_wiki("Decisions", "")?;
-                    }
-                    open_in_editor(&path)?;
+                Some(WikiCmd::Redraft { by }) => {
+                    onecorp::work::write_wiki(&c, by.as_deref())?;
+                }
+                Some(WikiCmd::Edit { page }) => {
+                    let page = onecorp::wiki::find(&c, &page)?;
+                    edit_page(&c, &page)?;
                 }
             }
         }
@@ -968,6 +971,17 @@ fn assignee(c: &store::Company, to: Option<String>) -> Result<Employee> {
             bail!("who should do it? Add --to with one of: {}", ids.join(", "))
         }
     }
+}
+
+/// Edits a copy of a wiki page and saves it back as yours, so the page's history says who changed it.
+fn edit_page(c: &store::Company, page: &str) -> Result<()> {
+    let tmp = std::env::temp_dir().join(format!("onecorp-{}-{}.md", c.name, page.replace('/', "-")));
+    std::fs::write(&tmp, onecorp::wiki::read(c, page)?)?;
+    open_in_editor(&tmp)?;
+    onecorp::wiki::write(c, page, &std::fs::read_to_string(&tmp)?, "founder", "")?;
+    let _ = std::fs::remove_file(&tmp);
+    println!("Saved {page}. Everyone reads it from their next ticket.");
+    Ok(())
 }
 
 fn open_in_editor(path: &std::path::Path) -> Result<()> {

@@ -35,6 +35,16 @@ export const shortPaths = (t: string) => String(t).replace(/(?:\/private)?\/tmp\
 // The database keeps UTC. Shown in your own time.
 export const utc = (at: string) => new Date(String(at).replace(" ", "T") + "Z");
 
+export function ago(at: string) {
+  const d = utc(at), s = (Date.now() - d.getTime()) / 1000;
+  if (isNaN(s)) return "";
+  if (s < 90) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} minutes ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} hours ago`.replace(/^1 hours/, "an hour");
+  if (s < 86400 * 7) return `${Math.round(s / 86400)} days ago`.replace(/^1 days ago/, "yesterday");
+  return d.toLocaleDateString([], { day: "numeric", month: "short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+}
+
 export const hhmm = (at: string) => { const d = utc(at); return isNaN(d.getTime()) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
 
 export const fold = (t: string) => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();

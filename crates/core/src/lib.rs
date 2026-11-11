@@ -15,4 +15,5 @@ pub mod store;
 pub mod templates;
 pub mod view;
 pub mod voice;
+pub mod wiki;
 pub mod work;

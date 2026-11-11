@@ -350,11 +350,19 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .file summary::before { content: "▸"; color: var(--muted); }
 .file[open] summary::before { content: "▾"; }
 .file summary .n { margin-left: auto; font: 11px var(--mono); }
-.patch { margin: 0; padding: 8px 0; font: 12px/1.55 var(--mono); overflow-x: auto; background: var(--surface); }
-.patch span { display: block; padding: 0 12px; white-space: pre; }
-.patch .add { background: color-mix(in srgb, var(--good) 14%, transparent); }
-.patch .del { background: color-mix(in srgb, #d0473a 12%, transparent); color: inherit; }
-.patch .hunk { color: var(--muted); background: var(--surface-2); }
+/* One grid column at least as wide as the box and as wide as the longest line, so a line's
+   color keeps going when you scroll sideways. */
+.patch { margin: 0; padding: 6px 0; font: 12px/1.6 var(--mono); overflow-x: auto; background: var(--surface);
+  display: grid; grid-template-columns: minmax(100%, max-content); white-space: normal; }
+.patch span { padding: 0 14px; white-space: pre; }
+.patch .add { background: color-mix(in srgb, var(--good) 9%, transparent); box-shadow: inset 2px 0 color-mix(in srgb, var(--good) 65%, transparent); }
+.patch .del { background: color-mix(in srgb, #d0473a 9%, transparent); box-shadow: inset 2px 0 color-mix(in srgb, #d0473a 65%, transparent); color: inherit; }
+.patch .hunk { color: var(--muted); background: var(--surface-2); padding-block: 3px; margin-block: 4px; }
+.patch .hunk:first-child { margin-top: -6px; }
+/* A report reads like a page, not a log line. */
+.report-doc { margin: 8px 0 12px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); max-width: none; }
+.report-doc .wiki > :first-child { margin-top: 0; }
+.report .label { display: block; margin-bottom: 4px; }
 .ask > div { min-width: 0; }
 
 /* Drawer */
@@ -1357,3 +1365,60 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .update-btn em { margin-left: auto; font: 11px var(--mono); font-style: normal; color: var(--muted); }
 .update-btn + .side-foot, .update-btn + .dev-chip { margin-top: 0; }
 .app.rail .update-btn span, .app.rail .update-btn em { display: none; }
+
+/* The wiki: spaces and pages on the left, the page in the middle, its sections on the right. */
+.wk { display: grid; grid-template-columns: 200px minmax(0, 720px) 170px; gap: 40px; justify-content: center; padding: 8px 0 64px; }
+.wk:not(:has(> .toc)) { grid-template-columns: 200px minmax(0, 720px); }
+.wk-tree { position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 110px); overflow: auto; padding: 6px 2px 12px 0; }
+.wk-tree-head { display: flex; align-items: center; justify-content: space-between; }
+.icon-btn { width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 15px; line-height: 1; }
+.icon-btn:hover { color: var(--fg); background: var(--surface-2); }
+.wk-space { display: flex; flex-direction: column; gap: 1px; }
+.wk-space-name { font-size: 12px; font-weight: 600; color: var(--fg); padding: 0 8px 4px; }
+.wk-link { display: flex; align-items: center; gap: 6px; border: 0; background: none; text-align: left; padding: 5px 8px; border-radius: var(--r-sm); font-size: 13px; color: var(--muted); }
+.wk-link:hover { background: var(--surface-2); color: var(--fg); }
+.wk-link.on { background: var(--surface-2); color: var(--fg); font-weight: 500; }
+.wk-link.empty { font-style: italic; opacity: .75; }
+.wk-badge { margin-left: auto; min-width: 16px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font: 600 10px/16px var(--body); text-align: center; font-style: normal; }
+.wk-add { border: 0; background: none; text-align: left; padding: 4px 8px; font-size: 12px; color: var(--muted); opacity: 0; transition: opacity .15s; }
+.wk-space:hover .wk-add, .wk-add:focus-visible { opacity: 1; }
+.wk-tree .fine { padding: 0 8px; }
+.wk-main { min-width: 0; }
+.wk-crumbs { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.wk-crumbs span { margin-left: 2px; }
+.wk .wiki-top h1 { margin: 2px 0 0; font: 600 32px/1.15 var(--display); letter-spacing: -.025em; }
+.wk-meta { display: flex; align-items: center; gap: 8px; margin: 8px 0 22px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.wk-meta b { color: var(--fg); font-weight: 500; }
+.wk-meta .av { width: 22px; height: 22px; font-size: 9px; }
+.wk-meta .link-btn { margin: 0 0 0 auto; font-size: 13px; }
+.wk-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 22px 24px; border: 1px dashed var(--line); border-radius: var(--r-md); }
+.wk-empty p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--muted); max-width: 52ch; }
+.wk-hist { margin: 0 0 24px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
+.wk-hist-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; }
+.wk-hist ol { list-style: none; margin: 0; padding: 0 6px 6px; display: flex; flex-direction: column; gap: 1px; }
+.wk-ver { display: flex; align-items: baseline; gap: 6px; width: 100%; border: 0; background: none; text-align: left; padding: 6px 8px; border-radius: var(--r-sm); font-size: 13px; }
+.wk-ver:hover, .wk-ver.on { background: var(--surface-2); }
+.wk-ver b { font-weight: 500; }
+.wk-ver .at { margin-left: auto; font-size: 12px; white-space: nowrap; }
+.wk-version { border-top: 1px solid var(--line); }
+.wk-version .wiki { padding: 4px 18px 10px; }
+.wk .wiki-edit header { flex-wrap: wrap; }
+.wk .wiki-edit header > .wk-name { flex: 1; display: flex; flex-direction: row; align-items: center; gap: 6px; min-width: 260px; }
+.wk-name input { text-align: left; }
+.wk-name input { border: 1px solid transparent; border-radius: var(--r-sm); background: none; padding: 4px 6px; }
+.wk-name input:hover, .wk-name input:focus { border-color: var(--line); background: var(--surface); outline: none; }
+#wk-space { width: 130px; font-size: 13px; color: var(--muted); }
+#wk-title { flex: 1; font: 600 22px var(--display); letter-spacing: -.015em; }
+.wk-name span { color: var(--muted); }
+.confirm-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.reply-acts .keep { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); order: -1; margin-right: 8px; white-space: nowrap; }
+@media (max-width: 1180px) { .wk { grid-template-columns: 180px minmax(0, 1fr); gap: 28px; } .wk > .toc { display: none; } }
+@media (max-width: 760px) { .wk { grid-template-columns: minmax(0, 1fr); } .wk-tree { position: static; max-height: none; } }
+.wk-more { margin: 0 8px; font-size: 12px; text-align: left; }
+.wk-redraft { display: flex; flex-direction: column; gap: 8px; margin: 0 4px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.wk-redraft select { border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; background: var(--surface-2); font-size: 13px; }
+.wk-redraft .fine { padding: 0; }
+.wk-start { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 28px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.wk-start p { margin: 0 0 4px; color: var(--muted); font-size: 14px; }
+.wk-start .acts { display: flex; gap: 8px; align-items: center; }
+.wk-start select { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: var(--surface-2); font-size: 13px; }

@@ -35,10 +35,15 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
 
     // Writing the wiki: a short one, from the prompt's company name.
     if company_ticket(o).is_some_and(|(c, t)| c.ticket(t).ok().flatten().is_some_and(|t| t.kind == "wiki")) {
-        let name = prompt.split("Start with \"# ").nth(1).and_then(|r| r.split(" wiki").next()).unwrap_or("the company");
-        let building = "## What we're building\n\nA notes app for writers, from the README.\n\n";
-        let text = format!("# {name} wiki\n\n## Mission\n\nNotes for writers.\n\n{building}## Codebase\n\n- A README, and not much else yet.\n\n## Decisions\n");
-        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
+        // One short page for each page the ticket asks for, like a resumed session still knows them.
+        let asked = company_ticket(o).and_then(|(c, t)| c.ticket(t).ok().flatten()).map(|t| t.description).unwrap_or_default();
+        let pages: Vec<String> = crate::wiki::DRAFTS
+            .iter()
+            .map(|(p, _)| p.to_string())
+            .filter(|p| asked.trim().is_empty() || asked.lines().any(|l| l.trim() == p))
+            .map(|p| format!("# {p}\n\n{}\n", if p == crate::wiki::BUILDING { "A notes app for writers, from the README." } else { "- From the README, and not much else yet." }))
+            .collect();
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text: pages.join("\n") })?;
         return Ok(());
     }
 
@@ -69,6 +74,18 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
     if own.contains("[limit]") {
         let reset = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() + 3600).unwrap_or(0);
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: format!("Claude AI usage limit reached|{reset}") })?;
+        return Ok(());
+    }
+    // An audit: changes no files, proposes one follow-up, and the reply is the report.
+    if own.contains("[report]")
+        && let Some((c, ticket)) = company_ticket(o)
+    {
+        let employee = o.mcp.and_then(|m| m.args.iter().position(|a| a == "--employee").and_then(|i| m.args.get(i + 1)).cloned()).unwrap_or_default();
+        let ctx = crate::mcp::Ctx { ticket, employee: employee.clone() };
+        let call = serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "create_ticket", "arguments": {"title": "Add meta descriptions", "assignee": employee}}});
+        crate::mcp::handle(&c, &ctx, &call);
+        let text = "# SEO audit\n\nPages have no meta descriptions. Proposed a ticket to add them.".to_string();
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
         return Ok(());
     }
     if own.contains("[fail]") {

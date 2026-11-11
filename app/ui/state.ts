@@ -32,7 +32,7 @@ export function booted() {
 
 setTimeout(booted, 4000);
 
-export const S: State = { companies: [], company: null, looks: {}, dev: null, ticket: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, diffs: {}, wiki: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, needs: {}, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
+export const S: State = { companies: [], company: null, looks: {}, dev: null, ticket: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, diffs: {}, wiki: null, page: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, needs: {}, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
 
 export async function call<K extends string>(cmd: K, args: Record<string, unknown>, done?: string): Promise<Returns<K>> {
   try {

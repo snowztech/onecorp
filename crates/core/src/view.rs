@@ -76,7 +76,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         .map(|t| {
             let who = t.assignee.clone().unwrap_or_default();
             // A plan's review is its tickets, which you can change before starting it.
-            let tickets: Vec<Value> = if t.kind == "plan" {
+            let tickets: Vec<Value> = if t.kind == "plan" || t.kind == "report" {
                 c.plan_tickets(t.id).unwrap_or_default().iter().map(|p| {
                     let who = p.assignee.clone().unwrap_or_default();
                     json!({"key": c.key(p.id), "title": p.title, "description": p.description, "assignee": p.assignee, "name": name_of(&who), "after": p.after.map(|a| c.key(a)), "status": p.status})
@@ -304,9 +304,44 @@ pub fn chat(c: &Company, channel: &str) -> Result<Value> {
     Ok(json!({"channel": channel, "messages": shown}))
 }
 
+/// The document a ticket's reply is: a wiki draft, or a report.
 fn wiki_draft(c: &Company, t: &Ticket) -> Option<String> {
-    if t.kind != "wiki" { return None; }
-    c.events(t.id).ok()?.into_iter().rev().find(|(_, kind, _)| kind == "wiki-text").map(|(_, _, text)| text)
+    let want = match t.kind.as_str() { "wiki" => "wiki-text", "report" => "report-text", _ => return None };
+    c.events(t.id).ok()?.into_iter().rev().find(|(_, kind, _)| kind == want).map(|(_, _, text)| text)
+}
+
+/// Who a wiki edit is by, as the app shows it.
+fn author(c: &Company, id: &str) -> String {
+    match id {
+        "founder" => "You".into(),
+        "onecorp" => "OneCorp".into(),
+        id => c.employee(id).ok().flatten().map(|e| e.name).unwrap_or_else(|| id.to_string()),
+    }
+}
+
+/// The wiki for the app: every page, who wrote it, and who changed it last.
+pub fn wiki(c: &Company) -> Result<Value> {
+    let log = crate::wiki::recent(c, usize::MAX)?;
+    let pages: Vec<Value> = crate::wiki::pages(c)?
+        .iter()
+        .map(|p| {
+            let mine: Vec<&crate::wiki::Edit> = log.iter().filter(|e| e.page == p.path).collect();
+            let (last, first) = (mine.first(), mine.iter().rev().find(|e| !e.text.is_empty()));
+            json!({
+                "path": p.path, "space": p.space(), "title": p.title(), "text": p.text, "edits": mine.len(),
+                "by": last.map(|e| author(c, &e.author)), "at": last.map(|e| e.at.clone()), "note": last.map(|e| e.note.clone()),
+                "first_by": first.map(|e| author(c, &e.author)),
+            })
+        })
+        .collect();
+    let recent: Vec<Value> = log.iter().take(8).map(|e| json!({"page": e.page, "by": author(c, &e.author), "note": e.note, "at": e.at})).collect();
+    Ok(json!({"pages": pages, "recent": recent}))
+}
+
+/// Every saved version of one page, newest first.
+pub fn page_history(c: &Company, path: &str) -> Result<Value> {
+    let edits: Vec<Value> = crate::wiki::history(c, path)?.iter().map(|e| json!({"id": e.id, "by": author(c, &e.author), "note": e.note, "at": e.at, "text": e.text})).collect();
+    Ok(json!(edits))
 }
 
 /// One ticket for the ticket drawer: who, where, what it cost, and everything that happened.

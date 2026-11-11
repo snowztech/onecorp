@@ -9,6 +9,7 @@ import type { PersonForm } from "./types.ts";
 import { restartToUpdate } from "./update.ts";
 import { pickMention, updateMentions } from "./views/chat.ts";
 import { approvalCopy } from "./views/inbox.ts";
+import { currentPage } from "./views/wiki.ts";
 import { addExtraRepo, addRepo, backToYou, checkRepo, hasPhoto, loadGithub, makeRepo, readSetup, recheckTools, saveProfile, setTemplate, startSetup } from "./views/onboarding.ts";
 import { loadSection, loadSpend, openSettings, renderSheet, saved, setTheme } from "./views/settings.ts";
 
@@ -27,10 +28,11 @@ document.addEventListener("click", async e => {
   if (S.switching && !target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.updateRestart) return restartToUpdate();
+  if (d.closeReport) { el.disabled = true; await call("close_report", { company: S.company, key: d.closeReport }, "Report closed").catch(() => (el.disabled = false)); return; }
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
   if (d.dismissQ) { el.disabled = true; await call("dismiss_question", { company: S.company, id: Number(d.dismissQ) }, "Dismissed").catch(() => (el.disabled = false)); return; }
   if (d.discard) {
@@ -62,7 +64,7 @@ document.addEventListener("click", async e => {
   }
   if (d.skipSetup) { if (await saveProfile(S.profile!.photo, S.profile!.noPhoto)) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
   if (d.hideStart) { try { localStorage.setItem("onecorp.started." + S.company, "hide"); } catch {} return render(); }
-  if (d.brief) { S.view = "wiki"; S.open.brief = true; render(); await refresh(true); return $("#brief-text")?.focus(); }
+  if (d.brief) { S.view = "wiki"; S.page = "Company/What we're building"; S.hbEdit = true; S.wikiNew = false; await refresh(true); return $("#hb-text")?.focus(); }
   if (d.pause) {
     const on = d.pause === "1";
     await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});
@@ -342,7 +344,21 @@ document.addEventListener("click", async e => {
     await call("retry", { company: S.company, key: d.retry }, `${d.retry} is running again`).catch(() => (el.disabled = false));
     return;
   }
-  if (d.hbEdit) { S.hbEdit = d.hbEdit === "1"; render(); return $("#hb-text")?.focus(); }
+  if (d.hbEdit) { S.hbEdit = d.hbEdit === "1"; S.wikiNew = false; S.confirm = null; render(); return $("#hb-text")?.focus(); }
+  if (d.wkPage !== undefined) { S.page = d.wkPage; S.hbEdit = false; S.wikiNew = false; S.history = null; S.version = null; render(); return document.querySelector(".wk-main")?.scrollTo(0, 0); }
+  if (d.wkNew !== undefined) { S.wikiNew = true; S.wikiSpace = d.wkNew || currentPage()?.space; S.hbEdit = false; render(); return $("#wk-title")?.focus(); }
+  if (d.wkHistory !== undefined) {
+    if (!d.wkHistory) { S.history = null; S.version = null; return render(); }
+    S.history = await invoke("page_history", { company: S.company, path: d.wkHistory }).catch(e => (toast(String(e), true), null));
+    S.historyOf = d.wkHistory; S.version = S.history?.[0]?.id ?? null; return render();
+  }
+  if (d.wkVersion) { S.version = Number(d.wkVersion); return render(); }
+  if (d.wkRestore) {
+    const path = await call("restore_page", { company: S.company, id: Number(d.wkRestore) }, "Restored. Everyone reads it from their next ticket").catch(() => null);
+    if (path) { S.history = null; S.version = null; S.page = path; render(); }
+    return;
+  }
+  if (d.wkDelete) { await call("delete_page", { company: S.company, path: d.wkDelete }, "Page deleted. Its history stays").then(() => { S.hbEdit = false; S.confirm = null; S.page = null; render(); }).catch(() => {}); return; }
   if (d.learn) { await call("learn_repo", { company: S.company }, "Codebase updated from the repo").catch(() => {}); return; }
   if (d.diff) {
     S.diffs[d.diff] = "loading"; render();
@@ -352,7 +368,7 @@ document.addEventListener("click", async e => {
   }
   if (d.hideDiff) { delete S.diffs[d.hideDiff]; return render(); }
   if (d.co) { S.switching = false; S.setup = null; S.company = d.co; S.snap = null; S.last = ""; render(); await call("use_company", { name: d.co }); }
-  else if (d.view) { S.view = d.view; S.hbEdit = false; if (d.close) S.drawer = null; render(); if (d.view === "wiki") refresh(true); }
+  else if (d.view) { S.view = d.view; S.hbEdit = false; S.wikiNew = false; if (d.close) S.drawer = null; render(); if (d.view === "wiki") refresh(true); }
   else if (d.person) openPerson(d.person);
   else if (d.hire) { openHire(Number(d.hire)); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
@@ -470,8 +486,14 @@ document.addEventListener("submit", async e => {
     if (!name) return $("#dept-name").focus();
     const id = await call("add_department", { company: S.company, name }, `${name} is set up. Hire its first person.`).catch(() => null);
     if (id !== null) { S.addingDept = false; render(); openHire(id); }
+  } else if (f.id === "wk-redraft") {
+    await call("redraft_wiki", { company: S.company, by: $<HTMLSelectElement>("#wk-by").value || null }, "Drafting from the repo. Pages fill in as each draft lands").then(() => { S.open.redraft = false; render(); }).catch(() => {});
   } else if (f.id === "hb-raw") {
-    await call("save_wiki", { company: S.company, text: $("#hb-text").value }, "Saved. Everyone reads it from their next ticket").then(() => { S.hbEdit = false; render(); }).catch(() => {});
+    const space = $("#wk-space").value.trim(), title = $("#wk-title").value.trim();
+    if (!space) return $("#wk-space").focus();
+    if (!title) return $("#wk-title").focus();
+    const path = await call("save_page", { company: S.company, path: `${space}/${title}`, text: $("#hb-text").value, from: f.dataset.from || null }, "Saved. Everyone reads it from their next ticket").catch(() => null);
+    if (path) { S.page = path; S.hbEdit = false; S.wikiNew = false; S.history = null; render(); }
   } else if (f.id === "hire-form" || f.id === "emp-form") {
     const p = readPerson();
     if (!p.name) { toast("Give them a name", true); return $("#pf-n").focus(); }
@@ -492,7 +514,11 @@ document.addEventListener("submit", async e => {
   } else if (f.dataset.reply) {
     const input = f.querySelector("textarea")!, text = input.value.trim();
     if (!text) return input.focus();
-    await call("answer", { company: S.company, id: Number(f.dataset.reply), text }, "Answered").catch(() => {});
+    // Ticked, the answer also goes in the wiki as a decision, so nobody has to ask again.
+    const keep = f.querySelector<HTMLInputElement>("[data-keep]");
+    const q = S.snap?.inbox.find(x => x.id === Number(f.dataset.reply));
+    const ok = await call("answer", { company: S.company, id: Number(f.dataset.reply), text }, keep?.checked ? "Answered, and saved to Decisions" : "Answered").then(() => true).catch(() => false);
+    if (ok && keep?.checked && q) await invoke("add_to_wiki", { company: S.company, page: "Company/Decisions", text: `${q.question.split("\n")[0].slice(0, 160)} → ${text}` }).catch(e => toast(String(e), true));
   } else if (f.dataset.changes) {
     const input = f.querySelector("textarea")!, feedback = input.value.trim();
     if (!feedback) return input.focus();
