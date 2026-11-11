@@ -64,7 +64,7 @@ document.addEventListener("click", async e => {
   }
   if (d.skipSetup) { if (await saveProfile(S.profile!.photo, S.profile!.noPhoto)) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
   if (d.hideStart) { try { localStorage.setItem("onecorp.started." + S.company, "hide"); } catch {} return render(); }
-  if (d.brief) { S.view = "wiki"; S.page = "Company/What we're building"; S.hbEdit = true; S.wikiNew = false; await refresh(true); return $("#hb-text")?.focus(); }
+  if (d.brief) { S.view = "wiki"; S.page = "Company/Overview"; S.hbEdit = true; S.wikiNew = false; await refresh(true); return $("#hb-text")?.focus(); }
   if (d.pause) {
     const on = d.pause === "1";
     await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});

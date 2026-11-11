@@ -4,6 +4,15 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- The wiki's Overview page holds what a new hire reads first: why the company exists, what you're building and for whom, and where it stands today, from idea to live. Your team drafts the sections you leave empty, and never touches the ones you wrote.
+- A Glossary page in Product, drafted from the code and app copy: the words that mean something specific in your product, so nobody mixes them up.
+
+### Changed
+
+- Mission and What we're building are one page now, the Overview. Existing wikis merge them on their own, and Redraft fills in Where we are and the Glossary.
+
 ### Fixed
 
 - Pages moved in from the old wiki show who wrote them, you or the employee who drafted it, instead of OneCorp.

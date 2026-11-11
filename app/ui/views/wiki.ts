@@ -9,18 +9,23 @@ import type { Question, WikiPage } from "../types.ts";
 
 // What goes on a page nobody has written yet. Yours to fill in, in a line or two.
 const HINTS: Record<string, string> = {
-  "Company/Mission": "Why the company exists, in a sentence or two.",
-  "Company/What we're building": "The product, who it's for, and what it does today. Your planner works from it.",
+  "Company/Overview": "What a new hire reads first: why the company exists, what you're building and for whom, and where it stands today. Your planner works from it.",
   "Company/Now": "What the team is focused on right now, and what not to touch. Everyone checks it before deciding how to do a ticket.",
   "Company/Decisions": "Calls that are settled, with why, so nobody reopens them. Rules your team proposes land here once you add them.",
   "Product/Customers": "Who uses the product, what they're trying to get done, and what they care about.",
   "Product/Rules": "Rules that are easy to break without knowing: limits, money, privacy, legal, promises made to users.",
   "Product/Voice": "How the product talks to people: tone, words to use and avoid, languages.",
+  "Product/Glossary": "Words that mean something specific here, one line each, so nobody mixes up a customer and a contact.",
   "Engineering/Codebase": "What isn't obvious from a quick look at the code: the stack, where the important pieces live, outside services.",
   "Engineering/Build and test": "The exact commands to set up, run and test, and what to run before calling work done.",
   "Engineering/Conventions": "How the code is written here: naming, structure, style, testing.",
 };
 const SPACES = ["Company", "Product", "Engineering"];
+
+// Pages with a shape: an empty one opens with its sections ready to fill in.
+const SHAPES: Record<string, string> = {
+  "Company/Overview": "## Why we exist\n\n\n\n## What we're building\n\n\n\n## Where we are\n\n",
+};
 
 const proposals = (path?: string) => S.snap!.inbox.filter(q => q.kind === "wiki" && (!path || q.section === path));
 
@@ -84,7 +89,7 @@ function history(p: WikiPage) {
 }
 
 function editor(p: WikiPage | null) {
-  const space = p?.space || S.wikiSpace || "Company", title = p?.title || "", text = p?.text ?? "";
+  const space = p?.space || S.wikiSpace || "Company", title = p?.title || "", text = p?.text || SHAPES[p?.path || ""] || "";
   const spaces = [...new Set([...SPACES, ...S.wiki!.pages.map(x => x.space)])];
   const del = p && S.wiki!.pages.some(x => x.path === p.path) ? (S.confirm === "page:" + p.path
     ? `<span class="confirm-inline">Delete ${esc(p.title)}? Its history stays. <button class="btn danger" type="button" data-wk-delete="${esc(p.path)}">Delete</button><button class="btn ghost" type="button" data-confirm="">Keep</button></span>`

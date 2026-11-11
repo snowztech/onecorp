@@ -32,8 +32,8 @@ fn an_idea_becomes_a_plan_becomes_work() {
     // No brief, no kickoff.
     assert!(work::kickoff(&c, None).unwrap_err().to_string().contains("brief"));
     c.write_brief("A notes app for writers, with magic link login.").unwrap();
-    assert!(c.wiki().unwrap().starts_with("# Company / What we're building\n\nA notes app"), "an empty mission isn't in the wiki");
-    assert_eq!(wiki::history(&c, wiki::BUILDING).unwrap()[0].author, "founder");
+    assert!(c.wiki().unwrap().starts_with("# Company / Overview\n\n## What we're building\n\nA notes app"), "an empty mission isn't in the wiki");
+    assert_eq!(wiki::history(&c, wiki::OVERVIEW).unwrap()[0].author, "founder");
 
     // The product manager plans it, read-only, and the plan comes back for review.
     let plan = work::kickoff(&c, None).unwrap();
@@ -104,7 +104,7 @@ fn an_idea_becomes_a_plan_becomes_work() {
     ship::approve(&c, &t).unwrap();
     assert_eq!(status(hb), "done");
     assert_eq!(wiki::read(&c, "Engineering/Codebase").unwrap(), "Recovered draft.");
-    assert!(wiki::read(&c, wiki::MISSION).unwrap().is_empty(), "a writer only writes the pages they were asked for");
+    assert!(wiki::read(&c, wiki::NOW).unwrap().is_empty(), "a writer only writes the pages they were asked for");
     assert!(ship::approve(&c, &c.ticket(hb).unwrap().unwrap()).is_err());
 
     // A summary is not a wiki: don't fall back to an older valid reply or overwrite saved work.

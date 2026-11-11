@@ -403,7 +403,10 @@ pub fn write_wiki(c: &Company, by: Option<&str>) -> Result<Vec<i64>> {
         team.iter().find(|e| lead_of("product").as_deref() == Some(e.id.as_str()) && e.id != engineer.id).or_else(|| team.iter().filter(|e| e.id != engineer.id).find(near)).cloned()
     }).flatten();
 
-    let todo: Vec<&str> = wiki::DRAFTS.iter().map(|(p, _)| *p).filter(|p| *p != wiki::BUILDING || c.brief().is_ok_and(|b| b.is_empty())).collect();
+    // The Overview is drafted only while you've left part of it empty.
+    let overview = wiki::read(c, wiki::OVERVIEW)?;
+    let gaps = [wiki::WHY, wiki::BUILDING, wiki::WHERE].iter().any(|s| wiki::section(&overview, s).is_empty());
+    let todo: Vec<&str> = wiki::DRAFTS.iter().map(|(p, _)| *p).filter(|p| *p != wiki::OVERVIEW || gaps).collect();
     let (theirs, mine): (Vec<&str>, Vec<&str>) = todo.into_iter().partition(|p| product.is_some() && !p.starts_with("Engineering/"));
     let mut ids = vec![];
     for (who, pages) in [(Some(&engineer), mine), (product.as_ref(), theirs)] {
@@ -469,8 +472,11 @@ pub fn finish_wiki(c: &Company, t: &Ticket) -> Result<()> {
     }
     let said = c.events(id)?.into_iter().rev().find(|(_, kind, _)| kind == "wiki-text").map(|(_, _, s)| s).unwrap_or_default();
     let asked = wiki_pages(&t);
-    let yours = !c.brief()?.is_empty();
-    let pages: Vec<(String, String)> = wiki::parse(&said).into_iter().filter(|(p, _)| asked.contains(&p.as_str()) && !(yours && p == wiki::BUILDING)).collect();
+    let mut pages: Vec<(String, String)> = wiki::parse(&said).into_iter().filter(|(p, _)| asked.contains(&p.as_str())).collect();
+    // The Overview keeps what you wrote: the draft only fills the sections you left empty.
+    for (path, text) in pages.iter_mut().filter(|(p, _)| p == wiki::OVERVIEW) {
+        *text = wiki::fill_overview(&wiki::read(c, path)?, text);
+    }
     if pages.is_empty() {
         c.set_status(id, "failed")?;
         c.add_event(id, "error", "the reply had none of the pages asked for, so nothing was changed", "")?;

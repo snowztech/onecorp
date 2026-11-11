@@ -41,7 +41,7 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
             .iter()
             .map(|(p, _)| p.to_string())
             .filter(|p| asked.trim().is_empty() || asked.lines().any(|l| l.trim() == p))
-            .map(|p| format!("# {p}\n\n{}\n", if p == crate::wiki::BUILDING { "A notes app for writers, from the README." } else { "- From the README, and not much else yet." }))
+            .map(|p| format!("# {p}\n\n{}\n", if p == crate::wiki::OVERVIEW { "## What we're building\n\nA notes app for writers, from the README.\n\n## Where we are\n\nJust a README so far." } else { "- From the README, and not much else yet." }))
             .collect();
         on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text: pages.join("\n") })?;
         return Ok(());
