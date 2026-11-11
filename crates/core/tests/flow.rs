@@ -97,6 +97,35 @@ fn a_ticket_goes_from_start_to_merged() {
     assert!(c.events(r).unwrap().iter().any(|(_, kind, s)| kind == "retry" && s.contains("check the flaky test first")));
     assert!(work::retry(&c, &c.ticket(r).unwrap().unwrap(), None).is_err(), "only failed tickets can be retried");
 
+    // Work that reached main some other way has nothing left to merge: approving closes it as done
+    // and cleans up, instead of failing on an empty merge.
+    let dup = c.add_ticket("already landed", "maya").unwrap();
+    work::dispatch(&c, dup, Job::Start).unwrap();
+    assert_eq!(status(dup), "review");
+    let d = c.ticket(dup).unwrap().unwrap();
+    git(&repo, &["merge", "-q", "--no-ff", "-m", "landed elsewhere", d.branch.as_deref().unwrap()]);
+    let snap = onecorp::view::snapshot(&c).unwrap();
+    let card = snap["reviews"].as_array().unwrap().iter().find(|r| r["key"] == c.key(dup)).unwrap().clone();
+    assert_eq!(card["empty"], true, "the Inbox card knows there's nothing to merge before you open the changes");
+    onecorp::ship::approve(&c, &d).unwrap();
+    assert_eq!(status(dup), "done");
+    assert!(!Path::new(d.worktree.as_deref().unwrap()).exists());
+    assert!(c.events(dup).unwrap().iter().any(|(_, kind, s)| kind == "merge" && s.contains("nothing to merge")));
+
+    // A repo's setup command runs in each new worktree before the employee starts. If it fails,
+    // the ticket still runs, and the failure is in its log.
+    let main_repo = c.repos().unwrap().remove(0);
+    onecorp::commands::set_setup(&c, &main_repo, "echo ready > .setup-ran").unwrap();
+    let s1 = c.add_ticket("with setup", "maya").unwrap();
+    work::dispatch(&c, s1, Job::Start).unwrap();
+    assert!(c.events(s1).unwrap().iter().any(|(_, kind, s)| kind == "say" && s == "setup done"));
+    onecorp::commands::set_setup(&c, &main_repo, "echo nope; exit 3").unwrap();
+    let s2 = c.add_ticket("broken setup", "maya").unwrap();
+    work::dispatch(&c, s2, Job::Start).unwrap();
+    assert!(c.events(s2).unwrap().iter().any(|(_, kind, s)| kind == "error" && s.contains("exited with 3") && s.contains("nope")));
+    assert_eq!(status(s2), "review", "the ticket still ran");
+    onecorp::commands::set_setup(&c, &main_repo, "").unwrap();
+
     // Tickets saved for later, chained: the second starts by itself once the first is merged.
     let saved = |title: &str, who: &str, after: Option<i64>| {
         let new = NewTicket { title: title.into(), description: format!("Details for {title}"), assignee: Some(who.into()), after, ..Default::default() };

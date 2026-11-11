@@ -4,6 +4,26 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- Your employees work on their own now. They run what they need in their own copy of the repo: builds, tests, installs and scripts. Their branch is theirs: they commit as they go, rebase onto main or merge it in, fix conflicts and push it. A guard keeps each ticket's pushes on its own branch, and OneCorp still opens the pull request and merges it only when you approve. Sudo, gh and deleting folders stay off. This is on for every company, existing ones included. If you'd rather approve each command, choose Only allowed under Commands in Settings, Company.
+- A setup command per repo, under Settings, Company: OneCorp runs it in each new ticket's copy of the repo before the employee starts, like `npm ci`. If it fails, the employee is told and the ticket still runs.
+- Rescan a repo to add the commands its files suggest now, keeping yours. Make another repo the primary one, so the old one can be removed.
+
+### Changed
+
+- Employees ask for every command they're missing in one request, and one Inbox card allows them all.
+- With a list, a script on it runs as `tools/x.sh` or `./tools/x.sh`, and employees are told to run listed commands as written, from the repo root. Commands that can never run, like `git rebase`, can't be added to a list.
+- On Codex, running anything also lets installs reach the network, and lets employees commit and rebase on their branch.
+
+### Fixed
+
+- Claude Code employees can open the wiki pages they're pointed to while working on a ticket.
+- Merging on GitHub works on repos that turn merge commits off or require a linear history. OneCorp merges the way the repo allows, falls back to a squash, and says what to check if GitHub still refuses.
+- A ticket whose work is already on main no longer gets stuck in review. Its Inbox card says there's nothing left to merge, and Close as done closes its pull request and deletes its branch, instead of failing on an empty merge. A run that ends with nothing new to merge comes back as a report.
+- A pull request you close on GitHub after its work reached main another way marks the ticket done, instead of stopped.
+- Employees know finishing needs no tool: when they end with their summary, the ticket goes to review. They no longer ask you to mark tickets done or delete branches, redo work that's waiting to merge, or file tickets about git and permissions.
+
 ## [0.1.10] - 2026-11-11
 
 Your team works more like a real one: leads split work from chat, every role has a playbook, and Ask OneCorp answers questions about the app. Prompts are leaner, and Spending shows where the money goes.

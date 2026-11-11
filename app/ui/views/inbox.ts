@@ -52,11 +52,12 @@ export function clamp(id: string, html: string, text: string) {
 
 // Someone asks to run a command they aren't allowed yet. Allowing it adds it to the repo's list.
 export function commandAsk(q: Question) {
+  const cmds = q.question.split("\n").filter(Boolean), many = cmds.length > 1;
   return `<article class="ask blocking" id="in-q${q.id}">${face(q.name, "blocked")}<div>
-    <span class="kind">Command · ${esc(q.key || "")}</span><h4><code class="cmd-ask">${esc(q.question)}</code></h4>
-    <p>${esc(first(q.name))} wants to run this in <b>${esc(q.repo)}</b>${q.note ? `: ${esc(q.note)}` : "."}</p>
-    <p class="muted">Allowing it lets your whole team run it in ${esc(q.repo)}. You can remove it in Settings.</p>
-    <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="allow" data-said="Allowed in ${esc(q.repo)}">Allow in ${esc(q.repo)}</button><button class="btn" data-answer="${q.id}" data-val="no" data-said="Not allowed">Not now</button></div></div></article>`;
+    <span class="kind">${many ? "Commands" : "Command"} · ${esc(q.key || "")}</span><h4>${cmds.map(c => `<code class="cmd-ask">${esc(c)}</code>`).join(" ")}</h4>
+    <p>${esc(first(q.name))} wants to run ${many ? "these" : "this"} in <b>${esc(q.repo)}</b>${q.note ? `: ${esc(q.note)}` : "."}</p>
+    <p class="muted">Once allowed, everyone can run ${many ? "them" : "it"} in ${esc(q.repo)}. Or let employees run what they need, and they won't have to ask.</p>
+    <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="allow" data-said="Allowed in ${esc(q.repo)}">${many ? "Allow all" : "Allow"} in ${esc(q.repo)}</button><button class="btn" data-run-any-q="${q.id}">Let them run anything</button><button class="btn ghost" data-answer="${q.id}" data-val="no" data-said="Not allowed">Not now</button></div></div></article>`;
 }
 
 // A reply under a card: a few lines to write, sent with ⌘↵, closed with Esc or Cancel.
@@ -107,14 +108,16 @@ export function reportReview(r: Review) {
     ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What else should they look into?", "Send")}` : ""}</div></article>`;
 }
 
-export function approvalCopy(t?: { kind?: string } | null) {
+export function approvalCopy(t?: { kind?: string; key?: string; empty?: boolean } | null) {
+  const diff = t?.key ? S.diffs[t.key] : undefined;
+  if (t?.kind === "work" && (t.empty || (diff && diff !== "loading" && diff.files.length === 0))) return { label: "Close as done", busy: "Closing…", done: "Closed. Everything it had was already on main." };
   if (t?.kind === "report") return { label: "Close and start what it proposes", busy: "Starting…", done: "Report closed." };
   if (t?.kind === "wiki") return { label: "Save wiki", busy: "Saving…", done: "Wiki saved. Your team can read it now." };
   if (t?.kind === "plan") return { label: "Start the plan", busy: "Starting…", done: "Plan started." };
   return { label: mergeLabel(), busy: "Merging…", done: "Work merged. New tickets start from it." };
 }
 
-export function reviewActions(t: { key: string; kind?: string }) {
+export function reviewActions(t: { key: string; kind?: string; empty?: boolean }) {
   return `<button class="btn good" data-approve="${esc(t.key)}">${approvalCopy(t).label}</button>${t.kind === "work" && !S.diffs[t.key] ? `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>` : ""}`;
 }
 
@@ -141,7 +144,7 @@ export function review(r: Review) {
   if (r.kind === "report") return reportReview(r);
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
-    ${r.kind === "wiki" ? `<p>Save these pages to the wiki. Only the pages in the draft change, and what you wrote yourself is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
+    ${r.empty ? `<p class="nothing-left">Nothing left to merge: everything on this branch is already on main. Close it as done${r.pr_url ? ", and its pull request is closed" : ""}.</p>` : ""}${r.kind === "wiki" ? `<p>Save these pages to the wiki. Only the pages in the draft change, and what you wrote yourself is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
     ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What should change?", "Send back")}` : ""}
     ${discardConfirm(r)}${changes(r.key)}</div></article>`;
 }
@@ -172,6 +175,6 @@ export function changes(key: string) {
   return `<div class="changes">
     <div class="diffsum"><b>${files} ${files === 1 ? "file" : "files"}</b> <span class="ok">+${d.added}</span> <span class="del">−${d.removed}</span> <span class="muted">· ${esc(d.branch)} into ${esc(d.base)}</span>
       <button class="btn" data-hide-diff="${esc(key)}">Hide</button></div>
-    ${commits ? `<ul class="commits">${commits}</ul>` : ""}${body || `<p class="muted">No file changes on this branch.</p>`}
+    ${commits ? `<ul class="commits">${commits}</ul>` : ""}${body || `<p class="muted">No file changes on this branch: everything it had is already on main. Close it as done.</p>`}
     ${d.truncated ? `<p class="muted">This change is too big to show in full. See the rest with <code>onecorp diff ${esc(key)}</code>.</p>` : ""}</div>`;
 }

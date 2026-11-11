@@ -25,7 +25,7 @@ export interface PlanTicket { key: string; title: string; description: string; a
 
 export interface Review {
   key: string; title: string; employee: string; name: string; kind: string; tickets: PlanTicket[];
-  document?: string | null; summary: string; spend: string; pr_number?: number | null; pr_url?: string | null;
+  document?: string | null; summary: string; spend: string; pr_number?: number | null; pr_url?: string | null; empty?: boolean;
 }
 
 export interface Ticket {
@@ -100,11 +100,11 @@ export interface Look { color?: string; logo?: string | null }
 export interface Companies { list: string[]; current: string | null; looks: Record<string, Look>; dev: string | null }
 export interface Founder { name: string; photo: string | null }
 
-export interface SettingsRepo { name: string; path: string; main: boolean; commands: string[]; custom: boolean }
+export interface SettingsRepo { name: string; path: string; main: boolean; commands: string[]; custom: boolean; setup?: string | null }
 export interface Settings {
   name: string; repo: string; data: string; home: string; ship: string; forge: string | null; forge_name: string | null;
   origin: string | null; tickets: number; people: number; version: string; repos: SettingsRepo[];
-  commits: string; pr_sign: boolean; talk: string; talk_models: Record<string, string[]>;
+  commits: string; pr_sign: boolean; talk: string; talk_models: Record<string, string[]>; run_any?: boolean;
   git_you: { name: string; email: string } | null;
 }
 
@@ -167,6 +167,9 @@ export interface Results {
   plan_project: string;
   readiness: Check[];
   remove_repo: SettingsRepo[];
+  rescan_commands: SettingsRepo[];
+  make_main_repo: SettingsRepo[];
+  set_setup: SettingsRepo[];
   review: Diff;
   set_commands: SettingsRepo[];
   set_projects_folder: string;

@@ -205,6 +205,7 @@ fn settings(company: String) -> Res<Value> {
         "commits": c.setting("commits").map_err(err)?.unwrap_or_else(|| if onecorp::git::config(&repo, "user.name").is_some() { "you" } else { "team" }.into()),
         "pr_sign": c.setting("pr_sign").map_err(err)?.as_deref() != Some("off"),
         "talk": onecorp::work::talk_tier(&c).map_err(err)?,
+        "run_any": onecorp::commands::run_any(&c).map_err(err)?,
         // The model names each choice means, for the agents this team uses.
         "talk_models": talk_models,
         "git_you": onecorp::git::config(&repo, "user.name").zip(onecorp::git::config(&repo, "user.email")).map(|(n, e)| json!({"name": n, "email": e})),
@@ -215,7 +216,7 @@ fn settings(company: String) -> Res<Value> {
 fn repos_json(c: &Company) -> anyhow::Result<Vec<Value>> {
     c.repos()?
         .iter()
-        .map(|r| Ok(json!({"name": r.name, "path": r.path, "main": r.main, "commands": onecorp::commands::list(c, r)?, "custom": onecorp::commands::custom(c, r)?})))
+        .map(|r| Ok(json!({"name": r.name, "path": r.path, "main": r.main, "commands": onecorp::commands::list(c, r)?, "custom": onecorp::commands::custom(c, r)?, "setup": onecorp::commands::setup(c, r)?})))
         .collect()
 }
 
@@ -230,6 +231,36 @@ fn set_commands(company: String, repo: String, text: Option<String>) -> Res<Vec<
     }
     .map_err(err)?;
     repos_json(&c).map_err(err)
+}
+
+/// Adds what the repo's files suggest now to its list, keeping yours.
+#[tauri::command(async)]
+fn rescan_commands(company: String, repo: String) -> Res<Vec<Value>> {
+    let c = open(&company)?;
+    onecorp::commands::rescan(&c, &c.repo_named(&repo).map_err(err)?).map_err(err)?;
+    repos_json(&c).map_err(err)
+}
+
+/// Makes another repo the main one, so the old main can be removed.
+#[tauri::command(async)]
+fn make_main_repo(company: String, name: String) -> Res<Vec<Value>> {
+    let c = open(&company)?;
+    c.make_main(&name).map_err(err)?;
+    repos_json(&c).map_err(err)
+}
+
+/// What OneCorp runs in a fresh worktree before an employee starts. Empty means nothing.
+#[tauri::command(async)]
+fn set_setup(company: String, repo: String, command: String) -> Res<Vec<Value>> {
+    let c = open(&company)?;
+    onecorp::commands::set_setup(&c, &c.repo_named(&repo).map_err(err)?, &command).map_err(err)?;
+    repos_json(&c).map_err(err)
+}
+
+/// Whether the team runs any command in its worktrees, or only the listed ones.
+#[tauri::command(async)]
+fn set_run_any(company: String, on: bool) -> Res<()> {
+    onecorp::commands::set_run_any(&open(&company)?, on).map_err(err)
 }
 
 /// Which model answers in chat and decides as a lead: "light" (a smaller one) or "same".
@@ -887,6 +918,10 @@ fn main() {
             person,
             review,
             retry,
+            rescan_commands,
+            make_main_repo,
+            set_run_any,
+            set_setup,
             roles,
             role_for,
             stop,

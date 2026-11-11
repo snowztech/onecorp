@@ -547,6 +547,35 @@ impl Company {
         Ok(())
     }
 
+    /// Makes another repo the main one, so the old main can be removed or kept as a second repo.
+    /// Tickets keep pointing at the repo they belong to, and so do each repo's commands.
+    pub fn make_main(&self, name: &str) -> Result<()> {
+        let new = self.repo_named(name)?;
+        if new.main {
+            return Ok(());
+        }
+        let old = self.repos()?.remove(0);
+        let commands = |r: &str| self.setting(r);
+        let (old_cmds, new_cmds) = (commands("commands")?, commands(&format!("commands.{}", new.name))?);
+        let (old_setup, new_setup) = (commands("setup")?, commands(&format!("setup.{}", new.name))?);
+        let tx = self.db.unchecked_transaction()?;
+        tx.execute("UPDATE tickets SET repo = ?1 WHERE repo IS NULL", [&old.name])?;
+        tx.execute("UPDATE tickets SET repo = NULL WHERE repo = ?1", [&new.name])?;
+        tx.execute("UPDATE meta SET value = ?1 WHERE key = 'repo'", [new.path.to_string_lossy()])?;
+        tx.execute("DELETE FROM repos WHERE name = ?1", [&new.name])?;
+        tx.execute("INSERT INTO repos (name, path) VALUES (?1, ?2)", params![old.name, old.path.to_string_lossy()])?;
+        tx.commit()?;
+        self.set_setting("repo.name", &new.name)?;
+        for (key, value) in [("commands".to_string(), new_cmds), (format!("commands.{}", old.name), old_cmds), ("setup".to_string(), new_setup), (format!("setup.{}", old.name), old_setup)] {
+            match value {
+                Some(v) => self.set_setting(&key, &v)?,
+                None => self.delete_setting(&key)?,
+            }
+        }
+        self.delete_setting(&format!("commands.{}", new.name))?;
+        self.delete_setting(&format!("setup.{}", new.name))
+    }
+
     /// Ticket keys look like SNO-12: the first three letters of the company name.
     pub fn key(&self, id: i64) -> String {
         let prefix: String = self.name.chars().filter(char::is_ascii_alphanumeric).take(3).collect();

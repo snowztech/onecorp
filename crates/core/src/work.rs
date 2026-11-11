@@ -164,7 +164,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
     let model = talk_model(c, &lead)?;
-    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)? };
+    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -258,15 +258,19 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     if !warmed.is_empty() {
         out(&format!("      reusing your builds in {}", warmed.join(", ")));
     }
+    // The ticket's branch is the only one its worktree can push.
+    if let Err(err) = git::guard_pushes(&repo, &wt, &branch, &c.dir.join("hooks").join(key.to_lowercase())) {
+        out(&format!("      warning: couldn't guard pushes: {err:#}"));
+    }
+    let setup = run_setup(c, t, id, &wt)?;
 
-    let (bio, details) = (crate::voice::intro(c, &e)?, ticket_details(c, t)?);
+    let (bio, details) = (crate::voice::intro(c, &e)?, format!("{}{setup}", ticket_details(c, t)?));
     let knowledge = company_knowledge(c, crate::roles::spaces(crate::roles::role_of(c, &e)?))?;
     let (notes, chat) = (own_notes(c, &e.id)?, crate::chat::catch_up(c, &e)?);
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          Your ticket is {key}: {title}\n\n{details}\
-         You are in a git worktree on branch {branch}{in_repo}. {abilities} Don't commit: when you finish, \
-         OneCorp commits your changes under your name. \
+         You are in a git worktree on branch {branch}{in_repo}. {abilities} {commits} \
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
          If the ticket asks for an audit, research, a review or advice rather than a change, don't write files for it: \
          your final reply is the work, a report in Markdown the founder reads in OneCorp. Turn each piece of follow-up work \
@@ -274,6 +278,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
          You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
          or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
          If something outside your control stops you, use update_ticket to mark the ticket blocked. \
+         Finishing needs no tool: when you end with your summary, OneCorp moves the ticket to review. \
          If you learn or decide something every teammate should know from now on, propose it with propose_wiki. \
          If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
          save it with remember: one line per note.\n\n\
@@ -281,7 +286,12 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         name = e.name,
         role = e.role,
         company = c.name,
-        abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?),
+        abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?, crate::commands::run_any(c)?, &branch),
+        commits = if crate::commands::run_any(c)? {
+            "Commit as you go if it helps: when you finish, OneCorp commits whatever you left, under your name."
+        } else {
+            "Don't commit: when you finish, OneCorp commits your changes under your name."
+        },
         in_repo = match &t.repo {
             Some(r) => format!(", in the {r} repo"),
             None if c.repos()?.len() > 1 => format!(", in the {} repo", c.repos()?[0].name),
@@ -292,6 +302,59 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     let rest = prompt.len() - bio.len() - details.len() - knowledge.len() - notes.len() - chat.len();
     c.add_event(id, "prompt", &prompt_sizes(&[("wiki and team", knowledge.len()), ("playbook", bio.len()), ("ticket", details.len() + rest), ("their notes", notes.len()), ("chat", chat.len())]), "")?;
     drive(c, &e, id, &wt, None, &prompt, title)
+}
+
+/// Runs the repo's setup command in a fresh worktree, like installing dependencies or copying
+/// .env files, so the employee starts ready to work. A failure doesn't stop the ticket: it's
+/// logged, and the employee is told, so they can work around it or say what's missing.
+fn run_setup(c: &Company, t: &Ticket, id: i64, wt: &Path) -> Result<String> {
+    const LIMIT: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+    let Some(cmd) = crate::commands::setup(c, &crate::commands::repo_of(c, t)?)? else { return Ok(String::new()) };
+    out(&format!("      setting up: {cmd}"));
+    c.add_event(id, "tool", &format!("setup {cmd}"), "")?;
+    let log = c.dir.join("hooks").join(format!("{}-setup.log", c.key(id).to_lowercase()));
+    let file = std::fs::File::create(&log)?;
+    let mut child = std::process::Command::new("/bin/sh")
+        .args(["-c", &cmd])
+        .current_dir(wt)
+        .env("PATH", runtime::path())
+        .stdout(file.try_clone()?)
+        .stderr(file)
+        .spawn()?;
+    let start = std::time::Instant::now();
+    let status = loop {
+        if let Some(s) = child.try_wait()? {
+            break Some(s);
+        }
+        if start.elapsed() > LIMIT {
+            let _ = child.kill();
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    };
+    let tail = |n: usize| {
+        let text = std::fs::read_to_string(&log).unwrap_or_default();
+        let lines: Vec<&str> = text.lines().collect();
+        lines[lines.len().saturating_sub(n)..].join("\n")
+    };
+    match status {
+        Some(s) if s.success() => {
+            c.add_event(id, "say", "setup done", "")?;
+            Ok(String::new())
+        }
+        other => {
+            let why = match other {
+                Some(s) => format!("it exited with {}", s.code().unwrap_or(-1)),
+                None => "it ran past 15 minutes and was stopped".to_string(),
+            };
+            c.add_event(id, "error", &format!("setup `{cmd}` failed: {why}\n{}", tail(15)), "")?;
+            Ok(format!(
+                "The repo's setup command, `{cmd}`, failed before you started: {why}. Its last lines:\n{}\n\
+                 Fix what you can, or say in your summary what's missing.\n\n",
+                tail(15)
+            ))
+        }
+    }
 }
 
 /// "about 5.1k tokens: wiki and team 3.9k, playbook 0.3k, …", from sizes in bytes. A token is
@@ -633,8 +696,10 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 
 /// How OneCorp works, said once so nobody goes looking for it in the repo or in .claude/.
 const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
-start one. OneCorp does the git work: it commits, opens pull requests and merges once the founder approves. It also decides \
-which commands you can run, and ask_to_run asks the founder for another one. Questions go to your lead or the founder with ask_human, \
+start one. OneCorp opens the pull request, and merges it once the founder approves. \
+You never set a ticket's status: when you end with your summary, the ticket goes to review, and OneCorp marks it done and \
+cleans up its branch once the founder approves, or closes it when there's nothing to merge. Merging into the base branch is \
+the founder's call, never yours. Don't redo work that's waiting to merge, and don't create tickets about git or permissions. Questions go to your lead or the founder with ask_human, \
 rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n\
 How we write, in summaries, reports, chat, the wiki, comments and commit messages: plain words and short sentences, the way \
 a good colleague talks. Say it once. No filler, no recap at the end, no headings or bullets for a few lines. Never use \
@@ -757,8 +822,8 @@ pub fn resume(c: &Company, q: &Question) -> Result<()> {
     };
     let prompt = format!(
         "{by} answered your question #{n}: \"{question}\"\n\nTheir answer: {answer}\n\n\
-         Pick the ticket back up from where you left off and apply this answer. Same rules as before: \
-         don't commit, and end with two or three sentences on what changed.",
+         Pick the ticket back up from where you left off and apply this answer. Same rules as before, and \
+         end with two or three sentences on what changed.",
         n = q.id,
         question = q.question,
         answer = q.answer.as_deref().unwrap_or(""),
@@ -865,7 +930,7 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
     } else {
         format!(
             "The founder reviewed your work and asked for changes:\n\n{feedback}\n\n\
-             Make them. Same rules as before: don't commit, and end with two or three sentences on what changed."
+             Make them. Same rules as before, and end with two or three sentences on what changed."
         )
     };
     c.add_event(t.id, "review", &format!("changes requested: {}", runtime::clip(feedback, 600)), "")?;
@@ -977,7 +1042,7 @@ fn requeue(c: &Company, t: &Ticket, note: Option<&str>) -> Result<()> {
         } else {
             format!(
                 "Your last run on {key} stopped before it finished. Check what's already in your worktree, then carry on \
-             and finish the ticket: {}\n\nSame rules as before: don't commit, and end with two or three sentences on what changed.",
+             and finish the ticket: {}\n\nSame rules as before, and end with two or three sentences on what changed.",
                 t.title
             )
         };
@@ -1058,7 +1123,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
         _ => vec![],
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)? };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)? };
 
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
@@ -1139,7 +1204,15 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         }
         // A ticket that changed nothing, like an audit, is a report: its reply is the work, and
         // there's no branch to push or merge.
-        let changed = c.events(id)?.iter().any(|(_, kind, _)| kind == "commit");
+        // A branch whose files match base again, like work that landed some other way, has nothing to merge either.
+        let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+        let branch = t.branch.clone().unwrap_or_default();
+        let base = t.base.clone().unwrap_or_else(|| "main".into());
+        let repo = c.repo_of(&t)?;
+        let same = git::same_files(&repo, &base, &branch).unwrap_or(false);
+        // Employees may commit as they go, so look at the branch, not only at OneCorp's own commits.
+        let ahead = !git::commits(&repo, &base, &branch).unwrap_or_default().is_empty();
+        let changed = !same && (ahead || c.events(id)?.iter().any(|(_, kind, _)| kind == "commit"));
         c.set_kind(id, if changed { "work" } else { "report" })?;
         if !changed {
             c.add_event(id, "report-text", &text, "")?;
