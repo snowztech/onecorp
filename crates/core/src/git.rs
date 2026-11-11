@@ -52,7 +52,10 @@ pub fn warm_builds(repo: &Path, wt: &Path) -> Vec<String> {
     for manifest in listed.lines() {
         let dir = Path::new(manifest).parent().unwrap_or(Path::new(""));
         let (from, to) = (repo.join(dir).join("target"), wt.join(dir).join("target"));
-        if !from.is_dir() || to.exists() || !wt.join(dir).is_dir() {
+        // Only a target git ignores: the ticket's commit takes everything else in the worktree.
+        // A path inside it, since `target/` in a .gitignore only matches a folder that exists.
+        let ignored = ok(wt, &["check-ignore", "-q", &dir.join("target").join("x").to_string_lossy()]).unwrap_or(false);
+        if !from.is_dir() || to.exists() || !wt.join(dir).is_dir() || !ignored {
             continue;
         }
         let cloned = std::process::Command::new("cp").arg("-cR").arg(&from).arg(&to).output().is_ok_and(|o| o.status.success());
@@ -282,6 +285,7 @@ mod tests {
 
         // A new worktree gets the checkout's Rust builds, cloned where the disk allows it.
         write(&repo.join("Cargo.toml"), "[package]\n");
+        write(&repo.join(".gitignore"), "target/\n");
         commit_all(&repo, "rust", &me).unwrap();
         std::fs::create_dir_all(repo.join("target/debug")).unwrap();
         write(&repo.join("target/debug/built"), "yes");
