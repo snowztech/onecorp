@@ -41,6 +41,33 @@ pub fn add_worktree(repo: &Path, path: &Path, branch: &str, from: &str) -> Resul
     Ok(name)
 }
 
+/// Gives a new worktree the Rust builds already in your checkout, so a ticket doesn't recompile
+/// every dependency from scratch. Each `target/` next to a tracked Cargo.toml is cloned with APFS
+/// copy-on-write: instant, and no extra disk until something changes. Where cloning isn't
+/// possible (not APFS, or not a Mac) nothing is copied, since a real copy can be gigabytes.
+/// Returns the folders it warmed, like "core/target".
+pub fn warm_builds(repo: &Path, wt: &Path) -> Vec<String> {
+    let Ok(listed) = git(repo, &["ls-files", "--", "Cargo.toml", "*/Cargo.toml"], &[]) else { return vec![] };
+    let mut warmed = vec![];
+    for manifest in listed.lines() {
+        let dir = Path::new(manifest).parent().unwrap_or(Path::new(""));
+        let (from, to) = (repo.join(dir).join("target"), wt.join(dir).join("target"));
+        // Only a target git ignores: the ticket's commit takes everything else in the worktree.
+        // A path inside it, since `target/` in a .gitignore only matches a folder that exists.
+        let ignored = ok(wt, &["check-ignore", "-q", &dir.join("target").join("x").to_string_lossy()]).unwrap_or(false);
+        if !from.is_dir() || to.exists() || !wt.join(dir).is_dir() || !ignored {
+            continue;
+        }
+        let cloned = std::process::Command::new("cp").arg("-cR").arg(&from).arg(&to).output().is_ok_and(|o| o.status.success());
+        if cloned {
+            warmed.push(dir.join("target").to_string_lossy().into_owned());
+        } else {
+            let _ = std::fs::remove_dir_all(&to);
+        }
+    }
+    warmed
+}
+
 pub fn remote_url(repo: &Path, remote: &str) -> Option<String> {
     git(repo, &["remote", "get-url", remote], &[]).ok().filter(|u| !u.is_empty())
 }
@@ -255,6 +282,21 @@ mod tests {
         std::fs::create_dir_all(&workspaces).unwrap();
         discard(&repo, &repo, "main", &workspaces);
         assert!(repo.join("a.txt").exists(), "the repo must survive a discard aimed at it");
+
+        // A new worktree gets the checkout's Rust builds, cloned where the disk allows it.
+        write(&repo.join("Cargo.toml"), "[package]\n");
+        write(&repo.join(".gitignore"), "target/\n");
+        commit_all(&repo, "rust", &me).unwrap();
+        std::fs::create_dir_all(repo.join("target/debug")).unwrap();
+        write(&repo.join("target/debug/built"), "yes");
+        let wt3 = root.join("wt3");
+        add_worktree(&repo, &wt3, "t/3", "main").unwrap();
+        let warmed = warm_builds(&repo, &wt3);
+        if cfg!(target_os = "macos") {
+            assert_eq!(warmed, ["target"]);
+            assert_eq!(std::fs::read_to_string(wt3.join("target/debug/built")).unwrap(), "yes");
+        }
+        assert!(warm_builds(&repo, &wt3).is_empty(), "never twice");
 
         // Ticket 2 started before a conflicting change landed on main.
         let wt2 = root.join("wt2");
