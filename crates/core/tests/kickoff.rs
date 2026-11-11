@@ -80,6 +80,41 @@ fn an_idea_becomes_a_plan_becomes_work() {
     assert_eq!(c.brief().unwrap().trim(), "A notes app for writers, with magic link login.", "a brief you wrote is never replaced");
     assert!(git_status_clean(&repo), "writing the wiki never touches your checkout");
 
+    // A usage-limit retry resumes the existing wiki session, then saves the result too.
+    c.write_wiki("# Waiting for the resumed draft\n").unwrap();
+    c.set_status(hb, "failed").unwrap();
+    work::retry(&c, &c.ticket(hb).unwrap().unwrap()).unwrap();
+    assert_eq!(status(hb), "done", "resumed wiki work must not ask for a merge");
+    assert!(c.wiki().unwrap().contains("## Codebase"));
+    assert!(c.ticket(hb).unwrap().unwrap().branch.is_none());
+    assert!(git_status_clean(&repo));
+    let snap = onecorp::view::snapshot(&c).unwrap();
+    assert!(!snap["reviews"].as_array().unwrap().iter().any(|r| r["key"] == c.key(hb)));
+
+    // Older versions left wiki output in review. Saving recovers it without a branch or rerun.
+    c.set_status(hb, "review").unwrap();
+    let draft = "# acme wiki\n\n## Codebase\n\nRecovered draft.\n";
+    c.add_event(hb, "wiki-text", draft, "").unwrap();
+    let t = c.ticket(hb).unwrap().unwrap();
+    let detail = onecorp::view::ticket(&c, &t).unwrap();
+    assert_eq!(detail["kind"], "wiki");
+    assert_eq!(detail["document"], draft);
+    ship::approve(&c, &t).unwrap();
+    assert_eq!(status(hb), "done");
+    assert!(c.wiki().unwrap().contains("Recovered draft."));
+    assert!(ship::approve(&c, &c.ticket(hb).unwrap().unwrap()).is_err());
+
+    // A summary is not a wiki: don't fall back to an older valid reply or overwrite saved work.
+    let saved = c.wiki().unwrap();
+    c.set_status(hb, "review").unwrap();
+    c.add_event(hb, "wiki-text", "Read the repo. No files changed.", "").unwrap();
+    assert!(ship::approve(&c, &c.ticket(hb).unwrap().unwrap()).is_err());
+    assert_eq!(status(hb), "failed");
+    assert_eq!(c.wiki().unwrap(), saved);
+    work::retry(&c, &c.ticket(hb).unwrap().unwrap()).unwrap();
+    assert_eq!(status(hb), "done");
+    assert!(git_status_clean(&repo));
+
     // Paused, nothing starts. Resuming lets queued work go.
     c.set_paused(true).unwrap();
     let waiting = work::plan_project(&c, "Search", "Full-text search over notes", Some("rui")).unwrap();

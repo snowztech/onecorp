@@ -85,6 +85,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             };
             json!({
                 "key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who), "kind": t.kind, "tickets": tickets,
+                "document": wiki_draft(c, t),
                 "summary": last_said(c, t.id).unwrap_or_default(), "spend": spend(t.cost_usd, t.tokens),
                 "pr_number": t.pr_number, "pr_url": t.pr_url,
             })
@@ -302,13 +303,18 @@ pub fn chat(c: &Company, channel: &str) -> Result<Value> {
     Ok(json!({"channel": channel, "messages": shown}))
 }
 
+fn wiki_draft(c: &Company, t: &Ticket) -> Option<String> {
+    if t.kind != "wiki" { return None; }
+    c.events(t.id).ok()?.into_iter().rev().find(|(_, kind, _)| kind == "wiki-text").map(|(_, _, text)| text)
+}
+
 /// One ticket for the ticket drawer: who, where, what it cost, and everything that happened.
 pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
     let who = t.assignee.clone().unwrap_or_default();
     let name = c.employee(&who)?.map(|e| e.name).unwrap_or_else(|| who.clone());
     let log: Vec<Value> = c.events(t.id)?.into_iter().map(|(at, kind, summary)| json!({"at": at, "kind": kind, "summary": summary})).collect();
     Ok(json!({
-        "key": c.key(t.id), "title": t.title, "status": t.status, "employee": who, "name": name,
+        "key": c.key(t.id), "title": t.title, "status": t.status, "kind": t.kind, "document": wiki_draft(c, t), "employee": who, "name": name,
         "branch": t.branch, "base": t.base, "spend": spend(t.cost_usd, t.tokens), "log": log,
         "pr_number": t.pr_number, "pr_url": t.pr_url, "repo": t.repo.clone().or_else(|| c.repos().ok().filter(|r| r.len() > 1).map(|r| r[0].name.clone())),
         "description": t.description, "after": t.after.map(|a| c.key(a)),
@@ -353,7 +359,7 @@ pub fn person(c: &Company, id: &str) -> Result<Value> {
         "voices": crate::voice::list(),
         "current": current.map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status})),
         "activity": activity,
-        "tickets": mine.iter().rev().map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status, "spend": spend(t.cost_usd, t.tokens)})).collect::<Vec<_>>(),
+        "tickets": mine.iter().rev().map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status, "kind": t.kind, "spend": spend(t.cost_usd, t.tokens)})).collect::<Vec<_>>(),
         "memory": notes,
     }))
 }
