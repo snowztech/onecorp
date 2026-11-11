@@ -2,7 +2,7 @@
 // checks every step lands where it should. Catches what unit tests miss, like a Continue that
 // stays greyed out or a form that forgets what you typed.
 //
-// Needs Chrome and Node 22. Run: node app/tests/onboarding.mjs
+// Needs Chrome and Node 22. Run: node app/tests/onboarding.mjs (after npm install in app/)
 // Skips with a note when Chrome isn't installed, so contributors without it aren't blocked.
 
 import { spawn } from "node:child_process";
@@ -11,6 +11,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join, normalize } from "node:path";
 import assert from "node:assert/strict";
+import { build } from "vite";
 
 const CHROME = [
   process.env.CHROME,
@@ -25,8 +26,9 @@ if (!CHROME) {
   process.exit(0);
 }
 
-// The UI over HTTP, as a browser would load it.
-const root = new URL("../ui/", import.meta.url).pathname;
+// The UI as it ships: built fresh, then served over HTTP.
+const root = new URL("../dist/", import.meta.url).pathname;
+await build({ configFile: new URL("../vite.config.js", import.meta.url).pathname, logLevel: "warn" });
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
 const server = createServer((req, res) => {
   const path = normalize(join(root, decodeURIComponent(new URL(req.url, "http://x").pathname)));

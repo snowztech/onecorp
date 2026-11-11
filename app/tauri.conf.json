@@ -4,7 +4,10 @@
   "version": "0.1.4",
   "identifier": "dev.onecorp.app",
   "build": {
-    "frontendDist": "ui"
+    "frontendDist": "dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
     "withGlobalTauri": true,

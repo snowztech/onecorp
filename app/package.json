@@ -1,0 +1,13 @@
+{
+  "name": "onecorp-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node tests/ui-smoke.js && node tests/onboarding.mjs"
+  },
+  "devDependencies": {
+    "vite": "^8.3.8"
+  }
+}

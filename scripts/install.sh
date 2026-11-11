@@ -5,7 +5,8 @@
 #   scripts/install.sh --system   app goes to /Applications
 #   scripts/install.sh --cli      only the command, no app
 #
-# Needs Rust (rustup.rs). The app build also needs the Tauri CLI, installed on first run.
+# Needs Rust (rustup.rs). The app build also needs Node.js (nodejs.org) for its UI, and the Tauri
+# CLI, installed on first run.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -33,6 +34,9 @@ case ":$PATH:" in
 esac
 
 if [ "$with_app" = 1 ]; then
+  command -v npm >/dev/null || { echo "Node.js isn't installed, and the app's UI needs it to build. Get it from https://nodejs.org, then run this again." >&2; exit 1; }
+  say "Installing the UI's packages"
+  (cd app && npm ci --silent)
   if ! cargo tauri --version >/dev/null 2>&1; then
     say "Installing the Tauri CLI (first time only, takes a few minutes)"
     cargo install tauri-cli --version "^2" --locked --quiet

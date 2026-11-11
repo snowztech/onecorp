@@ -23,6 +23,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      # Also what the build below needs: Tauri runs npm run build in app/ before bundling.
+      - run: npm ci
+        working-directory: app
       - run: node app/tests/ui-smoke.js
       - run: node app/tests/onboarding.mjs
 

@@ -2,6 +2,8 @@
 // Every action calls a Tauri command, which runs the same library code as the CLI.
 // Opened in a plain browser (no Tauri), it runs on sample data so the design can be checked quickly.
 
+import { logo } from "./brand.js";
+
 const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : preview;
 // Room for the window buttons in the app, and in screenshots that draw them (?native).
 if (window.__TAURI__ || /[?&]native\b/.test(location.search)) document.documentElement.classList.add("native");
@@ -77,11 +79,16 @@ function loadPhoto(e) {
 const FACE_SETS = [["ours", "OneCorp", "Drawn here, with moods that follow their work."], ["lorelei", "Lorelei", "Fine-line portraits by Lisa Wischofsky."], ["notionists", "Notionists", "Ink sketches by Zoish."]];
 const faceSet = () => { try { const f = localStorage.getItem("onecorp.faces"); return FACE_SETS.some(([k]) => k === f) ? f : "ours"; } catch { return "ours"; } };
 const drawn = {};
+// The other sets are half a megabyte, so they load the first time one is shown.
+let facesLoading = null;
+const loadFaces = () => (facesLoading ||= import("./vendor/faces.js").then(() => { if (!typing()) render(); renderSheet(); }));
 function drawFace(name, status, set = faceSet()) {
-  if (set !== "ours" && window.Faces) {
+  if (set !== "ours") {
+    const tile = `<span class="av set-${set}" style="--h:${HUES[(hash(name) >>> 12) % 8]}">`;
+    if (!window.Faces) { loadFaces(); return tile + "</span>"; }
     const key = set + "|" + name;
     drawn[key] ||= window.Faces(set, String(name));
-    return `<span class="av set-${set}" style="--h:${HUES[(hash(name) >>> 12) % 8]}">${drawn[key]}</span>`;
+    return tile + drawn[key] + "</span>";
   }
   const h = hash(name), L = { skin: h % 5, hair: (h >>> 3) % 6, style: (h >>> 6) % 5, acc: (h >>> 9) % 4 }, hue = HUES[(h >>> 12) % 8];
   const mood = { working: "working", blocked: "blocked", idle: "sleep", queued: "neutral", done: "happy" }[status] || "neutral";
@@ -2346,3 +2353,6 @@ function preview(cmd, args) {
   if (cmd in data) return Promise.resolve(data[cmd]);
   return Promise.reject("This is a preview. Open the OneCorp app to make changes.");
 }
+
+// For the UI smoke test, which drives these directly.
+export { S, preview, refresh, render, renderDrawer, renderPop, renderSheet, face, review, reviewActions, approvalCopy, drawerTicket, openTicket, openHire, openPerson, openSettings, startSetup, checkRepo };

@@ -160,7 +160,7 @@ The desktop app runs serve on a background thread while it's open.
 
 `app/` is a Tauri 2 app. `app/src/main.rs` exposes one command per action (`snapshot`, `answer`, `approve`, `hire`, `review`, `save_wiki` and so on), each a few lines that open the company and call the library. Commands run off the main thread, so the window never freezes.
 
-`app/ui/` is plain HTML, CSS and JavaScript, with no build step. In the company workspace, `app.js` polls `snapshot` every 1.5 seconds, re-renders only when something changed, and never re-renders over a field you're typing in. Onboarding has no polling timer: actions and completed setup checks update its screens. Entering setup stops workspace polling; leaving it starts a single timer again. Opened in a normal browser, it runs on built-in sample data, which is the quickest way to work on the design.
+`app/ui/` is HTML, CSS and JavaScript modules with no framework, built by Vite into `app/dist`, which Tauri embeds. `cargo tauri dev` serves it from Vite instead, so changes show without a rebuild. In the company workspace, `app.js` polls `snapshot` every 1.5 seconds, re-renders only when something changed, and never re-renders over a field you're typing in. Onboarding has no polling timer: actions and completed setup checks update its screens. Entering setup stops workspace polling; leaving it starts a single timer again. Opened in a normal browser (`make ui`), it runs on built-in sample data, which is the quickest way to work on the design.
 
 Agents start the company MCP server by re-running the current binary with `mcp ...`. Inside the app, that binary is the app itself, so `main` first checks `onecorp::mcp::from_args` before opening a window.
 
@@ -177,11 +177,11 @@ Each test covers the risky logic in one module:
 
 On top of those, `crates/core/tests/flow.rs` runs the whole ticket loop on a real git repo with the fake runtime: two tickets, commits under each employee's name, approve and merge, changes saved to memory, a conflict sent back and resolved, a failure, a retry, and questions answered by a lead, passed up by a lead, and unblocking a ticket. `crates/core/tests/kickoff.rs` goes from a brief to a plan, plans again, starts the plan in order, and dismisses and retries one, checking your checkout is never touched. It takes under a second.
 
-`app/tests/ui-smoke.js` runs the app's UI in Node with a stand-in DOM and its sample data, and renders every screen, including each step of the new company flow.
+`app/tests/ui-smoke.js` imports the app's UI in Node with a stand-in DOM and its sample data, and renders every screen, including each step of the new company flow.
 
 `crates/core/tests/pull_requests.rs` does the same for shipping as pull requests, with a bare repo standing in for GitHub and a small script standing in for `gh`: opening, updating and merging a PR, your local base following, and PRs merged or closed on GitHub itself.
 
-Run everything with `cargo test` and `node app/tests/ui-smoke.js`. Real agents are tested by hand on a throwaway repo, with `ONECORP_HOME` pointing somewhere temporary.
+Run everything with `make test`. Real agents are tested by hand on a throwaway repo, with `ONECORP_HOME` pointing somewhere temporary.
 
 ## Where to add things
 
