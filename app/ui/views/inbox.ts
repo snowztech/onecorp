@@ -38,7 +38,7 @@ export function question(q: Question, withLead?: boolean) {
     <span class="kind">${kind} · ${esc(q.key || "")}</span>${clamp(`q-${q.id}`, `<div class="q-text">${md(q.question).html}</div>`, q.question)}${via}
     <p>${esc(first(q.name))} ${q.blocking ? `stopped until ${withLead ? "someone" : "you"} answer${withLead ? "s" : ""}.` : q.default ? `went ahead with “${esc(q.default)}” for now.` : "is carrying on meanwhile."}</p>
     <div class="acts">${opts}${def}${q.blocking || withLead ? "" : `<button class="btn ghost" data-dismiss-q="${q.id}">Dismiss</button>`}${moreBtn(`ans-${q.id}`, "Write your own answer")}</div>
-    ${S.open[`ans-${q.id}`] ? `${replyForm(`ans-${q.id}`, `data-reply="${q.id}"`, "Your answer", "Send")}` : ""}</div></article>`;
+    ${S.open[`ans-${q.id}`] ? `${replyForm(`ans-${q.id}`, `data-reply="${q.id}"`, "Your answer", "Send", true, withLead ? "" : `<label class="keep" title="Adds the question and your answer to Company/Decisions"><input type="checkbox" data-keep> Save to the wiki</label>`)}` : ""}</div></article>`;
 }
 
 // Long text shows a few lines until opened, so a card never turns into a wall of text.
@@ -59,9 +59,9 @@ export function commandAsk(q: Question) {
 }
 
 // A reply under a card: a few lines to write, sent with ⌘↵, closed with Esc or Cancel.
-export const replyForm = (id: string, attrs: string, placeholder: string, send: string, cancel = true) =>
+export const replyForm = (id: string, attrs: string, placeholder: string, send: string, cancel = true, extra = "") =>
   `<form class="reply" ${attrs}><textarea id="${esc(id)}" rows="2" placeholder="${esc(placeholder)}"></textarea>
-    <div class="reply-acts"><span class="fine">⌘↵ to send${cancel ? " · Esc to cancel" : ""}</span>${cancel ? `<button class="btn ghost" type="button" data-close-open="${esc(id)}">Cancel</button>` : ""}<button class="btn primary">${send}</button></div></form>`;
+    <div class="reply-acts">${extra}<span class="fine">⌘↵ to send${cancel ? " · Esc to cancel" : ""}</span>${cancel ? `<button class="btn ghost" type="button" data-close-open="${esc(id)}">Cancel</button>` : ""}<button class="btn primary">${send}</button></div></form>`;
 
 // The card's last action: opens a form under the row, and steps aside while it's open.
 export const moreBtn = (id: string, label: string) => S.open[id] ? "" : `<button class="btn ghost" type="button" data-more="${esc(id)}">${label}</button>`;
@@ -121,7 +121,7 @@ export function ticketStatus(t: { status: string; kind?: string }) {
 export function review(r: Review) {
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
-    ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
+    ${r.kind === "wiki" ? `<p>Save these pages to the wiki. Only the pages in the draft change, and what you wrote yourself is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
     ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What should change?", "Send back")}` : ""}
     ${discardConfirm(r)}${changes(r.key)}</div></article>`;
 }

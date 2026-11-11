@@ -556,8 +556,44 @@ fn remove_ticket(company: String, key: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
-fn wiki(company: String) -> Res<String> {
-    open(&company)?.wiki().map_err(err)
+fn wiki(company: String) -> Res<Value> {
+    onecorp::view::wiki(&open(&company)?).map_err(err)
+}
+
+#[tauri::command(async)]
+fn page_history(company: String, path: String) -> Res<Value> {
+    onecorp::view::page_history(&open(&company)?, &path).map_err(err)
+}
+
+/// Saves a wiki page as yours. With `from`, the page was renamed or moved to `path` too.
+/// Returns where it is now.
+#[tauri::command(async)]
+fn save_page(company: String, path: String, text: String, from: Option<String>) -> Res<String> {
+    let c = open(&company)?;
+    let path = onecorp::wiki::clean(&path).map_err(err)?;
+    match from.as_deref().filter(|f| !f.is_empty()) {
+        None if onecorp::wiki::exists(&c, &path) => return Err(format!("There's already a page called {path}.")),
+        Some(f) if f != path => onecorp::wiki::rename(&c, f, &path, "founder").map_err(err)?,
+        _ => {}
+    }
+    onecorp::wiki::write(&c, &path, &text, "founder", "").map_err(err)?;
+    Ok(path)
+}
+
+/// Has the team draft the wiki's pages from the repo again. Earlier versions stay in each page's history.
+#[tauri::command(async)]
+fn redraft_wiki(company: String, by: Option<String>) -> Res<()> {
+    work::write_wiki(&open(&company)?, by.as_deref().filter(|b| !b.is_empty())).map(|_| ()).map_err(err)
+}
+
+#[tauri::command(async)]
+fn delete_page(company: String, path: String) -> Res<()> {
+    onecorp::wiki::remove(&open(&company)?, &path, "founder").map_err(err)
+}
+
+#[tauri::command(async)]
+fn restore_page(company: String, id: i64) -> Res<String> {
+    onecorp::wiki::restore(&open(&company)?, id, "founder").map_err(err)
 }
 
 #[tauri::command(async)]
@@ -619,16 +655,11 @@ fn say(company: String, channel: String, text: String) -> Res<()> {
 }
 
 #[tauri::command(async)]
-fn save_wiki(company: String, text: String) -> Res<()> {
-    open(&company)?.write_wiki(&text).map_err(err)
-}
-
-#[tauri::command(async)]
-fn add_to_wiki(company: String, section: String, text: String) -> Res<()> {
+fn add_to_wiki(company: String, page: String, text: String) -> Res<()> {
     if text.trim().is_empty() {
         return Err("Write the rule first.".into());
     }
-    open(&company)?.add_to_wiki(section.trim(), text.trim()).map_err(err)
+    open(&company)?.add_to_wiki(page.trim(), text.trim(), "founder").map_err(err)
 }
 
 #[tauri::command(async)]
@@ -859,7 +890,11 @@ fn main() {
             save_brief,
             dismiss_plan,
             delete_ticket,
-            save_wiki,
+            save_page,
+            delete_page,
+            redraft_wiki,
+            restore_page,
+            page_history,
             add_to_wiki,
             setup_info,
             founder,

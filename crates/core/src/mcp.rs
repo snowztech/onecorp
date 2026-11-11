@@ -119,12 +119,12 @@ fn tools() -> Value {
         {
             "name": "propose_wiki",
             "description": "Propose adding something to the company wiki that every employee reads: a decision, a convention, \
-                            a fact about the codebase. Only things that should outlive this ticket. The founder approves it from their inbox.",
+                            a product rule, a fact about the codebase. Only things that should outlive this ticket. The founder approves it from their inbox.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "text": {"type": "string", "description": "One line, written as a rule or fact, like 'Auth tokens are hashed at rest with sha2'"},
-                    "section": {"type": "string", "enum": ["Decisions", "Conventions"], "description": "Defaults to Decisions"}
+                    "page": {"type": "string", "description": "The page it belongs on, as Space/Title from the wiki, like Engineering/Conventions, Product/Rules or Company/Decisions. A new page is fine. Defaults to Company/Decisions"}
                 },
                 "required": ["text"]
             }
@@ -259,16 +259,17 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
         "propose_wiki" => {
             let text = s("text");
             anyhow::ensure!(!text.is_empty(), "text is required");
-            let section = if s("section").eq_ignore_ascii_case("conventions") { "Conventions" } else { "Decisions" };
+            // "section" is what the tool took before the wiki had pages.
+            let section = crate::wiki::find(c, &[s("page"), s("section")].into_iter().find(|p| !p.trim().is_empty()).unwrap_or_else(|| crate::wiki::DECISIONS.into()))?;
             let n = c.ask(&Question {
                 ticket_id: Some(ctx.ticket),
                 employee: ctx.employee.clone(),
                 question: text,
-                options: section.into(),
+                options: section.clone(),
                 kind: "wiki".into(),
                 ..Default::default()
             })?;
-            Ok(format!("Proposal #{n} is in the founder's inbox. Carry on, it doesn't block your ticket."))
+            Ok(format!("Proposal #{n} for {section} is in the founder's inbox. Carry on, it doesn't block your ticket."))
         }
         "create_ticket" => {
             let assignee = match s("assignee") {
@@ -361,7 +362,7 @@ mod tests {
         let prop = json!({"name": "propose_wiki", "arguments": {"text": "Tokens are hashed at rest", "section": "conventions"}});
         handle(&c, &ctx, &req(7, "tools/call", prop)).unwrap();
         let p = c.inbox().unwrap().into_iter().find(|q| q.kind == "wiki").unwrap();
-        assert_eq!((p.question.as_str(), p.options.as_str(), p.blocking), ("Tokens are hashed at rest", "Conventions", false));
+        assert_eq!((p.question.as_str(), p.options.as_str(), p.blocking), ("Tokens are hashed at rest", "Engineering/Conventions", false));
 
         let note = json!({"name": "remember", "arguments": {"text": "  auth lives in\n src/auth  "}});
         handle(&c, &ctx, &req(8, "tools/call", note)).unwrap();

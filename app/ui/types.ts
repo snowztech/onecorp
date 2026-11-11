@@ -168,9 +168,19 @@ export interface Results {
   spend_report: SpendReport;
   ticket_detail: TicketDetail;
   voices: Voice[];
-  wiki: string;
+  wiki: Wiki;
+  page_history: PageEdit[];
+  save_page: string;
+  restore_page: string;
 }
 export type Returns<K extends string> = K extends keyof Results ? Results[K] : null;
+
+export interface WikiPage {
+  path: string; space: string; title: string; text: string; edits: number;
+  by: string | null; at: string | null; note: string | null; first_by: string | null;
+}
+export interface Wiki { pages: WikiPage[]; recent: { page: string; by: string; note: string; at: string }[] }
+export interface PageEdit { id: number; by: string; note: string; at: string; text: string }
 
 /* The UI's own state */
 
@@ -203,7 +213,8 @@ export interface State {
   snap: Snapshot | null; last: string; view: string;
   drawer: Drawer | null; person: Person | null; ticket: TicketDetail | null;
   addingDept: boolean; open: Record<string, boolean>; channel: string; chat: Chat | null;
-  diffs: Record<string, Diff | "loading">; wiki: string | null; hbEdit: boolean;
+  diffs: Record<string, Diff | "loading">; wiki: Wiki | null; hbEdit: boolean;
+  page: string | null; wikiNew?: boolean; wikiSpace?: string; history?: PageEdit[] | null; historyOf?: string | null; version?: number | null;
   setup: Setup | null; founder: Founder | null | undefined; profile: Profile | null; welcome?: boolean; onboarding?: boolean;
   project: string | null; rail: boolean; needs: Record<string, number>; pop: false | "menu" | "forget";
   settings: Settings | null; health: Check[] | null; ready?: Check[] | null; spend?: SpendReport;

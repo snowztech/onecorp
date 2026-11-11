@@ -309,6 +309,40 @@ fn wiki_draft(c: &Company, t: &Ticket) -> Option<String> {
     c.events(t.id).ok()?.into_iter().rev().find(|(_, kind, _)| kind == "wiki-text").map(|(_, _, text)| text)
 }
 
+/// Who a wiki edit is by, as the app shows it.
+fn author(c: &Company, id: &str) -> String {
+    match id {
+        "founder" => "You".into(),
+        "onecorp" => "OneCorp".into(),
+        id => c.employee(id).ok().flatten().map(|e| e.name).unwrap_or_else(|| id.to_string()),
+    }
+}
+
+/// The wiki for the app: every page, who wrote it, and who changed it last.
+pub fn wiki(c: &Company) -> Result<Value> {
+    let log = crate::wiki::recent(c, usize::MAX)?;
+    let pages: Vec<Value> = crate::wiki::pages(c)?
+        .iter()
+        .map(|p| {
+            let mine: Vec<&crate::wiki::Edit> = log.iter().filter(|e| e.page == p.path).collect();
+            let (last, first) = (mine.first(), mine.iter().rev().find(|e| !e.text.is_empty()));
+            json!({
+                "path": p.path, "space": p.space(), "title": p.title(), "text": p.text, "edits": mine.len(),
+                "by": last.map(|e| author(c, &e.author)), "at": last.map(|e| e.at.clone()), "note": last.map(|e| e.note.clone()),
+                "first_by": first.map(|e| author(c, &e.author)),
+            })
+        })
+        .collect();
+    let recent: Vec<Value> = log.iter().take(8).map(|e| json!({"page": e.page, "by": author(c, &e.author), "note": e.note, "at": e.at})).collect();
+    Ok(json!({"pages": pages, "recent": recent}))
+}
+
+/// Every saved version of one page, newest first.
+pub fn page_history(c: &Company, path: &str) -> Result<Value> {
+    let edits: Vec<Value> = crate::wiki::history(c, path)?.iter().map(|e| json!({"id": e.id, "by": author(c, &e.author), "note": e.note, "at": e.at, "text": e.text})).collect();
+    Ok(json!(edits))
+}
+
 /// One ticket for the ticket drawer: who, where, what it cost, and everything that happened.
 pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
     let who = t.assignee.clone().unwrap_or_default();

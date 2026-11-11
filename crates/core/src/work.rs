@@ -2,6 +2,7 @@
 //! The CLI and `onecorp serve` both go through `dispatch`, which runs a job now or queues it for serve.
 
 use crate::runtime::{self, Event, first_line};
+use crate::wiki;
 use crate::store::{self, Company, Employee, Question, Ticket};
 use crate::{git, serve, ship};
 use anyhow::{Result, anyhow, bail};
@@ -378,91 +379,100 @@ pub fn delete(c: &Company, t: &Ticket) -> Result<()> {
     Ok(())
 }
 
-/// Has someone read the repo and write the company wiki, so the team starts out knowing the
-/// codebase. Your engineering lead by default. Runs read-only, like a plan.
-pub fn write_wiki(c: &Company, by: Option<&str>) -> Result<i64> {
-    let writer = match by {
+/// Has the team draft the wiki from the repo, without asking you anything: the engineering lead
+/// writes the Engineering pages, and someone on the product side the Product ones, at the same
+/// time. With `by`, that one person writes them all. Pages you'll know best, like Now, stay
+/// empty for you. Returns the writing tickets.
+pub fn write_wiki(c: &Company, by: Option<&str>) -> Result<Vec<i64>> {
+    let team = c.employees()?;
+    let depts = c.departments()?;
+    let lead_of = |word: &str| depts.iter().find(|d| d.name.to_lowercase().contains(word)).and_then(|d| d.lead.clone());
+    let engineer = match by {
         Some(id) => c.employee(id)?.ok_or_else(|| anyhow!("nobody called {id} works here"))?,
-        None => {
-            let depts = c.departments()?;
-            let lead = depts.iter().find(|d| d.name.to_lowercase().contains("eng")).or(depts.first()).and_then(|d| d.lead.clone());
-            match lead.and_then(|id| c.employee(&id).ok().flatten()) {
-                Some(e) => e,
-                None => c.employees()?.into_iter().next().ok_or_else(|| anyhow!("hire someone first"))?,
-            }
-        }
+        None => match lead_of("eng").or(depts.first().and_then(|d| d.lead.clone())).and_then(|id| c.employee(&id).ok().flatten()) {
+            Some(e) => e,
+            None => team.first().cloned().ok_or_else(|| anyhow!("hire someone first"))?,
+        },
     };
-    let id = c.new_ticket(&crate::store::NewTicket { title: "Write the wiki".into(), assignee: Some(writer.id.clone()), ..Default::default() }, "todo")?;
-    c.set_kind(id, "wiki")?;
-    out(&format!("{} writes the wiki: {}.", c.key(id), writer.name));
-    dispatch(c, id, Job::Start)?;
-    Ok(id)
+    // Whoever is closest to customers: product, design, growth, marketing or writing.
+    let product = by.is_none().then(|| {
+        let near = |e: &&Employee| ["product", "design", "growth", "market", "writer", "content", "seo"].iter().any(|w| e.role.to_lowercase().contains(w));
+        team.iter().find(|e| lead_of("product").as_deref() == Some(e.id.as_str()) && e.id != engineer.id).or_else(|| team.iter().filter(|e| e.id != engineer.id).find(near)).cloned()
+    }).flatten();
+
+    let todo: Vec<&str> = wiki::DRAFTS.iter().map(|(p, _)| *p).filter(|p| *p != wiki::BUILDING || c.brief().is_ok_and(|b| b.is_empty())).collect();
+    let (theirs, mine): (Vec<&str>, Vec<&str>) = todo.into_iter().partition(|p| product.is_some() && !p.starts_with("Engineering/"));
+    let mut ids = vec![];
+    for (who, pages) in [(Some(&engineer), mine), (product.as_ref(), theirs)] {
+        let Some(who) = who.filter(|_| !pages.is_empty()) else { continue };
+        let space = if pages.iter().all(|p| p.starts_with("Engineering/")) { "the Engineering pages" } else if pages.iter().all(|p| !p.starts_with("Engineering/")) { "the Product pages" } else { "the wiki" };
+        let id = c.new_ticket(&crate::store::NewTicket { title: format!("Write {space}"), description: pages.join("\n"), assignee: Some(who.id.clone()), ..Default::default() }, "todo")?;
+        c.set_kind(id, "wiki")?;
+        out(&format!("{} writes {space}: {}.", c.key(id), who.name));
+        dispatch(c, id, Job::Start)?;
+        ids.push(id);
+    }
+    Ok(ids)
+}
+
+/// The pages a writing ticket drafts, from its description. Older tickets wrote them all.
+fn wiki_pages(t: &Ticket) -> Vec<&'static str> {
+    let listed: Vec<&str> = wiki::DRAFTS.iter().map(|(p, _)| *p).filter(|p| t.description.lines().any(|l| l.trim() == *p)).collect();
+    if listed.is_empty() { wiki::DRAFTS.iter().map(|(p, _)| *p).collect() } else { listed }
 }
 
 fn run_wiki(c: &Company, t: &Ticket) -> Result<()> {
     let (id, key) = (t.id, c.key(t.id));
     let e = employee_of(c, t)?;
     c.start_plan_ticket(id)?;
-    let mission = wiki_section(&c.wiki()?, "Mission");
+    let list: Vec<String> = wiki::DRAFTS.iter().filter(|(p, _)| wiki_pages(t).contains(p)).map(|(p, what)| format!("- {p}: {what}")).collect();
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
-         Your ticket is {key}: write the company wiki. Every teammate reads it before every ticket, so it's how a \
-         new hire learns this codebase. Read the repo as much as you need, but don't change any files.\n\n\
-         Reply with the wiki in Markdown and nothing else. Start with \"# {company} wiki\", then these sections:\n\
-         ## Mission: {mission}\n\
-         {building}\
-         ## Codebase: what this is, the stack, and where things live, folder by folder.\n\
-         ## Build and test: the exact commands, and what to run before calling work done.\n\
-         ## Conventions: what you can see the code already does (naming, structure, style, testing). Only what's really there.\n\
-         ## Decisions: leave it empty.\n\
-         Short bullets, plain words, nothing invented. If something isn't clear from the repo, leave it out.\n\n{knowledge}",
+         Your ticket is {key}: write these pages of the company wiki. Everyone reads the wiki before every ticket, so it's how \
+         a new hire learns what we're building, for whom, and how we work. Read the repo as much as you need: the README and docs, \
+         landing pages and app copy say who it's for and how we talk; the code and build files say how it's made. Don't change any files.\n\n\
+         {pages}\n\n\
+         Reply with the pages and nothing else. Start each with a heading line naming it exactly as listed, like \"# {first}\", \
+         then the page in Markdown, using ## for its sections. Short bullets, plain words, nothing invented. When the repo \
+         doesn't tell you enough for a page, leave that page out: the founder fills it in.\n\n{knowledge}",
         name = e.name,
         role = e.role,
         company = c.name,
         bio = crate::voice::intro(c, &e)?,
-        building = match c.brief()?.trim() {
-            "" => "## What we're building: the product, who it's for and what it does today, in a short paragraph. The team plans from it.\n".to_string(),
-            b => format!("## What we're building: keep exactly what the founder wrote: {b}\n"),
-        },
-        mission = if mission.is_empty() { "one or two sentences on what the company is for, from the README.".to_string() } else { format!("keep exactly this: {mission}") },
+        pages = list.join("\n"),
+        first = wiki_pages(t)[0],
         knowledge = company_knowledge(c)?,
     );
     drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
 }
 
-/// Save a completed wiki, including drafts left in review by older versions.
+/// Saves a writer's pages, including drafts left in review by older versions. Only the pages
+/// the ticket asked for are written, and what you wrote about what we're building is never replaced.
 pub fn finish_wiki(c: &Company, t: &Ticket) -> Result<()> {
     let (id, key) = (t.id, c.key(t.id));
     let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
     if t.kind != "wiki" || t.status != "review" {
         bail!("{key} is not a wiki draft ready to save");
     }
-    // The reply is the wiki. Only a reply that looks like one replaces what's there.
     let said = c.events(id)?.into_iter().rev().find(|(_, kind, _)| kind == "wiki-text").map(|(_, _, s)| s).unwrap_or_default();
-    let doc = said.trim().trim_start_matches("```markdown").trim_start_matches("```md").trim_start_matches("```").trim_end_matches("```").trim();
-    if doc.starts_with('#') && doc.contains("\n## ") {
-        // What you wrote about what we're building always wins over the draft.
-        let yours = c.brief()?;
-        c.write_wiki(&format!("{doc}\n"))?;
-        if !yours.is_empty() {
-            c.write_brief(&yours)?;
-        }
-        c.set_status(id, "done")?;
-        c.add_event(id, "wiki", "wrote the wiki", "")?;
-        out(&format!("{key}  the wiki is written. Read it: onecorp wiki"));
-    } else {
+    let asked = wiki_pages(&t);
+    let yours = !c.brief()?.is_empty();
+    let pages: Vec<(String, String)> = wiki::parse(&said).into_iter().filter(|(p, _)| asked.contains(&p.as_str()) && !(yours && p == wiki::BUILDING)).collect();
+    if pages.is_empty() {
         c.set_status(id, "failed")?;
-        c.add_event(id, "error", "the reply wasn't a wiki page, so nothing was changed", "")?;
-        bail!("{key} did not return a wiki page. Retry it to write the wiki");
+        c.add_event(id, "error", "the reply had none of the pages asked for, so nothing was changed", "")?;
+        bail!("{key} did not return any wiki pages. Retry it to write them");
     }
+    let by = t.assignee.as_deref().unwrap_or("onecorp");
+    for (path, text) in &pages {
+        let note = if wiki::read(c, path)?.is_empty() { "wrote the first draft" } else { "rewrote it from the repo" };
+        wiki::write(c, path, text, by, note)?;
+    }
+    let names: Vec<&str> = pages.iter().map(|(p, _)| p.as_str()).collect();
+    c.set_status(id, "done")?;
+    c.add_event(id, "wiki", &format!("wrote {}", names.join(", ")), "")?;
+    out(&format!("{key}  wrote {}. Read it: onecorp wiki", names.join(", ")));
     Ok(())
-}
-
-/// The text of one `## name` section of a Markdown document.
-fn wiki_section(doc: &str, name: &str) -> String {
-    let mut lines = doc.lines().skip_while(|l| !l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case(name)));
-    lines.next();
-    lines.take_while(|l| !l.starts_with("## ")).collect::<Vec<_>>().join("\n").trim().to_string()
 }
 
 /// Plans a project: a feature or a goal, like "Stripe billing". The planner breaks it into tickets
@@ -715,7 +725,7 @@ pub fn answer(c: &Company, id: i64, text: &str) -> Result<()> {
             "no" | "n" => out("Left out of the wiki."),
             yes => {
                 let line = if matches!(yes, "yes" | "y") { q.question.as_str() } else { text };
-                c.add_to_wiki(&q.options, line)?;
+                c.add_to_wiki(&q.options, line, &q.employee)?;
                 out(&format!("Added to {}: {line}", q.options));
             }
         }
@@ -781,7 +791,7 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
              and end with a short summary of it."
         )
     } else if t.kind == "wiki" {
-        format!("The founder wants these changes to the wiki:\n\n{feedback}\n\nReturn the complete wiki in Markdown, not a summary. Do not change repository files.")
+        format!("The founder wants these changes to your wiki pages:\n\n{feedback}\n\nReply with the pages again in full, each under its \"# Space/Title\" heading as before, not a summary. Don't change repository files.")
     } else {
         format!(
             "The founder reviewed your work and asked for changes:\n\n{feedback}\n\n\
@@ -886,7 +896,7 @@ fn requeue(c: &Company, t: &Ticket) -> Result<()> {
     let resumable = t.session_id.is_some() && t.worktree.as_deref().is_some_and(|w| Path::new(w).exists());
     if resumable {
         let prompt = if t.kind == "wiki" {
-            format!("Continue writing the company wiki for {key}. Return the complete wiki in Markdown and nothing else. Start with \"# {} wiki\" and keep the sections requested before. Do not change repository files.", c.name)
+            format!("Continue writing your wiki pages for {key}. Reply with the pages and nothing else, each under its \"# Space/Title\" heading as asked before. Don't change repository files.")
         } else {
             format!(
                 "Your last run on {key} stopped before it finished. Check what's already in your worktree, then carry on \

@@ -1,3 +1,4 @@
+use crate::wiki;
 use crate::work::Job;
 use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -104,6 +105,15 @@ CREATE TABLE IF NOT EXISTS messages (
   ticket_id INTEGER REFERENCES tickets(id),
   at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Every save of a wiki page: who, why, and the text it saved, so any version can come back.
+CREATE TABLE IF NOT EXISTS wiki_log (
+  id INTEGER PRIMARY KEY,
+  page TEXT NOT NULL,
+  author TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  text TEXT NOT NULL,
+  at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 ";
 
 /// Ids are the lowercased first name: "Maya Okafor" becomes maya.
@@ -138,9 +148,6 @@ pub struct Spent<'a> {
     /// Priced from tokens, because the agent didn't report a cost.
     pub estimated: bool,
 }
-
-/// The wiki section that says what the company is building.
-pub const BUILDING: &str = "What we're building";
 
 pub fn home() -> PathBuf {
     match std::env::var("ONECORP_HOME") {
@@ -284,7 +291,7 @@ pub struct Repo {
 pub struct Company {
     pub name: String,
     pub dir: PathBuf,
-    db: Connection,
+    pub(crate) db: Connection,
 }
 
 impl Company {
@@ -303,8 +310,11 @@ impl Company {
         fs::create_dir_all(&dir)?;
         let c = Self::open_dir(name, dir)?;
         c.db.execute("INSERT INTO meta (key, value) VALUES ('repo', ?1)", [repo.to_string_lossy()])?;
-        let mission = if mission.trim().is_empty() { "What the company is for, in a sentence or two." } else { mission.trim() };
-        fs::write(c.wiki_path(), format!("# {name} wiki\n\n## Mission\n\n{mission}\n\n## Decisions\n\n## Conventions\n"))?;
+        // The pages only you can write start empty, with a hint in the app, rather than with filler.
+        for p in [wiki::MISSION, wiki::BUILDING, wiki::NOW, wiki::DECISIONS] {
+            wiki::seed(&c, p)?;
+        }
+        wiki::write(&c, wiki::MISSION, mission, "founder", "")?;
         Ok(c)
     }
 
@@ -324,7 +334,9 @@ impl Company {
         db.execute_batch("PRAGMA journal_mode = WAL;")?;
         db.execute_batch(SCHEMA)?;
         migrate(&db)?;
-        Ok(Company { name: name.to_string(), dir, db })
+        let c = Company { name: name.to_string(), dir, db };
+        wiki::migrate(&c)?;
+        Ok(c)
     }
 
     /// How approved work lands: "local", "github" or "gitlab". See ship.rs.
@@ -781,64 +793,18 @@ impl Company {
         Ok(())
     }
 
-    /// Puts a section in the wiki, replacing one with the same name. Used for notes OneCorp
-    /// writes itself, like what it learned from the repo.
+    /// Rewrites a wiki page OneCorp keeps itself, like what it read in the repo.
     pub fn set_wiki_section(&self, name: &str, body: &str) -> Result<()> {
-        let doc = self.wiki()?;
-        let mut out = String::new();
-        let (mut skipping, mut heading) = (false, name.to_string());
-        for line in doc.lines() {
-            if let Some(h) = line.strip_prefix("## ") {
-                skipping = h.trim().eq_ignore_ascii_case(name);
-                if skipping {
-                    heading = h.trim().to_string();
-                    continue;
-                }
-            }
-            if !skipping {
-                out.push_str(line);
-                out.push('\n');
-            }
-        }
-        let out = format!("{}\n\n## {heading}\n\n{}\n", out.trim_end(), body.trim());
-        self.write_wiki(&out)
+        wiki::write(self, &wiki::find(self, name)?, body, "onecorp", "read it from the repo")
     }
 
-    /// What you're building: the wiki's "What we're building" section.
+    /// What you're building: the wiki's Company/What we're building page.
     pub fn brief(&self) -> Result<String> {
-        let doc = self.wiki()?;
-        let mut lines = doc.lines().skip_while(|l| !l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case(BUILDING)));
-        lines.next();
-        Ok(lines.take_while(|l| !l.starts_with("## ")).collect::<Vec<_>>().join("\n").trim().to_string())
+        wiki::read(self, wiki::BUILDING)
     }
 
-    /// Writes what you're building into the wiki, right after the mission.
     pub fn write_brief(&self, text: &str) -> Result<()> {
-        let doc = self.wiki()?;
-        let mut out: Vec<String> = vec![];
-        let (mut skipping, mut placed) = (false, false);
-        for line in doc.lines() {
-            if let Some(h) = line.strip_prefix("## ") {
-                skipping = h.trim().eq_ignore_ascii_case(BUILDING);
-                if skipping {
-                    continue;
-                }
-                // Into the mission's place in line: just before the section that follows it.
-                if !placed && out.iter().any(|l| l.strip_prefix("## ").is_some_and(|h| h.trim().eq_ignore_ascii_case("Mission"))) {
-                    out.push(format!("## {BUILDING}\n\n{}\n", text.trim()));
-                    placed = true;
-                }
-            }
-            if !skipping {
-                out.push(line.to_string());
-            }
-        }
-        let mut doc = out.join("\n");
-        if !placed {
-            doc = format!("{}\n\n## {BUILDING}\n\n{}\n", doc.trim_end(), text.trim());
-        }
-        self.write_wiki(&format!("{}\n", doc.trim_end()))?;
-        Ok(())
+        wiki::write(self, wiki::BUILDING, text, "founder", "")
     }
 
     pub fn assign(&self, ticket: i64, employee: &str) -> Result<()> {
@@ -1062,31 +1028,14 @@ impl Company {
         Ok(())
     }
 
-    pub fn wiki_path(&self) -> PathBuf {
-        self.dir.join("wiki.md")
-    }
-
-    /// The wiki's text, or empty if there isn't one yet.
+    /// The whole wiki as one document, every page under its own heading.
     pub fn wiki(&self) -> Result<String> {
-        match fs::read_to_string(self.wiki_path()) {
-            Ok(s) => Ok(s),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-            Err(e) => Err(e.into()),
-        }
+        wiki::render(self)
     }
 
-    /// Replaces the whole wiki, for editing it as text.
-    pub fn write_wiki(&self, text: &str) -> Result<()> {
-        let text = text.trim_end();
-        fs::write(self.wiki_path(), format!("{text}\n"))?;
-        Ok(())
-    }
-
-    pub fn add_to_wiki(&self, section: &str, text: &str) -> Result<()> {
-        let doc = self.wiki()?;
-        let doc = if doc.is_empty() { format!("# {} wiki\n", self.name) } else { doc };
-        fs::write(self.wiki_path(), add_to_section(&doc, section, text))?;
-        Ok(())
+    /// Adds a line to a wiki page, by its name or a section the wiki used to have, as `by`.
+    pub fn add_to_wiki(&self, page: &str, text: &str, by: &str) -> Result<()> {
+        wiki::append(self, &wiki::find(self, page)?, text, by, if by == "founder" { "" } else { "proposed it, and you added it" })
     }
 
     pub fn ask(&self, q: &Question) -> Result<i64> {
@@ -1372,26 +1321,6 @@ fn row_to_employee(r: &rusqlite::Row) -> rusqlite::Result<Employee> {
     Ok(Employee { id: r.get(0)?, name: r.get(1)?, role: r.get(2)?, runtime: r.get(3)?, model: r.get(4)?, bio: r.get(5)?, department: r.get(6)? })
 }
 
-/// Adds `text` as a bullet at the end of the `## section`, creating the section if it's missing.
-pub fn add_to_section(doc: &str, section: &str, text: &str) -> String {
-    let bullet = format!("- {}", text.trim());
-    let heading = format!("## {section}");
-    let lines: Vec<&str> = doc.lines().collect();
-    let Some(start) = lines.iter().position(|l| l.trim().eq_ignore_ascii_case(&heading)) else {
-        return format!("{}\n\n{heading}\n\n{bullet}\n", doc.trim_end());
-    };
-    let end = lines[start + 1..].iter().position(|l| l.starts_with("## ")).map_or(lines.len(), |i| start + 1 + i);
-    // Insert after the section's last non-blank line, so the blank line before the next heading stays.
-    let at = (start + 1..end).rev().find(|&i| !lines[i].trim().is_empty()).map_or(start + 1, |i| i + 1);
-    let mut out: Vec<String> = lines[..at].iter().map(|l| l.to_string()).collect();
-    if at == start + 1 {
-        out.push(String::new());
-    }
-    out.push(bullet);
-    out.extend(lines[at..].iter().map(|l| l.to_string()));
-    out.join("\n") + "\n"
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1444,18 +1373,5 @@ mod tests {
         assert_eq!(c.recover_interrupted().unwrap(), vec![c.key(m2), c.key(t1)]);
         assert_eq!(c.ticket(t1).unwrap().unwrap().status, "failed");
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn adds_bullets_to_the_right_section() {
-        let doc = "# acme wiki\n\n## Mission\n\nNotes.\n\n## Decisions\n\n## Conventions\n";
-        let one = add_to_section(doc, "Decisions", "No ORMs");
-        assert_eq!(one, "# acme wiki\n\n## Mission\n\nNotes.\n\n## Decisions\n\n- No ORMs\n\n## Conventions\n");
-        let two = add_to_section(&one, "decisions", "Hash tokens at rest");
-        assert!(two.contains("- No ORMs\n- Hash tokens at rest\n\n## Conventions"));
-        let three = add_to_section(&two, "Conventions", "Small PRs");
-        assert!(three.ends_with("## Conventions\n\n- Small PRs\n"));
-        let four = add_to_section("# x\n", "Glossary", "TVL means total value locked");
-        assert_eq!(four, "# x\n\n## Glossary\n\n- TVL means total value locked\n");
     }
 }
