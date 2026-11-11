@@ -1308,3 +1308,12 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .term .running .tx { color: var(--term-dim); display: flex; align-items: center; gap: 8px; }
 .term .spin { width: 8px; height: 8px; border-radius: 99px; background: var(--term-ok); animation: pulse 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .term .spin { animation: none; } }
+
+/* Inbox cards: text, then one row of actions, with even spacing. */
+.ask .summary { color: var(--muted); }
+.ask .summary p { margin: 0 0 8px; white-space: normal; }
+.ask .summary code, .term .k-say code { font: 12px var(--mono); padding: 1px 5px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); }
+.term .k-say code { background: rgb(255 255 255 / .06); border-color: rgb(255 255 255 / .1); }
+.ask .more-link { display: inline-block; margin: 0 0 12px; font-size: 12px; }
+.ask .acts { margin-top: 4px; }
+.ask .reply { margin-top: 10px; }

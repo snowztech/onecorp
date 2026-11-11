@@ -40,12 +40,13 @@ fn tickets_work_and_land_in_their_own_repo() {
     let last = |branch: &str| String::from_utf8(Command::new("git").arg("-C").arg(&api).args(["log", "-1", "--format=%an|%cn|%B", branch]).output().unwrap().stdout).unwrap();
 
     // A ticket in the api repo branches from it and merges into it, leaving the app untouched.
+    c.set_setting("commits", "team").unwrap();
     let t = c.new_ticket(&NewTicket { title: "Add search".into(), assignee: Some("maya".into()), repo: Some("api".into()), ..Default::default() }, "todo").unwrap();
     work::start(&c, &c.ticket(t).unwrap().unwrap()).unwrap();
     let ticket = c.ticket(t).unwrap().unwrap();
     assert_eq!(ticket.status, "review");
     assert_eq!(c.repo_of(&ticket).unwrap(), added.path);
-    // As your team, the default: Maya wrote it, you committed it and share the credit.
+    // As your team: Maya wrote it, you committed it and share the credit.
     let log = last(ticket.branch.as_deref().unwrap());
     assert!(log.starts_with("Maya Okafor|Lucas Founder|"), "{log}");
     assert!(log.contains("Co-authored-by: Lucas Founder <lucas@example.com>"), "{log}");
@@ -55,13 +56,19 @@ fn tickets_work_and_land_in_their_own_repo() {
 
     // Being on a feature branch in your checkout doesn't change where new work starts.
     assert!(Command::new("git").arg("-C").arg(&api).args(["checkout", "-q", "-b", "feat/wip"]).status().unwrap().success());
-    c.set_setting("commits", "you").unwrap();
+    c.delete_setting("commits").unwrap();
     let t2 = c.new_ticket(&NewTicket { title: "Add tags".into(), assignee: Some("maya".into()), repo: Some("api".into()), ..Default::default() }, "todo").unwrap();
     work::start(&c, &c.ticket(t2).unwrap().unwrap()).unwrap();
     assert_eq!(c.ticket(t2).unwrap().unwrap().base.as_deref(), Some("main"), "starts from main, not feat/wip");
-    // As you: every commit is yours alone.
+    // As you, the default once git knows you: every commit is yours alone.
     let log = last(c.ticket(t2).unwrap().unwrap().branch.as_deref().unwrap());
     assert!(log.starts_with("Lucas Founder|Lucas Founder|") && !log.contains("Co-authored-by"), "{log}");
+
+    // A pull request ends with who did it and where, unless you want it plain.
+    let signed = ship::signoff(&c, &c.ticket(t2).unwrap().unwrap()).unwrap();
+    assert!(signed.contains(&format!("Maya Okafor, Engineer at {}", c.name)) && signed.contains("[OneCorp](https://onecorp.dev)"), "{signed}");
+    c.set_setting("pr_sign", "off").unwrap();
+    assert_eq!(ship::signoff(&c, &c.ticket(t2).unwrap().unwrap()).unwrap(), "");
 
     // The planner names the repo for each ticket it creates.
     let plan = c.new_plan("Search", "Search across notes", "maya").unwrap();

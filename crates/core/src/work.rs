@@ -903,9 +903,9 @@ fn pick_up(c: &Company, t: &Ticket, why: &str, prompt: &str, label: &str) -> Res
 }
 
 /// Who a commit is by, per the company's choice (setting "commits"):
-/// - "team", the default: the employee is the author, you're the committer, and a
-///   Co-authored-by line credits you, so the work counts as yours on GitHub too.
-/// - "you": author and committer are both you.
+/// - "you", the default: author and committer are both you.
+/// - "team": the employee is the author, you're the committer, and a Co-authored-by line
+///   credits you, so the work counts as yours on GitHub too.
 ///
 /// "You" is whoever the repo's git config says (user.name, user.email). Without one, commits stay
 /// the employee's alone.
@@ -918,7 +918,8 @@ pub fn signature(c: &Company, e: &Employee, repo: &Path) -> Result<Signature> {
     let own = git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name));
     let you = git::config(repo, "user.name").zip(git::config(repo, "user.email"));
     let Some((name, email)) = you else { return Ok(Signature { env: own, trailer: None }) };
-    if c.setting("commits")?.as_deref() == Some("you") {
+    // Yours by default once git knows you; "team" keeps the employee as the author.
+    if c.setting("commits")?.as_deref() != Some("team") {
         return Ok(Signature { env: git::identity(&name, &email), trailer: None });
     }
     let mut env: Vec<(String, String)> = own.into_iter().filter(|(k, _)| k.starts_with("GIT_AUTHOR")).collect();

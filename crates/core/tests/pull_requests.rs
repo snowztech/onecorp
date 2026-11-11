@@ -97,8 +97,20 @@ fn work_ships_as_pull_requests() {
     assert_eq!(ticket(b).status, "done");
 
     // So is one closed without merging. It stops, and can be retried.
+    let mate = root.join("mate");
+    git(&root, &["clone", "-q", &origin.to_string_lossy(), &mate.to_string_lossy()]);
+    std::fs::write(mate.join("TEAM.md"), "from a teammate\n").unwrap();
+    git(&mate, &["add", "-A"]);
+    git(&mate, &["-c", "user.name=Mate", "-c", "user.email=m@x", "commit", "-q", "-m", "teammate change"]);
+    git(&mate, &["push", "-q", "origin", "main"]);
     let d = c.add_ticket("third note", "maya").unwrap();
     work::dispatch(&c, d, Job::Start).unwrap();
+    // A teammate's work landed on GitHub before this ticket started, and your local main is behind:
+    // the review still shows only this ticket's work.
+    assert!(!git(&repo, &["log", "--oneline", "main"]).contains("teammate"), "local main is behind");
+    let r = onecorp::view::review(&c, &ticket(d)).unwrap();
+    assert_eq!(r["commits"].as_array().unwrap().len(), 1, "{r}");
+    assert_eq!(r["base"], "main");
     std::fs::write(root.join("gh-state/state-3"), "CLOSED").unwrap();
     ship::sync(&c).unwrap();
     assert_eq!(ticket(d).status, "failed");

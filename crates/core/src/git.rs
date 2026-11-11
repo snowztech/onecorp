@@ -68,6 +68,10 @@ pub fn warm_builds(repo: &Path, wt: &Path) -> Vec<String> {
     warmed
 }
 
+pub fn has_ref(repo: &Path, name: &str) -> bool {
+    ok(repo, &["rev-parse", "--verify", "--quiet", name]).unwrap_or(false)
+}
+
 pub fn remote_url(repo: &Path, remote: &str) -> Option<String> {
     git(repo, &["remote", "get-url", remote], &[]).ok().filter(|u| !u.is_empty())
 }

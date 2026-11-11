@@ -10,6 +10,9 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Changed
 
+- Commits are yours by default once git knows your name and email. "As your team" is still one click away in Settings.
+- Pull requests end with a small signature: who did it, at which company, made with OneCorp. Choose Plain in Settings for none.
+- Inbox cards keep all their actions on one row, and summaries show `code` as code.
 - Run logs show what employees say in full, and whole commands and errors, wrapped under themselves instead of cut to one line.
 - The Repos section in Settings is calmer: a card per repo with its commands, Add a repo at the top, and shorter paths.
 - Long questions, wiki proposals and review summaries in the Inbox show a few lines, with Show all for the rest.
@@ -19,6 +22,8 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Fixed
 
+- A review no longer shows other people's merged work as part of the ticket when your local main is behind GitHub.
+- Run logs show `code` as code, and long temporary paths as just the file name.
 - Tickets in Rust repos stop rebuilding everything from scratch. A new ticket reuses the builds already in your checkout, cloned instantly on your Mac's disk.
 - A docs-only change no longer runs the full build and test suite. Employees run the checks that cover what they changed.
 - A long command in a run log shows "still running, 3 min" instead of looking stuck.
