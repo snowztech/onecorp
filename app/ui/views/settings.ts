@@ -160,21 +160,15 @@ export function spendTab() {
   const row = (lead: string, w: { today: { cost: number }; week: { cost: number }; all: { cost: number } }, extra = "") => `<tr><td>${lead}</td><td class="num">${money(w.today.cost)}</td><td class="num">${money(w.week.cost)}</td><td class="num">${money(w.all.cost)}</td>${extra}</tr>`;
   const head = (extra = "") => `<thead><tr><th></th><th class="num">Today</th><th class="num">7 days</th><th class="num">All time</th>${extra}</tr></thead>`;
   const people = r.people.filter(p => p.all.cost > 0 || p.cap > 0);
-  const plans = r.plans || [], onPlan = (rt: string) => plans.some(p => p.runtime === rt);
-  const agentsUsed = [...new Set([...(S.runtimes || ["claude", "codex"]).filter(x => x !== "fake"), ...plans.map(p => p.runtime)])];
-  const planLines = plans.map(p => {
-    const name = AGENTS[p.runtime]?.name || p.runtime;
-    return `<p class="plan-line"><span class="tool-ic sm" style="--c:${AGENTS[p.runtime]?.color || "#888"}">${agentMark(p.runtime)}</span><span><b>${esc(name)}</b>: ${money(p.month)} of work this month across your companies, at API prices. Your subscription covers it up to its usage limit${p.limits ? `, which it hit ${p.limits === 1 ? "once" : `${p.limits} times`} in the last 7 days` : ""}.</span></p>`;
-  }).join("");
-  return `<div class="spend-now"><span class="label">${plans.length ? "Today, at API prices" : "Today"}</span><b>${money(t.today.cost)}</b>
+  const limits = (r.limits || []).map(l => `<p class="plan-line"><span class="tool-ic sm" style="--c:${AGENTS[l.runtime]?.color || "#888"}">${agentMark(l.runtime)}</span><span><b>${esc(AGENTS[l.runtime]?.name || l.runtime)}</b> hit its plan's usage limit ${l.times === 1 ? "once" : `${l.times} times`} in the last 7 days. Work waited and picked back up on its own.</span></p>`).join("");
+  const by = S.spendBy || "people", tabs: [string, string][] = [["people", "People"], ["kind", "Kind"], ["projects", "Projects"], ["agents", "Agents"]];
+  const kinds = r.kinds || [];
+  return `<div class="spend-now"><span class="label" title="On a subscription, what the same work would cost on the API. On an API key, what you pay.">Today, at API prices</span><b>${money(t.today.cost)}</b>
       ${b > 0 ? `<span class="meter big ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}"><i style="width:${pct}%"></i></span><span class="muted">${Math.round(pct)}% of ${money(b)}</span>` : ""}</div>
     <div class="row-set"><div><b>Daily budget</b><span>The company pauses there until tomorrow.</span></div>
       <div class="seg">${presets.map(p => `<button data-budget="${p}" aria-pressed="${p === b && !S.customBudget}">${p ? `$${p}` : "None"}</button>`).join("")}<button data-budget-custom="1" aria-pressed="${custom || !!S.customBudget}">${custom ? money(b) : "Other"}</button></div></div>
     ${S.customBudget ? `<form id="budget-form" class="row-set"><div><b>Your budget</b><span>Press Enter to save.</span></div><label class="money-in inline"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b || ""}" placeholder="12"><span class="unit">a day</span></label></form>` : ""}
-    <div class="pay"><div class="pay-head"><b>How you pay for your agents</b><span>Pay per use is an API key: each run costs what you see here. A subscription, like Claude Max or ChatGPT Pro, covers runs up to its usage limit, so the amounts here are only what the work would cost on the API. For all your companies.</span></div>
-      ${agentsUsed.map(rt => `<div class="pay-row"><span class="who"><span class="tool-ic sm" style="--c:${AGENTS[rt]?.color || "#888"}">${agentMark(rt)}</span>${esc(AGENTS[rt]?.name || rt)}</span>
-          <div class="seg"><button data-plan-mode="${rt}:use" aria-pressed="${!onPlan(rt)}">Pay per use</button><button data-plan-mode="${rt}:sub" aria-pressed="${onPlan(rt)}">Subscription</button></div></div>`).join("")}</div>
-    ${planLines}
+    ${limits}
     ${S.settings ? (() => {
       // Says exactly which model runs, so there's nothing to guess about "lighter".
       const t = S.settings.talk || "balanced", names = (S.settings.talk_models?.[t] || []).join(" and ");
@@ -182,12 +176,16 @@ export function spendTab() {
       return `<div class="row-set"><div><b>Chat and lead decisions</b><span>${esc(line)}</span></div>
         <div class="seg">${[["cheapest", "Cheapest"], ["balanced", "Balanced"], ["same", "Their own"]].map(([m, n]) => `<button data-talk="${m}" aria-pressed="${m === t}">${n}</button>`).join("")}</div></div>`;
     })() : ""}
-    ${any ? `<div class="chart" role="img" aria-label="Spend over the last 14 days">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}"><i style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%"></i></div>`).join("")}${b > 0 && b < top ? `<span class="budget-line" style="bottom:${(b / top) * 100}%"></span>` : ""}</div>
-      <div class="chart-axis"><span>2 weeks ago</span><span>Today</span></div>` : t.all.cost > 0 ? "" : `<p class="muted sp-empty">Nothing spent yet. Your team's runs add up here.</p>`}
-    ${(r.kinds || []).length > 1 ? `<h3 class="label sp-h">By kind</h3><table class="sp">${head()}<tbody>${r.kinds!.map(k => row(esc(k.label), k)).join("")}</tbody></table>` : ""}
-    ${people.length ? `<h3 class="label sp-h">People</h3><table class="sp">${head('<th class="num">Cap</th>')}<tbody>${people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(first(p.name))}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")}</tbody></table>` : ""}
-    ${r.projects.some(p => p.all.cost > 0) ? `<h3 class="label sp-h">Projects</h3><table class="sp">${head()}<tbody>${r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("")}</tbody></table>` : ""}
-    ${any && r.agents.length ? `<h3 class="label sp-h">Agents</h3><table class="sp">${head()}<tbody>${r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ' <span class="est" title="Estimated from tokens">est.</span>' : ""}</span>`, a)).join("")}</tbody></table>` : ""}`;
+    ${any ? `<div class="chart" role="img" aria-label="Spend over the last 14 days, by kind">${r.days.map(d => `<div class="bar ${d.day === today ? "today" : ""}" title="${esc(d.day)}: ${money(d.cost)}${kinds.filter(k => d.kinds?.[k.kind]).map(k => `\n${k.label} ${money(d.kinds![k.kind])}`).join("")}"><span class="stack" style="height:${Math.max(d.cost > 0 ? 3 : 0, (d.cost / top) * 100)}%">${kinds.map(k => d.kinds?.[k.kind] ? `<i class="k-${k.kind}" style="flex:${d.kinds[k.kind]}"></i>` : "").join("")}</span></div>`).join("")}${b > 0 && b < top ? `<span class="budget-line" style="bottom:${(b / top) * 100}%"></span>` : ""}</div>
+      <div class="chart-axis"><span>2 weeks ago</span><span>Today</span></div>
+      ${kinds.length > 1 ? `<div class="legend">${kinds.map(k => `<span><i class="k-${k.kind}"></i>${esc(k.label)}</span>`).join("")}</div>` : ""}` : t.all.cost > 0 ? "" : `<p class="muted sp-empty">Nothing spent yet. Your team's runs add up here.</p>`}
+    ${t.all.cost > 0 ? `<div class="sp-switch"><div class="seg">${tabs.map(([k, n]) => `<button data-spend-by="${k}" aria-pressed="${k === by}">${n}</button>`).join("")}</div></div>
+    <table class="sp">${by === "people" ? head('<th class="num">Cap</th>') : head()}<tbody>${
+      by === "people" ? people.map(p => row(`<span class="who">${face(p.name, "neutral")}${esc(first(p.name))}</span>`, p, `<td class="num muted">${p.cap > 0 ? money(p.cap) : "—"}</td>`)).join("")
+      : by === "kind" ? kinds.map(k => row(`<span class="who"><i class="dot-k k-${k.kind}"></i>${esc(k.label)}</span>`, k)).join("")
+      : by === "projects" ? r.projects.filter(p => p.all.cost > 0).map(p => row(esc(p.title), p)).join("") || `<tr><td colspan="4" class="muted">No project has spent anything yet.</td></tr>`
+      : r.agents.map(a => row(`<span class="who"><span class="tool-ic sm" style="--c:${AGENTS[a.runtime]?.color || "#888"}">${agentMark(a.runtime)}</span>${esc(AGENTS[a.runtime]?.name || a.runtime)}${a.estimated ? ' <span class="est" title="Estimated from tokens">est.</span>' : ""}</span>`, a)).join("")
+    }</tbody></table>` : ""}`;
 }
 
 // Back from Terminal with Settings on Integrations: show what changed.

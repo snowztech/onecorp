@@ -3,7 +3,7 @@
 //! after every run: a heads-up at 80% of the day's budget, and a pause at 100%, lifted the next
 //! day. People can have their own daily cap too.
 
-use crate::store::{Company, home};
+use crate::store::Company;
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
@@ -25,39 +25,19 @@ pub fn set_price(c: &Company, runtime: &str, per_million: f64) -> Result<()> {
     c.set_setting(&format!("price.{runtime}"), &per_million.to_string())
 }
 
-/// The agents you use on a subscription, like Claude Max or ChatGPT Pro, instead of paying per
-/// use. Yours, not a company's, so it's kept once for all of them.
-pub fn plans() -> serde_json::Map<String, Value> {
-    std::fs::read_to_string(home().join("plans.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_default()
-}
-
-pub fn set_plan(runtime: &str, subscription: bool) -> Result<()> {
-    let mut all = plans();
-    if subscription {
-        all.insert(runtime.into(), json!(true));
-    } else {
-        all.remove(runtime);
-    }
-    std::fs::create_dir_all(home())?;
-    std::fs::write(home().join("plans.json"), serde_json::to_string_pretty(&all)?)?;
-    Ok(())
-}
-
-/// Each agent you use on a subscription: the API value of what all your companies ran on it this
-/// month, and how often it hit its usage limit this week.
-pub fn plan_use() -> Result<Vec<Value>> {
-    let plans = plans();
+/// Agents whose plan hit its usage limit in the last week, across all your companies, since a
+/// plan is yours, not a company's. Only subscriptions have one.
+pub fn limit_hits() -> Result<Vec<Value>> {
     let mut out = vec![];
-    for runtime in plans.keys() {
-        let (mut month, mut limits) = (0.0, 0);
+    for (runtime, label) in [("claude", "Claude Code"), ("codex", "Codex")] {
+        let mut n = 0;
         for name in crate::store::list()? {
             let Ok(c) = Company::open(&name) else { continue };
-            let start = format!("{}-01", &c.spent_day(0)?[..7]);
-            month += c.spend_rows()?.iter().filter(|r| r.2 == *runtime && r.0 >= start).map(|r| r.4).sum::<f64>();
-            let label = if runtime == "codex" { "Codex" } else { "Claude Code" };
-            limits += c.limit_waits(7)?.iter().filter(|s| s.starts_with(label)).count();
+            n += c.limit_waits(7)?.iter().filter(|s| s.starts_with(label)).count();
         }
-        out.push(json!({"runtime": runtime, "month": month, "limits": limits}));
+        if n > 0 {
+            out.push(json!({"runtime": runtime, "times": n}));
+        }
     }
     Ok(out)
 }

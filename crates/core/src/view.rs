@@ -239,7 +239,11 @@ pub fn spend_report(c: &Company) -> Result<Value> {
     for n in (0..14).rev() {
         let d = day(n)?;
         let cost: f64 = rows.iter().filter(|r| r.0 == d).map(|r| r.4).sum();
-        days.push(json!({"day": d, "cost": cost}));
+        let mut by = serde_json::Map::new();
+        for r in rows.iter().filter(|r| r.0 == d) {
+            *by.entry(r.7.clone()).or_insert(json!(0.0)) = json!(by.get(&r.7).and_then(Value::as_f64).unwrap_or(0.0) + r.4);
+        }
+        days.push(json!({"day": d, "cost": cost, "kinds": by}));
     }
     let team = c.employees()?;
     let people: Vec<Value> = team
@@ -294,7 +298,7 @@ pub fn spend_report(c: &Company) -> Result<Value> {
         "people": people, "projects": projects, "agents": agents,
         "prices": crate::spend::DEFAULT_PRICES.iter().map(|(rt, _)| json!({"runtime": rt, "price": crate::spend::price(c, rt).unwrap_or(0.0)})).collect::<Vec<_>>(),
         "estimated": rows.iter().any(|r| r.6),
-        "plans": crate::spend::plan_use()?,
+        "limits": crate::spend::limit_hits()?,
     }))
 }
 

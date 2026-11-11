@@ -110,12 +110,12 @@ export interface Settings {
 
 export interface SpendReport {
   totals: Windows; budget: number; estimated: boolean;
-  days: { day: string; cost: number }[];
+  days: { day: string; cost: number; kinds?: Record<string, number> }[];
   people: (Windows & { id: string; name: string; runtime?: string; cap: number })[];
   projects: (Windows & { key: string; title: string })[];
   agents: (Windows & { runtime: string; estimated: boolean; price?: number })[];
   prices: { runtime: string; price: number }[];
-  plans?: { runtime: string; month: number; limits: number }[];
+  limits?: { runtime: string; times: number }[];
   kinds?: (Windows & { kind: string; label: string })[];
 }
 
@@ -226,7 +226,7 @@ export interface State {
   setup: Setup | null; founder: Founder | null | undefined; profile: Profile | null; welcome?: boolean; onboarding?: boolean;
   project: string | null; rail: boolean; needs: Record<string, number>; pop: false | "menu" | "forget";
   settings: Settings | null; health: Check[] | null; ready?: Check[] | null; spend?: SpendReport;
-  confirm: string | null; sheet: string | null; shown: string; customBudget?: boolean; spendAll?: number;
+  confirm: string | null; sheet: string | null; shown: string; customBudget?: boolean; spendBy?: string; spendAll?: number;
   voices?: Voice[] | null; roles?: RoleInfo[] | null; models?: Models | null; runtimes?: string[] | null;
   switching?: boolean; members?: string | null; msgDel?: number | null;
   mention?: { opts: (Employee | { all: true })[]; i: number } | null;
