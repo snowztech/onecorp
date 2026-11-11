@@ -1317,3 +1317,7 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .ask .more-link { display: inline-block; margin: 0 0 12px; font-size: 12px; }
 .ask .acts { margin-top: 4px; }
 .ask .reply { margin-top: 10px; }
+
+/* Throwing work away sits apart, at the end of the row, and only turns red when you reach for it. */
+.btn.quiet-danger { margin-left: auto; border-color: transparent; background: none; color: var(--muted); }
+.btn.quiet-danger:hover, .btn.quiet-danger:focus-visible { color: #d4483e; border-color: color-mix(in srgb, #d4483e 40%, transparent); }

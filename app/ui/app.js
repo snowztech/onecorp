@@ -607,8 +607,10 @@ function approvalCopy(t) {
   return { label: mergeLabel(), busy: "Merging…", done: "Work merged. New tickets start from it." };
 }
 function reviewActions(t) {
-  return `<button class="btn good" data-approve="${esc(t.key)}">${approvalCopy(t).label}</button>${t.kind === "work" && !S.diffs[t.key] ? `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>` : ""}${t.kind === "work" && S.confirm !== "discard:" + t.key ? `<button class="btn danger-ghost" data-confirm="discard:${esc(t.key)}">Discard…</button>` : ""}`;
+  return `<button class="btn good" data-approve="${esc(t.key)}">${approvalCopy(t).label}</button>${t.kind === "work" && !S.diffs[t.key] ? `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>` : ""}`;
 }
+// Last in the row: the one action that throws work away.
+const discardBtn = t => t.kind === "work" && S.confirm !== "discard:" + t.key ? `<button class="btn quiet-danger" data-confirm="discard:${esc(t.key)}">Discard…</button>` : "";
 // Discarding asks once, right where you clicked: the work is gone after, the ticket isn't.
 function discardConfirm(t) {
   if (S.confirm !== "discard:" + t.key) return "";
@@ -624,7 +626,7 @@ function ticketStatus(t) {
 function review(r) {
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
-    ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}</div>
+    ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
     ${S.open[`chg-${r.key}`] ? `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Send back</button></form>` : ""}
     ${discardConfirm(r)}${changes(r.key)}</div></article>`;
 }
@@ -925,7 +927,7 @@ function drawerTicket() {
     queued: `<button class="btn" data-stop="${esc(t.key)}">Cancel</button>`,
     failed: `<button class="btn primary" data-retry="${esc(t.key)}">Retry</button>`,
     blocked: `<button class="btn primary" data-view="inbox" data-close="1">Answer it in the Inbox</button>`,
-    review: reviewActions(t),
+    review: reviewActions(t) + discardBtn(t),
     done: t.kind === "wiki" ? `<button class="btn" data-view="wiki" data-close="1">Read wiki</button>` : "",
   }[t.status] || "";
   const back = t.status === "review" ? `<form class="reply" data-changes="${esc(t.key)}"><input id="chg-${esc(t.key)}" placeholder="Ask for changes…"><button class="btn">Send back</button></form>` : "";
