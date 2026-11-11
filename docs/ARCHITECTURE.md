@@ -164,6 +164,8 @@ The desktop app runs serve on a background thread while it's open.
 
 Agents start the company MCP server by re-running the current binary with `mcp ...`. Inside the app, that binary is the app itself, so `main` first checks `onecorp::mcp::from_args` before opening a window.
 
+Updates: on launch and every six hours, the app asks `releases/latest/download/latest.json` on GitHub for a newer version. The updater plugin downloads it, checks its signature against the public key in `tauri.conf.json`, and installs it. "Restart to update" in the sidebar relaunches on it. Dev builds never update. Each release publishes `OneCorp.app.tar.gz` and `latest.json`, signed in CI with the `TAURI_SIGNING_PRIVATE_KEY` secret. Lose that key and installed copies can't update anymore: keep it backed up.
+
 ## Testing
 
 Each test covers the risky logic in one module:

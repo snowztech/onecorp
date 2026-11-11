@@ -13,6 +13,7 @@ import { approvalCopy, review, reviewActions } from "./views/inbox.ts";
 import { checkRepo, startSetup } from "./views/onboarding.ts";
 import { openSettings, renderSheet } from "./views/settings.ts";
 import "./events.ts";
+import { checkForUpdate } from "./update.ts";
 
 // Room for the window buttons in the app, and in screenshots that draw them (?native).
 if (window.__TAURI__ || /[?&]native\b/.test(location.search)) document.documentElement.classList.add("native");
@@ -21,7 +22,8 @@ document.getElementById("boot")?.insertAdjacentHTML("afterbegin", logo());
 
 try { if (localStorage.getItem("onecorp.rail")) toggleRail(true); } catch {}
 
-if (window.__TAURI__) refresh(true); else previewScreen();
+// The update check waits for the first load, which says whether this is a dev build.
+if (window.__TAURI__) refresh(true).then(checkForUpdate); else previewScreen();
 
 // For the UI smoke test, which drives these directly.
 export { S, preview, refresh, render, renderDrawer, renderPop, renderSheet, face, review, reviewActions, approvalCopy, drawerTicket, openTicket, openHire, openPerson, openSettings, startSetup, checkRepo };

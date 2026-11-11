@@ -12,6 +12,8 @@
     "opener:allow-reveal-item-in-dir",
     "core:window:allow-set-badge-count",
     "core:window:allow-set-theme",
-    "notification:default"
+    "notification:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

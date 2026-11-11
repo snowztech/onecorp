@@ -9,6 +9,8 @@ interface Window {
     app?: { getVersion(): Promise<string> };
     window?: { getCurrentWindow(): { setTheme(t: "light" | "dark" | null): Promise<void>; setBadgeCount(n?: number): Promise<void> } };
     dialog?: { open(o: { multiple?: boolean; directory?: boolean; title?: string; defaultPath?: string; filters?: Filter[] }): Promise<string | string[] | null> };
+    updater?: { check(): Promise<{ version: string; downloadAndInstall(): Promise<void> } | null> };
+    process?: { relaunch(): Promise<void> };
     opener?: { revealItemInDir(path: string): Promise<void> };
     notification?: { isPermissionGranted(): Promise<boolean>; requestPermission(): Promise<string>; sendNotification(n: { title: string; body: string }): void };
   };

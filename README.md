@@ -63,7 +63,7 @@ Everything runs locally. There's no account and no server. Your agents use the C
 brew install --cask snowztech/tap/onecorp
 ```
 
-Or download [OneCorp.dmg](https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg) and drag OneCorp to Applications. macOS 11 or later, Apple silicon or Intel.
+Or download [OneCorp.dmg](https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg) and drag OneCorp to Applications. macOS 11 or later, Apple silicon or Intel. After that, OneCorp updates itself: new versions download in the background, and a restart applies them.
 
 ## Get started
 
