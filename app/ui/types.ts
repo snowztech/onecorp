@@ -74,7 +74,7 @@ export interface TicketDetail {
 export interface Voice { key: string; label: string; sample: string }
 
 export interface Person {
-  id: string; name: string; role: string; runtime: string; model: string | null; bio: string; department: number | null;
+  id: string; name: string; role: string; runtime: string; model: string | null; bio: string; playbook: string; department: number | null;
   voice: string; voices: Voice[];
   current: { key: string; title: string; status: Status } | null;
   activity: LogLine[];
@@ -158,6 +158,7 @@ export interface Results {
   new_repo_info: NewRepoInfo;
   new_ticket: string;
   person: Person;
+  role_playbook: string;
   plan_project: string;
   readiness: Check[];
   remove_repo: SettingsRepo[];
@@ -187,7 +188,7 @@ export interface PageEdit { id: number; by: string; note: string; at: string; te
 /* The UI's own state */
 
 export interface PersonForm {
-  name: string; role: string; runtime: string; model: string | null; bio: string; voice?: string | null; face?: string;
+  name: string; role: string; runtime: string; model: string | null; bio: string; playbook?: string; voice?: string | null; face?: string;
   photoUrl?: string | null; photoPath?: string | null; removePhoto?: boolean; hasPhoto?: boolean;
 }
 

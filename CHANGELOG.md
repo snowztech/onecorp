@@ -6,6 +6,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
+- Every role comes with a playbook: what a backend engineer, frontend engineer, CTO, product manager, designer, writer, growth, mobile, DevOps or QA person owns and how they work, read before every ticket. The title picks it, so a Backend engineer and a Frontend engineer no longer work the same way. Rewrite it for anyone under How they work in their profile, and Reset to default brings it back. People you haven't customized get better playbooks as OneCorp improves them.
 - Ask OneCorp, under Help in Chat: ask how something works, whether OneCorp can do it, or if what you saw is a bug. It knows the docs for your version and your company as it is now, and drafts a GitHub issue you review before posting. It runs on your team's agent, only when you ask.
 - Ask someone in chat to fix or look into something, and they propose the tickets right under their reply. A lead splits the work across their team, like Odile giving the cache to Maya and the query to Tomás. Start them in one click, or open one to change who does it.
 

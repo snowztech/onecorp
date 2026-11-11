@@ -77,6 +77,12 @@ fn snapshot(company: String) -> Res<Value> {
 }
 
 /// Creates a ticket. `later` saves it to the backlog, otherwise it starts now (or waits for `after`).
+/// The default playbook for a role title, so the form can show it as you type the role.
+#[tauri::command]
+fn role_playbook(role: String) -> String {
+    onecorp::roles::for_title(&role).playbook.to_string()
+}
+
 // Tauri maps each named field from the app to an argument, so the list is the form.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
@@ -434,7 +440,7 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
         .map(|p| onecorp::templates::Person {
             name: s(p, "name"),
             role: s(p, "role"),
-            bio: onecorp::templates::bio_for(&s(p, "role")).into(),
+            bio: String::new(),
             runtime: s(p, "runtime"),
             // A model you kept from another team, or the one the person's tier means on their agent.
             model: Some(s(p, "model")).filter(|m| !m.is_empty()).or_else(|| onecorp::runtime::tier_model(&s(p, "runtime"), &s(p, "tier")).map(|(id, _)| id)),
@@ -727,8 +733,7 @@ fn hire(company: String, name: String, role: String, bio: String, runtime: Strin
         return Err(format!("{runtime} isn't supported yet."));
     }
     let model = model.filter(|m| !m.trim().is_empty());
-    // An empty bio gets one that fits the role, like the CLI and templates do.
-    let bio = if bio.trim().is_empty() { onecorp::templates::bio_for(&role).to_string() } else { bio };
+    let bio = onecorp::roles::to_store(&role, &bio);
     c.hire(&store::Employee { id: id.clone(), name, role, runtime, model, bio, department }).map_err(err)?;
     if let Some(v) = voice.filter(|v| !v.is_empty()) {
         onecorp::voice::set(&c, &id, &v).map_err(err)?;
@@ -745,7 +750,7 @@ fn update_employee(company: String, id: String, name: String, role: String, runt
     if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
         return Err(format!("{runtime} isn't supported yet."));
     }
-    let bio = if bio.trim().is_empty() { onecorp::templates::bio_for(&role).to_string() } else { bio };
+    let bio = onecorp::roles::to_store(&role, &bio);
     if let Some(v) = voice.filter(|v| !v.is_empty()) {
         onecorp::voice::set(&c, &id, &v).map_err(err)?;
     }
@@ -883,6 +888,7 @@ fn main() {
             person,
             review,
             retry,
+            role_playbook,
             stop,
             ticket_detail,
             wiki,

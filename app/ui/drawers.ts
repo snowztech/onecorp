@@ -121,7 +121,7 @@ export function renderDrawer() {
   }
   if (S.drawer.edit) {
     d.innerHTML = `${head}<form class="dbody" id="emp-form">
-      ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, voice: p.voice, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
+      ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, playbook: p.playbook, voice: p.voice, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
       ${personFields(S.drawer.form!)}
       <div class="field"><label for="pf-cap">Daily cap <span class="muted">(optional)</span></label><div class="money-in"><span>$</span><input id="pf-cap" type="number" min="0" step="0.5" value="${(byId(p.id)?.cap ?? 0) > 0 ? byId(p.id)!.cap : ""}" placeholder="No cap"><span class="unit">a day. They stop picking up work when they reach it</span></div></div>
       <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`;
@@ -135,13 +135,13 @@ export function renderDrawer() {
     : `<div class="dfoot"><button class="link-btn danger-link" data-confirm="fire:${esc(p.id)}">Let ${esc(first(p.name))} go…</button></div>`;
   d.innerHTML = `${head}
     <div class="dbody">
-      ${p.bio ? `<p style="margin:0">${esc(p.bio)}</p>` : ""}
       <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
           ${dept ? (leads ? `<span class="leadtag">Lead</span>` : `<button class="link-btn" data-make-lead="${esc(p.id)}">Make lead</button>`) : ""}</dd>
         <dt>Personality</dt><dd>${esc((p.voices || []).find(v => v.key === p.voice)?.label || "")}</dd>
         <dt>Works on</dt><dd>${chip(p)}</dd></dl>
       <div class="acts"><button class="btn" data-edit-person="1">Edit</button><button class="btn" data-new-ticket="${esc(p.id)}">Give ${esc(first(p.name))} a ticket</button><button class="btn" data-dm="${esc(p.id)}">Message</button></div>
       <div><h5>${p.current ? `Now · ${esc(p.current.key)} · ${esc(p.current.title)}` : "Now"}</h5>${p.current?.status === "doing" ? `<div class="acts" style="margin-bottom:8px"><button class="btn" data-stop="${esc(p.current.key)}">Stop this run</button></div>` : ""}${activity ? `<div class="term" id="term">${activity}</div>` : `<p class="muted" style="margin:0">Free right now.</p>`}</div>
+      <div class="playbook"><h5>How ${esc(first(p.name))} works <span class="muted">· ${p.bio ? "customized" : `the ${esc(p.role)} default`}</span></h5>${md(p.bio || p.playbook).html}</div>
       <div><h5>What ${esc(first(p.name))} has learned</h5>${p.memory.length ? `<ul class="notes">${p.memory.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="muted" style="margin:0">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>
       <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(ticketStatus(t))}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
       ${letGo}
@@ -199,7 +199,9 @@ export function personFields(f: PersonForm) {
     <div class="field"><label for="pf-r">Role</label><input id="pf-r" value="${esc(f.role)}" placeholder="Engineer, Designer, Writer…" autocomplete="off"></div>
     ${agentPicker({ ...f, runtime: runtimes.includes(f.runtime) ? f.runtime : runtimes[0] })}
     ${voicePicker(f)}
-    <div class="field"><label for="pf-b">How they work <span class="muted">(instructions, optional)</span></label><textarea id="pf-b" rows="3" placeholder="Replies in French. Bullet points in summaries. Always adds tests.">${esc(f.bio || "")}</textarea></div>`;
+    <div class="field"><div class="flabel-row"><label for="pf-b">How they work</label><span class="muted" id="pf-bstate">${playbookState(f.bio || f.playbook || "", f.playbook || "", f.role)}</span></div>
+      <textarea id="pf-b" rows="8" data-default="${esc(f.playbook || "")}">${esc(f.bio || f.playbook || "")}</textarea>
+      <p class="fine">What they own and how they work, read before every ticket. Starts from their role and follows it until you change it. Rules for everyone go in the wiki.</p></div>`;
 }
 
 // Personality as chips, with a reply in that voice underneath, so you hear it before you pick.
@@ -226,11 +228,28 @@ export function drawerHire() {
     </form>`;
 }
 
-export function openHire(deptId: number) {
+// Whether "How they work" is still their role's default, with a way back when it isn't.
+export function playbookState(text: string, def: string, role: string) {
+  return !def || text.trim() === def.trim() ? `The ${esc(role || "Engineer")} default` : `Customized · <button type="button" class="link-btn" data-pb-reset="1">Reset to default</button>`;
+}
+
+// The role's default playbook follows the title as you type it, unless you've written your own.
+export async function followRole() {
+  const ta = $<HTMLTextAreaElement>("#pf-b"), role = $("#pf-r")?.value.trim() || "Engineer";
+  if (!ta) return;
+  const def = await invoke("role_playbook", { role }).catch(() => ta.dataset.default || "");
+  if (ta.value.trim() === (ta.dataset.default || "").trim()) ta.value = def;
+  ta.dataset.default = def;
+  if (S.drawer?.form) S.drawer.form.playbook = def;
+  $("#pf-bstate")!.innerHTML = playbookState(ta.value, def, role);
+}
+
+export async function openHire(deptId: number) {
   const dept = S.snap!.departments.find(x => x.id === deptId);
   const role = !dept || /eng/i.test(dept.name) ? "Engineer" : /design/i.test(dept.name) ? "Product designer" : /product/i.test(dept.name) ? "Product manager" : dept.name + " specialist";
   const c = candidates(role)[1] || candidates(role)[0];
-  S.drawer = { type: "hire", dept: deptId, form: { name: c.name, role, runtime: c.runtime, model: c.model, bio: "" } };
+  const playbook = await invoke("role_playbook", { role }).catch(() => "");
+  S.drawer = { type: "hire", dept: deptId, form: { name: c.name, role, runtime: c.runtime, model: c.model, bio: "", playbook } };
   renderDrawer();
 }
 

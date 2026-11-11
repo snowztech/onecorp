@@ -412,7 +412,8 @@ pub fn person(c: &Company, id: &str) -> Result<Value> {
     let memory = c.memory(id)?;
     let notes: Vec<&str> = memory.lines().filter(|l| !l.trim().is_empty()).map(|l| l.trim_start_matches("- ")).collect();
     Ok(json!({
-        "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "bio": e.bio, "department": e.department,
+        "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "department": e.department,
+        "bio": crate::roles::custom(&e).unwrap_or(""), "playbook": crate::roles::for_title(&e.role).playbook,
         "voice": crate::voice::of(c, &e)?,
         "voices": crate::voice::list(),
         "current": current.map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status})),

@@ -1,4 +1,4 @@
-import { candidates, openHire, openPerson, openTicket, readPerson, renderDrawer, saveNewTicket } from "./drawers.ts";
+import { candidates, followRole, openHire, playbookState, openPerson, openTicket, readPerson, renderDrawer, saveNewTicket } from "./drawers.ts";
 import { $, esc, first, initials, toast } from "./lib.ts";
 import { PALETTE, drawFace, face, icon } from "./look.ts";
 import { md } from "./md.ts";
@@ -28,7 +28,7 @@ document.addEventListener("click", async e => {
   if (S.switching && !target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-pb-reset],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.updateRestart) return restartToUpdate();
@@ -121,6 +121,7 @@ document.addEventListener("click", async e => {
   if (d.rail) return toggleRail();
   if (d.ask) { S.pop = false; renderPop(); S.view = "chat"; S.channel = "help"; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
   if (d.dm) { S.view = "chat"; S.channel = "dm:" + d.dm; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
+  if (d.pbReset) { const ta = $<HTMLTextAreaElement>("#pf-b"); ta.value = ta.dataset.default || ""; $("#pf-bstate")!.innerHTML = playbookState(ta.value, ta.value, $("#pf-r").value.trim()); return ta.focus(); }
   if (d.face && S.drawer?.form) {
     S.drawer!.form.face = d.face;
     el.parentElement!.querySelectorAll(".fpick").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
@@ -548,6 +549,8 @@ document.addEventListener("submit", async e => {
   }
 });
 
+const roleLater: { t?: ReturnType<typeof setTimeout> } = {};
+
 // The drawn face follows your name as you type it.
 export const faceLater: { t?: ReturnType<typeof setTimeout> } = {};
 
@@ -560,6 +563,8 @@ document.addEventListener("input", e => {
     return;
   }
   if (target.id === "say-text") updateMentions(target);
+  if (target.id === "pf-b") { const st = $("#pf-bstate"); if (st) st.innerHTML = playbookState(target.value, target.dataset.default || "", $("#pf-r")?.value.trim() || ""); }
+  if (target.id === "pf-r") { clearTimeout(roleLater.t); roleLater.t = setTimeout(followRole, 350); }
   if (target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (target.value.trim() || "?")[0].toUpperCase(); }
   if (target.id === "wk-space") target.style.width = `${Math.max(target.value.length, 5) + 2}ch`;
   if (target.id === "pf-n" && S.drawer?.type === "hire") {

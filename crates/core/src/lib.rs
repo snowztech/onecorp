@@ -7,6 +7,7 @@ pub mod git;
 pub mod help;
 pub mod limits;
 pub mod mcp;
+pub mod roles;
 pub mod runtime;
 pub mod serve;
 pub mod setup;
