@@ -788,7 +788,7 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
              Make them. Same rules as before: don't commit, and end with two or three sentences on what changed."
         )
     };
-    c.add_event(t.id, "review", &format!("changes requested: {}", first_line(feedback)), "")?;
+    c.add_event(t.id, "review", &format!("changes requested: {}", runtime::clip(feedback, 600)), "")?;
     if let Some(who) = &t.assignee {
         c.remember(who, &format!("On {key} the founder asked for changes: {feedback}"))?;
     }

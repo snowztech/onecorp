@@ -3,7 +3,7 @@
 //! Shapes, from codex-cli 0.166: `thread.started` carries the session id, each `item.completed`
 //! is a message, command, file change or MCP call, and `turn.completed` carries token usage.
 
-use super::{Event, Opts, first_line, stream};
+use super::{Event, Opts, clip, stream};
 use anyhow::Result;
 use serde_json::Value;
 use std::process::Command;
@@ -52,9 +52,9 @@ pub fn parse(line: &str) -> Vec<Event> {
             vec![Event::Done { ok: true, cost: 0.0, tokens, text: String::new() }]
         }
         Some("turn.failed") => {
-            vec![Event::Done { ok: false, cost: 0.0, tokens: 0, text: first_line(&s(&v["error"], "message")) }]
+            vec![Event::Done { ok: false, cost: 0.0, tokens: 0, text: clip(&s(&v["error"], "message"), 600) }]
         }
-        Some("error") => vec![Event::ToolResult { error: true, text: first_line(&s(&v, "message")) }],
+        Some("error") => vec![Event::ToolResult { error: true, text: clip(&s(&v, "message"), 600) }],
         _ => vec![],
     }
 }
@@ -82,7 +82,7 @@ fn item(i: &Value) -> Vec<Event> {
             // Named like Claude's MCP tools so logs read the same whatever the runtime.
             let mut out = vec![Event::Tool { name: format!("mcp__{}__{tool}", s("server")), detail }];
             if let Some(msg) = i["error"]["message"].as_str() {
-                out.push(Event::ToolResult { error: true, text: first_line(msg) });
+                out.push(Event::ToolResult { error: true, text: clip(msg, 600) });
             }
             out
         }
