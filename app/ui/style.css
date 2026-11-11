@@ -1288,3 +1288,9 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .foldable.open { max-height: none; -webkit-mask-image: none; mask-image: none; }
 .ask .more-link { margin-top: 2px; }
 .cmd-ask { font: 600 14px var(--mono); padding: 3px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
+
+/* Only in dev builds, so the window you're testing is never mistaken for the installed app. */
+.dev-chip { margin: auto 12px 6px; align-self: flex-start; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 600 10px var(--mono); letter-spacing: .04em; padding: 3px 7px; border-radius: 5px; color: var(--signal); background: var(--signal-soft); border: 1px solid color-mix(in srgb, var(--signal) 40%, transparent); }
+.dev-chip + .side-foot { margin-top: 0; }
+.app.rail .dev-chip { display: none; }

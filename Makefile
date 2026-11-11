@@ -2,10 +2,10 @@
 
 DEMO_HOME := /tmp/onecorp-demo
 
-.PHONY: help app fresh demo demo-reset serve doctor test lint check install install-cli bundle
+.PHONY: help dev fresh demo demo-reset serve doctor test lint check install install-cli bundle
 
 help:
-	@echo "make app          open the desktop app on your real companies (~/.onecorp)"
+	@echo "make dev          open a dev build of the app on your real companies (~/.onecorp)"
 	@echo "make fresh        open the app as a first user would: empty home, full onboarding"
 	@echo "make demo         open the app on a throwaway home, to try things safely"
 	@echo "make demo-reset   wipe the throwaway home, to see first-launch setup again"
@@ -18,7 +18,7 @@ help:
 	@echo "make install-cli  install only the onecorp command"
 	@echo "make bundle       build OneCorp.app and a DMG without installing it"
 
-app:
+dev:
 	cargo run -p onecorp-app
 
 demo:

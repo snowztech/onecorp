@@ -29,7 +29,9 @@ fn companies() -> Res<Value> {
             Some((n.clone(), json!({ "color": color, "logo": logo.as_deref().and_then(data_url) })))
         })
         .collect();
-    Ok(json!({ "list": list, "current": current, "looks": looks }))
+    // A dev build says so, and which home it runs on, so it's never mistaken for the installed app.
+    let dev = cfg!(debug_assertions).then(|| store::home().display().to_string());
+    Ok(json!({ "list": list, "current": current, "looks": looks, "dev": dev }))
 }
 
 /// An image file as a data URL, so the webview can show it without file access.
@@ -766,6 +768,11 @@ fn main() {
 
     tauri::Builder::default()
         .setup(|app| {
+            if cfg!(debug_assertions)
+                && let Some(w) = tauri::Manager::get_webview_window(app, "main")
+            {
+                let _ = w.set_title("OneCorp Dev");
+            }
             menu_bar(app)?;
             help_menu(app)?;
             Ok(())

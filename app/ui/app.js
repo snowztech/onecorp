@@ -174,6 +174,7 @@ function renderSide() {
         <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
     ${S.company ? `${Object.entries(pages).map(([k, v]) =>
       `<button class="navbtn" data-view="${k}" title="${v}" ${S.view === k ? 'aria-current="page"' : ""}>${icon(k)}<span>${v}</span>${k === "inbox" && n ? `<span class="badge">${n}</span>` : ""}${k === "chat" && unread ? `<i class="dot" title="New messages"></i>` : ""}</button>`).join("")}` : ""}
+    ${S.dev ? `<span class="dev-chip" title="A dev build, on ${esc(S.dev)}">DEV · ${esc(S.dev.replace(/^\/Users\/[^/]+/, "~"))}</span>` : ""}
     <button class="side-foot" data-pop="menu" aria-expanded="${!!S.pop}" title="You and settings">${me()}<div><b>${esc(myName())}</b><span>Founder</span></div><span class="foot-more">${icon("more")}</span></button>`;
 }
 function renderTop() {
@@ -1564,7 +1565,7 @@ async function refresh(force) {
     // A first launch says hello before anything else: who you are, then your first company.
     if (S.founder === null && !S.profile && !S.setup) S.profile = { name: "" };
     const c = await invoke("companies");
-    S.companies = c.list; S.looks = c.looks || {};
+    S.companies = c.list; S.looks = c.looks || {}; S.dev = c.dev || null;
     // The very first launch opens on a welcome. Anyone with a company goes straight in.
     if (S.welcome === undefined) S.welcome = S.founder === null && !c.list.length;
     if (!S.company || !c.list.includes(S.company)) S.company = c.current;
