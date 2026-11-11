@@ -48,6 +48,11 @@ fn channels_posts_and_replies() {
     assert!(!r.pending && r.author == "odile" && r.text.contains("can you check Maya's login?"), "{}", r.text);
     assert!(chat::say(&c, "general", "  ").is_err());
 
+    // A reply knows its own tickets, and only its own.
+    let mine = chat::own_tickets(&c, "maya").unwrap();
+    assert!(mine.contains(&format!("{} Login (", c.key(ticket))), "{mine}");
+    assert_eq!(chat::own_tickets(&c, "odile").unwrap(), "");
+
     // @all calls the channel: the whole company in #general, the team in a department's channel.
     assert_eq!(chat::say(&c, "engineering", "@all standup in 5").unwrap().len(), 2, "odile and maya");
     assert_eq!(chat::say(&c, "general", "@everyone shipping Friday, @maya too").unwrap().len(), 4, "everyone once, even when named twice");

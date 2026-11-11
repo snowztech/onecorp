@@ -140,7 +140,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let before: Vec<Message> = c.messages(Some(&slot.channel))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
     let asked = before.iter().rev().find(|m| m.author == "founder").map(|m| m.text.clone()).unwrap_or_default();
-    let history: Vec<String> = before.iter().rev().take(20).rev().map(|m| line(c, m)).collect();
+    let history: Vec<String> = before.iter().rev().take(20).rev().map(|m| line(c, m, &e.id)).collect();
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          {founder} {place}. The conversation so far:\n\n{history}\n\n\
@@ -149,7 +149,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{notes}",
+         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -158,6 +158,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
         knowledge = crate::work::company_knowledge(c)?,
+        tickets = own_tickets(c, &e.id)?,
         notes = crate::work::own_notes(c, &e.id)?,
         checkout = checkout_note(c),
     );
@@ -196,6 +197,17 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     c.finish_message(id, &text, cost, tokens)
 }
 
+/// The tickets someone has been given, newest last, so a chat reply knows its own work.
+pub fn own_tickets(c: &Company, employee: &str) -> Result<String> {
+    const RECENT: usize = 10;
+    let mine: Vec<String> = c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(employee)).map(|t| format!("- {} {} ({})", c.key(t.id), t.title, t.status)).collect();
+    if mine.is_empty() {
+        return Ok(String::new());
+    }
+    let recent = &mine[mine.len().saturating_sub(RECENT)..];
+    Ok(format!("\n\nYour tickets, newest last. You did these yourself:\n{}", recent.join("\n")))
+}
+
 /// The repo a chat reply reads is the founder's own checkout, which may be on a branch of theirs.
 /// Said plainly, so a reply doesn't mistake the founder's work in progress for the team's.
 fn checkout_note(c: &Company) -> String {
@@ -226,7 +238,7 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
         .rev()
         .take(RECENT)
         .rev()
-        .map(|m| format!("{} {}", if dm_of(&m.channel).is_some() { "(direct message)".to_string() } else { format!("#{}", m.channel) }, line(c, m)))
+        .map(|m| format!("{} {}", if dm_of(&m.channel).is_some() { "(direct message)".to_string() } else { format!("#{}", m.channel) }, line(c, m, &e.id)))
         .collect();
     Ok(format!(
         "\n\nRecent team chat, newest last. Your posts go to #{home} unless you name another channel:\n{}",
@@ -234,13 +246,14 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
     ))
 }
 
-/// "Name: text", with long messages cut so one rant can't fill the prompt.
-fn line(c: &Company, m: &Message) -> String {
+/// "Name: text", with long messages cut so one rant can't fill the prompt. The reader's own
+/// messages stay whole, or they think their earlier reply got cut off and send it again.
+fn line(c: &Company, m: &Message, reader: &str) -> String {
     let who = if m.author == "founder" {
         format!("{} (founder)", crate::founder::name())
     } else {
         c.employee(&m.author).ok().flatten().map(|e| e.name).unwrap_or_else(|| m.author.clone())
     };
-    let text: String = m.text.chars().take(400).collect();
+    let text: String = if m.author == reader { m.text.clone() } else { m.text.chars().take(400).collect() };
     format!("{who}: {}", text.replace('\n', " "))
 }
