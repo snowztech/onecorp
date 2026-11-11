@@ -63,10 +63,30 @@ export function render() {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
     const views: Record<string, () => string> = { inbox: viewInbox, wiki: viewWiki, board: viewBoard, chat: viewChat };
+    const chat = keepChatScroll();
     v.innerHTML = views[S.view]?.() ?? viewCompany();
-    const m = $("#msgs"); if (m) m.scrollTop = m.scrollHeight;
+    chat();
   }
   renderDrawer();
+}
+
+// Chat stays where you are across a redraw: at the latest message if you were there, even as photos
+// and replies arrive after it, or where you scrolled up to read. A new channel opens at the bottom.
+let chatAt = "";
+// Sending a message brings you to the end, wherever you were.
+export const chatToEnd = () => { chatAt = ""; };
+function keepChatScroll() {
+  const old = document.querySelector<HTMLElement>("#msgs"), same = chatAt === S.channel;
+  const atBottom = !old || !same || old.scrollHeight - old.scrollTop - old.clientHeight < 60, top = old?.scrollTop ?? 0;
+  return () => {
+    const m = document.querySelector<HTMLElement>("#msgs");
+    chatAt = m ? S.channel : "";
+    if (!m) return;
+    if (!atBottom) { m.scrollTop = top; return; }
+    const pin = () => (m.scrollTop = m.scrollHeight);
+    pin();
+    m.querySelectorAll("img").forEach(img => img.complete || img.addEventListener("load", pin, { once: true }));
+  };
 }
 
 export function typing() {
