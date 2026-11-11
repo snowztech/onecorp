@@ -284,17 +284,21 @@ function companySection() {
         ? (st.commits === "you" ? `Every commit is yours, as ${esc(st.git_you.name)}` : `The employee writes it, you're credited too`)
         : "By the employee. Set your name in git (git config user.name and user.email) to commit as you."}</span></div>
       <div class="seg">${[["team", "As your team"], ["you", "As you"]].map(([m, n]) => `<button data-commits="${m}" aria-pressed="${m === (st.commits || "team")}" ${!st.git_you && m === "you" ? "disabled" : ""}>${n}</button>`).join("")}</div></div>
-    <h3 class="label repos-label">Repos</h3>
-    <p class="cmds-note">Each command covers what follows it: <code>make</code> allows every target. Git reads are always allowed, and OneCorp commits for your team.</p>
-    ${(st.repos || []).map(r => `<div class="repo-set">
-      <div class="repo-h"><b>${esc(r.name)}</b>${r.main ? `<span class="pill-state">primary</span>` : ""}<span class="mono muted" title="${esc(r.path)}">${esc(r.path)}</span>${reveal(r.path)}${r.main ? "" : `<button class="link-btn" data-repo-rm="${esc(r.name)}">Remove</button>`}</div>
-      <div class="cmds"><div class="cmds-h"><span>Commands your team can run</span>${r.custom ? `<button class="link-btn" type="button" data-commands-reset="${esc(r.name)}">Reset to suggested</button>` : `<span class="muted">Suggested from the repo</span>`}</div>
-        <div class="cmd-list">${r.commands.map(cmd => `<span class="cmd-chip">${esc(cmd)}<button type="button" data-cmd-del="${esc(r.name)}" data-cmd="${esc(cmd)}" aria-label="Remove ${esc(cmd)}">×</button></span>`).join("")}
-          <input class="cmd-add" data-cmd-add="${esc(r.name)}" placeholder="${r.commands.length ? "Add a command" : "Add a command, like npm test"}" autocomplete="off" spellcheck="false" aria-label="Add a command for ${esc(r.name)}"></div></div></div>`).join("")}
-    <div class="su-row add-repo">${window.__TAURI__?.dialog ? `<button class="btn" type="button" data-repo-add="pick">Add a repo…</button>` : ""}<input id="repo-add-path" class="mono" placeholder="/Users/you/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-repo-add="path">Add</button></div>
-    <div class="row-set"><div><b>Data</b><span class="mono">${esc(st.data)}</span></div>${reveal(st.data)}</div>
+    <div class="sec-h"><h3 class="label">Repos</h3>${window.__TAURI__?.dialog ? `<button class="btn sm" type="button" data-repo-add="pick">Add a repo…</button>` : ""}</div>
+    <p class="sec-sub">Where your team works, and the commands they can run there. Each command covers what follows it, so <code>make</code> allows every target.</p>
+    ${(st.repos || []).map(r => `<div class="repo-card">
+      <div class="repo-top"><b>${esc(r.name)}</b>${r.main ? `<span class="pill-state">primary</span>` : ""}<span class="mono muted repo-path" title="${esc(r.path)}">${esc(tilde(r.path))}</span>
+        <span class="repo-acts">${reveal(r.path)}${r.main ? "" : `<button class="link-btn" data-repo-rm="${esc(r.name)}">Remove</button>`}</span></div>
+      <div class="cmd-list">${r.commands.map(cmd => `<span class="cmd-chip">${esc(cmd)}<button type="button" data-cmd-del="${esc(r.name)}" data-cmd="${esc(cmd)}" aria-label="Remove ${esc(cmd)}">×</button></span>`).join("")}
+        <input class="cmd-add" data-cmd-add="${esc(r.name)}" placeholder="${r.commands.length ? "Add a command" : "Add a command, like npm test"}" autocomplete="off" spellcheck="false" aria-label="Add a command for ${esc(r.name)}"></div>
+      <div class="repo-foot">${r.custom ? `<span>Your list</span><button class="link-btn" type="button" data-commands-reset="${esc(r.name)}">Reset to suggested</button>` : `<span>Suggested from the repo's files</span>`}</div></div>`).join("")}
+    ${window.__TAURI__?.dialog && !S.open["repo-path"] ? `<button class="link-btn type-path" type="button" data-more="repo-path">Or type a repo's path</button>`
+      : `<div class="su-row add-repo"><input id="repo-path" class="mono" placeholder="~/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-repo-add="path">Add repo</button></div>`}
+    <div class="row-set data-row"><div><b>Company data</b><span class="mono">${esc(tilde(st.data))}</span></div>${reveal(st.data)}</div>
     <h3 class="label danger-label">Danger zone</h3>${del}`;
 }
+// Paths read shorter from your home: ~/dev/holt.
+const tilde = p => String(p).replace(/^\/Users\/[^/]+/, "~");
 // What fixes a tool: a button that opens Terminal running the command, and the command itself to copy.
 const fixRow = (fix, state) => `<div class="fix"><button class="btn sm" type="button" data-term="${esc(fix)}">${state === "signin" ? "Sign in" : "Install"}</button><code>${esc(fix)}</code><button class="link-btn" type="button" data-copy="${esc(fix)}">Copy</button></div>`;
 function agentsSection() {
@@ -402,7 +406,7 @@ function spendTab() {
 function needItems(s) {
   return [
     ...s.reviews.filter(r => r.kind === "plan").map(r => ({ to: r.key, name: r.name, text: `planned ${r.title}. Review the plan` })),
-    ...s.inbox.filter(q => q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.question })),
+    ...s.inbox.filter(q => q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "command" ? `wants to run ${q.question}` : q.question })),
     ...(s.failed || []).map(t => ({ to: t.key, name: t.name, text: `${t.key} stopped. Retry it?` })),
     ...s.reviews.filter(r => r.kind !== "plan").map(r => ({ to: r.key, name: r.name, text: `${r.title} is ready for review` })),
     ...s.inbox.filter(q => !q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "wiki" ? `proposes: ${q.question}` : q.question }))];
@@ -672,6 +676,13 @@ function members(channel, people, lead) {
       ${people.slice(0, 5).map(e => `<span class="face-btn">${face(e.name, e.status)}</span>`).join("")}<span class="faces-n">${people.length}</span></button>
     ${open ? `<div class="members-pop" role="dialog" aria-label="People in #${esc(channel)}"><h6>${people.length} ${people.length === 1 ? "person" : "people"}</h6><ul>${rows}</ul></div>` : ""}`;
 }
+// One run log line: time, what kind, and the whole text, wrapped under itself. A tool line shows
+// its tool dimmed, so the command stands out.
+function logRow(a, from) {
+  const [tool, ...rest] = a.kind === "tool" ? String(a.summary).split(" ") : [];
+  const text = a.kind === "tool" ? `<span class="tname">${esc(tool)}</span> ${esc(rest.join(" "))}` : esc(a.summary);
+  return `<div class="lr k-${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(from, 16))}</span><span class="kd">${esc(a.kind)}</span><span class="tx">${text}</span></div>`;
+}
 // The database keeps UTC. Shown in your own time.
 const utc = at => new Date(String(at).replace(" ", "T") + "Z");
 const hhmm = at => { const d = utc(at); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
@@ -898,7 +909,7 @@ function drawerTicket() {
     done: t.kind === "wiki" ? `<button class="btn" data-view="wiki" data-close="1">Read wiki</button>` : "",
   }[t.status] || "";
   const back = t.status === "review" ? `<form class="reply" data-changes="${esc(t.key)}"><input id="chg-${esc(t.key)}" placeholder="Ask for changes…"><button class="btn">Send back</button></form>` : "";
-  const log = t.log.map(a => `<div class="k-${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(5, 16))}</span>${esc(a.kind)} ${esc(a.summary)}</div>`).join("");
+  const log = t.log.map(a => logRow(a, 5)).join("");
   return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(ticketStatus(t))}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <div class="dbody">
       ${t.description ? `<p class="details">${esc(t.description)}</p>` : ""}
@@ -994,7 +1005,7 @@ function renderDrawer() {
     return;
   }
   const leads = dept?.lead === p.id;
-  const activity = p.activity.map(a => `<div class="k-${esc(a.kind)}"><span class="at">${esc(String(a.at).slice(11, 16))}</span>${esc(a.kind)} ${esc(a.summary)}</div>`).join("");
+  const activity = p.activity.map(a => logRow(a, 11)).join("");
   const letGo = S.confirm === "fire:" + p.id
     ? `<div class="confirm"><p>Let ${esc(first(p.name))} go? They stop taking work. Their tickets and commits stay on record${leads ? `, and ${esc(dept.name)} passes to the next person in it` : ""}.</p>
         <div class="acts"><button class="btn danger" data-fire="${esc(p.id)}">Let go</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
@@ -1777,8 +1788,8 @@ document.addEventListener("click", async e => {
     renderSheet(); return refresh(true);
   }
   if (d.repoAdd) {
-    const path = d.repoAdd === "pick" ? await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: "Pick another repo" }).catch(() => null) : $("#repo-add-path")?.value.trim();
-    if (!path) return $("#repo-add-path")?.focus();
+    const path = d.repoAdd === "pick" ? await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: "Pick another repo" }).catch(() => null) : $("#repo-path")?.value.trim();
+    if (!path) return $("#repo-path")?.focus();
     try { S.settings.repos = await invoke("add_repo", { company: S.company, path: String(path), name: null }); toast(`Added ${S.settings.repos.at(-1).name}. Tickets can work in it now`); } catch (err) { toast(String(err), true); }
     renderSheet(); return refresh(true);
   }
@@ -2285,7 +2296,7 @@ function preview(cmd, args) {
       { id: 6, at: "2026-11-09 11:20:00", author: "founder", name: "Lucas", founder: true, text: "@tomas how far are the Stripe webhook retries?", key: null, pending: false },
       { id: 7, at: "2026-11-09 11:20:00", author: "tomas", name: "Tomás Reis", text: "", key: null, pending: true }] },
     person: { id: "tomas", name: "Tomás Reis", role: "Engineer", runtime: "codex", model: null, bio: "Fast, likes refactors a bit too much.", department: 1, voice: "dry", voices: VOICES, current: { key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing" },
-      activity: [{ at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }, { key: "SNO-9", title: "Rate limit the public API", status: "failed", spend: "40k tok" }, { key: "SNO-8", title: "CI pipeline", status: "merged", spend: "$0.22" }, { key: "SNO-4", title: "Notes API: create and list", status: "merged", spend: "$0.48" }],
+      activity: [{ at: "2026-11-09 10:49:00", kind: "say", summary: "Retries happen in the webhook handler today, inline, so one slow Stripe call holds the request open. I'll move them to the jobs table with a backoff of 1, 5 and 30 minutes, and keep the handler idempotent with the event id.\n\nThen the tests: one for a duplicate event, one for a retry that succeeds on the second try." }, { at: "2026-11-09 10:50:00", kind: "tool", summary: "Edit src/billing/webhook.rs" }, { at: "2026-11-09 10:51:00", kind: "tool", summary: "Bash cargo test billing -- --nocapture 2>&1 | tail -40; echo \"exit ${PIPESTATUS[0]}\"" }, { at: "2026-11-09 10:51:00", kind: "error", summary: "A variable in braces in this command can't be checked before it runs" }, { at: "2026-11-09 10:52:00", kind: "tool", summary: "Bash cargo test billing" }], tickets: [{ key: "SNO-15", title: "Retry failed Stripe webhooks", status: "doing", spend: "75k tok" }, { key: "SNO-9", title: "Rate limit the public API", status: "failed", spend: "40k tok" }, { key: "SNO-8", title: "CI pipeline", status: "merged", spend: "$0.22" }, { key: "SNO-4", title: "Notes API: create and list", status: "merged", spend: "$0.48" }],
       memory: ["2026-11-09 Stripe retries for 3 days, make handlers idempotent instead of queueing", "2026-11-08 Lucas wants errors logged with the ticket key, never swallowed", "2026-11-07 Billing code lives in src/billing, one file per provider", "2026-11-06 Run cargo test billing before the full suite, it's 10x faster"] },
   };
   data.review = { key: "SNO-11", title: "Pricing page", base: "main", branch: "onecorp/snowztech/sno-11", added: 5, removed: 1,

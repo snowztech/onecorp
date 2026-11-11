@@ -955,11 +955,11 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             }
             Event::Say(text) => {
                 last_say = text.clone();
-                ("say", first_line(text))
+                ("say", runtime::clip(text, 2_000))
             }
             Event::Tool { name, detail } => {
                 let name = name.strip_prefix("mcp__onecorp__").unwrap_or(name);
-                ("tool", first_line(&format!("{name} {}", detail.replace(&wt_prefix, ""))).trim_end().to_string())
+                ("tool", runtime::clip(&format!("{name} {}", detail.replace(&wt_prefix, "")), 600))
             }
             Event::ToolResult { error: true, text } => ("error", text.clone()),
             Event::ToolResult { .. } => return Ok(()),

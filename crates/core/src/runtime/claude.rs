@@ -1,6 +1,6 @@
 //! Claude Code, run headless with stream-json output.
 
-use super::{Event, Opts, first_line, stream};
+use super::{Event, Opts, clip, stream};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::process::Command;
@@ -100,15 +100,14 @@ fn tool_detail(name: &str, input: &Value) -> String {
         "mcp__onecorp__update_ticket" => "note",
         _ => return String::new(),
     };
-    // Not truncated: the caller strips the worktree path first, and absolute paths are long.
-    let s = input[key].as_str().unwrap_or("");
-    s.lines().find(|l| !l.trim().is_empty()).unwrap_or("").to_string()
+    // Whole: the caller strips the worktree path first and keeps what fits the log.
+    input[key].as_str().unwrap_or("").trim().to_string()
 }
 
 fn result_text(content: &Value) -> String {
     match content {
-        Value::String(s) => first_line(s),
-        Value::Array(items) => first_line(items.iter().find_map(|i| i["text"].as_str()).unwrap_or("")),
+        Value::String(s) => clip(s, 600),
+        Value::Array(items) => clip(items.iter().find_map(|i| i["text"].as_str()).unwrap_or(""), 600),
         _ => String::new(),
     }
 }
@@ -129,7 +128,7 @@ mod tests {
         );
 
         let res = r#"{"type":"user","message":{"content":[{"type":"tool_result","is_error":true,"content":"permission denied\nx"}]}}"#;
-        assert_eq!(parse(res), vec![Event::ToolResult { error: true, text: "permission denied".into() }]);
+        assert_eq!(parse(res), vec![Event::ToolResult { error: true, text: "permission denied\nx".into() }]);
 
         let done = r#"{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0.42,"num_turns":7,"result":"Done","usage":{"input_tokens":10,"cache_read_input_tokens":90,"output_tokens":5}}"#;
         assert_eq!(parse(done), vec![Event::Done { ok: true, cost: 0.42, tokens: 105, text: "Done".into() }]);
