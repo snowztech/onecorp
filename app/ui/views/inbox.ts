@@ -107,16 +107,16 @@ export function reportReview(r: Review) {
     ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What else should they look into?", "Send")}` : ""}</div></article>`;
 }
 
-export function approvalCopy(t?: { kind?: string; key?: string } | null) {
+export function approvalCopy(t?: { kind?: string; key?: string; empty?: boolean } | null) {
   const diff = t?.key ? S.diffs[t.key] : undefined;
-  if (t?.kind === "work" && diff && diff !== "loading" && diff.files.length === 0) return { label: "Close as done", busy: "Closing…", done: "Closed. Everything it had was already on main." };
+  if (t?.kind === "work" && (t.empty || (diff && diff !== "loading" && diff.files.length === 0))) return { label: "Close as done", busy: "Closing…", done: "Closed. Everything it had was already on main." };
   if (t?.kind === "report") return { label: "Close and start what it proposes", busy: "Starting…", done: "Report closed." };
   if (t?.kind === "wiki") return { label: "Save wiki", busy: "Saving…", done: "Wiki saved. Your team can read it now." };
   if (t?.kind === "plan") return { label: "Start the plan", busy: "Starting…", done: "Plan started." };
   return { label: mergeLabel(), busy: "Merging…", done: "Work merged. New tickets start from it." };
 }
 
-export function reviewActions(t: { key: string; kind?: string }) {
+export function reviewActions(t: { key: string; kind?: string; empty?: boolean }) {
   return `<button class="btn good" data-approve="${esc(t.key)}">${approvalCopy(t).label}</button>${t.kind === "work" && !S.diffs[t.key] ? `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>` : ""}`;
 }
 
@@ -143,7 +143,7 @@ export function review(r: Review) {
   if (r.kind === "report") return reportReview(r);
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
-    ${r.kind === "wiki" ? `<p>Save these pages to the wiki. Only the pages in the draft change, and what you wrote yourself is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
+    ${r.empty ? `<p class="nothing-left">Nothing left to merge: everything on this branch is already on main. Close it as done${r.pr_url ? ", and its pull request is closed" : ""}.</p>` : ""}${r.kind === "wiki" ? `<p>Save these pages to the wiki. Only the pages in the draft change, and what you wrote yourself is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
     ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What should change?", "Send back")}` : ""}
     ${discardConfirm(r)}${changes(r.key)}</div></article>`;
 }

@@ -104,6 +104,9 @@ fn a_ticket_goes_from_start_to_merged() {
     assert_eq!(status(dup), "review");
     let d = c.ticket(dup).unwrap().unwrap();
     git(&repo, &["merge", "-q", "--no-ff", "-m", "landed elsewhere", d.branch.as_deref().unwrap()]);
+    let snap = onecorp::view::snapshot(&c).unwrap();
+    let card = snap["reviews"].as_array().unwrap().iter().find(|r| r["key"] == c.key(dup)).unwrap().clone();
+    assert_eq!(card["empty"], true, "the Inbox card knows there's nothing to merge before you open the changes");
     onecorp::ship::approve(&c, &d).unwrap();
     assert_eq!(status(dup), "done");
     assert!(!Path::new(d.worktree.as_deref().unwrap()).exists());

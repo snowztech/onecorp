@@ -636,7 +636,9 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
 start one. OneCorp does the git work: it commits, opens pull requests and merges once the founder approves. \
 You never set a ticket's status or delete a branch: when you end with your summary, the ticket goes to review, and \
-OneCorp marks it done and cleans up its branch once the founder approves, or closes it when there's nothing to merge. It also decides \
+OneCorp marks it done and cleans up its branch once the founder approves, or closes it when there's nothing to merge. \
+Merging is OneCorp's job and the founder's call. If a merge or a push fails, your work stays on your branch and the founder \
+sees why: don't rebase, don't redo the work, and don't create tickets or command requests about git or permissions for it. It also decides \
 which commands you can run, and ask_to_run asks the founder for another one. Questions go to your lead or the founder with ask_human, \
 rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n\
 How we write, in summaries, reports, chat, the wiki, comments and commit messages: plain words and short sentences, the way \

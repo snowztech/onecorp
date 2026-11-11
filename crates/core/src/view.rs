@@ -89,6 +89,8 @@ pub fn snapshot(c: &Company) -> Result<Value> {
                 "document": wiki_draft(c, t),
                 "summary": last_said(c, t.id).unwrap_or_default(), "spend": spend(t.cost_usd, t.tokens),
                 "pr_number": t.pr_number, "pr_url": t.pr_url,
+                // Work whose changes are all on base already: nothing to merge, only to close.
+                "empty": t.kind == "work" && t.branch.as_deref().is_some_and(|b| c.repo_of(t).is_ok_and(|r| crate::git::already_on(&r, t.base.as_deref().unwrap_or("main"), b))),
             })
         })
         .collect();

@@ -6,8 +6,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Fixed
 
-- A ticket whose work is already on main no longer gets stuck in review. Approving it closes it as done, closes its pull request and deletes its branch, instead of failing on an empty merge, and the button says Close as done when the changes show nothing. A run that ends with nothing new to merge comes back as a report.
-- Employees know finishing needs no tool: when they end with their summary, the ticket goes to review, and OneCorp handles its status and branch. They no longer ask you to mark tickets done or delete branches.
+- Merging on GitHub works on repos that turn merge commits off or require a linear history. OneCorp merges the way the repo allows, falls back to a squash, and says what to check if GitHub still refuses.
+- A ticket whose work is already on main no longer gets stuck in review. Its Inbox card says there's nothing left to merge, and Close as done closes its pull request and deletes its branch, instead of failing on an empty merge. A run that ends with nothing new to merge comes back as a report.
+- A pull request you close on GitHub after its work reached main another way marks the ticket done, instead of stopped.
+- Employees know finishing needs no tool and git is never theirs to fix: when they end with their summary, the ticket goes to review, and if a merge fails their work waits on its branch. They no longer ask you to mark tickets done or delete branches, try to rebase, redo work that didn't merge, or file tickets and command requests about git.
 
 ## [0.1.10] - 2026-11-11
 

@@ -1496,3 +1496,4 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .sp-switch { display: flex; justify-content: flex-start; margin: 22px 0 8px; }
 .plan-line { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 12px 0 4px; color: var(--muted); }
 .plan-line b { color: var(--fg); font-weight: 600; }
+.nothing-left { font-size: 13px; color: var(--muted); margin: 6px 0 0; }

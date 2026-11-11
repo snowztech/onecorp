@@ -132,7 +132,8 @@ fn tools() -> Value {
         {
             "name": "create_ticket",
             "description": "Create a ticket for work that should happen but isn't yours to do now: a follow-up, a piece of a bigger plan, \
-                            a bug you noticed, a recommendation from a report. The founder sees it with your ticket and picks what to start. Give it to a teammate when you know who fits.",
+                            a bug you noticed, a recommendation from a report. The founder sees it with your ticket and picks what to start. Give it to a teammate when you know who fits. \
+                            Not for redoing your own ticket's work, or for git, merges or permissions: OneCorp handles those.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

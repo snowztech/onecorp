@@ -209,12 +209,28 @@ impl Forge {
     }
 
     /// Merges with a merge commit, not a squash, so each employee's commits keep their name.
+    /// Merges the way the repo allows. Many turn merge commits off, or require a linear history,
+    /// and then only a squash goes through. GitLab follows the project's own setting.
     pub fn merge(self, repo: &Path, number: i64) -> Result<()> {
         let n = number.to_string();
-        match self {
-            Forge::GitHub => self.run(repo, &["pr", "merge", &n, "--merge"], None)?,
-            Forge::GitLab => self.run(repo, &["mr", "merge", &n, "--yes"], None)?,
-        };
-        Ok(())
+        if self == Forge::GitLab {
+            self.run(repo, &["mr", "merge", &n, "--yes"], None)?;
+            return Ok(());
+        }
+        let allowed: Option<Value> = self.run(repo, &["repo", "view", "--json", "mergeCommitAllowed,squashMergeAllowed"], None).ok().and_then(|s| serde_json::from_str(&s).ok());
+        let merge_ok = allowed.as_ref().is_none_or(|v| v["mergeCommitAllowed"] != false);
+        let squash_ok = allowed.as_ref().is_none_or(|v| v["squashMergeAllowed"] != false);
+        // A squash after a merge commit is fine: the branch already has base in it, and the squash
+        // turns it all into one commit on base. It's also what passes a linear history rule.
+        let methods: Vec<&str> = [("--merge", merge_ok), ("--squash", squash_ok)].into_iter().filter(|(_, ok)| *ok).map(|(m, _)| m).collect();
+        let mut last = None;
+        for m in if methods.is_empty() { vec!["--rebase"] } else { methods } {
+            match self.run(repo, &["pr", "merge", &n, m], None) {
+                Ok(_) => return Ok(()),
+                Err(e) => last = Some(e),
+            }
+        }
+        Err(last.unwrap_or_else(|| anyhow::anyhow!("couldn't merge #{n}")))
+            .with_context(|| format!("GitHub didn't merge #{n}. Check the repo's merge settings and branch rules, or merge it on GitHub: OneCorp marks it done once it sees it merged"))
     }
 }

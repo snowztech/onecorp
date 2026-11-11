@@ -25,7 +25,7 @@ export interface PlanTicket { key: string; title: string; description: string; a
 
 export interface Review {
   key: string; title: string; employee: string; name: string; kind: string; tickets: PlanTicket[];
-  document?: string | null; summary: string; spend: string; pr_number?: number | null; pr_url?: string | null;
+  document?: string | null; summary: string; spend: string; pr_number?: number | null; pr_url?: string | null; empty?: boolean;
 }
 
 export interface Ticket {
