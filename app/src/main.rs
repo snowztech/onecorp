@@ -964,16 +964,32 @@ fn menu_bar(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
-/// The Mac menu as usual (About OneCorp shows the version), with Help holding the ways to reach us.
+/// The Mac menu as usual (About OneCorp shows the version), plus Check for Updates and Settings
+/// under About, and Help holding the ways to reach us.
 fn help_menu(app: &tauri::App) -> tauri::Result<()> {
-    use tauri::menu::{HELP_SUBMENU_ID, Menu, MenuItem, MenuItemKind};
+    use tauri::menu::{HELP_SUBMENU_ID, Menu, MenuItem, MenuItemKind, PredefinedMenuItem};
     let menu = Menu::default(app.handle())?;
+    // The app menu comes first on a Mac, and starts with About.
+    if let Some(MenuItemKind::Submenu(main)) = menu.items()?.into_iter().next() {
+        main.insert(&MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?, 1)?;
+        main.insert(&PredefinedMenuItem::separator(app)?, 2)?;
+        main.insert(&MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?, 3)?;
+    }
     if let Some(MenuItemKind::Submenu(help)) = menu.get(HELP_SUBMENU_ID) {
         help.append(&MenuItem::with_id(app, "report-bug", "Report a Bug…", true, None::<&str>)?)?;
         help.append(&MenuItem::with_id(app, "github", "OneCorp on GitHub", true, None::<&str>)?)?;
     }
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| {
+        // These act in the window, so it comes forward first in case it was closed.
+        if let id @ ("check-updates" | "settings") = event.id.as_ref() {
+            if let Some(w) = tauri::Manager::get_webview_window(app, "main") {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+            let _ = tauri::Emitter::emit(app, "menu", id);
+            return;
+        }
         let url = match event.id.as_ref() {
             "report-bug" => bug_url(&app.package_info().version.to_string()),
             "github" => "https://github.com/snowztech/onecorp".into(),
