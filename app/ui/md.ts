@@ -1,8 +1,8 @@
-import { esc } from "./lib.js";
+import { esc } from "./lib.ts";
 
 // A small Markdown renderer for the wiki: headings, lists, tables, quotes, code, bold, italics, links.
 // Enough for a wiki page, and nothing that needs a library.
-export function inline(t) {
+export function inline(t: string) {
   return esc(t)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
@@ -11,7 +11,7 @@ export function inline(t) {
 }
 
 // A table row's cells. A | inside `code` stays part of the cell.
-export function cells(line) {
+export function cells(line: string) {
   const out = [];
   let cur = "", tick = false;
   for (const ch of line.trim().replace(/^\|/, "").replace(/\|$/, "")) {
@@ -24,9 +24,9 @@ export function cells(line) {
 // What OneCorp writes when you skip the mission. Shown as a hint, not as if it were yours.
 export const MISSION_HINT = "What the company is for, in a sentence or two.";
 
-export function md(text) {
-  const out = [], toc = [];
-  let list = null, para = [], code = null, table = null;
+export function md(text: string | null | undefined) {
+  const out: string[] = [], toc: [string, string][] = [];
+  let list: { tag: string; items: string[] } | null = null, para: string[] = [], code: string[] | null = null, table: string[][] | null = null;
   const flush = () => {
     if (para.length) {
       const t = para.join(" ");
@@ -59,7 +59,7 @@ export function md(text) {
     const h = line.match(/^(#{1,4})\s+(.*)/);
     if (h) {
       flush();
-      const n = h[1].length, id = "hb-" + toc.length;
+      const n = h[1].length, id: string = "hb-" + toc.length;
       if (n === 2) toc.push([id, h[2]]);
       out.push(n === 1 ? `<h1>${inline(h[2])}</h1>` : n === 2 ? `<h2 id="${id}">${inline(h[2])}</h2>` : n === 3 ? `<h3>${inline(h[2])}</h3>` : `<h4>${inline(h[2])}</h4>`);
       continue;

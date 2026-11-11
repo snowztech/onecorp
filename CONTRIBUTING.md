@@ -8,7 +8,7 @@ For anything bigger than a fix, open an issue first and say what you want to cha
 
 ## Working on it
 
-You need Rust, Node.js and the Tauri CLI (`cargo install tauri-cli --version "^2" --locked`).
+You need Rust, Node.js 22.18 or later, and the Tauri CLI (`cargo install tauri-cli --version "^2" --locked`).
 
 ```sh
 make demo     # the app on a throwaway home, never your real companies
@@ -23,7 +23,7 @@ Test on throwaway repos with `ONECORP_HOME` pointing somewhere temporary. The `f
 ## Where code goes
 
 - Logic lives in `crates/core`. The CLI and the app only parse, call the library and show the result.
-- The UI lives in `app/ui`, built by Vite, with no framework. Follow [docs/DESIGN.md](docs/DESIGN.md) for any screen change, and check it in both themes.
+- The UI is TypeScript in `app/ui`, built by Vite, with no framework. `app/ui/types.ts` mirrors the JSON the Rust commands return: change both together. Follow [docs/DESIGN.md](docs/DESIGN.md) for any screen change, and check it in both themes.
 - When you add a module, table or flow, update [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For anything a user would notice, add a line to [CHANGELOG.md](CHANGELOG.md) under Unreleased, in Added, Changed or Fixed. It follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Style

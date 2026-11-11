@@ -28,6 +28,8 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
         working-directory: app
+      - run: npm run check
+        working-directory: app
       - run: node app/tests/ui-smoke.js
       # Walks the whole onboarding in Chrome like a first user. The runners come with Chrome.
       - run: node app/tests/onboarding.mjs

@@ -1,6 +1,6 @@
-import { $, esc, money } from "./lib.js";
-import { badge, icon, me } from "./look.js";
-import { S, myName } from "./state.js";
+import { $, esc, money } from "./lib.ts";
+import { badge, icon, me } from "./look.ts";
+import { S, myName } from "./state.ts";
 
 // The frame around every page: sidebar, top bar and your menu.
 export const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S.snap.failed || []).length : 0);
@@ -8,7 +8,7 @@ export const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.leng
 /* Sidebar and top bar */
 export function toggleRail(on = !S.rail) {
   S.rail = on;
-  document.querySelector(".app").classList.toggle("rail", on);
+  $(".app").classList.toggle("rail", on);
   try { localStorage.setItem("onecorp.rail", on ? "1" : ""); } catch {}
   renderSide();
 }
@@ -17,7 +17,7 @@ export function renderSide() {
   const n = waiting(), pages = { company: "Company", board: "Board", inbox: "Inbox", chat: "Chat", wiki: "Wiki" };
   const unread = (S.snap?.channels || []).some(ch => ch.last && ch.last > (S.seen[ch.name] || 0) && !(S.view === "chat" && S.channel === ch.name));
   $("#side").innerHTML = `<div class="side-drag" data-tauri-drag-region></div>
-    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `${badge(S.company, S.looks?.[S.company])}<span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}${Object.entries(S.needs).some(([c, n]) => c !== S.company && n) ? '<i class="dot" title="Another company needs you"></i>' : ""}<span class="chev">${icon("chevrons")}</span></button>
+    <div class="switch"><button class="co-switch" data-switch="1" aria-expanded="${!!S.switching}">${S.company ? `${badge(S.company, S.looks[S.company ?? ""])}<span class="coname">${esc(S.company)}</span>` : `<span class="coname">Companies</span>`}${Object.entries(S.needs).some(([c, n]) => c !== S.company && n) ? '<i class="dot" title="Another company needs you"></i>' : ""}<span class="chev">${icon("chevrons")}</span></button>
       ${S.switching ? `<div class="menu" role="menu">${S.companies.map(c => `<button class="cobtn" role="menuitem" data-co="${esc(c)}" aria-current="${c === S.company}">${badge(c, S.looks?.[c])}<span class="coname">${esc(c)}</span>${c === S.company ? '<span class="tick">✓</span>' : S.needs[c] ? `<span class="badge">${S.needs[c]}</span>` : ""}</button>`).join("")}
         <hr><button class="cobtn" role="menuitem" data-new-co="1"><span class="logo add">+</span><span class="coname">New company</span></button></div>` : ""}</div>
     ${S.company ? `${Object.entries(pages).map(([k, v]) =>
@@ -33,7 +33,7 @@ export function renderTop() {
   // Today's spend, a glance from every page: the amount, a meter, the budget. Words only on hover.
   const sp = $("#top-spend");
   sp.hidden = $("#new-ticket").hidden;
-  if (!sp.hidden) {
+  if (!sp.hidden && s) {
     const b = s.spend.budget, pct = b > 0 ? Math.min(100, (s.spend.today / b) * 100) : 0;
     sp.className = `top-spend ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}`;
     sp.title = b > 0 ? `Spent today, of a ${money(b)} daily budget` : "Spent today. Set a daily budget in Spend";

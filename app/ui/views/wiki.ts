@@ -1,12 +1,12 @@
-import { esc, first } from "../lib.js";
-import { face } from "../look.js";
-import { inline, md } from "../md.js";
-import { S } from "../state.js";
+import { esc, first } from "../lib.ts";
+import { face } from "../look.ts";
+import { inline, md } from "../md.ts";
+import { S } from "../state.ts";
 
 /* Wiki: the company's shared knowledge, the file every employee reads before each ticket */
 export function viewWiki() {
   if (S.wiki === null) return `<p class="muted">Opening the wiki…</p>`;
-  const proposals = S.snap.inbox.filter(q => q.kind === "wiki");
+  const proposals = S.snap!.inbox.filter(q => q.kind === "wiki");
   const props = proposals.length ? `<section class="doc-props"><span class="label">Proposed by your team</span><div class="props">${proposals.map(q => `
       <div class="prop">${face(q.name, "neutral")}<div><b>${esc(first(q.name))}</b> <span class="muted">for ${esc(q.section)}</span><p>${esc(q.question)}</p>
         <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button></div></div></div>`).join("")}</div></section>` : "";

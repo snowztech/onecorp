@@ -4,10 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc && vite build",
+    "check": "tsc",
     "test": "node tests/ui-smoke.js && node tests/onboarding.mjs"
   },
   "devDependencies": {
+    "typescript": "^7.0.2",
     "vite": "^8.3.8"
   }
 }

@@ -1,8 +1,8 @@
-import { logo } from "../brand.js";
-import { $, esc, first, money, tilde, toast } from "../lib.js";
-import { AGENTS, FACE_SETS, PALETTE, agentMark, badge, drawFace, face, faceSet, icon, me } from "../look.js";
-import { renderPop } from "../shell.js";
-import { S, bugUrl, invoke, version } from "../state.js";
+import { logo } from "../brand.ts";
+import { $, esc, first, money, tilde, toast } from "../lib.ts";
+import { AGENTS, FACE_SETS, PALETTE, agentMark, badge, drawFace, face, faceSet, icon, me } from "../look.ts";
+import { renderPop } from "../shell.ts";
+import { S, bugUrl, invoke, version } from "../state.ts";
 
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
    OneCorp needs is in place. Your own profile lives in your menu. */
@@ -14,10 +14,11 @@ export function renderSheet() {
   el.hidden = !S.sheet;
   if (!S.sheet) return (el.innerHTML = "");
   const tab = SECTIONS.some(([k]) => k === S.sheet) ? S.sheet : "company";
-  const body = { company: companySection, spend: spendTab, agents: agentsSection, appearance: appearanceSection, you: youSection, about: aboutSection }[tab]();
+  const sections: Record<string, () => string> = { company: companySection, spend: spendTab, agents: agentsSection, appearance: appearanceSection, you: youSection, about: aboutSection };
+  const body = sections[tab]();
   el.innerHTML = `<div class="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
     <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}</nav>
-    <div class="set-main"><header class="set-h"><h3>${SECTIONS.find(([k]) => k === tab)[1]}</h3><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
+    <div class="set-main"><header class="set-h"><h3>${SECTIONS.find(([k]) => k === tab)?.[1]}</h3><button class="close" data-sheet-close="1" aria-label="Close">×</button></header>
       <div class="sheet-body">${body}</div></div></div>`;
 }
 
@@ -25,19 +26,19 @@ export const saved = () => toast("Saved");
 
 export const theme = () => { try { return localStorage.getItem("onecorp.theme") || "system"; } catch { return "system"; } };
 
-export function setTheme(t) {
+export function setTheme(t: string) {
   try { t === "system" ? localStorage.removeItem("onecorp.theme") : localStorage.setItem("onecorp.theme", t); } catch {}
   if (t === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
   // The title bar follows too, so the traffic lights sit on the right colour.
-  window.__TAURI__?.window?.getCurrentWindow().setTheme(t === "system" ? null : t).catch(() => {});
+  window.__TAURI__?.window?.getCurrentWindow().setTheme(t === "system" ? null : t as "light" | "dark").catch(() => {});
 }
 
 export function companySection() {
   const st = S.settings;
   if (!st) return `<p class="muted">Opening…</p>`;
-  const look = S.looks?.[S.company] || {};
+  const look = S.looks[S.company ?? ""] || {};
   const modes = [["local", "On this Mac"], ["github", "GitHub"], ["gitlab", "GitLab"]].filter(([m]) => m === "local" || m === st.forge || m === st.ship);
-  const reveal = path => window.__TAURI__?.opener ? `<button class="link-btn" data-reveal="${esc(path)}">Show in Finder</button>` : "";
+  const reveal = (path: string) => window.__TAURI__?.opener ? `<button class="link-btn" data-reveal="${esc(path)}">Show in Finder</button>` : "";
   const del = S.confirm === "delete"
     ? `<form class="confirm" id="del-co"><p>This deletes <b>${esc(st.name)}</b>: ${st.people} ${st.people === 1 ? "person" : "people"}, ${st.tickets} tickets, the chat, wiki and memory. Your repo and its branches stay as they are.</p>
         <div class="su-row"><input id="del-name" placeholder="Type ${esc(st.name)} to confirm" autocomplete="off" spellcheck="false"><button class="btn danger">Delete</button><button class="btn ghost" type="button" data-confirm="">Cancel</button></div></form>`
@@ -68,12 +69,12 @@ export function companySection() {
 }
 
 // What fixes a tool: a button that opens Terminal running the command, and the command itself to copy.
-export const fixRow = (fix, state) => `<div class="fix"><button class="btn sm" type="button" data-term="${esc(fix)}">${state === "signin" ? "Sign in" : "Install"}</button><code>${esc(fix)}</code><button class="link-btn" type="button" data-copy="${esc(fix)}">Copy</button></div>`;
+export const fixRow = (fix: string, state: string) => `<div class="fix"><button class="btn sm" type="button" data-term="${esc(fix)}">${state === "signin" ? "Sign in" : "Install"}</button><code>${esc(fix)}</code><button class="link-btn" type="button" data-copy="${esc(fix)}">Copy</button></div>`;
 
 export function agentsSection() {
-  const r = S.ready, find = w => (r || []).find(h => h.what === w);
-  const tools = [["Claude Code", "claude"], ["Codex", "codex"], ["GitHub CLI", "gh"]];
-  const card = ([what, key]) => {
+  const r = S.ready, find = (w: string) => (r || []).find(h => h.what === w);
+  const tools: [string, string][] = [["Claude Code", "claude"], ["Codex", "codex"], ["GitHub CLI", "gh"]];
+  const card = ([what, key]: [string, string]) => {
     const h = find(what), state = !r ? "checking" : !h ? "missing" : h.level === "ok" ? "ok" : /not signed in/.test(h.detail) ? "signin" : "missing";
     const pill = { checking: "Checking…", ok: "Connected", signin: "Not signed in", missing: "Not installed" }[state];
     return `<div class="tool t-${state}"><span class="tool-ic" style="--c:${AGENTS[key]?.color || "#18181b"}">${agentMark(key)}</span>
@@ -135,7 +136,7 @@ export async function openSettings(tab = "company") {
   await loadSection(S.sheet);
 }
 
-export async function loadSection(tab) {
+export async function loadSection(tab: string) {
   // Loaded fresh for the company you're on: a switch since last time must never show the old one.
   if (S.settings?.name !== S.company) { S.settings = null; renderSheet(); try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); } }
   if (tab === "spend" || tab === "agents") await loadSpend();
@@ -156,7 +157,7 @@ export function spendTab() {
   const any = r.days.filter(d => d.cost > 0).length >= 2, top = Math.max(...r.days.map(d => d.cost), b || 0, 0.01);
   const today = r.days[r.days.length - 1]?.day;
   const presets = [0, 5, 10, 25, 50], custom = b > 0 && !presets.includes(b);
-  const row = (lead, w, extra = "") => `<tr><td>${lead}</td><td class="num">${money(w.today.cost)}</td><td class="num">${money(w.week.cost)}</td><td class="num">${money(w.all.cost)}</td>${extra}</tr>`;
+  const row = (lead: string, w: { today: { cost: number }; week: { cost: number }; all: { cost: number } }, extra = "") => `<tr><td>${lead}</td><td class="num">${money(w.today.cost)}</td><td class="num">${money(w.week.cost)}</td><td class="num">${money(w.all.cost)}</td>${extra}</tr>`;
   const head = (extra = "") => `<thead><tr><th></th><th class="num">Today</th><th class="num">7 days</th><th class="num">All time</th>${extra}</tr></thead>`;
   const people = r.people.filter(p => p.all.cost > 0 || p.cap > 0);
   return `<div class="spend-now"><span class="label">Today</span><b>${money(t.today.cost)}</b>

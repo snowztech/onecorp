@@ -1,13 +1,14 @@
-import { $, esc, first, hash, shortPaths, toast, utc } from "./lib.js";
-import { AGENTS, agentBadge, agentMark, chip, drawFace, face, prLink } from "./look.js";
-import { inline } from "./md.js";
-import { S, byId, call, invoke } from "./state.js";
-import { changes, discardBtn, discardConfirm, more, reviewActions, ticketStatus, wikiDraft } from "./views/inbox.js";
+import { $, esc, first, hash, shortPaths, toast, utc } from "./lib.ts";
+import { AGENTS, agentBadge, agentMark, chip, drawFace, face, modelsOf, prLink } from "./look.ts";
+import { inline } from "./md.ts";
+import { S, byId, call, invoke } from "./state.ts";
+import type { LogLine, PersonForm } from "./types.ts";
+import { changes, discardBtn, discardConfirm, more, reviewActions, ticketStatus, wikiDraft } from "./views/inbox.ts";
 
 // The panel that slides in from the right: a ticket, a person, hiring, a new ticket or a project.
 /* Plan a project: like an epic, except your planner breaks it down and you approve it */
 export function drawerPlan() {
-  const s = S.snap, team = s.employees, isFirst = !(s.projects || []).length, k = s.kickoff;
+  const s = S.snap!, team = s.employees, isFirst = !(s.projects || []).length, k = s.kickoff;
   const by = byId(k.planner) || team[0];
   return `<div class="dhead"><div><h2>New project</h2><span class="muted">A feature or a goal. Your planner breaks it into tickets with owners, and you approve the plan in your Inbox.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <form class="dbody" id="plan-form">
@@ -21,7 +22,7 @@ export function drawerPlan() {
 
 // One run log line: time, what kind, and the whole text, wrapped under itself. A tool line shows
 // its tool dimmed, so the command stands out.
-export function logRow(a, from) {
+export function logRow(a: LogLine, from: number) {
   const [tool, ...rest] = a.kind === "tool" ? shortPaths(a.summary).split(" ") : [];
   const text = a.kind === "tool" ? `<span class="tname">${esc(tool)}</span> ${esc(rest.join(" "))}`
     : a.kind === "say" ? String(a.summary).split("\n").map(inline).join("\n") : esc(shortPaths(a.summary));
@@ -29,10 +30,10 @@ export function logRow(a, from) {
 }
 
 // A command still going says so, with how long, so a long build never looks like a stuck run.
-export function stillRunning(rows, doing) {
+export function stillRunning(rows: LogLine[], doing: boolean) {
   const last = rows.at(-1);
   if (!doing || last?.kind !== "tool") return "";
-  const min = Math.floor((Date.now() - utc(last.at)) / 60000);
+  const min = Math.floor((Date.now() - utc(last.at).getTime()) / 60000);
   return `<div class="lr running"><span class="at"></span><span class="kd"></span><span class="tx"><i class="spin"></i>${min >= 60 ? `still running, ${Math.floor(min / 60)} h ${min % 60} min` : min >= 1 ? `still running, ${min} min` : "running…"}</span></div>`;
 }
 
@@ -40,7 +41,7 @@ export function drawerTicket() {
   const t = S.ticket;
   if (!t) return `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`;
   const people = (S.snap?.employees || []).map(e => `<option value="${esc(e.id)}" ${e.id === t.employee ? "selected" : ""}>${esc(e.name)}</option>`).join("");
-  const acts = {
+  const acts = ({
     backlog: `<select id="t-who" data-assign="${esc(t.key)}" aria-label="Who does it"><option value="">Nobody yet</option>${people}</select><button class="btn primary" data-start="${esc(t.key)}">Start</button>`,
     waiting: `<button class="btn" data-stop="${esc(t.key)}">Back to backlog</button>`,
     doing: `<button class="btn" data-stop="${esc(t.key)}">Stop</button>`,
@@ -49,7 +50,7 @@ export function drawerTicket() {
     blocked: `<button class="btn primary" data-view="inbox" data-close="1">Answer it in the Inbox</button>`,
     review: reviewActions(t) + discardBtn(t),
     done: t.kind === "wiki" ? `<button class="btn" data-view="wiki" data-close="1">Read wiki</button>` : "",
-  }[t.status] || "";
+  } as Record<string, string>)[t.status] || "";
   const back = t.status === "review" ? `<form class="reply" data-changes="${esc(t.key)}"><input id="chg-${esc(t.key)}" placeholder="Ask for changes…"><button class="btn">Send back</button></form>` : "";
   const log = t.log.map(a => logRow(a, 5)).join("") + stillRunning(t.log, t.status === "doing");
   return `<div class="dhead">${face(t.name, t.status === "doing" ? "working" : "neutral")}<div><span class="mono muted">${esc(t.key)} · ${esc(ticketStatus(t))}</span><h2>${esc(t.title)}</h2></div><button class="close" data-close="1" aria-label="Close">×</button></div>
@@ -78,15 +79,15 @@ export function drawerNewTicket() {
     <form class="dbody" id="nt">
       <div class="field"><label for="nt-title">What needs doing</label><input id="nt-title" placeholder="Add magic link login" autocomplete="off"></div>
       <div class="field"><label for="nt-who">Who</label><select id="nt-who"><option value="">Nobody yet</option>${team.map(e => `<option value="${esc(e.id)}" ${e.id === pick ? "selected" : ""}>${esc(e.name)}, ${esc(e.role)}${e.status === "idle" ? " (free)" : ""}</option>`).join("")}</select></div>
-      ${(S.snap?.repos || []).length > 1 ? `<div class="field"><label for="nt-repo">Repo</label><select id="nt-repo">${S.snap.repos.map(r => `<option value="${esc(r.name)}">${esc(r.name)}${r.main ? " (primary)" : ""}</option>`).join("")}</select></div>` : ""}
+      ${(S.snap?.repos || []).length > 1 ? `<div class="field"><label for="nt-repo">Repo</label><select id="nt-repo">${S.snap!.repos.map(r => `<option value="${esc(r.name)}">${esc(r.name)}${r.main ? " (primary)" : ""}</option>`).join("")}</select></div>` : ""}
       <div class="field"><label for="nt-desc">Details <span class="muted">(optional)</span></label><textarea id="nt-desc" rows="5" placeholder="What done looks like, links, constraints"></textarea></div>
-      ${(S.snap?.projects || []).length ? `<div class="field"><label for="nt-project">Project <span class="muted">(optional)</span></label><select id="nt-project"><option value="">None</option>${S.snap.projects.map(p => `<option value="${esc(p.key)}" ${p.key === S.project ? "selected" : ""}>${esc(p.title)}</option>`).join("")}</select></div>` : ""}
+      ${(S.snap?.projects || []).length ? `<div class="field"><label for="nt-project">Project <span class="muted">(optional)</span></label><select id="nt-project"><option value="">None</option>${S.snap!.projects.map(p => `<option value="${esc(p.key)}" ${p.key === S.project ? "selected" : ""}>${esc(p.title)}</option>`).join("")}</select></div>` : ""}
       <div class="field"><label for="nt-after">After</label><select id="nt-after"><option value="">Nothing, it can start right away</option>${open.map(t => `<option value="${esc(t.key)}">${esc(t.key)} ${esc(t.title)}</option>`).join("")}</select></div>
       <div class="acts"><button class="btn primary" data-nt="now">Start now</button><button class="btn" data-nt="later">Save for later</button></div>
     </form>`;
 }
 
-export async function saveNewTicket(later) {
+export async function saveNewTicket(later: boolean) {
   const title = $("#nt-title").value.trim();
   if (!title) return $("#nt-title").focus();
   const args = { company: S.company, title, employee: $("#nt-who").value || null, description: $("#nt-desc").value, after: $("#nt-after").value || null, project: $("#nt-project")?.value || null, repo: $("#nt-repo")?.value || null, later };
@@ -94,7 +95,7 @@ export async function saveNewTicket(later) {
   if (key) { S.view = "board"; openTicket(key); }
 }
 
-export async function openTicket(key) {
+export async function openTicket(key: string) {
   S.drawer = { type: "ticket", key }; S.ticket = null; S.confirm = null; renderDrawer();
   try { S.ticket = await invoke("ticket_detail", { company: S.company, key }); } catch (e) { toast(String(e), true); }
   renderDrawer();
@@ -104,7 +105,7 @@ export async function openTicket(key) {
 export function renderDrawer() {
   const d = $("#drawer"), open = !!S.drawer;
   d.classList.toggle("open", open); $("#scrim").classList.toggle("open", open); d.setAttribute("aria-hidden", String(!open));
-  if (!open) return;
+  if (!open || !S.drawer) return;
   if (S.drawer.type === "hire") return (d.innerHTML = drawerHire());
   if (S.drawer.type === "new-ticket") return (d.innerHTML = drawerNewTicket());
   if (S.drawer.type === "plan") return (d.innerHTML = drawerPlan());
@@ -112,7 +113,7 @@ export function renderDrawer() {
   const p = S.person;
   if (!p) return (d.innerHTML = `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
   const e = byId(p.id) || { status: "idle" };
-  const depts = S.snap.departments.filter(x => x.id !== null), dept = depts.find(x => x.id === p.department);
+  const depts = S.snap!.departments.filter(x => x.id !== null), dept = depts.find(x => x.id === p.department);
   const head = `<div class="dhead"><span class="with-agent">${face(p.name, e.status)}${agentBadge(p.runtime)}</span><div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
   if (S.drawer.edit && S.drawer.form?.photoUrl) {
     d.innerHTML = head.replace(/<span class="with-agent">[\s\S]*?<\/span>(?=<div>)/, `<span class="with-agent"><span class="av"><img src="${esc(S.drawer.form.photoUrl)}" alt=""></span>${agentBadge(p.runtime)}</span>`);
@@ -120,8 +121,8 @@ export function renderDrawer() {
   if (S.drawer.edit) {
     d.innerHTML = `${head}<form class="dbody" id="emp-form">
       ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, voice: p.voice, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
-      ${personFields(S.drawer.form)}
-      <div class="field"><label for="pf-cap">Daily cap <span class="muted">(optional)</span></label><div class="money-in"><span>$</span><input id="pf-cap" type="number" min="0" step="0.5" value="${byId(p.id)?.cap > 0 ? byId(p.id).cap : ""}" placeholder="No cap"><span class="unit">a day. They stop picking up work when they reach it</span></div></div>
+      ${personFields(S.drawer.form!)}
+      <div class="field"><label for="pf-cap">Daily cap <span class="muted">(optional)</span></label><div class="money-in"><span>$</span><input id="pf-cap" type="number" min="0" step="0.5" value="${(byId(p.id)?.cap ?? 0) > 0 ? byId(p.id)!.cap : ""}" placeholder="No cap"><span class="unit">a day. They stop picking up work when they reach it</span></div></div>
       <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`;
     return;
   }
@@ -150,7 +151,7 @@ export function renderDrawer() {
 // Candidates differ in how they work, not just in name: cheap and fast, senior, or one that can build and test.
 export const NAMES = ["Noor Haddad", "Jonas Berg", "Inês Costa", "Kwame Mensah", "Priya Raman", "Léa Moreau", "Mateo Silva", "Hana Sato", "Oskar Lind", "Amara Obi", "Rafael Duarte", "Mei Lin"];
 
-export function candidates(role) {
+export function candidates(role: string) {
   const taken = new Set((S.snap?.employees || []).map(e => first(e.name).toLowerCase()));
   const pool = NAMES.filter(n => !taken.has(first(n).toLowerCase()));
   const start = hash(role) % Math.max(pool.length - 2, 1);
@@ -164,15 +165,15 @@ export function candidates(role) {
   return usable.map((t, i) => ({ ...t, name: pool[(start + i) % pool.length] || "New hire " + (i + 1) }));
 }
 
-export function agentPicker(f) {
+export function agentPicker(f: PersonForm) {
   const have = S.runtimes || Object.keys(AGENTS), a = AGENTS[f.runtime] || AGENTS.claude;
   // The exact models each agent offers, from the agent itself where it says. An older short name
   // like "opus" still lights up the model it stands for.
-  const live = S.models?.[f.runtime];
+  const live = modelsOf(f.runtime);
   const def = S.models?.defaults?.[f.runtime];
   const list = live?.length ? [["", def ? `Default · ${def}` : "Default", "Your own setting for this agent"], ...live.map(m => [m.id, m.name, m.about])] : a.models;
-  const same = v => v === (f.model || "") || (f.model && v && !f.model.includes("-") && v.includes(f.model));
-  const models = list.some(([v]) => same(v)) ? list : [...list, [f.model, f.model]];
+  const same = (v: string) => v === (f.model || "") || (f.model && v && !f.model.includes("-") && v.includes(f.model));
+  const models = list.some(([v]) => same(v)) ? list : [...list, [f.model || "", f.model || ""]];
   return `<div class="field"><span class="flabel">Works on</span><div class="agents">${Object.entries(AGENTS).filter(([k]) => k !== "fake" || f.runtime === "fake").map(([k, x]) => {
       const ok = have.includes(k) || k === f.runtime;
       return `<button type="button" class="agent" data-agent="${k}" aria-pressed="${k === f.runtime}" ${ok ? "" : 'disabled title="Not installed on this Mac. Settings shows how to install it"'}>
@@ -182,7 +183,7 @@ export function agentPicker(f) {
 }
 
 // The fields for a person, shared by hiring and editing, so both look and behave the same.
-export function avatarPicker(f) {
+export function avatarPicker(f: PersonForm) {
   // Variations lead with a number: a change at the start reshapes the whole face, at the end it barely moves.
   const base = f.name || "New hire", seeds = [base, ...[1, 2, 3, 4, 5, 6, 7].map(n => `${n} ${base}`)];
   const photo = f.photoUrl || (f.hasPhoto && !f.removePhoto);
@@ -190,7 +191,7 @@ export function avatarPicker(f) {
     <div class="photo-acts">${window.__TAURI__?.dialog ? `<button class="link-btn" type="button" data-avatar-photo="1">${photo ? "Change photo" : "Use a photo instead"}</button>` : ""}${photo ? `<button class="link-btn" type="button" data-avatar-clear="1">Remove photo</button>` : ""}</div></div>`;
 }
 
-export function personFields(f) {
+export function personFields(f: PersonForm) {
   // Their current runtime is always listed, so saving never switches it by accident.
   const runtimes = [...new Set([...(S.runtimes || ["claude", "codex", "fake"]), ...(f.runtime ? [f.runtime] : [])])];
   return `<div class="field"><label for="pf-n">Name</label><input id="pf-n" value="${esc(f.name)}" placeholder="Noor Haddad" autocomplete="off"></div>
@@ -202,7 +203,7 @@ export function personFields(f) {
 
 // Personality as chips, with a reply in that voice underneath, so you hear it before you pick.
 // A new hire can keep the one that fits their role.
-export function voicePicker(f) {
+export function voicePicker(f: PersonForm) {
   const list = S.voices || [], auto = S.drawer?.type !== "person", cur = f.voice || (auto ? "" : list[0]?.key);
   const opts = [...(auto ? [{ key: "", label: "Fits role", sample: "Picked to fit their role. Change it any time." }] : []), ...list];
   const sample = opts.find(v => v.key === cur)?.sample || "";
@@ -214,7 +215,7 @@ export function voicePicker(f) {
 export const readPerson = () => ({ name: $("#pf-n").value.trim(), role: $("#pf-r").value.trim() || "Engineer", runtime: $("#pf-rt").value, model: $("#pf-m").value.trim() || null, bio: $("#pf-b").value.trim(), voice: $("#pf-v")?.value || null });
 
 export function drawerHire() {
-  const dept = S.snap.departments.find(x => x.id === S.drawer.dept), f = S.drawer.form;
+  const dept = S.snap!.departments.find(x => x.id === S.drawer!.dept), f = S.drawer!.form!;
   const picks = candidates(f.role || "Engineer");
   return `<div class="dhead"><span class="with-agent"><span class="hire-face">${face(f.name || "New hire", "neutral")}</span>${agentBadge(f.runtime)}</span><div><h2>Hire into ${esc(dept?.name || "the company")}</h2><span class="muted">Start from a suggestion or make your own. You can change anything later.</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>
     <form class="dbody" id="hire-form">
@@ -224,15 +225,15 @@ export function drawerHire() {
     </form>`;
 }
 
-export function openHire(deptId) {
-  const dept = S.snap.departments.find(x => x.id === deptId);
+export function openHire(deptId: number) {
+  const dept = S.snap!.departments.find(x => x.id === deptId);
   const role = !dept || /eng/i.test(dept.name) ? "Engineer" : /design/i.test(dept.name) ? "Product designer" : /product/i.test(dept.name) ? "Product manager" : dept.name + " specialist";
   const c = candidates(role)[1] || candidates(role)[0];
   S.drawer = { type: "hire", dept: deptId, form: { name: c.name, role, runtime: c.runtime, model: c.model, bio: "" } };
   renderDrawer();
 }
 
-export async function openPerson(id) {
+export async function openPerson(id: string) {
   S.drawer = { type: "person", id }; S.person = null; renderDrawer();
   try { S.person = await invoke("person", { company: S.company, id }); } catch (e) { toast(String(e), true); }
   renderDrawer();

@@ -1,19 +1,19 @@
-import { renderDrawer } from "./drawers.js";
-import { $, esc, money, toast } from "./lib.js";
-import { AGENTS, icon } from "./look.js";
-import { alertNew, watchAll } from "./notify.js";
-import { renderSide, renderTop } from "./shell.js";
-import { S, booted, invoke } from "./state.js";
-import { viewBoard } from "./views/board.js";
-import { viewChat } from "./views/chat.js";
-import { viewCompany } from "./views/company.js";
-import { viewInbox } from "./views/inbox.js";
-import { startSetup, viewProfile, viewSetup, viewWelcome } from "./views/onboarding.js";
-import { viewWiki } from "./views/wiki.js";
+import { renderDrawer } from "./drawers.ts";
+import { $, esc, money, toast } from "./lib.ts";
+import { AGENTS, icon } from "./look.ts";
+import { alertNew, watchAll } from "./notify.ts";
+import { renderSide, renderTop } from "./shell.ts";
+import { S, booted, invoke } from "./state.ts";
+import { viewBoard } from "./views/board.ts";
+import { viewChat } from "./views/chat.ts";
+import { viewCompany } from "./views/company.ts";
+import { viewInbox } from "./views/inbox.ts";
+import { startSetup, viewProfile, viewSetup, viewWelcome } from "./views/onboarding.ts";
+import { viewWiki } from "./views/wiki.ts";
 
 // Drawing the current page, and polling the company snapshot while you're in a workspace.
 /* Rendering and polling */
-export let pollTimer = null, ticks = 0;
+export let pollTimer: ReturnType<typeof setInterval> | null = null, ticks = 0;
 
 export function syncPolling() {
   const inWorkspace = S.company && !S.profile && !S.setup;
@@ -25,6 +25,7 @@ export function syncPolling() {
   }
 }
 
+let enterTimer: ReturnType<typeof setTimeout> | undefined;
 export function render() {
   syncPolling();
   booted();
@@ -37,18 +38,18 @@ export function render() {
   const limits = S.snap?.limits || [];
   banner.hidden = !((S.snap?.paused || limits.length) && !S.profile && !S.setup);
   // A plan limit isn't something you can fix from here, so it's said plainly, with no button.
-  if (!banner.hidden && !S.snap.paused) banner.innerHTML = `<span>${icon("pause")}<b>${limits.map(l => `${esc(AGENTS[l.runtime]?.name || l.runtime)} reached its plan's usage limit`).join(", ")}.</b> That work waits and starts again by itself at ${esc(limits.map(l => l.back).join(" and "))}.</span>`;
-  else if (!banner.hidden) banner.innerHTML = S.snap.spend?.paused_by_budget
-    ? `<span>${icon("pause")}<b>${esc(S.company)} reached its ${money(S.snap.spend.budget)} daily budget.</b> Running work finishes, and nothing new starts until tomorrow.</span><button class="btn" data-settings-tab="spend">Raise budget</button><button class="btn" data-keep-going="1">Keep going today</button>`
+  if (!banner.hidden && !S.snap!.paused) banner.innerHTML = `<span>${icon("pause")}<b>${limits.map(l => `${esc(AGENTS[l.runtime]?.name || l.runtime)} reached its plan's usage limit`).join(", ")}.</b> That work waits and starts again by itself at ${esc(limits.map(l => l.back).join(" and "))}.</span>`;
+  else if (!banner.hidden) banner.innerHTML = S.snap!.spend?.paused_by_budget
+    ? `<span>${icon("pause")}<b>${esc(S.company)} reached its ${money(S.snap!.spend.budget)} daily budget.</b> Running work finishes, and nothing new starts until tomorrow.</span><button class="btn" data-settings-tab="spend">Raise budget</button><button class="btn" data-keep-going="1">Keep going today</button>`
     : `<span>${icon("pause")}<b>${esc(S.company)} is paused.</b> Running work finishes, nothing new starts, and nobody replies in chat.</span><button class="btn" data-pause="0">Resume</button>`;
   // Setting up is full screen: no sidebar or top bar for things that don't exist yet.
-  document.querySelector(".app").classList.toggle("focus", !!(S.welcome || S.profile || S.setup));
+  $(".app").classList.toggle("focus", !!(S.welcome || S.profile || S.setup));
   v.classList.toggle("flush", !S.profile && !S.setup && S.view === "chat");
   const where = S.welcome ? "welcome" : S.profile ? "profile" : S.setup ? "setup-" + S.setup.step : `${S.company}/${S.view}`;
   if (where !== S.shown) {
     S.shown = where;
     v.classList.remove("enter"); void v.offsetWidth; v.classList.add("enter");
-    clearTimeout(render.t); render.t = setTimeout(() => v.classList.remove("enter"), 400);
+    clearTimeout(enterTimer); enterTimer = setTimeout(() => v.classList.remove("enter"), 400);
   }
   if (S.welcome) {
     v.innerHTML = viewWelcome();
@@ -61,18 +62,19 @@ export function render() {
   } else if (!S.snap) {
     v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
   } else {
-    v.innerHTML = { inbox: viewInbox, wiki: viewWiki, board: viewBoard, chat: viewChat }[S.view]?.() ?? viewCompany();
+    const views: Record<string, () => string> = { inbox: viewInbox, wiki: viewWiki, board: viewBoard, chat: viewChat };
+    v.innerHTML = views[S.view]?.() ?? viewCompany();
     const m = $("#msgs"); if (m) m.scrollTop = m.scrollHeight;
   }
   renderDrawer();
 }
 
 export function typing() {
-  const a = document.activeElement;
-  return a && a.matches("input, textarea") && a.closest("#view, #drawer") && a.value.trim() !== "";
+  const a = document.activeElement as HTMLInputElement | null;
+  return !!a && a.matches("input, textarea") && !!a.closest("#view, #drawer") && a.value.trim() !== "";
 }
 
-export async function refresh(force) {
+export async function refresh(force: boolean) {
   if (!S.voices) S.voices = await invoke("voices").catch(() => null);
   if (!S.models) S.models = await invoke("models").catch(() => null);
   // Ignore a workspace tick already queued when onboarding stopped the timer.
@@ -91,7 +93,7 @@ export async function refresh(force) {
       S.snap = null;
       if (!S.setup && !S.profile) return startSetup(); // No company yet: create one.
       // Keep mounted onboarding inputs intact during polling, including empty inputs.
-      const where = S.profile ? "profile" : "setup-" + S.setup.step;
+      const where = S.profile ? "profile" : "setup-" + S.setup!.step;
       if (!force && S.shown === where) return;
       return render();
     }

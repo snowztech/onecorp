@@ -1,10 +1,11 @@
-import { first, money } from "./lib.js";
-import { renderSide } from "./shell.js";
-import { S, invoke } from "./state.js";
+import { first, money } from "./lib.ts";
+import { renderSide } from "./shell.ts";
+import { S, invoke } from "./state.ts";
+import type { Failed, Question, Review, Snapshot, Spend } from "./types.ts";
 
 // What needs you, across every company: the dock badge, the menu bar count and notifications.
 /* Everything waiting on you, most urgent first. The Company page, the dock badge and notifications all use it. */
-export function needItems(s) {
+export function needItems(s: { reviews: Review[]; inbox: Question[]; failed?: Failed[] }) {
   return [
     ...s.reviews.filter(r => r.kind === "plan").map(r => ({ to: r.key, name: r.name, text: `planned ${r.title}. Review the plan` })),
     ...s.inbox.filter(q => q.blocking).map(q => ({ to: "q" + q.id, name: q.name, text: q.kind === "command" ? `wants to run ${q.question}` : q.question })),
@@ -15,9 +16,9 @@ export function needItems(s) {
 
 // Your team works while you're elsewhere, so the dock shows how much waits on you, and anything new
 // gets a notification when the app isn't in front. What was already waiting at launch stays quiet.
-export const notified = {};
+export const notified: Record<string, Set<string>> = {};
 
-export function alertNew(snap) {
+export function alertNew(snap: Snapshot) {
   if (!window.__TAURI__) return;
   const items = needItems(snap);
   S.needs[snap.company] = items.length;
@@ -30,9 +31,9 @@ export function alertNew(snap) {
 }
 
 // Each budget moment is said once a day: the 80% heads-up, then the pause.
-export const budgetSaid = {};
+export const budgetSaid: Record<string, string> = {};
 
-export function budgetAlert(company, sp) {
+export function budgetAlert(company: string, sp: Spend) {
   if (!sp?.budget) return;
   const was = budgetSaid[company], now = sp.paused_by_budget ? "paused" : sp.warn ? "warn" : "";
   budgetSaid[company] = now;
@@ -64,7 +65,7 @@ export function badgeAll() {
   if (window.__TAURI__) invoke("set_tray_count", { count: total }).catch(() => {});
 }
 
-export async function notify(title, body) {
+export async function notify(title: string, body: string) {
   const n = window.__TAURI__?.notification;
   if (!n) return;
   try {

@@ -1,22 +1,23 @@
-import { esc, first } from "../lib.js";
-import { face, icon } from "../look.js";
-import { S, byId } from "../state.js";
+import { esc, first } from "../lib.ts";
+import { face, icon } from "../look.ts";
+import { S, byId } from "../state.ts";
+import type { Project, Ticket } from "../types.ts";
 
 /* Board: every ticket by where it stands. Click one for its log and actions. */
 export const COLUMNS = [["Backlog", ["backlog"]], ["Up next", ["todo", "queued", "waiting"]], ["Working", ["doing"]], ["Needs you", ["blocked", "review", "failed"]], ["Done", ["done"]]];
 
-export const PILL = { blocked: ["Question", "warn"], review: ["Review", "info"], failed: ["Stopped", ""], waiting: ["Waiting", ""] };
+export const PILL: Record<string, [string, string]> = { blocked: ["Question", "warn"], review: ["Review", "info"], failed: ["Stopped", ""], waiting: ["Waiting", ""] };
 
-export const spent = t => t.spend && !/^(\$0\.00|0 tok)$/.test(t.spend);
+export const spent = (t: Ticket) => t.spend && !/^(\$0\.00|0 tok)$/.test(t.spend);
 
 export function viewBoard() {
-  const s = S.snap;
+  const s = S.snap!;
   if (!s.tickets.length) return `<div class="empty-state"><span class="empty-ic">${icon("board")}</span><b>No tickets yet</b>A project is a goal your planner breaks into tickets. A ticket is one task.<div class="acts center"><button class="btn primary" data-plan-new="1">New project</button><button class="btn" data-new-ticket="1">New ticket</button></div></div>`;
-  const nameOf = id => byId(id)?.name || id || "";
+  const nameOf = (id: string | null) => byId(id)?.name || id || "";
   const projects = s.projects || [], current = projects.find(p => p.key === S.project);
   if (S.project && !current) S.project = null;
-  const inView = t => !S.project || t.plan === S.project || t.key === S.project;
-  const chip = p => {
+  const inView = (t: Ticket) => !S.project || t.plan === S.project || t.key === S.project;
+  const chip = (p: Project) => {
     const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
     const state = p.status === "review" ? "to review" : ["todo", "queued", "doing"].includes(p.status) ? "planning" : `${p.done}/${p.total}`;
     return `<button class="pchip" data-project="${esc(p.key)}" aria-pressed="${S.project === p.key}">${esc(p.title)}<span class="prog"><i style="width:${pct}%"></i></span><span class="n">${state}</span></button>`;
@@ -35,4 +36,4 @@ export function viewBoard() {
   return `${bar}<div class="board">${cols}</div>`;
 }
 
-export const STATUS = { backlog: "In the backlog", waiting: "Waiting for another ticket", todo: "Up next", queued: "Up next", doing: "Working", blocked: "Waiting on you", review: "Ready for review", failed: "Stopped", done: "Merged" };
+export const STATUS: Record<string, string> = { backlog: "In the backlog", waiting: "Waiting for another ticket", todo: "Up next", queued: "Up next", doing: "Working", blocked: "Waiting on you", review: "Ready for review", failed: "Stopped", done: "Merged" };

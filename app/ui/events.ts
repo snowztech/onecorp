@@ -1,29 +1,32 @@
-import { candidates, openHire, openPerson, openTicket, readPerson, renderDrawer, saveNewTicket } from "./drawers.js";
-import { $, esc, first, initials, toast } from "./lib.js";
-import { PALETTE, drawFace, face, icon } from "./look.js";
-import { md } from "./md.js";
-import { refresh, render } from "./render.js";
-import { renderPop, renderSide, toggleRail } from "./shell.js";
-import { S, byId, call, invoke, myName } from "./state.js";
-import { pickMention, updateMentions } from "./views/chat.js";
-import { approvalCopy } from "./views/inbox.js";
-import { addExtraRepo, addRepo, backToYou, checkRepo, hasPhoto, loadGithub, makeRepo, readSetup, recheckTools, saveProfile, setTemplate, startSetup } from "./views/onboarding.js";
-import { loadSection, loadSpend, openSettings, renderSheet, saved, setTheme } from "./views/settings.js";
+import { candidates, openHire, openPerson, openTicket, readPerson, renderDrawer, saveNewTicket } from "./drawers.ts";
+import { $, esc, first, initials, toast } from "./lib.ts";
+import { PALETTE, drawFace, face, icon } from "./look.ts";
+import { md } from "./md.ts";
+import { refresh, render } from "./render.ts";
+import { renderPop, renderSide, toggleRail } from "./shell.ts";
+import { S, byId, call, invoke, myName } from "./state.ts";
+import type { PersonForm } from "./types.ts";
+import { pickMention, updateMentions } from "./views/chat.ts";
+import { approvalCopy } from "./views/inbox.ts";
+import { addExtraRepo, addRepo, backToYou, checkRepo, hasPhoto, loadGithub, makeRepo, readSetup, recheckTools, saveProfile, setTemplate, startSetup } from "./views/onboarding.ts";
+import { loadSection, loadSpend, openSettings, renderSheet, saved, setTheme } from "./views/settings.ts";
 
 // Every click, submit and key, handled once on the document. Elements say what they do with data-* attributes.
 /* Actions */
 document.addEventListener("mousedown", e => {
-  const o = e.target.closest?.("[data-mpick]");
+  const target = e.target as HTMLInputElement;
+  const o = target.closest?.<HTMLElement>("[data-mpick]");
   if (o) { e.preventDefault(); pickMention(Number(o.dataset.mpick)); }
 });
 
 document.addEventListener("click", async e => {
-  if (S.pop && !e.target.closest("#pop, [data-profile], [data-pop]")) { S.pop = false; renderPop(); }
-  if (e.target.id === "sheet") { S.sheet = null; return renderSheet(); }
-  if (S.switching && !e.target.closest(".switch")) { S.switching = false; renderSide(); }
-  if (S.members && !e.target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
-  if (e.target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = e.target.closest("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const target = e.target as HTMLInputElement;
+  if (S.pop && !target.closest("#pop, [data-profile], [data-pop]")) { S.pop = false; renderPop(); }
+  if (target.id === "sheet") { S.sheet = null; return renderSheet(); }
+  if (S.switching && !target.closest(".switch")) { S.switching = false; renderSide(); }
+  if (S.members && !target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
+  if (target.id === "scrim") { S.drawer = null; return renderDrawer(); }
+  const el = target.closest<HTMLButtonElement>("[data-plan-del],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
   if (!el) return;
   const d = el.dataset;
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
@@ -55,7 +58,7 @@ document.addEventListener("click", async e => {
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
     return input.focus();
   }
-  if (d.skipSetup) { if (await saveProfile(S.profile.photo, S.profile.noPhoto)) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
+  if (d.skipSetup) { if (await saveProfile(S.profile!.photo, S.profile!.noPhoto)) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
   if (d.hideStart) { try { localStorage.setItem("onecorp.started." + S.company, "hide"); } catch {} return render(); }
   if (d.brief) { S.view = "wiki"; S.open.brief = true; render(); await refresh(true); return $("#brief-text")?.focus(); }
   if (d.pause) {
@@ -63,33 +66,33 @@ document.addEventListener("click", async e => {
     await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});
     return;
   }
-  if (d.suAgent) { readSetup(); const [i, k] = d.suAgent.split(":"); const p = S.setup.people[Number(i)]; if (p.runtime !== k) p.model = ""; p.runtime = k; return render(); }
-  if (d.agent) { Object.assign(S.drawer.form ||= {}, readPerson(), { runtime: d.agent, model: null }); return renderDrawer(); }
+  if (d.suAgent) { readSetup(); const [i, k] = d.suAgent.split(":"); const p = S.setup!.people[Number(i)]; if (p.runtime !== k) p.model = ""; p.runtime = k; return render(); }
+  if (d.agent) { Object.assign(S.drawer!.form ||= {} as PersonForm, readPerson(), { runtime: d.agent, model: null }); return renderDrawer(); }
   if (d.welcome) { S.welcome = false; render(); return $("#pf-name")?.focus(); }
   if (d.stepTo) {
     if (d.stepTo === "You") return backToYou();
-    readSetup(); S.setup.step = ["Connect", "Company", "Repo", "Team"].indexOf(d.stepTo); return render();
+    readSetup(); S.setup!.step = ["Connect", "Company", "Repo", "Team"].indexOf(d.stepTo); return render();
   }
   if ("vpick" in d) {
-    $("#pf-v").value = d.vpick;
-    el.parentElement.querySelectorAll(".vchip").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
+    $("#pf-v").value = d.vpick!;
+    el.parentElement!.querySelectorAll(".vchip").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
     $("#pf-vs").textContent = (S.voices || []).find(v => v.key === d.vpick)?.sample || "Picked to fit their role. Change it any time.";
     return;
   }
   if ("model" in d && el.classList.contains("mchip") && !el.classList.contains("vchip")) {
-    $("#pf-m").value = d.model;
-    el.parentElement.querySelectorAll(".mchip").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
+    $("#pf-m").value = d.model!;
+    el.parentElement!.querySelectorAll(".mchip").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
     return;
   }
-  if (d.copy) { navigator.clipboard?.writeText(d.copy).then(() => toast("Copied. Paste it in Terminal")).catch(() => toast(d.copy)); return; }
+  if (d.copy) { navigator.clipboard?.writeText(d.copy).then(() => toast("Copied. Paste it in Terminal")).catch(() => toast(d.copy!)); return; }
   if (d.term) { await invoke("in_terminal", { command: d.term }).catch(e => toast(String(e))); recheckTools(); return; }
-  if (d.recheck) { S.setup.ready = null; render(); S.setup.ready = await invoke("readiness").catch(() => []); return render(); }
+  if (d.recheck) { S.setup!.ready = null; render(); S.setup!.ready = await invoke("readiness").catch(() => []); return render(); }
   if (d.pickFill) {
     const keep = readPerson(), c = candidates(keep.role)[Number(d.pickFill)];
-    S.drawer.form = { ...keep, name: c.name, runtime: c.runtime, model: c.model };
+    S.drawer!.form = { ...keep, name: c.name, runtime: c.runtime, model: c.model };
     renderDrawer(); return $("#pf-n")?.focus();
   }
-  if ("editPerson" in d) { S.drawer.edit = !!d.editPerson; S.drawer.form = null; S.confirm = null; renderDrawer(); return $("#pf-n")?.focus(); }
+  if ("editPerson" in d) { S.drawer!.edit = !!d.editPerson; S.drawer!.form = null; S.confirm = null; renderDrawer(); return $("#pf-n")?.focus(); }
   if (d.makeLead) { await call("make_lead", { company: S.company, id: d.makeLead }, "They lead the department now").catch(() => {}); return openPerson(d.makeLead); }
   if (d.fire) {
     el.disabled = true;
@@ -107,18 +110,18 @@ document.addEventListener("click", async e => {
   if (d.rail) return toggleRail();
   if (d.dm) { S.view = "chat"; S.channel = "dm:" + d.dm; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
   if (d.face && S.drawer?.form) {
-    S.drawer.form.face = d.face;
-    el.parentElement.querySelectorAll(".fpick").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
-    if (!S.drawer.form.photoUrl) $("#drawer .dhead .with-agent").firstElementChild.outerHTML = drawFace(d.face, "neutral");
+    S.drawer!.form.face = d.face;
+    el.parentElement!.querySelectorAll(".fpick").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
+    if (!S.drawer!.form!.photoUrl) $("#drawer .dhead .with-agent").firstElementChild!.outerHTML = drawFace(d.face, "neutral");
     return;
   }
   if (d.avatarPhoto) {
     const path = await window.__TAURI__?.dialog?.open({ multiple: false, title: "Pick a photo", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }] }).catch(() => null);
     if (!path) return;
-    try { Object.assign(S.drawer.form, readPerson(), { photoUrl: await invoke("image_preview", { path: String(path) }), photoPath: String(path), removePhoto: false }); } catch (err) { return toast(String(err), true); }
+    try { Object.assign(S.drawer!.form!, readPerson(), { photoUrl: await invoke("image_preview", { path: String(path) }), photoPath: String(path), removePhoto: false }); } catch (err) { return toast(String(err), true); }
     return renderDrawer();
   }
-  if (d.avatarClear) { Object.assign(S.drawer.form, readPerson(), { photoUrl: null, photoPath: null, removePhoto: true }); return renderDrawer(); }
+  if (d.avatarClear) { Object.assign(S.drawer!.form!, readPerson(), { photoUrl: null, photoPath: null, removePhoto: true }); return renderDrawer(); }
   if (d.planNew) { S.drawer = { type: "plan" }; renderDrawer(); return $("#pj-name")?.select(); }
   if ("project" in d) { S.project = d.project || null; return render(); }
   if (d.switch) { S.switching = !S.switching; return renderSide(); }
@@ -129,7 +132,7 @@ document.addEventListener("click", async e => {
     catch (err) { toast(String(err), true); }
     renderSheet(); return refresh(true);
   }
-  if (d.reveal) return window.__TAURI__.opener.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
+  if (d.reveal) return window.__TAURI__!.opener!.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
   if (d.health) { S.health = null; renderSheet(); S.ready = await invoke("readiness").catch(() => S.ready); S.health = await invoke("health").catch(() => []); return renderSheet(); }
   if ("confirm" in d) { S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); else if (S.view === "inbox") render(); renderSheet(); return $("#del-name")?.focus(); }
   if (d.remove) {
@@ -145,7 +148,7 @@ document.addEventListener("click", async e => {
   }
   if (d.more) { S.open[d.more] = !S.open[d.more]; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) return openSettings("you");
-  if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop; renderPop(); return $("#pf-name")?.focus(); }
+  if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop as "menu" | "forget"; renderPop(); return $("#pf-name")?.focus(); }
   if (d.settings) return openSettings();
   if (d.sheet) { S.sheet = d.sheet; S.confirm = null; S.customBudget = false; renderSheet(); return loadSection(d.sheet); }
   if (d.budget !== undefined) { S.customBudget = false; await invoke("set_budget", { company: S.company, dollars: Number(d.budget) }).then(saved).catch(err => toast(String(err), true)); await loadSpend(); return refresh(true); }
@@ -157,7 +160,7 @@ document.addEventListener("click", async e => {
   if (d.lookLogo) {
     const path = await window.__TAURI__?.dialog?.open({ multiple: false, title: "Pick a logo", filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "svg", "gif"] }] }).catch(() => null);
     if (!path) return;
-    await invoke("set_look", { company: S.company, color: S.looks?.[S.company]?.color || PALETTE[0], logo: String(path), removeLogo: false }).then(saved).catch(err => toast(String(err), true));
+    await invoke("set_look", { company: S.company, color: S.looks[S.company ?? ""]?.color || PALETTE[0], logo: String(path), removeLogo: false }).then(saved).catch(err => toast(String(err), true));
     await refresh(true); return renderSheet();
   }
   if (d.youPhoto) {
@@ -174,36 +177,36 @@ document.addEventListener("click", async e => {
     return refresh(true);
   }
   if (d.talk) {
-    try { await invoke("set_talk", { company: S.company, mode: d.talk }); S.settings.talk = d.talk; saved(); } catch (err) { toast(String(err), true); }
+    try { await invoke("set_talk", { company: S.company, mode: d.talk }); S.settings!.talk = d.talk; saved(); } catch (err) { toast(String(err), true); }
     return renderSheet();
   }
   if (d.prSign) {
     const on = d.prSign === "true";
-    try { await invoke("set_pr_sign", { company: S.company, on }); S.settings.pr_sign = on; saved(); } catch (err) { toast(String(err), true); }
+    try { await invoke("set_pr_sign", { company: S.company, on }); S.settings!.pr_sign = on; saved(); } catch (err) { toast(String(err), true); }
     return renderSheet();
   }
   if (d.commits) {
-    try { await invoke("set_commits", { company: S.company, mode: d.commits }); S.settings.commits = d.commits; saved(); } catch (err) { toast(String(err), true); }
+    try { await invoke("set_commits", { company: S.company, mode: d.commits }); S.settings!.commits = d.commits; saved(); } catch (err) { toast(String(err), true); }
     return renderSheet();
   }
   if (d.cmdDel) {
-    const r = S.settings.repos.find(x => x.name === d.cmdDel);
+    const r = S.settings!.repos.find(x => x.name === d.cmdDel)!;
     const text = r.commands.filter(cmd => cmd !== d.cmd).join("\n");
-    S.settings.repos = await invoke("set_commands", { company: S.company, repo: d.cmdDel, text }).catch(err => (toast(String(err), true), S.settings.repos));
+    S.settings!.repos = await invoke("set_commands", { company: S.company, repo: d.cmdDel, text }).catch(err => (toast(String(err), true), S.settings!.repos));
     return renderSheet();
   }
   if (d.commandsReset) {
-    S.settings.repos = await invoke("set_commands", { company: S.company, repo: d.commandsReset, text: null }).catch(err => (toast(String(err), true), S.settings.repos));
+    S.settings!.repos = await invoke("set_commands", { company: S.company, repo: d.commandsReset, text: null }).catch(err => (toast(String(err), true), S.settings!.repos));
     saved(); return renderSheet();
   }
   if (d.repoRm) {
-    try { S.settings.repos = await invoke("remove_repo", { company: S.company, name: d.repoRm }); toast(`Removed ${d.repoRm}. Its files and finished tickets stay`); } catch (err) { toast(String(err), true); }
+    try { S.settings!.repos = await invoke("remove_repo", { company: S.company, name: d.repoRm }); toast(`Removed ${d.repoRm}. Its files and finished tickets stay`); } catch (err) { toast(String(err), true); }
     renderSheet(); return refresh(true);
   }
   if (d.repoAdd) {
     const path = d.repoAdd === "pick" ? await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: "Pick another repo" }).catch(() => null) : $("#repo-path")?.value.trim();
     if (!path) return $("#repo-path")?.focus();
-    try { S.settings.repos = await invoke("add_repo", { company: S.company, path: String(path), name: null }); toast(`Added ${S.settings.repos.at(-1).name}. Tickets can work in it now`); } catch (err) { toast(String(err), true); }
+    try { S.settings!.repos = await invoke("add_repo", { company: S.company, path: String(path), name: null }); toast(`Added ${S.settings!.repos.at(-1)?.name}. Tickets can work in it now`); } catch (err) { toast(String(err), true); }
     renderSheet(); return refresh(true);
   }
 
@@ -219,17 +222,17 @@ document.addEventListener("click", async e => {
   if (d.pf) {
     if (d.pf === "cancel") { S.pop = false; return renderPop(); }
     if (d.pf === "face") {
-      if (S.profile) { S.profile.photo = S.profile.photoUrl = null; S.profile.noPhoto = true; return render(); }
+      if (S.profile) { S.profile!.photo = S.profile!.photoUrl = null; S.profile!.noPhoto = true; return render(); }
       if (await saveProfile(null, true)) { render(); renderPop(); }
       return;
     }
     if (d.pf === "pick") {
       if (!window.__TAURI__?.dialog) return;
-      const path = await window.__TAURI__.dialog.open({ multiple: false, title: "Pick a photo of you", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }] }).catch(() => null);
+      const path = await window.__TAURI__!.dialog!.open({ multiple: false, title: "Pick a photo of you", filters: [{ name: "Photos", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }] }).catch(() => null);
       if (!path) return;
       // During onboarding the photo comes first, before your name: shown now, saved when you continue.
       if (S.profile) {
-        try { S.profile.photoUrl = await invoke("image_preview", { path: String(path) }); S.profile.photo = String(path); S.profile.noPhoto = false; } catch (err) { toast(String(err), true); }
+        try { S.profile!.photoUrl = await invoke("image_preview", { path: String(path) }); S.profile!.photo = String(path); S.profile!.noPhoto = false; } catch (err) { toast(String(err), true); }
         return render();
       }
       if (await saveProfile(String(path))) { render(); renderPop(); }
@@ -250,14 +253,14 @@ document.addEventListener("click", async e => {
   if (d.tpl) { readSetup(); setTemplate(d.tpl); return render(); }
   if (d.su) {
     readSetup();
-    const s = S.setup;
+    const s = S.setup!;
     if (d.su === "cancel") { S.setup = null; S.onboarding = false; S.view = "company"; return refresh(true); }
     if (d.su === "back") { if (!s.step) return backToYou(); s.step--; return render(); }
     if (d.su === "check") return checkRepo(s.path);
     if (d.su.startsWith("color-")) { s.color = d.su.slice(6); s.logo = s.logoUrl = null; return render(); }
     if (d.su === "logo-remove") { s.logo = s.logoUrl = null; return render(); }
     if (d.su === "logo") {
-      const path = await window.__TAURI__.dialog.open({ multiple: false, title: "Pick a logo", filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "svg", "gif"] }] }).catch(() => null);
+      const path = await window.__TAURI__!.dialog!.open({ multiple: false, title: "Pick a logo", filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "svg", "gif"] }] }).catch(() => null);
       if (!path) return;
       try { s.logoUrl = await invoke("image_preview", { path: String(path) }); s.logo = String(path); } catch (e) { toast(String(e), true); }
       return render();
@@ -278,13 +281,13 @@ document.addEventListener("click", async e => {
     }
     if (d.su === "clone-cancel") { s.pick = null; return render(); }
     if (d.su === "clone-dir") {
-      const dir = await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: `Where should ${s.pick.name} go?`, defaultPath: s.repoInfo?.parent }).catch(() => null);
-      if (dir) { s.pick.path = `${String(dir).replace(/\/$/, "")}/${s.pick.name.split("/").pop()}`; render(); }
+      const dir = await window.__TAURI__?.dialog?.open({ directory: true, multiple: false, title: `Where should ${s.pick!.name} go?`, defaultPath: s.repoInfo?.parent }).catch(() => null);
+      if (dir) { s.pick!.path = `${String(dir).replace(/\/$/, "")}/${s.pick!.name.split("/").pop()}`; render(); }
       return;
     }
     if (d.su === "clone-go") {
-      const path = $("#clone-path")?.value.trim() || s.pick.path;
-      s.cloning = s.pick.name; s.pick = null; render();
+      const path = $("#clone-path")?.value.trim() || s.pick!.path;
+      s.cloning = s.pick!.name; s.pick = null; render();
       try {
         const name = s.cloning;
         const done = await invoke("clone_repo", { name, path }); s.cloning = null;
@@ -304,7 +307,7 @@ document.addEventListener("click", async e => {
     if (d.su === "add-person") { s.people.push({ name: "", role: "Engineer", dept: "Engineering", runtime: s.runtime, tier: "balanced" }); render(); return document.getElementById(`su-p${s.people.length - 1}-name`)?.focus(); }
     if (d.su.startsWith("del-")) { s.people.splice(Number(d.su.slice(4)), 1); return render(); }
     if (d.su === "parent") {
-      const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Where should the new repo go?" }).catch(() => null);
+      const path = await window.__TAURI__!.dialog!.open({ directory: true, multiple: false, title: "Where should the new repo go?" }).catch(() => null);
       if (path) { s.parent = String(path); render(); }
       return;
     }
@@ -324,7 +327,7 @@ document.addEventListener("click", async e => {
     }
     if (d.su.startsWith("rdel-")) { s.extra.splice(Number(d.su.slice(5)), 1); return render(); }
     if (d.su === "pick") {
-      const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Pick the company's repo" }).catch(() => null);
+      const path = await window.__TAURI__!.dialog!.open({ directory: true, multiple: false, title: "Pick the company's repo" }).catch(() => null);
       if (path) addRepo(String(path));
       return;
     }
@@ -361,12 +364,12 @@ document.addEventListener("click", async e => {
 
 document.addEventListener("submit", async e => {
   e.preventDefault();
-  const f = e.target;
+  const f = e.target as HTMLFormElement;
   if (f.id === "plan-form") {
     const name = $("#pj-name").value.trim(), goal = $("#pj-goal").value.trim(), by = $("#pj-by").value || null;
     if (!name) return $("#pj-name").focus();
-    if (!goal && !S.snap.kickoff.brief) { toast("Say what the project should do", true); return $("#pj-goal").focus(); }
-    const btn = f.querySelector(".btn.primary"); btn.disabled = true; btn.textContent = "Starting…";
+    if (!goal && !S.snap!.kickoff.brief) { toast("Say what the project should do", true); return $("#pj-goal").focus(); }
+    const btn = f.querySelector<HTMLButtonElement>(".btn.primary")!; btn.disabled = true; btn.textContent = "Starting…";
     const key = await call("plan_project", { company: S.company, name, goal, by }, `${first(byId(by)?.name || "Your planner")} is planning ${name}. The plan shows up in your Inbox`).catch(() => null);
     if (!key) { btn.disabled = false; btn.textContent = "Plan it"; return; }
     S.drawer = null; S.view = "board"; S.project = key; return render();
@@ -380,7 +383,7 @@ document.addEventListener("submit", async e => {
     if (!(await saveProfile(S.profile?.photo, S.profile?.noPhoto))) return;
     if (!firstTime) { S.pop = false; renderPop(); render(); return toast("Saved"); }
     // Back from setup: pick up where you were.
-    if (S.profile.inSetup) { S.profile = null; return render(); }
+    if (S.profile!.inSetup) { S.profile = null; return render(); }
     S.profile = null;
     // Coming back to your companies, not starting a new one.
     if (S.companies.length) { toast(`Welcome back, ${myName()}`); return refresh(true); }
@@ -389,7 +392,7 @@ document.addEventListener("submit", async e => {
   }
   if (f.id === "setup") {
     readSetup();
-    const s = S.setup;
+    const s = S.setup!;
     if (s.step === 0) {
       const ok = (s.ready || []).some(h => ["Claude Code", "Codex"].includes(h.what) && h.level === "ok");
       if (!ok) return toast("Connect Claude Code or Codex first. Your employees need one to work", true);
@@ -420,14 +423,14 @@ document.addEventListener("submit", async e => {
     const people = s.people.filter(p => p.name.trim()), real = people.some(p => p.runtime !== "fake");
     const lead = people.find(p => /eng/i.test(p.dept || "")) || people[0];
     s.launch = { done: 0, steps: [`Founding ${s.name}`, people.length ? `Hiring ${people.length} ${people.length === 1 ? "person" : "people"}` : "Opening the office",
-      `Connecting ${s.repo.path.split("/").pop()}`, real && lead ? `${first(lead.name)} starts writing the wiki` : "Reading the repo",
+      `Connecting ${s.repo!.path.split("/").pop()}`, real && lead ? `${first(lead.name)} starts writing the wiki` : "Reading the repo",
       ...(s.brief && people.length ? ["Planning the first version"] : [])] };
     render();
-    const tick = setInterval(() => { if (s.launch.done < s.launch.steps.length - 1) { s.launch.done++; render(); } }, 420);
-    const pace = new Promise(r => setTimeout(r, 420 * s.launch.steps.length));
+    const tick = setInterval(() => { if (s.launch!.done < s.launch!.steps.length - 1) { s.launch!.done++; render(); } }, 420);
+    const pace = new Promise(r => setTimeout(r, 420 * s.launch!.steps.length));
     try {
-      const [name] = await Promise.all([invoke("create_company", { name: s.name, repo: s.repo.path, repoName: s.mainName || null, repos: s.extra, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo }), pace]);
-      clearInterval(tick); s.launch.done = s.launch.steps.length; render();
+      const [name] = await Promise.all([invoke("create_company", { name: s.name, repo: s.repo!.path, repoName: s.mainName || null, repos: s.extra, mission: s.mission, people, brief: s.brief || null, color: s.color, logo: s.logo }), pace]);
+      clearInterval(tick); s.launch!.done = s.launch!.steps.length; render();
       await new Promise(r => setTimeout(r, 450));
       S.setup = null; S.onboarding = false; S.company = name; S.view = "company"; S.snap = null; S.last = "";
       await refresh(true);
@@ -442,9 +445,9 @@ document.addEventListener("submit", async e => {
   }
   if (f.id === "you-form") { $("#pf-name").blur(); return; }
   if (f.id === "del-co") {
-    const name = S.settings.name;
+    const name = S.settings!.name;
     if ($("#del-name").value.trim() !== name) { toast(`Type ${name} to confirm`, true); return $("#del-name").focus(); }
-    const btn = f.querySelector(".danger"); btn.disabled = true; btn.textContent = "Deleting…";
+    const btn = f.querySelector<HTMLButtonElement>(".danger")!; btn.disabled = true; btn.textContent = "Deleting…";
     try { await invoke("delete_company", { name }); } catch (err) { btn.disabled = false; btn.textContent = `Delete ${name}`; return toast(String(err), true); }
     toast(`Deleted ${name}. Your repo is untouched.`);
     S.company = null; S.snap = null; S.last = ""; S.settings = null; S.confirm = null; S.sheet = null; S.view = "company"; renderSheet();
@@ -467,91 +470,94 @@ document.addEventListener("submit", async e => {
   } else if (f.id === "hire-form" || f.id === "emp-form") {
     const p = readPerson();
     if (!p.name) { toast("Give them a name", true); return $("#pf-n").focus(); }
-    const btn = f.querySelector(".btn.primary"); btn.disabled = true;
+    const btn = f.querySelector<HTMLButtonElement>(".btn.primary")!; btn.disabled = true;
     try {
       if (f.id === "hire-form") {
-        await invoke("hire", { company: S.company, ...p, department: S.drawer.dept });
+        await invoke("hire", { company: S.company, ...p, department: S.drawer!.dept });
         toast(`${first(p.name)} joined. Give them a ticket whenever you're ready`); S.drawer = null; renderDrawer();
       } else {
-        await invoke("update_employee", { company: S.company, id: S.drawer.id, ...p });
-        const f = S.drawer.form;
-        await invoke("set_avatar", { company: S.company, id: S.drawer.id, face: f.face === p.name ? null : f.face, photo: f.photoPath, removePhoto: !!f.removePhoto });
-        await invoke("set_cap", { company: S.company, id: S.drawer.id, dollars: Number($("#pf-cap")?.value || 0) });
-        toast("Saved"); S.drawer.edit = false; await openPerson(S.drawer.id);
+        await invoke("update_employee", { company: S.company, id: S.drawer!.id, ...p });
+        const f = S.drawer!.form!;
+        await invoke("set_avatar", { company: S.company, id: S.drawer!.id, face: f.face === p.name ? null : f.face, photo: f.photoPath, removePhoto: !!f.removePhoto });
+        await invoke("set_cap", { company: S.company, id: S.drawer!.id, dollars: Number($("#pf-cap")?.value || 0) });
+        toast("Saved"); S.drawer!.edit = false; await openPerson(S.drawer!.id!);
       }
       await refresh(true);
     } catch (err) { btn.disabled = false; toast(String(err), true); }
   } else if (f.dataset.reply) {
-    const input = f.querySelector("input"), text = input.value.trim();
+    const input = f.querySelector("input")!, text = input.value.trim();
     if (!text) return input.focus();
     await call("answer", { company: S.company, id: Number(f.dataset.reply), text }, "Answered").catch(() => {});
   } else if (f.dataset.changes) {
-    const input = f.querySelector("input"), feedback = input.value.trim();
+    const input = f.querySelector("input")!, feedback = input.value.trim();
     if (!feedback) return input.focus();
     await call("request_changes", { company: S.company, key: f.dataset.changes, feedback }, "Sent back. It's saved to their memory too.").catch(() => {});
   }
 });
 
 // The drawn face follows your name as you type it.
-export const faceLater = {};
+export const faceLater: { t?: ReturnType<typeof setTimeout> } = {};
 
 document.addEventListener("input", e => {
+  const target = e.target as HTMLInputElement;
   // Filters the repo list in place: redrawing would take the cursor out of the search box.
-  if (e.target.id === "gh-q") {
-    const q = e.target.value.trim().toLowerCase();
-    document.querySelectorAll(".gh-list li").forEach(li => (li.hidden = q && !li.dataset.name.includes(q)));
+  if (target.id === "gh-q") {
+    const q = target.value.trim().toLowerCase();
+    document.querySelectorAll<HTMLElement>(".gh-list li").forEach(li => (li.hidden = !!q && !(li.dataset.name || "").includes(q)));
     return;
   }
-  if (e.target.id === "say-text") updateMentions(e.target);
-  if (e.target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (e.target.value.trim() || "?")[0].toUpperCase(); }
-  if (e.target.id === "hb-text") $("#hb-preview").innerHTML = md(e.target.value).html;
-  if (e.target.id === "pf-n" && S.drawer?.type === "hire") {
+  if (target.id === "say-text") updateMentions(target);
+  if (target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (target.value.trim() || "?")[0].toUpperCase(); }
+  if (target.id === "hb-text") $("#hb-preview").innerHTML = md(target.value).html;
+  if (target.id === "pf-n" && S.drawer?.type === "hire") {
     clearTimeout(faceLater.t);
-    faceLater.t = setTimeout(() => { const pic = $(".hire-face"); if (pic) { pic.innerHTML = face(e.target.value || "New hire", "neutral"); pic.classList.remove("swap"); void pic.offsetWidth; pic.classList.add("swap"); } }, 400);
+    faceLater.t = setTimeout(() => { const pic = $(".hire-face"); if (pic) { pic.innerHTML = face(target.value || "New hire", "neutral"); pic.classList.remove("swap"); void pic.offsetWidth; pic.classList.add("swap"); } }, 400);
   }
-  if (e.target.id === "pf-name" && S.profile && !hasPhoto()) { const m = $(".welcome .mono-av"); if (m) m.innerHTML = e.target.value.trim() ? esc(initials(e.target.value)) : icon("user"); }
+  if (target.id === "pf-name" && S.profile && !hasPhoto()) { const m = $(".welcome .mono-av"); if (m) m.innerHTML = target.value.trim() ? esc(initials(target.value)) : icon("user"); }
 });
 
 document.addEventListener("change", async e => {
-  if (e.target.id === "projects-path" && S.setup) {
-    try { const saved = await invoke("set_projects_folder", { path: e.target.value }); S.setup.repoInfo.parent = S.setup.parent = saved; toast("Clones go there from now on"); } catch (err) { toast(String(err), true); }
+  const target = e.target as HTMLInputElement;
+  if (target.id === "projects-path" && S.setup) {
+    try { const saved = await invoke("set_projects_folder", { path: target.value }); S.setup!.repoInfo.parent = S.setup!.parent = saved; toast("Clones go there from now on"); } catch (err) { toast(String(err), true); }
     return render();
   }
-  if (e.target.dataset?.cmdAdd && e.target.value.trim()) {
+  if (target.dataset?.cmdAdd && target.value.trim()) {
     // Pasting several lines, or a list from a Claude Code settings file, adds them all.
-    const repo = e.target.dataset.cmdAdd, r = S.settings.repos.find(x => x.name === repo);
-    try { S.settings.repos = await invoke("set_commands", { company: S.company, repo, text: [...r.commands, e.target.value].join("\n") }); saved(); } catch (err) { toast(String(err), true); }
+    const repo = target.dataset.cmdAdd, r = S.settings!.repos.find(x => x.name === repo)!;
+    try { S.settings!.repos = await invoke("set_commands", { company: S.company, repo, text: [...r.commands, target.value].join("\n") }); saved(); } catch (err) { toast(String(err), true); }
     renderSheet();
     return $(`[data-cmd-add="${CSS.escape(repo)}"]`)?.focus();
   }
 
-  if (e.target.dataset?.price) {
-    await invoke("set_price", { company: S.company, runtime: e.target.dataset.price, perMillion: Math.max(0, Number(e.target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
+  if (target.dataset?.price) {
+    await invoke("set_price", { company: S.company, runtime: target.dataset.price, perMillion: Math.max(0, Number(target.value) || 0) }).then(saved).catch(err => toast(String(err), true));
     return loadSpend();
   }
-  if (e.target.id === "pf-name" && e.target.closest("#you-form")) {
-    if (e.target.value.trim() && e.target.value.trim() !== S.founder?.name && await saveProfile()) { saved(); render(); }
+  if (target.id === "pf-name" && target.closest("#you-form")) {
+    if (target.value.trim() && target.value.trim() !== S.founder?.name && await saveProfile()) { saved(); render(); }
     return;
   }
-  if (e.target.dataset?.planAssign) {
-    const employee = e.target.value;
-    if (employee) await call("assign", { company: S.company, key: e.target.dataset.planAssign, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
+  if (target.dataset?.planAssign) {
+    const employee = target.value;
+    if (employee) await call("assign", { company: S.company, key: target.dataset.planAssign, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
     return;
   }
-  if (e.target.dataset?.assign) {
-    const key = e.target.dataset.assign, employee = e.target.value;
+  if (target.dataset?.assign) {
+    const key = target.dataset.assign, employee = target.value;
     if (employee) await call("assign", { company: S.company, key, employee }, `Given to ${first(byId(employee)?.name)}`).catch(() => {});
     return openTicket(key);
   }
-  if (e.target.id === "move" && e.target.value) {
-    await call("move_to_department", { company: S.company, employee: e.target.dataset.move, department: Number(e.target.value) }, "Moved").catch(() => {});
-    if (S.drawer?.type === "person") openPerson(S.drawer.id);
+  if (target.id === "move" && target.value) {
+    await call("move_to_department", { company: S.company, employee: target.dataset.move, department: Number(target.value) }, "Moved").catch(() => {});
+    if (S.drawer?.type === "person") openPerson(S.drawer!.id!);
   }
 });
 
 // A one-line input flattens a pasted list, so a multi-line paste is added as it is.
 document.addEventListener("paste", e => {
-  const box = e.target.closest?.("[data-cmd-add]"), text = e.clipboardData?.getData("text") || "";
+  const target = e.target as HTMLInputElement;
+  const box = target.closest?.<HTMLInputElement>("[data-cmd-add]"), text = e.clipboardData?.getData("text") || "";
   if (!box || !text.includes("\n")) return;
   e.preventDefault();
   box.value = text;
@@ -559,13 +565,14 @@ document.addEventListener("paste", e => {
 });
 
 document.addEventListener("keydown", e => {
-  if (e.target.id === "say-text" && S.mention) {
+  const target = e.target as HTMLInputElement;
+  if (target.id === "say-text" && S.mention) {
     const n = S.mention.opts.length;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); S.mention.i = (S.mention.i + (e.key === "ArrowDown" ? 1 : n - 1)) % n; return updateMentions(e.target); }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); S.mention.i = (S.mention.i + (e.key === "ArrowDown" ? 1 : n - 1)) % n; return updateMentions(target); }
     if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); return pickMention(S.mention.i); }
     if (e.key === "Escape") { e.preventDefault(); S.mention = null; $("#mpop").hidden = true; return; }
   }
-  if ((e.metaKey || e.ctrlKey) && (e.code === "Backslash" || e.key === "\\" || e.key.toLowerCase() === "b") && !e.target.closest?.("input, textarea")) { e.preventDefault(); return toggleRail(); }
+  if ((e.metaKey || e.ctrlKey) && (e.code === "Backslash" || e.key === "\\" || e.key.toLowerCase() === "b") && !target.closest?.("input, textarea")) { e.preventDefault(); return toggleRail(); }
   if (e.key === "Escape" && S.sheet) { S.sheet = null; return renderSheet(); }
   if (e.key === "Escape" && S.switching) { S.switching = false; return renderSide(); }
   if (e.key === "Escape" && S.pop) { S.pop = false; return renderPop(); }

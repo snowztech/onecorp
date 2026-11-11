@@ -1,25 +1,26 @@
-import { logo } from "../brand.js";
-import { $, esc, toast } from "../lib.js";
-import { AGENTS, PALETTE, agentBadge, agentMark, badge, face, icon, me, monogram } from "../look.js";
-import { render } from "../render.js";
-import { S, invoke, version } from "../state.js";
-import { fixRow } from "./settings.js";
+import { logo } from "../brand.ts";
+import { $, esc, toast } from "../lib.ts";
+import { AGENTS, PALETTE, agentBadge, agentMark, badge, face, icon, me, monogram } from "../look.ts";
+import { render } from "../render.ts";
+import { S, invoke, version } from "../state.ts";
+import type { Check, RepoCheck } from "../types.ts";
+import { fixRow } from "./settings.ts";
 
 /* Your profile: a name and a photo, kept on this Mac. No account. The first launch asks full screen,
    after that it's a small popover from your name in the sidebar. */
 // Onboarding keeps a picked photo aside until you continue; afterwards a photo saves right away.
-export const hasPhoto = () => !!(S.profile?.photoUrl || (!S.profile && S.founder?.photo) || (S.profile && S.founder?.photo && !S.profile.noPhoto));
+export const hasPhoto = () => !!(S.profile?.photoUrl || (!S.profile && S.founder?.photo) || (S.profile && S.founder?.photo && !S.profile!.noPhoto));
 
 export const photoActs = () => `${window.__TAURI__?.dialog ? `<button class="link-btn" type="button" data-pf="pick">${hasPhoto() ? "Change photo" : "Add a photo"}</button>` : ""}
   ${hasPhoto() ? `<button class="link-btn" type="button" data-pf="face">Remove photo</button>` : ""}`.trim();
 
-export function pfPic(name) {
-  if (S.profile?.photoUrl) return `<span class="av"><img src="${esc(S.profile.photoUrl)}" alt=""></span>`;
+export function pfPic(name: string) {
+  if (S.profile?.photoUrl) return `<span class="av"><img src="${esc(S.profile!.photoUrl)}" alt=""></span>`;
   if (S.founder?.photo && !S.profile?.noPhoto) return me();
   return monogram(name);
 }
 
-export function focusTop(cancel) {
+export function focusTop(cancel: boolean) {
   return `<div class="focus-top" data-tauri-drag-region><span class="brand">${logo()}OneCorp</span>${cancel ? `<button class="btn ghost" type="button" data-su="cancel">Cancel</button>` : ""}</div>`;
 }
 
@@ -43,22 +44,22 @@ export function viewWelcome() {
 export function viewProfile() {
   const skip = S.companies.length ? `<button class="link-btn" type="button" data-skip-setup="1">Skip, go to ${esc(S.companies[0])}</button>` : `<span class="fine">Next: connect your AI</span>`;
   // Companies already here: a welcome back, not the first-run journey. Your teams are waiting.
-  const back = S.companies.length > 0 && !S.profile.inSetup;
+  const back = S.companies.length > 0 && !S.profile!.inSetup;
   const names = S.companies.slice(0, 3).join(", ") + (S.companies.length > 3 ? ` and ${S.companies.length - 3} more` : "");
-  const wrap = form => back ? `<div class="focus-wrap">${focusTop(false)}<div class="onb solo">${form}</div></div>` : onboarding("You", false, form);
+  const wrap = (form: string) => back ? `<div class="focus-wrap">${focusTop(false)}<div class="onb solo">${form}</div></div>` : onboarding("You", false, form);
   return wrap(`<form class="onb-main welcome" id="profile">
       <h1>${back ? "Welcome back" : "Who's running the company?"}</h1>
       <p class="muted">${back ? `${esc(names)} ${S.companies.length === 1 ? "is" : "are"} here as you left ${S.companies.length === 1 ? "it" : "them"}. Tell your team who they work for.` : "Your team works for you and knows you by name. Everything stays on this Mac. There's no account."}</p>
-      <div class="me-row"><button type="button" class="pf-pic pick-pic" data-pf="pick" title="Add a photo">${pfPic(S.profile.name)}<span class="pick-hint">${hasPhoto() ? "Change" : "Photo"}</span></button><div class="field grow"><label for="pf-name">Your name</label>
-        <input id="pf-name" value="${esc(S.profile.name)}" placeholder="Lucas" autocomplete="off">
+      <div class="me-row"><button type="button" class="pf-pic pick-pic" data-pf="pick" title="Add a photo">${pfPic(S.profile!.name)}<span class="pick-hint">${hasPhoto() ? "Change" : "Photo"}</span></button><div class="field grow"><label for="pf-name">Your name</label>
+        <input id="pf-name" value="${esc(S.profile!.name)}" placeholder="Lucas" autocomplete="off">
         <p class="field-err" id="pf-err" hidden>Say what your team should call you.</p></div></div>
       <div class="photo-acts">${photoActs() || `<span class="fine">Add a photo anytime.</span>`}</div>
       <div class="su-nav">${back ? "<span></span>" : skip}<button class="btn primary">${back ? `Open ${esc(S.company || S.companies[0])}` : "Continue"}</button></div>
     </form>`);
 }
 
-export async function saveProfile(photo, removePhoto) {
-  const name = ($("#pf-name")?.value ?? S.profile.name).trim();
+export async function saveProfile(photo?: string | null, removePhoto?: boolean) {
+  const name = ($("#pf-name")?.value ?? S.profile!.name).trim();
   if (!name) {
     // Said right where you're looking, not in a toast at the bottom.
     const err = $("#pf-err"), input = $("#pf-name");
@@ -77,7 +78,7 @@ export async function startSetup() {
   try {
     const [info, repoInfo] = await Promise.all([invoke("setup_info"), invoke("new_repo_info").catch(() => ({ parent: "", owners: [] }))]);
     const real = info.runtimes.filter(r => r !== "fake");
-    invoke("readiness").then(r => { if (S.setup) { S.setup.ready = r; render(); recheckTools(); } }).catch(() => {});
+    invoke("readiness").then(r => { if (S.setup) { S.setup!.ready = r; render(); recheckTools(); } }).catch(() => {});
     S.setup = { step: 0, mode: "existing", path: "", repo: null, name: "", mission: "", runtime: real[0] || "fake", info, repoInfo,
       folder: "", parent: repoInfo.parent || "", owner: "", private: true, people: [], extra: [], color: PALETTE[S.companies.length % PALETTE.length], logo: null, logoUrl: null };
     setTemplate("startup");
@@ -87,42 +88,43 @@ export async function startSetup() {
 }
 
 // Picking a template fills the team with its people, which you then edit freely.
-export const TIERS = [["strongest", "Strongest"], ["balanced", "Balanced"], ["cheapest", "Cheapest"]];
+export const TIERS: [string, string][] = [["strongest", "Strongest"], ["balanced", "Balanced"], ["cheapest", "Cheapest"]];
 
 // A copied person keeps their model while it matches one of the tiers, so the picker shows it.
-export const tierOf = (runtime, model) => TIERS.find(([t]) => S.models?.tiers?.[runtime]?.[t]?.id === model)?.[0];
+export const tierOf = (runtime: string, model: string | null | undefined) => TIERS.find(([t]) => S.models?.tiers?.[runtime]?.[t]?.id === model)?.[0];
 
-export function setTemplate(key) {
-  const s = S.setup;
+export function setTemplate(key: string) {
+  const s = S.setup!;
   // Another company's team: the same people, roles, departments and personalities.
   if (key.startsWith("co:")) {
     const from = (s.info.teams_from || []).find(x => x.company === key.slice(3));
     const ok = s.info.runtimes.filter(r => r !== "fake");
     s.template = key;
-    s.people = (from?.hires || []).map(h => { const runtime = ok.includes(h.runtime) ? h.runtime : s.runtime, tier = runtime === h.runtime && tierOf(runtime, h.model);
-      return { name: h.name, role: h.role, dept: h.dept || "", runtime, voice: h.voice || "", tier: tier || "balanced", model: tier ? h.model : "" }; });
+    s.people = (from?.hires || []).map(h => { const runtime = h.runtime && ok.includes(h.runtime) ? h.runtime : s.runtime, tier = runtime === h.runtime && tierOf(runtime, h.model);
+      return { name: h.name, role: h.role, dept: h.dept || "", runtime, voice: h.voice || "", tier: tier || "balanced", model: tier ? h.model || "" : "" }; });
     return;
   }
   const t = s.info.templates.find(x => x.key === key);
+  if (!t) return;
   s.template = key;
   s.people = t.hires.map(h => ({ name: h.name, role: h.role, dept: h.dept || "", runtime: t.runtime || s.runtime, voice: h.voice || "", tier: h.tier || "balanced" }));
 }
 
 export function readSetup() {
-  const s = S.setup, val = id => document.getElementById(id)?.value;
-  if (val("su-path") !== undefined) s.path = val("su-path").trim();
-  if (val("su-name") !== undefined) s.name = val("su-name").trim();
-  if (val("su-mission") !== undefined) s.mission = val("su-mission").trim();
-  if (val("su-brief") !== undefined) s.brief = val("su-brief").trim();
-  if (val("su-folder") !== undefined) s.folder = val("su-folder").trim();
-  if (val("su-parent") !== undefined) s.parent = val("su-parent").trim();
-  if (val("su-owner") !== undefined) s.owner = val("su-owner");
-  const priv = document.getElementById("su-private");
+  const s = S.setup!, val = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value;
+  if (val("su-path") !== undefined) s.path = val("su-path")!.trim();
+  if (val("su-name") !== undefined) s.name = val("su-name")!.trim();
+  if (val("su-mission") !== undefined) s.mission = val("su-mission")!.trim();
+  if (val("su-brief") !== undefined) s.brief = val("su-brief")!.trim();
+  if (val("su-folder") !== undefined) s.folder = val("su-folder")!.trim();
+  if (val("su-parent") !== undefined) s.parent = val("su-parent")!.trim();
+  if (val("su-owner") !== undefined) s.owner = val("su-owner")!;
+  const priv = document.querySelector<HTMLInputElement>("#su-private");
   if (priv) s.private = priv.checked;
   (s.extra || []).forEach((x, i) => { const v = val(`su-r${i}-name`); if (v !== undefined) x.name = v.trim(); });
-  if (val("su-rmain-name") !== undefined) s.mainName = val("su-rmain-name").trim();
+  if (val("su-rmain-name") !== undefined) s.mainName = val("su-rmain-name")!.trim();
   s.people.forEach((p, i) => {
-    for (const k of ["name", "role", "dept", "runtime", "voice"]) {
+    for (const k of ["name", "role", "dept", "runtime", "voice"] as const) {
       const v = val(`su-p${i}-${k}`);
       if (v !== undefined) p[k] = v.trim();
     }
@@ -132,18 +134,18 @@ export function readSetup() {
   });
 }
 
-export async function checkRepo(path) {
-  const s = S.setup;
+export async function checkRepo(path: string) {
+  const s = S.setup!;
   s.path = path; s.checked = path; s.repo = null; render();
   if (!path) return;
-  try { s.repo = await invoke("check_repo", { path }); } catch (e) { s.repo = { ok: false, problem: String(e) }; }
+  try { s.repo = await invoke("check_repo", { path }); } catch (e) { s.repo = { ok: false, problem: String(e) } as RepoCheck; }
   if (s.repo.ok && !s.name) s.name = s.repo.suggested;
   if (s.repo.ok && !s.folder) s.folder = s.name;
   render();
 }
 
 export async function makeRepo() {
-  const s = S.setup;
+  const s = S.setup!;
   if (!s.folder) { toast("Name the folder for the new repo", true); return $("#su-folder")?.focus(); }
   s.creating = true; render();
   try {
@@ -156,19 +158,11 @@ export async function makeRepo() {
   } catch (e) { s.creating = false; render(); toast(String(e), true); }
 }
 
-export const RUNTIME_NAMES = { claude: "Claude Code", codex: "Codex", fake: "Stand-in, no AI" };
 
-export function shipLine(r) {
+export function shipLine(r: RepoCheck) {
   if (!r.forge) return "Approved work merges into the repo on your Mac.";
   if (r.signed_in) return `Finished work opens ${esc(r.pr_word)}s on ${esc(r.forge)}, and approving merges them.`;
   return `On ${esc(r.forge)}, but ${r.forge === "GitHub" ? "gh" : "glab"} isn't signed in, so work merges on your Mac for now.`;
-}
-
-export function shipNote(r) {
-  if (!r.forge) return `<p class="su-warn">Approved work merges into this repo on your Mac. Add a GitHub or GitLab remote later to ship as pull requests.</p>`;
-  if (r.signed_in) return `<p class="su-ok">Finished work opens ${esc(r.pr_word)}s on ${esc(r.forge)}, and approving merges them. ${esc(r.account || "")}</p>`;
-  const cli = r.forge === "GitHub" ? "gh" : "glab";
-  return `<p class="su-warn">This repo is on ${esc(r.forge)}, but ${cli} isn't signed in, so work merges locally for now. Run <code>${cli} auth login</code>, then <code>onecorp ship ${r.forge.toLowerCase()}</code>.</p>`;
 }
 
 // The whole journey, shown on every step. A first launch also counts you.
@@ -182,14 +176,14 @@ export function backToYou() {
 // On the Connect step, tools are checked again when you come back from Terminal and every few
 // seconds while one isn't connected, so a login shows up without a button. Only a changed
 // result redraws, and the step has no fields to lose.
-export let rechecking = false, toolTimer = null;
+export let rechecking = false, toolTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const onConnect = () => S.setup && S.setup.step === 0 && !S.setup.launch && !S.profile;
 
-export const toolMissing = r => (r || []).some(h => ["Claude Code", "Codex", "GitHub CLI"].includes(h.what) && h.level !== "ok");
+export const toolMissing = (r: Check[] | null | undefined) => (r || []).some(h => ["Claude Code", "Codex", "GitHub CLI"].includes(h.what) && h.level !== "ok");
 
 export async function recheckTools() {
-  const s = S.setup;
+  const s = S.setup!;
   clearTimeout(toolTimer);
   if (!onConnect() || rechecking) return;
   rechecking = true;
@@ -197,23 +191,23 @@ export async function recheckTools() {
   rechecking = false;
   if (r && S.setup === s && onConnect() && JSON.stringify(r) !== JSON.stringify(s.ready)) { s.ready = r; render(); }
   // One timer at a time, and only while something here still isn't connected.
-  if (onConnect() && toolMissing(S.setup.ready)) toolTimer = setTimeout(recheckTools, 4000);
+  if (onConnect() && toolMissing(S.setup!.ready)) toolTimer = setTimeout(recheckTools, 4000);
 }
 
 window.addEventListener?.("focus", recheckTools);
 
-export function journey(at) {
+export function journey(at: string) {
   const steps = [...(S.companies.length && !S.onboarding && at !== "You" ? [] : ["You"]), "Connect", "Company", "Repo", "Team", "Launch"], i = steps.indexOf(at);
   // Steps you've done are links back, so you can change anything on the way.
-  const item = (n, k) => `<span class="n">${k < i ? icon("check") : k + 1}</span>${n}`;
+  const item = (n: string, k: number) => `<span class="n">${k < i ? icon("check") : k + 1}</span>${n}`;
   return `<ol class="onb-steps">${steps.map((n, k) => `<li class="${k === i ? "on" : k < i ? "done" : ""}">${k < i && S.setup && !S.setup.launch ? `<button type="button" data-step-to="${n}">${item(n, k)}</button>` : item(n, k)}</li>`).join("")}</ol>`;
 }
 
 // Setup screens: the steps on the left, the step itself on the right, over a faint grid.
-export const onboarding = (at, cancel, form) => `<div class="focus-wrap">${focusTop(cancel)}<div class="onb"><aside>${journey(at)}</aside>${form}</div></div>`;
+export const onboarding = (at: string, cancel: boolean, form: string) => `<div class="focus-wrap">${focusTop(cancel)}<div class="onb"><aside>${journey(at)}</aside>${form}</div></div>`;
 
 export function viewLaunching() {
-  const s = S.setup, l = s.launch;
+  const s = S.setup!, l = s.launch!;
   return `<div class="focus-wrap"><div class="launching">
       ${badge(s.name, { color: s.color, logo: s.logoUrl }, "xl")}
       <h1>Setting up ${esc(s.name)}</h1>
@@ -224,7 +218,7 @@ export function viewLaunching() {
 // Your GitHub repos, looked up once in the background when the Repo step opens, so the list is
 // ready by the time you ask for it.
 export function loadGithub() {
-  const s = S.setup;
+  const s = S.setup!;
   if (!s || s.gh || s.ghLoading) return;
   s.ghLoading = true;
   invoke("github_repos").then(repos => ({ repos })).catch(e => ({ error: String(e) })).then(g => {
@@ -234,46 +228,46 @@ export function loadGithub() {
 }
 
 // A path you change by clicking it. The app opens the folder picker, the browser preview types.
-export const pathField = (id, value, action, label) => window.__TAURI__?.dialog
+export const pathField = (id: string, value: string, action: string, label: string) => window.__TAURI__?.dialog
   ? `<button type="button" class="path-field" data-su="${action}" aria-label="${esc(label)}" title="Click to pick another folder"><span class="mono">${esc(value)}</span><span class="path-hint">Change</span></button>`
   : `<input id="${id}" class="mono path-field" value="${esc(value)}" autocomplete="off" spellcheck="false" aria-label="${esc(label)}">`;
 
 // The first repo you add is the main one. Every one after joins it.
-export async function addRepo(path) {
+export async function addRepo(path: string) {
   path = String(path || "").trim();
   if (!path) return $("#su-add")?.focus();
-  if (!S.setup.repo?.ok) return checkRepo(path);
+  if (!S.setup!.repo?.ok) return checkRepo(path);
   return addExtraRepo(path);
 }
 
-export async function addExtraRepo(path) {
-  const s = S.setup;
+export async function addExtraRepo(path: string) {
+  const s = S.setup!;
   path = String(path || "").trim();
   if (!path) return $("#su-add")?.focus();
   let r;
   try { r = await invoke("check_repo", { path }); } catch (e) { return toast(String(e), true); }
-  if (!r.ok) return toast(r.problem, true);
+  if (!r.ok) return toast(r.problem || "That isn't a git repo", true);
   if (r.path === s.repo?.path || s.extra.some(x => x.path === r.path)) return toast("That repo is already in the list", true);
   // Named after its folder, like notes-api. Tickets and the planner call it that.
-  const name = r.path.split("/").pop().toLowerCase().replace(/[^a-z0-9_]+/g, "-").replace(/^-|-$/g, "");
+  const name = (r.path.split("/").pop() || "").toLowerCase().replace(/[^a-z0-9_]+/g, "-").replace(/^-|-$/g, "");
   s.extra.push({ path: r.path, name, branch: r.branch });
   render();
 }
 
 export function viewSetup() {
-  if (S.setup.launch) return viewLaunching();
-  const s = S.setup, names = ["Connect", "Company", "Repo", "Team", "Launch"];
+  if (S.setup!.launch) return viewLaunching();
+  const s = S.setup!, names = ["Connect", "Company", "Repo", "Team", "Launch"];
   // On the first step, Back goes to you, when you're part of this journey.
   const toYou = !s.step && (S.onboarding || !S.companies.length);
   const back = s.step || toYou ? `<button class="btn" type="button" data-su="back">Back</button>` : "<span></span>";
-  const nav = (label, disabled) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
+  const nav = (label: string, disabled?: boolean) => `<div class="su-nav">${back}<button class="btn primary" ${disabled ? "disabled" : ""}>${label}</button></div>`;
   const picker = window.__TAURI__?.dialog;
   let body = "";
   const look = { color: s.color, logo: s.logoUrl };
   if (s.step === 0) {
-    const r = s.ready, find = w => (r || []).find(h => h.what === w);
-    const tools = [["Claude Code", "Anthropic's coding agent", "claude"], ["Codex", "OpenAI's coding agent", "codex"], ["GitHub CLI", "Ships finished work as pull requests", "gh"]];
-    const card = ([what, about, key]) => {
+    const r = s.ready, find = (w: string) => (r || []).find(h => h.what === w);
+    const tools: [string, string, string][] = [["Claude Code", "Anthropic's coding agent", "claude"], ["Codex", "OpenAI's coding agent", "codex"], ["GitHub CLI", "Ships finished work as pull requests", "gh"]];
+    const card = ([what, about, key]: [string, string, string]) => {
       const h = find(what), state = !r ? "checking" : !h ? "missing" : h.level === "ok" ? "ok" : /not signed in/.test(h.detail) ? "signin" : "missing";
       const pill = { checking: "Checking…", ok: "Connected", signin: "Not signed in", missing: "Not installed" }[state];
       return `<div class="tool t-${state}"><span class="tool-ic" style="--c:${AGENTS[key]?.color || "#18181b"}">${agentMark(key)}</span>
@@ -304,8 +298,8 @@ export function viewSetup() {
       const g = s.gh;
       const list = !g ? `<p class="gh-loading"><i class="spin"></i>Looking up your repos on GitHub…</p>`
         : g.error ? `<p class="su-warn">Sign in to GitHub with <code>gh auth login</code>, then come back here.</p>`
-        : `<input id="gh-q" placeholder="Search ${g.repos.length} repos" autocomplete="off" spellcheck="false" aria-label="Search your repos">
-           <ul class="gh-list">${g.repos.map(r => `<li data-name="${esc(r.name.toLowerCase())} ${esc((r.description || "").toLowerCase())}"><button type="button" data-su="clone:${esc(r.name)}" ${s.cloning ? "disabled" : ""}>
+        : `<input id="gh-q" placeholder="Search ${(g.repos || []).length} repos" autocomplete="off" spellcheck="false" aria-label="Search your repos">
+           <ul class="gh-list">${(g.repos || []).map(r => `<li data-name="${esc(r.name.toLowerCase())} ${esc((r.description || "").toLowerCase())}"><button type="button" data-su="clone:${esc(r.name)}" ${s.cloning ? "disabled" : ""}>
              <b>${esc(r.name)}</b>${r.private ? `<span class="pill-state">Private</span>` : ""}<span>${esc(r.description || "")}</span>${s.cloning === r.name ? `<em>Cloning…</em>` : ""}</button></li>`).join("")}</ul>`;
       const status = s.cloning ? `<p class="gh-loading"><i class="spin"></i>Cloning <b>${esc(s.cloning)}</b> into ${esc(s.repoInfo?.parent || "your dev folder")}… It shows in your list when it's done.</p>` : "";
       const where = `<p class="muted">Pick a repo, then choose where it goes. If it's already on this Mac, OneCorp uses that copy.</p>
@@ -333,14 +327,14 @@ export function viewSetup() {
       // One list: the first repo is the main one, the others sit beside it. Adding works the same
       // for both, so there's one way to do it.
       const r = s.repo, main = r?.ok ? r : null;
-      const folder = p => p.split("/").pop();
-      const odd = b => b && !["main", "master", "trunk", "develop"].includes(b);
-      const row = (x, i) => `<li class="repo-row ${x.path === s.justAdded ? "just" : ""}">
+      const folder = (p: string) => p.split("/").pop() || "";
+      const odd = (b: string) => !!b && !["main", "master", "trunk", "develop"].includes(b);
+      const row = (x: { path: string; branch: string; name?: string; main?: boolean }, i?: number) => `<li class="repo-row ${x.path === s.justAdded ? "just" : ""}">
           <span class="repo-name"><input id="${x.main ? "su-rmain-name" : `su-r${i}-name`}" class="mono" value="${esc(x.main ? (s.mainName ?? folder(x.path)) : x.name)}" aria-label="Name for ${esc(x.path)}" autocomplete="off" spellcheck="false">${x.main ? `<span class="pill-state">primary</span>` : ""}</span>
           <span class="mono muted repo-path" title="${esc(x.path)}">${esc(x.path)}</span>
           ${x.branch ? `<span class="repo-branch ${odd(x.branch) ? "odd" : ""}" title="New tickets start from this branch, whatever you have checked out">from ${esc(x.branch)}</span>` : "<span></span>"}
           <button class="x" type="button" data-su="rdel-${x.main ? "main" : i}" aria-label="Remove ${esc(folder(x.path))}">×</button></li>`;
-      const rows = [main && { ...main, main: true }, ...s.extra].filter(Boolean);
+      const rows: { path: string; branch: string; name?: string; main?: boolean }[] = [...(main ? [{ ...main, main: true }] : []), ...s.extra];
       const offBranch = rows.filter(x => odd(x.branch));
       body = `<h1>Where does ${esc(s.name)} work?</h1><p class="muted">The repos your team works in. The first is the primary one, where planning starts. Your own checkouts are never touched.</p>
         <ul class="repo-list">${rows.length ? (main ? row(rows[0]) : "") + s.extra.map(row).join("") : `<li class="repo-empty">No repo yet. Add the one your team works in.</li>`}</ul>
@@ -376,11 +370,11 @@ export function viewSetup() {
       <button class="btn" type="button" data-su="add-person">+ Add someone</button>
       ${nav("Continue")}`;
   } else {
-    const ships = s.repo.forge && s.repo.signed_in ? `As ${esc(s.repo.pr_word)}s on ${esc(s.repo.forge)}` : "By merging on your Mac";
+    const ships = s.repo!.forge && s.repo!.signed_in ? `As ${esc(s.repo!.pr_word)}s on ${esc(s.repo!.forge)}` : "By merging on your Mac";
     body = `<h1>Ready to launch</h1><p class="muted">Everything can change later. This is just where you start.</p>
       <div class="launch">
         <header>${badge(s.name, look, "xl")}<div><b>${esc(s.name)}</b><span>${esc(s.mission || "No mission yet")}</span></div></header>
-        <dl class="kv"><dt>${s.extra.length ? "Repos" : "Repo"}</dt><dd class="mono">${esc(s.repo.path)} <span class="muted">on ${esc(s.repo.branch)}</span>${s.extra.map(x => `<br>${esc(x.path)} <span class="muted">as ${esc(x.name)}</span>`).join("")}</dd>
+        <dl class="kv"><dt>${s.extra.length ? "Repos" : "Repo"}</dt><dd class="mono">${esc(s.repo!.path)} <span class="muted">on ${esc(s.repo!.branch)}</span>${s.extra.map(x => `<br>${esc(x.path)} <span class="muted">as ${esc(x.name)}</span>`).join("")}</dd>
           <dt>Ships</dt><dd>${ships}</dd>
           <dt>Wiki</dt><dd>Your lead writes it from the repo</dd>
           ${s.brief && s.people.length ? `<dt>First plan</dt><dd>Your planner starts right after launch</dd>` : ""}
@@ -388,5 +382,5 @@ export function viewSetup() {
       </div>
       ${nav(`Launch ${esc(s.name)}`)}`;
   }
-  return onboarding(names[s.step], S.companies.length, `<form class="onb-main setup ${s.step === 3 ? "wide" : ""}" id="setup">${body}</form>`);
+  return onboarding(names[s.step], S.companies.length > 0, `<form class="onb-main setup ${s.step === 3 ? "wide" : ""}" id="setup">${body}</form>`);
 }

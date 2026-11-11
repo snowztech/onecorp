@@ -1,10 +1,11 @@
-import { openHire, openPerson, openTicket, renderDrawer } from "./drawers.js";
-import { $ } from "./lib.js";
-import { refresh, render } from "./render.js";
-import { renderPop, renderSide, toggleRail } from "./shell.js";
-import { S, invoke } from "./state.js";
-import { checkRepo, setTemplate, startSetup } from "./views/onboarding.js";
-import { openSettings } from "./views/settings.js";
+import { openHire, openPerson, openTicket, renderDrawer } from "./drawers.ts";
+import { $ } from "./lib.ts";
+import { refresh, render } from "./render.ts";
+import { renderPop, renderSide, toggleRail } from "./shell.ts";
+import { S, invoke } from "./state.ts";
+import type { Founder } from "./types.ts";
+import { checkRepo, setTemplate, startSetup } from "./views/onboarding.ts";
+import { openSettings } from "./views/settings.ts";
 
 // In a plain browser, #board, #inbox, #wiki, #ticket, #person, #new-ticket, #setup or #profile opens
 // straight onto that screen, so each one can be looked at and screenshotted. Never used in the app.
@@ -21,51 +22,51 @@ export async function previewScreen() {
     $("#pj-goal").value = "A Pro plan at $6 a month next to the free tier. Checkout with Stripe, webhooks that survive retries, and a billing page to see invoices or cancel.";
   }
   if (screen === "rail") toggleRail(true);
-  if (screen === "start") { S.snap.tickets = []; S.snap.projects = []; S.snap.kickoff.brief = ""; render(); }
+  if (screen === "start") { S.snap!.tickets = []; S.snap!.projects = []; S.snap!.kickoff.brief = ""; render(); }
   if (screen === "wiki-edit") { S.view = "wiki"; S.hbEdit = true; await refresh(true); render(); }
-  if (screen === "inbox-zero") { S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; S.snap.with_leads = []; S.view = "inbox"; render(); }
-  if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the wiki"] }; render(); }
+  if (screen === "inbox-zero") { S.snap!.inbox = []; S.snap!.reviews = []; S.snap!.failed = []; S.snap!.with_leads = []; S.view = "inbox"; render(); }
+  if (screen === "launching") { await startSetup(); S.setup!.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup!.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the wiki"] }; render(); }
   if (screen === "connect") await startSetup();
-  if (screen === "team") { await startSetup(); setTemplate("startup"); S.setup.step = 3; render(); }
+  if (screen === "team") { await startSetup(); setTemplate("startup"); S.setup!.step = 3; render(); }
   if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
-  if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
+  if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer!.edit = true; renderDrawer(); }
   if (screen === "spend") await openSettings("spend");
-  if (screen === "paused") { S.snap.paused = true; render(); }
+  if (screen === "paused") { S.snap!.paused = true; render(); }
   if (screen === "hire") openHire(1);
-  if (screen === "person-edit") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
-  if (screen === "idle") { S.snap.employees.forEach(e => (e.status = "idle")); S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; render(); }
+  if (screen === "person-edit") { await openPerson("tomas"); S.drawer!.edit = true; renderDrawer(); }
+  if (screen === "idle") { S.snap!.employees.forEach(e => (e.status = "idle")); S.snap!.inbox = []; S.snap!.reviews = []; S.snap!.failed = []; render(); }
   if (screen === "project") { S.view = "board"; S.project = "SNO-20"; render(); }
   if (["board", "inbox", "wiki", "chat"].includes(screen)) { S.view = screen; render(); }
   if (screen === "ticket") openTicket("SNO-11");
   if (screen === "person") openPerson("tomas");
-  if (screen === "edit-person") { await openPerson("tomas"); S.drawer.edit = true; S.person.runtime = "codex"; renderDrawer(); }
+  if (screen === "edit-person") { await openPerson("tomas"); S.drawer!.edit = true; S.person!.runtime = "codex"; renderDrawer(); }
   if (screen === "new-ticket") { S.view = "board"; S.drawer = { type: "new-ticket" }; render(); }
   if (screen === "setup") await startSetup();
-  if (screen === "repos") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/notes"); S.setup.extra = [{ path: "/Users/you/dev/notes-api", name: "notes-api", branch: "feat/search" }]; S.setup.step = 2; render(); }
-  if (screen === "github-pick") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; S.setup.pick = { name: "snowztech/notes-api", path: "/Users/you/dev/notes-api" }; render(); }
-  if (screen === "github") { await startSetup(); S.setup.name = "snowztech"; S.setup.step = 2; S.setup.mode = "github"; S.setup.gh = { repos: await invoke("github_repos") }; render(); }
-  if (screen.startsWith("setup-")) { await startSetup(); S.setup.name = "snowztech"; S.setup.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup.step = Number(screen.slice(6)); render(); }
+  if (screen === "repos") { await startSetup(); S.setup!.name = "snowztech"; await checkRepo("/Users/you/dev/notes"); S.setup!.extra = [{ path: "/Users/you/dev/notes-api", name: "notes-api", branch: "feat/search" }]; S.setup!.step = 2; render(); }
+  if (screen === "github-pick") { await startSetup(); S.setup!.name = "snowztech"; S.setup!.step = 2; S.setup!.mode = "github"; S.setup!.gh = { repos: await invoke("github_repos") }; S.setup!.pick = { name: "snowztech/notes-api", path: "/Users/you/dev/notes-api" }; render(); }
+  if (screen === "github") { await startSetup(); S.setup!.name = "snowztech"; S.setup!.step = 2; S.setup!.mode = "github"; S.setup!.gh = { repos: await invoke("github_repos") }; render(); }
+  if (screen.startsWith("setup-")) { await startSetup(); S.setup!.name = "snowztech"; S.setup!.mission = "Open source tools for building AI agents"; await checkRepo("/Users/you/dev/snowztech"); S.setup!.step = Number(screen.slice(6)); render(); }
   if (screen === "profile") { S.founder = null; S.companies = []; S.profile = { name: "" }; render(); }
   if (screen === "welcome") { S.founder = null; S.companies = []; S.welcome = true; S.profile = { name: "" }; render(); }
   if (screen === "welcome-back") { S.founder = null; S.profile = { name: "" }; render(); }
   if (["popover", "you", "agents", "appearance", "about"].includes(screen)) await openSettings(screen === "popover" ? "you" : screen);
   if (screen === "menu") { S.pop = "menu"; renderPop(); }
   if (screen.startsWith("faces-")) { try { localStorage.setItem("onecorp.faces", screen.slice(6)); } catch {} render(); }
-  if (screen === "limit") { S.snap.limits = [{ runtime: "claude", back: "15:00" }]; render(); }
+  if (screen === "limit") { S.snap!.limits = [{ runtime: "claude", back: "15:00" }]; render(); }
   if (screen === "health") await openSettings("health");
 }
 
 /* Sample data for the UI in a plain browser (make ui). Never used inside the app. */
-export let previewFounder = null;
+export let previewFounder: Founder | null = null;
 
-export function preview(cmd, args) {
+export function preview(cmd: string, args: Record<string, string> = {}): Promise<unknown> {
   const team = [
     ["odile", "Odile Martin", "CTO", "claude", "opus", "working", "Reading the SNO-12 diff", 1], ["maya", "Maya Okafor", "Senior engineer", "codex", null, "blocked", "Need you on SNO-12", 1],
     ["tomas", "Tomás Reis", "Engineer", "codex", null, "working", "Bash cargo test billing", 1], ["rui", "Rui Alves", "Product lead", "claude", "sonnet", "working", "Created SNO-18", 2],
     ["lina", "Lina Park", "Product designer", "claude", "sonnet", "queued", "Up next: SNO-14", 2], ["sam", "Sam Duarte", "Writer", "claude", "haiku", "idle", "", 3],
   ].map(([id, name, role, runtime, model, status, bubble, department]) => ({ id, name, role, runtime, model, status, bubble, department, spend: "$0.40", ticket: null }));
   const VOICES = [["terse","Terse","Done. Login works, tests pass."],["warm","Warm","Login's in! Thanks for the clear ticket. Tests are green."],["thorough","Thorough","Login is in. I went with magic links over passwords: less to store. Tests cover both paths."],["dry","Dry","Login works. The tests agree, which is a first this week."],["blunt","Blunt","Login works. The old session code was broken, so I replaced it."],["curious","Curious","Login works. Should links expire after 15 minutes or an hour?"],["upbeat","Upbeat","Login shipped! On to signup next."],["calm","Calm","Login is done. 1. Link sent. 2. Token checked. 3. Session set."]].map(([key, label, sample]) => ({ key, label, sample }));
-  const data = {
+  const data: Record<string, unknown> = {
     voices: VOICES,
     models: { claude: [["claude-opus-5-5", "Opus 5.5"], ["claude-sonnet-5-5", "Sonnet 5.5"], ["claude-haiku-5-5", "Haiku 5.5"], ["claude-fable-5-1", "Fable 5.1"]].map(([id, name]) => ({ id, name, about: "" })), codex: [["gpt-6.1-sol", "GPT-6.1-Sol"], ["gpt-6-astra", "GPT-6-Astra"], ["gpt-6-luna", "GPT-6-Luna"]].map(([id, name]) => ({ id, name, about: "" })),
       tiers: { claude: { strongest: { id: "claude-opus-5-5", name: "Opus 5.5" }, balanced: { id: "claude-sonnet-5-5", name: "Sonnet 5.5" }, cheapest: { id: "claude-haiku-5-5", name: "Haiku 5.5" } },
@@ -159,7 +160,7 @@ export function preview(cmd, args) {
   if (cmd === "clone_target") return Promise.resolve(`/Users/you/dev/${String(args.name).split("/").pop()}`);
   if (cmd === "save_founder") { previewFounder = { name: args.name, photo: null }; return Promise.resolve(null); }
   if (cmd === "founder" && previewFounder) return Promise.resolve(previewFounder);
-  if (cmd === "check_repo" && args?.path) return Promise.resolve({ ...data.check_repo, path: args.path, suggested: args.path.split("/").pop() });
+  if (cmd === "check_repo" && args?.path) return Promise.resolve({ ...(data.check_repo as object), path: args.path, suggested: args.path.split("/").pop() });
   if (cmd in data) return Promise.resolve(data[cmd]);
   return Promise.reject("This is a preview. Open the OneCorp app to make changes.");
 }

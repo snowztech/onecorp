@@ -1,12 +1,13 @@
-import { esc, first } from "../lib.js";
-import { face, icon, prLink } from "../look.js";
-import { md } from "../md.js";
-import { S, mergeLabel } from "../state.js";
-import { STATUS } from "./board.js";
+import { esc, first } from "../lib.ts";
+import { face, icon, prLink } from "../look.ts";
+import { md } from "../md.ts";
+import { S, mergeLabel } from "../state.ts";
+import type { Failed, Question, Review } from "../types.ts";
+import { STATUS } from "./board.ts";
 
 /* Inbox: everything that needs you, answerable in one click */
 export function viewInbox() {
-  const s = S.snap;
+  const s = S.snap!;
   const asks = s.inbox.filter(q => q.kind === "question"), runs = s.inbox.filter(q => q.kind === "command");
   const blocking = asks.filter(q => q.blocking), other = asks.filter(q => !q.blocking), books = s.inbox.filter(q => q.kind === "wiki");
   const plans = s.reviews.filter(r => r.kind === "plan"), work = s.reviews.filter(r => r.kind !== "plan");
@@ -17,7 +18,7 @@ export function viewInbox() {
     ${leads.length ? `<h2 class="section">With your leads <small class="muted">They decide what they can and pass up the rest. Step in anytime.</small></h2>${leads.join("")}` : ""}</div>`;
 }
 
-export function stopped(t) {
+export function stopped(t: Failed) {
   return `<article class="ask stopped" id="in-${esc(t.key)}">${face(t.name, "blocked")}<div>
     <span class="kind">Stopped · ${esc(t.key)}</span><h4>${esc(t.title)}</h4>
     <p>${esc(first(t.name))}'s run ${t.why && !/^stopped before/.test(t.why) ? `failed: ${esc(t.why)}` : "stopped before it finished."}</p>
@@ -27,7 +28,7 @@ export function stopped(t) {
       : `<div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button><button class="btn ghost" data-confirm="ticket:${esc(t.key)}">Delete…</button></div>`}</div></article>`;
 }
 
-export function question(q, withLead) {
+export function question(q: Question, withLead?: boolean) {
   const opts = q.options.map(o => `<button class="btn primary" data-answer="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join("");
   // A long default goes in the sentence above, so its button stays short.
   const def = q.default && !q.options.includes(q.default) ? `<button class="btn" data-answer="${q.id}" data-val="${esc(q.default)}">${q.default.length > 40 ? `Keep ${esc(first(q.name))}'s choice` : `Go with ${esc(q.default)}`}</button>` : "";
@@ -41,7 +42,7 @@ export function question(q, withLead) {
 }
 
 // Long text shows a few lines until opened, so a card never turns into a wall of text.
-export function clamp(id, html, text) {
+export function clamp(id: string, html: string, text: string) {
   const long = text.length > 320 || text.split("\n").length > 5;
   if (!long) return html;
   const open = S.open[id];
@@ -49,7 +50,7 @@ export function clamp(id, html, text) {
 }
 
 // Someone asks to run a command they aren't allowed yet. Allowing it adds it to the repo's list.
-export function commandAsk(q) {
+export function commandAsk(q: Question) {
   return `<article class="ask blocking" id="in-q${q.id}">${face(q.name, "blocked")}<div>
     <span class="kind">Command · ${esc(q.key || "")}</span><h4><code class="cmd-ask">${esc(q.question)}</code></h4>
     <p>${esc(first(q.name))} wants to run this in <b>${esc(q.repo)}</b>${q.note ? `: ${esc(q.note)}` : "."}</p>
@@ -58,15 +59,15 @@ export function commandAsk(q) {
 }
 
 // The card's last action: opens a form under the row, and steps aside while it's open.
-export const moreBtn = (id, label) => S.open[id] ? "" : `<button class="btn ghost" type="button" data-more="${esc(id)}">${label}</button>`;
+export const moreBtn = (id: string, label: string) => S.open[id] ? "" : `<button class="btn ghost" type="button" data-more="${esc(id)}">${label}</button>`;
 
 // Free text stays folded until asked for, so each card leads with its one-click answers.
-export function more(id, label, form) {
+export function more(id: string, label: string, form: string) {
   return S.open[id] ? form : `<button class="link-btn" type="button" data-more="${esc(id)}">${label}</button>`;
 }
 
-export function planReview(r) {
-  const people = S.snap.employees;
+export function planReview(r: Review) {
+  const people = S.snap!.employees;
   const rows = r.tickets.map(t => `<li class="pt">
     <span class="k">${esc(t.key)}</span>
     <div class="pt-main"><b>${esc(t.title)}</b>${t.repo ? `<span class="repo-tag">${esc(t.repo)}</span>` : ""}${t.description ? (() => {
@@ -84,35 +85,35 @@ export function planReview(r) {
     ${S.open[`chg-${r.key}`] ? `<form class="reply" data-changes="${esc(r.key)}"><input id="chg-${esc(r.key)}" placeholder="What should change?"><button class="btn">Plan again</button></form>` : ""}</div></article>`;
 }
 
-export function approvalCopy(t) {
+export function approvalCopy(t?: { kind?: string } | null) {
   if (t?.kind === "wiki") return { label: "Save wiki", busy: "Saving…", done: "Wiki saved. Your team can read it now." };
   if (t?.kind === "plan") return { label: "Start the plan", busy: "Starting…", done: "Plan started." };
   return { label: mergeLabel(), busy: "Merging…", done: "Work merged. New tickets start from it." };
 }
 
-export function reviewActions(t) {
+export function reviewActions(t: { key: string; kind?: string }) {
   return `<button class="btn good" data-approve="${esc(t.key)}">${approvalCopy(t).label}</button>${t.kind === "work" && !S.diffs[t.key] ? `<button class="btn" data-diff="${esc(t.key)}">Show changes</button>` : ""}`;
 }
 
 // Last in the row: the one action that throws work away.
-export const discardBtn = t => t.kind === "work" && S.confirm !== "discard:" + t.key ? `<button class="btn quiet-danger" data-confirm="discard:${esc(t.key)}">Discard…</button>` : "";
+export const discardBtn = (t: { key: string; kind?: string }) => t.kind === "work" && S.confirm !== "discard:" + t.key ? `<button class="btn quiet-danger" data-confirm="discard:${esc(t.key)}">Discard…</button>` : "";
 
 // Discarding asks once, right where you clicked: the work is gone after, the ticket isn't.
-export function discardConfirm(t) {
+export function discardConfirm(t: { key: string; pr_url?: string | null }) {
   if (S.confirm !== "discard:" + t.key) return "";
   return `<div class="confirm"><p>Throw away ${esc(t.key)}'s work?${t.pr_url ? " Its pull request is closed and its branch deleted." : " Its branch is deleted."} The ticket goes back to the backlog, to start again or delete.</p>
     <div class="acts"><button class="btn danger" data-discard="${esc(t.key)}">Discard the work</button><button class="btn ghost" data-confirm="">Keep it</button></div></div>`;
 }
 
-export function wikiDraft(t) {
+export function wikiDraft(t: { kind?: string; status?: string; document?: string | null }) {
   return t.kind === "wiki" && (!t.status || t.status === "review") ? `<article class="doc wiki">${md(t.document || "No wiki draft was saved. Ask for changes to write it again.").html}</article>` : "";
 }
 
-export function ticketStatus(t) {
-  return t.status === "done" && ["wiki", "plan"].includes(t.kind) ? (t.kind === "plan" ? "Plan started" : "Completed") : (STATUS[t.status] || t.status);
+export function ticketStatus(t: { status: string; kind?: string }) {
+  return t.status === "done" && ["wiki", "plan"].includes(t.kind ?? "") ? (t.kind === "plan" ? "Plan started" : "Completed") : (STATUS[t.status] || t.status);
 }
 
-export function review(r) {
+export function review(r: Review) {
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
     <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
     ${r.kind === "wiki" ? `<p>Save this draft as the company wiki. It replaces the current wiki; your product brief is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
@@ -120,7 +121,7 @@ export function review(r) {
     ${discardConfirm(r)}${changes(r.key)}</div></article>`;
 }
 
-export function wiki(q) {
+export function wiki(q: Question) {
   return `<article class="ask" id="in-q${q.id}">${face(q.name, "neutral")}<div>
     <span class="kind">Wiki · ${esc(q.section)}</span>${clamp(`w-${q.id}`, `<div class="q-text">${md(q.question).html}</div>`, q.question)}<p>${esc(first(q.name))} thinks everyone should follow this from now on.</p>
     <div class="acts"><button class="btn primary" data-answer="${q.id}" data-val="yes">Add to the wiki</button><button class="btn" data-answer="${q.id}" data-val="no">Not for everyone</button>${moreBtn(`ans-${q.id}`, "Add it in your own words")}</div>
@@ -128,7 +129,7 @@ export function wiki(q) {
 }
 
 /* The changes behind a review: commits, files, then the diff file by file. Loaded on click. */
-export function changes(key) {
+export function changes(key: string) {
   const d = S.diffs[key];
   if (!d) return "";
   if (d === "loading") return `<div class="changes"><p class="muted">Loading the changes…</p></div>`;

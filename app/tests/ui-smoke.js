@@ -1,5 +1,6 @@
-// UI smoke test: runs app/ui/app.js with a stand-in DOM and its built-in sample data, and renders
-// every screen. Catches errors a syntax check misses. Run: node app/tests/ui-smoke.js
+// UI smoke test: runs app/ui/app.ts with a stand-in DOM and its built-in sample data, and renders
+// every screen. Catches errors a type check misses. Run: node app/tests/ui-smoke.js
+// Needs Node 22.18 or later, which runs TypeScript files directly.
 import assert from "node:assert/strict";
 
 const el = () => new Proxy({ classList: { toggle() {}, add() {}, remove() {} }, dataset: {}, style: {}, setAttribute() {}, focus() {}, querySelector: () => el(), matches: () => false, closest: () => null }, {
@@ -17,7 +18,7 @@ globalThis.clearInterval = id => intervals.delete(id);
 
 // Imported after the stand-ins exist: the app starts loading as soon as it's evaluated.
 const { S, preview, refresh, render, renderDrawer, renderPop, renderSheet, face, review, reviewActions, approvalCopy, drawerTicket,
-  openTicket, openHire, openPerson, openSettings, startSetup, checkRepo } = await import("../ui/app.js");
+  openTicket, openHire, openPerson, openSettings, startSetup, checkRepo } = await import("../ui/app.ts");
 
 try {
   await refresh(true);

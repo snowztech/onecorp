@@ -132,7 +132,7 @@ make check           # lint, tests, and a walk through onboarding in Chrome
 ```
 crates/core/   the onecorp library: everything that runs a company
 crates/cli/    the onecorp command, a thin shell over the library
-app/           the desktop app: Tauri, with its UI in app/ui, built by Vite
+app/           the desktop app: Tauri, with its UI in TypeScript in app/ui, built by Vite
 docs/          architecture, design rules, brand, screenshots
 ```
 

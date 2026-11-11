@@ -1,10 +1,11 @@
-import { esc, first, hhmm } from "../lib.js";
-import { RUNTIME, agentBadge, face, icon, me, modelName } from "../look.js";
-import { needItems } from "../notify.js";
-import { S, byId, myName } from "../state.js";
+import { esc, first, hhmm } from "../lib.ts";
+import { RUNTIME, agentBadge, face, icon, me, modelName } from "../look.ts";
+import { needItems } from "../notify.ts";
+import { S, byId, employeesOf, myName } from "../state.ts";
+import type { Employee, FeedItem } from "../types.ts";
 
 /* Company page: you on top, departments beneath as rooms of desks */
-export function desk(e, lead) {
+export function desk(e: Employee, lead: boolean) {
   const show = e.bubble ? "show" : "";
   const works = (RUNTIME[e.runtime]?.[0] || e.runtime) + (RUNTIME[e.runtime] ? ` · ${modelName(e.runtime, e.model)}` : "");
   return `<button class="desk ${e.status}" data-person="${esc(e.id)}" title="${esc(e.name)} works on ${esc(works)}">
@@ -15,9 +16,9 @@ export function desk(e, lead) {
 }
 
 export function viewCompany() {
-  const s = S.snap;
+  const s = S.snap!;
   const rooms = s.departments.map(d => {
-    const ms = d.members.map(byId).filter(Boolean), lead = d.lead && byId(d.lead);
+    const ms = employeesOf(d.members), lead = d.lead && byId(d.lead);
     const busy = ms.filter(e => e.status === "working").length, stuck = ms.filter(e => e.status === "blocked").length;
     const meta = [lead ? "Led by " + esc(first(lead.name)) : d.id === null ? "Move them into a department from their desk" : "No lead yet", ms.length + (ms.length === 1 ? " person" : " people")];
     if (busy) meta.push(`<span class="ok">${busy} working</span>`);
@@ -52,7 +53,7 @@ export function viewCompany() {
 
 /* Kickoff: from what you're building to a plan of tickets */
 export function kickoffCard() {
-  const k = S.snap.kickoff, team = S.snap.employees;
+  const k = S.snap!.kickoff;
   // Planning is live work worth seeing from the office. The rest of planning lives on the Board.
   if (k.planning.length) {
     const p = k.planning[0];
@@ -67,7 +68,7 @@ export function kickoffCard() {
    by doing it for real, so the list can't lie. It goes away when you're through, or when you hide it. */
 export function gettingStarted() {
   // Only real work counts: planning and the wiki your lead writes at launch are not "work" yet.
-  const s = S.snap, work = s.tickets.filter(t => !t.kind || t.kind === "work");
+  const s = S.snap!, work = s.tickets.filter(t => !t.kind || t.kind === "work");
   const firstDept = s.departments.find(d => d.id !== null);
   const plan = (s.projects || [])[0];
   const steps = [
@@ -89,7 +90,7 @@ export function gettingStarted() {
       <div><b>${x.title}</b>${i === next ? `<span class="muted">${x.sub}</span>` : ""}</div>${i === next ? x.act : ""}</li>`).join("")}</ol></section>`;
 }
 
-export function feed(items) {
+export function feed(items: FeedItem[]) {
   if (!items.length) return `<li class="none">Nothing yet. Start a ticket and it shows up here.</li>`;
   return items.map(f => `<li><button class="fl" data-ticket="${esc(f.key)}">${face(f.name, "neutral")}<div><p><b>${esc(first(f.name))}</b> ${esc(f.summary)}</p><p class="ft"><span class="key">${esc(f.key)}</span> ${esc(f.title || "")}</p></div><time>${hhmm(f.at)}</time></button></li>`).join("");
 }

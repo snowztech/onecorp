@@ -13,7 +13,7 @@ help:
 	@echo "make serve        run queued work in this terminal, without the app"
 	@echo "make doctor       check git, Claude Code, Codex and your companies"
 	@echo "make test         Rust tests, the UI smoke test, and a walk through onboarding in Chrome"
-	@echo "make lint         clippy, warnings as errors"
+	@echo "make lint         clippy and the UI type check, warnings as errors"
 	@echo "make check        lint and test, what CI runs"
 	@echo "make install      install the onecorp command and OneCorp.app"
 	@echo "make install-cli  install only the onecorp command"
@@ -54,8 +54,9 @@ test: $(UI_DEPS)
 	node app/tests/ui-smoke.js
 	node app/tests/onboarding.mjs
 
-lint:
+lint: $(UI_DEPS)
 	cargo clippy -p onecorp -p onecorp-cli -p onecorp-app --all-targets -- -D warnings
+	cd app && npm run check
 
 check: lint test
 
