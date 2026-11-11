@@ -1,4 +1,4 @@
-// The drawn faces from the app (app/ui/app.js), so the landing page shows the same team.
+// The drawn faces from the app (app/ui/look.ts), so the landing page shows the same team.
 const HUES = [215, 12, 158, 262, 38, 330, 192, 95];
 const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const SKIN = ["#f3d5bd", "#e6b590", "#c88e64", "#9a6542", "#6b442b"];
