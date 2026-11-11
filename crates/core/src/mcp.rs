@@ -132,7 +132,7 @@ fn tools() -> Value {
         {
             "name": "create_ticket",
             "description": "Create a ticket for work that should happen but isn't yours to do now: a follow-up, a piece of a bigger plan, \
-                            a bug you noticed. It goes to the backlog, and the founder starts it. Give it to a teammate when you know who fits.",
+                            a bug you noticed, a recommendation from a report. The founder sees it with your ticket and picks what to start. Give it to a teammate when you know who fits.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -279,15 +279,12 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
                 a if a.is_empty() => None,
                 a => Some(c.parse_key(&a)?),
             };
-            // Created while planning, it belongs to that plan, and starts when the founder starts the plan.
-            let plan = c.ticket(ctx.ticket)?.filter(|t| t.kind == "plan").map(|t| t.id);
+            // It remembers the ticket it came from. A plan's or a report's tickets start when the founder starts it.
+            let plan = Some(ctx.ticket);
             let new = crate::store::NewTicket { title: s("title"), description: s("description"), assignee, created_by: Some(ctx.employee.clone()), after, plan, repo: Some(s("repo")).filter(|r| !r.is_empty()) };
             let id = c.new_ticket(&new, "backlog")?;
             c.add_event(id, "create", &format!("created by {} while working on {}", ctx.employee, c.key(ctx.ticket)), "")?;
-            Ok(match plan {
-                Some(_) => format!("{} is in the plan.", c.key(id)),
-                None => format!("{} is in the backlog. The founder starts it.", c.key(id)),
-            })
+            Ok(format!("{} is proposed. The founder sees it with your work and starts it.", c.key(id)))
         }
         "remember" => {
             let text = s("text");

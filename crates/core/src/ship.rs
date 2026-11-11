@@ -76,6 +76,9 @@ pub fn signoff(c: &Company, t: &Ticket) -> Result<String> {
 pub fn publish(c: &Company, t: &Ticket, summary: &str) -> Result<()> {
     let repo = c.repo_of(t)?;
     let Some(f) = forge_for(c, &repo)? else { return Ok(()) };
+    if t.kind == "report" {
+        return Ok(());
+    }
     let key = c.key(t.id);
     let (Some(wt), Some(branch)) = (&t.worktree, &t.branch) else { bail!("{key} has no branch to push") };
     let base = t.base.clone().unwrap_or_else(|| "main".into());
@@ -108,6 +111,10 @@ pub fn approve(c: &Company, t: &Ticket) -> Result<()> {
     // Approving a plan means starting it. It has nothing to merge.
     if t.kind == "plan" {
         return crate::work::start_plan(c, t);
+    }
+    if t.kind == "report" {
+        crate::work::finish_report(c, t, true)?;
+        return crate::work::release_waiting(c, t.id);
     }
     if t.kind == "wiki" {
         crate::work::finish_wiki(c, t)?;

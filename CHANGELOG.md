@@ -4,7 +4,14 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- Audits, research and advice come back as reports, not pull requests. When a ticket changes no files, its reply is the work: you read it in the Inbox with the tickets it proposes, then start the ones you want or keep them for later.
+
 ### Changed
+
+- Tickets an employee creates while working show up with that work, so you see what they propose next to what they did.
+- Diffs keep their colors when you scroll sideways, and added and removed lines are easier to tell apart.
 
 - The download opens as a small window with OneCorp next to your Applications folder: drag one onto the other to install.
 
