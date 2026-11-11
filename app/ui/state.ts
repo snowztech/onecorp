@@ -32,7 +32,7 @@ export function booted() {
 
 setTimeout(booted, 4000);
 
-export const S: State = { companies: [], company: null, looks: {}, dev: null, ticket: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, seen: {}, diffs: {}, wiki: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, needs: {}, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
+export const S: State = { companies: [], company: null, looks: {}, dev: null, ticket: null, snap: null, last: "", view: "company", drawer: null, person: null, addingDept: false, open: {}, channel: "general", chat: null, diffs: {}, wiki: null, hbEdit: false, setup: null, founder: undefined, profile: null, project: null, rail: false, needs: {}, pop: false, settings: null, health: null, confirm: null, sheet: null, shown: "" };
 
 export async function call<K extends string>(cmd: K, args: Record<string, unknown>, done?: string): Promise<Returns<K>> {
   try {
@@ -44,6 +44,21 @@ export async function call<K extends string>(cmd: K, args: Record<string, unknow
     toast(String(e), true);
     throw e;
   }
+}
+
+// What you've read in chat: the last message id per company and channel, kept across launches.
+const SEEN_KEY = "onecorp.seen";
+const seen: Record<string, number> = (() => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || "{}"); } catch { return {}; } })();
+const seenKey = (channel: string) => `${S.company}/${channel}`;
+export const unread = (channel: string, last: number | null) => !!last && last > (seen[seenKey(channel)] ?? 0);
+export function markSeen(channel: string, last: number | null) {
+  if ((seen[seenKey(channel)] ?? -1) >= (last || 0)) return;
+  seen[seenKey(channel)] = last || 0;
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch {}
+}
+// A channel or DM you've never opened counts as read up to now, so a first launch doesn't light up every dot.
+export function seenFirstTime(channel: string, last: number | null) {
+  if (!(seenKey(channel) in seen)) markSeen(channel, last);
 }
 
 export const mergeLabel = () => (S.snap?.ship?.forge ? `Merge ${S.snap.ship.pr_word}` : "Approve and merge");

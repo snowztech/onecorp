@@ -3,7 +3,7 @@ import { $, esc, money, toast } from "./lib.ts";
 import { AGENTS, icon } from "./look.ts";
 import { alertNew, watchAll } from "./notify.ts";
 import { renderSide, renderTop } from "./shell.ts";
-import { S, booted, invoke } from "./state.ts";
+import { S, booted, invoke, seenFirstTime } from "./state.ts";
 import { viewBoard } from "./views/board.ts";
 import { viewChat } from "./views/chat.ts";
 import { viewCompany } from "./views/company.ts";
@@ -105,8 +105,8 @@ export async function refresh(force: boolean) {
     if (!force && (json === S.last || typing() || S.profile || S.setup)) return;
     S.snap = snap; S.last = json; S.wiki = book;
     alertNew(snap);
-    // Channels count as read the first time they're seen, so opening the app doesn't light up every dot.
-    for (const ch of snap.channels || []) if (!(ch.name in S.seen)) S.seen[ch.name] = ch.last || 0;
+    for (const ch of snap.channels || []) seenFirstTime(ch.name, ch.last);
+    for (const dm of snap.dms || []) seenFirstTime(dm.channel, dm.last);
     if (S.drawer?.type === "person") S.person = await invoke("person", { company: S.company, id: S.drawer.id }).catch(() => S.person);
     if (S.drawer?.type === "ticket") S.ticket = await invoke("ticket_detail", { company: S.company, key: S.drawer.key }).catch(() => S.ticket);
     render();

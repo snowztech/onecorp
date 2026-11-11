@@ -203,7 +203,7 @@ export interface State {
   companies: string[]; company: string | null; looks: Record<string, Look>; dev: string | null;
   snap: Snapshot | null; last: string; view: string;
   drawer: Drawer | null; person: Person | null; ticket: TicketDetail | null;
-  addingDept: boolean; open: Record<string, boolean>; channel: string; chat: Chat | null; seen: Record<string, number>;
+  addingDept: boolean; open: Record<string, boolean>; channel: string; chat: Chat | null;
   diffs: Record<string, Diff | "loading">; wiki: string | null; hbEdit: boolean;
   setup: Setup | null; founder: Founder | null | undefined; profile: Profile | null; welcome?: boolean; onboarding?: boolean;
   project: string | null; rail: boolean; needs: Record<string, number>; pop: false | "menu" | "forget";

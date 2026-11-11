@@ -1,7 +1,7 @@
 import { $, esc, first, fold, hhmm, sameMinutes } from "../lib.ts";
 import { agentBadge, face, icon, me } from "../look.ts";
 import { inline } from "../md.ts";
-import { S, byId, employeesOf } from "../state.ts";
+import { S, byId, employeesOf, markSeen, unread } from "../state.ts";
 import type { Employee, Message } from "../types.ts";
 
 /* Chat: #general and a channel per department. Your team posts as they work; @mention someone to ask them. */
@@ -10,14 +10,14 @@ export function viewChat() {
   const dmRow = dms.find(d => d.channel === S.channel), person = dmRow && byId(dmRow.id);
   const ch: { name: string; last: number | null; department?: number | null } | undefined = person ? { name: dmRow.channel, last: dmRow.last } : chans.find(c => c.name === S.channel) || chans[0];
   if (!ch) return "";
-  S.seen[ch.name] = ch.last || 0;
+  markSeen(ch.name, ch.last);
   const dept = person ? null : s.departments.find(d => d.id === ch.department);
   const people = person ? [person] : (dept ? employeesOf(dept.members) : s.employees);
   const lead = dept?.lead ? byId(dept.lead) : undefined;
-  const unread = (c: { name?: string; channel?: string; last: number | null }) => c.last && c.last > (S.seen[c.name || c.channel || ""] || 0) ? '<i class="dot"></i>' : "";
-  const list = chans.map(c => `<button class="chan" data-channel="${esc(c.name)}" aria-current="${c.name === ch.name}"><span class="hash">#</span>${esc(c.name)}${unread(c)}</button>`).join("");
+  const dot = (channel: string, last: number | null) => unread(channel, last) ? '<i class="dot"></i>' : "";
+  const list = chans.map(c => `<button class="chan" data-channel="${esc(c.name)}" aria-current="${c.name === ch.name}"><span class="hash">#</span>${esc(c.name)}${dot(c.name, c.last)}</button>`).join("");
   const STATE: Record<string, string> = { working: "Working", blocked: "Waiting on you", queued: "Up next", idle: "Free" };
-  const dmList = dms.map(d => { const e = byId(d.id); return e ? `<button class="chan dm" data-channel="${esc(d.channel)}" aria-current="${d.channel === ch.name}"><span class="with-agent">${face(e.name, e.status)}<i class="st st-${e.status}" title="${STATE[e.status] || ""}"></i></span>${esc(first(e.name))}${unread(d)}</button>` : ""; }).join("");
+  const dmList = dms.map(d => { const e = byId(d.id); return e ? `<button class="chan dm" data-channel="${esc(d.channel)}" aria-current="${d.channel === ch.name}"><span class="with-agent">${face(e.name, e.status)}<i class="st st-${e.status}" title="${STATE[e.status] || ""}"></i></span>${esc(first(e.name))}${dot(d.channel, d.last)}</button>` : ""; }).join("");
   const msgs = S.chat?.channel === ch.name ? S.chat.messages : null;
   let prev: Message | null = null;
   const rows = (msgs || []).map(m => {
