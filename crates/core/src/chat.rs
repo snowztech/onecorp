@@ -140,7 +140,9 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let before: Vec<Message> = c.messages(Some(&slot.channel))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
     let asked = before.iter().rev().find(|m| m.author == "founder").map(|m| m.text.clone()).unwrap_or_default();
-    let history: Vec<String> = before.iter().rev().take(20).rev().map(|m| line(c, m)).collect();
+    let recent: Vec<&Message> = before.iter().rev().take(20).rev().collect();
+    let history: Vec<String> = recent.iter().map(|m| line(c, m)).collect();
+    let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          {founder} {place}. The conversation so far, with long messages shortened here (everyone saw them in full):\n\n{history}\n\n\
@@ -149,7 +151,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{notes}",
+         If it needs real work, say which ticket you'd suggest and who should take it.\n\n{knowledge}{tickets}{mentioned}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -159,6 +161,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         history = history.join("\n"),
         knowledge = crate::work::company_knowledge(c)?,
         tickets = own_tickets(c, &e.id)?,
+        mentioned = mentioned_tickets(c, &said.join("\n"))?,
         notes = crate::work::own_notes(c, &e.id)?,
         checkout = checkout_note(c),
     );
@@ -206,6 +209,45 @@ pub fn own_tickets(c: &Company, employee: &str) -> Result<String> {
     }
     let recent = &mine[mine.len().saturating_sub(RECENT)..];
     Ok(format!("\n\nYour tickets, newest last. You did these yourself:\n{}", recent.join("\n")))
+}
+
+/// Tickets named in the conversation, like SNO-12, in full: what they ask for, who has them and
+/// where they stand. Tickets live in the company, not the repo, so this is the only way a reply
+/// can read one. The latest three mentioned, newest first.
+pub fn mentioned_tickets(c: &Company, text: &str) -> Result<String> {
+    const MAX: usize = 1_500;
+    let prefix = c.key(0).rsplit_once('-').map(|(p, _)| format!("{p}-")).unwrap_or_default();
+    let mut ids: Vec<i64> = vec![];
+    for word in text.split(|ch: char| !ch.is_ascii_alphanumeric() && ch != '-').rev() {
+        let Some(num) = word.to_ascii_uppercase().strip_prefix(&prefix).and_then(|n| n.parse::<i64>().ok()) else { continue };
+        if !ids.contains(&num) {
+            ids.push(num);
+        }
+    }
+    let cut = |s: &str| if s.chars().count() > MAX { format!("{}…", s.chars().take(MAX).collect::<String>()) } else { s.to_string() };
+    let mut out = vec![];
+    for id in ids {
+        let Some(t) = c.ticket(id)? else { continue };
+        let who = match t.assignee.as_deref() {
+            Some(a) => c.employee(a)?.map(|e| e.name).unwrap_or_else(|| a.to_string()),
+            None => "nobody yet".into(),
+        };
+        let mut block = format!("{} {}\nStatus: {}. Assigned to {who}.", c.key(id), t.title, t.status);
+        if !t.description.trim().is_empty() {
+            block.push_str(&format!("\nWhat it asks: {}", cut(t.description.trim())));
+        }
+        if let Some(last) = crate::view::last_said(c, id).filter(|s| !s.trim().is_empty()) {
+            block.push_str(&format!("\nLast update: {}", cut(last.trim())));
+        }
+        out.push(block);
+        if out.len() == 3 {
+            break;
+        }
+    }
+    if out.is_empty() {
+        return Ok(String::new());
+    }
+    Ok(format!("\n\nTickets mentioned in this conversation, as they stand now:\n\n{}", out.join("\n\n")))
 }
 
 /// The repo a chat reply reads is the founder's own checkout, which may be on a branch of theirs.

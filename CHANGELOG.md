@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Fixed
+
+- Name a ticket in chat, like MYC-2, and the employee replying reads it: what it asks, who has it, where it stands and their last update. Before, they only knew its title and asked you to paste it.
+
 ## [0.1.3] - 2026-11-11
 
 Teams start with a model per role, and the Inbox lets you set things aside.
