@@ -4,6 +4,11 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- Starting teams come with models that fit each role: the strongest for the CTO or maintainer who reviews, a balanced one for engineers, PMs and designers, and the cheapest for writers. On Claude Code that's Opus 5.5, Sonnet 5.5 and Haiku 5.5. Each person's model shows on the Team step, where you can change it, and follows them if you switch their agent.
+- Default always says which model it runs, like Default · Opus 5.5, read from your own Claude Code or Codex settings. Desks and chips show model names instead of ids.
+
 ## [0.1.2] - 2026-11-11
 
 A smoother first launch: setup fills the window, and tools connect in one click.

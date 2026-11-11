@@ -105,9 +105,14 @@ function drawFace(name, status, set = faceSet()) {
 }
 
 const RUNTIME = { claude: ["Claude Code", "#d97757"], codex: ["Codex", "#3a9b7a"] };
+// The model's own name, like Opus 5.5. With none set, the agent runs your own default, so say which.
+function modelName(runtime, model) {
+  if (!model) { const d = S.models?.defaults?.[runtime]; return d ? `${d} (default)` : "Default"; }
+  return (S.models?.[runtime] || []).find(m => m.id === model || (!model.includes("-") && m.id.includes(model)))?.name || model;
+}
 function chip(e) {
   const [label, color] = RUNTIME[e.runtime] || [e.runtime, "#888"];
-  return `<span class="chip"><i style="background:${color}"></i>${esc(label)}${e.model ? " · " + esc(e.model) : ""}</span>`;
+  return `<span class="chip"><i style="background:${color}"></i>${esc(label)}${RUNTIME[e.runtime] ? " · " + esc(modelName(e.runtime, e.model)) : ""}</span>`;
 }
 // Links to a pull request open in your browser, not inside the app.
 function prLink(url, n) {
@@ -194,7 +199,7 @@ function agentBadge(runtime) {
 }
 function desk(e, lead) {
   const show = e.bubble ? "show" : "";
-  const works = (RUNTIME[e.runtime]?.[0] || e.runtime) + (e.model ? ` · ${e.model}` : "");
+  const works = (RUNTIME[e.runtime]?.[0] || e.runtime) + (RUNTIME[e.runtime] ? ` · ${modelName(e.runtime, e.model)}` : "");
   return `<button class="desk ${e.status}" data-person="${esc(e.id)}" title="${esc(e.name)} works on ${esc(works)}">
     <span class="bubble ${show}">${esc(e.bubble)}</span>
     <span class="station"><span class="seat with-agent">${face(e.name, e.status)}${agentBadge(e.runtime)}</span><span class="monitor"><i></i><i></i><i></i><i></i></span></span>
@@ -996,7 +1001,8 @@ function agentPicker(f) {
   // The exact models each agent offers, from the agent itself where it says. An older short name
   // like "opus" still lights up the model it stands for.
   const live = S.models?.[f.runtime];
-  const list = live?.length ? [["", "Default", "The agent picks"], ...live.map(m => [m.id, m.name, m.about])] : a.models;
+  const def = S.models?.defaults?.[f.runtime];
+  const list = live?.length ? [["", def ? `Default · ${def}` : "Default", "Your own setting for this agent"], ...live.map(m => [m.id, m.name, m.about])] : a.models;
   const same = v => v === (f.model || "") || (f.model && v && !f.model.includes("-") && v.includes(f.model));
   const models = list.some(([v]) => same(v)) ? list : [...list, [f.model, f.model]];
   return `<div class="field"><span class="flabel">Works on</span><div class="agents">${Object.entries(AGENTS).filter(([k]) => k !== "fake" || f.runtime === "fake").map(([k, x]) => {
@@ -1151,6 +1157,9 @@ async function startSetup() {
   render();
 }
 // Picking a template fills the team with its people, which you then edit freely.
+const TIERS = [["strongest", "Strongest"], ["balanced", "Balanced"], ["cheapest", "Cheapest"]];
+// A copied person keeps their model while it matches one of the tiers, so the picker shows it.
+const tierOf = (runtime, model) => TIERS.find(([t]) => S.models?.tiers?.[runtime]?.[t]?.id === model)?.[0];
 function setTemplate(key) {
   const s = S.setup;
   // Another company's team: the same people, roles, departments and personalities.
@@ -1158,12 +1167,13 @@ function setTemplate(key) {
     const from = (s.info.teams_from || []).find(x => x.company === key.slice(3));
     const ok = s.info.runtimes.filter(r => r !== "fake");
     s.template = key;
-    s.people = (from?.hires || []).map(h => ({ name: h.name, role: h.role, dept: h.dept || "", runtime: ok.includes(h.runtime) ? h.runtime : s.runtime, voice: h.voice || "" }));
+    s.people = (from?.hires || []).map(h => { const runtime = ok.includes(h.runtime) ? h.runtime : s.runtime, tier = runtime === h.runtime && tierOf(runtime, h.model);
+      return { name: h.name, role: h.role, dept: h.dept || "", runtime, voice: h.voice || "", tier: tier || "balanced", model: tier ? h.model : "" }; });
     return;
   }
   const t = s.info.templates.find(x => x.key === key);
   s.template = key;
-  s.people = t.hires.map(h => ({ name: h.name, role: h.role, dept: h.dept || "", runtime: t.runtime || s.runtime, voice: h.voice || "" }));
+  s.people = t.hires.map(h => ({ name: h.name, role: h.role, dept: h.dept || "", runtime: t.runtime || s.runtime, voice: h.voice || "", tier: h.tier || "balanced" }));
 }
 function readSetup() {
   const s = S.setup, val = id => document.getElementById(id)?.value;
@@ -1183,6 +1193,9 @@ function readSetup() {
       const v = val(`su-p${i}-${k}`);
       if (v !== undefined) p[k] = v.trim();
     }
+    // Picking a model drops one kept from another team: the tier decides from then on.
+    const t = val(`su-p${i}-tier`);
+    if (t !== undefined && t !== p.tier) { p.tier = t; p.model = ""; }
   });
 }
 async function checkRepo(path) {
@@ -1406,6 +1419,7 @@ function viewSetup() {
       <input id="su-p${i}-role" value="${esc(p.role)}" placeholder="Role" aria-label="Role" autocomplete="off">
       <input id="su-p${i}-dept" value="${esc(p.dept)}" placeholder="Department" aria-label="Department" list="su-depts" autocomplete="off">
       <select id="su-p${i}-voice" class="mini-voice" aria-label="Personality" title="How they write"><option value="">Fits role</option>${(s.info.voices || []).map(v => `<option value="${v.key}" ${v.key === p.voice ? "selected" : ""}>${esc(v.label)}</option>`).join("")}</select>
+      <select id="su-p${i}-tier" class="mini-voice mini-model" aria-label="Model" title="Model">${TIERS.map(([t, n]) => `<option value="${t}" ${t === (p.tier || "balanced") ? "selected" : ""}>${esc(S.models?.tiers?.[p.runtime]?.[t]?.name || n)}</option>`).join("")}</select>
       <span class="mini-agents" role="group" aria-label="Works on">${real.map(k => `<button type="button" class="mini-agent" data-su-agent="${i}:${k}" aria-pressed="${k === p.runtime}" title="${esc(AGENTS[k]?.name || k)}" style="--c:${AGENTS[k]?.color || "#888"}">${agentMark(k)}</button>`).join("")}<input type="hidden" id="su-p${i}-runtime" value="${esc(p.runtime)}"></span>
       <button class="x" type="button" data-su="del-${i}" aria-label="Remove ${esc(p.name)}">×</button></li>`).join("");
     const depts = [...new Set(s.people.map(p => p.dept).filter(Boolean).concat(["Engineering", "Product", "Design", "Growth"]))];
@@ -1578,7 +1592,7 @@ document.addEventListener("click", async e => {
     await call("set_paused", { company: S.company, paused: on }, on ? `${S.company} is paused. Running work finishes, nothing new starts` : `${S.company} is back at work`).catch(() => {});
     return;
   }
-  if (d.suAgent) { readSetup(); const [i, k] = d.suAgent.split(":"); S.setup.people[Number(i)].runtime = k; return render(); }
+  if (d.suAgent) { readSetup(); const [i, k] = d.suAgent.split(":"); const p = S.setup.people[Number(i)]; if (p.runtime !== k) p.model = ""; p.runtime = k; return render(); }
   if (d.agent) { Object.assign(S.drawer.form ||= {}, readPerson(), { runtime: d.agent, model: null }); return renderDrawer(); }
   if (d.welcome) { S.welcome = false; render(); return $("#pf-name")?.focus(); }
   if (d.stepTo) {
@@ -1805,7 +1819,7 @@ document.addEventListener("click", async e => {
     }
     if (d.su === "create-repo") return makeRepo();
     if (d.su === "toggle-gh") { s.owner = s.owner ? "" : (s.repoInfo.owners[0] || ""); return render(); }
-    if (d.su === "add-person") { s.people.push({ name: "", role: "Engineer", dept: "Engineering", runtime: s.runtime }); render(); return document.getElementById(`su-p${s.people.length - 1}-name`)?.focus(); }
+    if (d.su === "add-person") { s.people.push({ name: "", role: "Engineer", dept: "Engineering", runtime: s.runtime, tier: "balanced" }); render(); return document.getElementById(`su-p${s.people.length - 1}-name`)?.focus(); }
     if (d.su.startsWith("del-")) { s.people.splice(Number(d.su.slice(4)), 1); return render(); }
     if (d.su === "parent") {
       const path = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Where should the new repo go?" }).catch(() => null);
@@ -2076,6 +2090,7 @@ async function previewScreen() {
   if (screen === "inbox-zero") { S.snap.inbox = []; S.snap.reviews = []; S.snap.failed = []; S.snap.with_leads = []; S.view = "inbox"; render(); }
   if (screen === "launching") { await startSetup(); S.setup.name = "snowztech"; await checkRepo("/Users/you/dev/snowztech"); S.setup.launch = { done: 2, steps: ["Founding snowztech", "Hiring 3 people", "Connecting snowztech", "Odile starts writing the wiki"] }; render(); }
   if (screen === "connect") await startSetup();
+  if (screen === "team") { await startSetup(); setTemplate("startup"); S.setup.step = 3; render(); }
   if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
   if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer.edit = true; renderDrawer(); }
   if (screen === "spend") await openSettings("spend");
@@ -2117,7 +2132,10 @@ function preview(cmd, args) {
   const VOICES = [["terse","Terse","Done. Login works, tests pass."],["warm","Warm","Login's in! Thanks for the clear ticket. Tests are green."],["thorough","Thorough","Login is in. I went with magic links over passwords: less to store. Tests cover both paths."],["dry","Dry","Login works. The tests agree, which is a first this week."],["blunt","Blunt","Login works. The old session code was broken, so I replaced it."],["curious","Curious","Login works. Should links expire after 15 minutes or an hour?"],["upbeat","Upbeat","Login shipped! On to signup next."],["calm","Calm","Login is done. 1. Link sent. 2. Token checked. 3. Session set."]].map(([key, label, sample]) => ({ key, label, sample }));
   const data = {
     voices: VOICES,
-    models: { claude: [["claude-opus-5-5", "Opus 5.5"], ["claude-sonnet-5-5", "Sonnet 5.5"], ["claude-haiku-5-5", "Haiku 5.5"], ["claude-fable-5-1", "Fable 5.1"]].map(([id, name]) => ({ id, name, about: "" })), codex: [["gpt-6.1-sol", "GPT-6.1-Sol"], ["gpt-6-astra", "GPT-6-Astra"], ["gpt-6-luna", "GPT-6-Luna"]].map(([id, name]) => ({ id, name, about: "" })) },
+    models: { claude: [["claude-opus-5-5", "Opus 5.5"], ["claude-sonnet-5-5", "Sonnet 5.5"], ["claude-haiku-5-5", "Haiku 5.5"], ["claude-fable-5-1", "Fable 5.1"]].map(([id, name]) => ({ id, name, about: "" })), codex: [["gpt-6.1-sol", "GPT-6.1-Sol"], ["gpt-6-astra", "GPT-6-Astra"], ["gpt-6-luna", "GPT-6-Luna"]].map(([id, name]) => ({ id, name, about: "" })),
+      tiers: { claude: { strongest: { id: "claude-opus-5-5", name: "Opus 5.5" }, balanced: { id: "claude-sonnet-5-5", name: "Sonnet 5.5" }, cheapest: { id: "claude-haiku-5-5", name: "Haiku 5.5" } },
+        codex: { strongest: { id: "gpt-6-astra", name: "GPT-6-Astra" }, balanced: { id: "gpt-6.1-sol", name: "GPT-6.1-Sol" }, cheapest: { id: "gpt-6-luna", name: "GPT-6-Luna" } } },
+      defaults: { claude: "Opus 5.5", codex: "GPT-6-Astra" } },
     companies: { list: ["snowztech", "tvcask", "autoremind", "pingbuddy"], current: "snowztech", looks: { snowztech: { color: "#4772ae" }, tvcask: { color: "#ae5c47" }, autoremind: { color: "#47ae88" }, pingbuddy: { color: "#27272a" } } },
     snapshot: {
       repos: [{ name: "notes", path: "/Users/you/dev/notes", main: true }, { name: "notes-web", path: "/Users/you/dev/notes-web", main: false }],
@@ -2153,7 +2171,7 @@ function preview(cmd, args) {
       teams_from: [{ company: "tvcask", hires: [{ name: "Inès Costa", role: "CTO", dept: "Engineering", runtime: "claude", voice: "calm" }, { name: "Kenji Sato", role: "Engineer", dept: "Engineering", runtime: "codex", voice: "terse" }] }],
       templates: [
       { key: "solo", name: "Solo builder", description: "One engineer who ships. Hire more when you need them.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Engineering" }] },
-      { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", voice: "calm", role: "CTO", dept: "Engineering" }, { name: "Maya Okafor", voice: "upbeat", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", voice: "terse", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", voice: "curious", role: "Product manager", dept: "Product" }, { name: "Lina Park", voice: "warm", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", voice: "dry", role: "Growth writer", dept: "Growth" }] },
+      { key: "startup", name: "Startup", description: "A CTO, frontend and backend engineers, a PM, a designer, and a writer for the launch.", runtime: null, hires: [{ name: "Odile Martin", voice: "calm", role: "CTO", dept: "Engineering", tier: "strongest" }, { name: "Maya Okafor", voice: "upbeat", role: "Frontend engineer", dept: "Engineering" }, { name: "Tomás Reis", voice: "terse", role: "Backend engineer", dept: "Engineering" }, { name: "Rui Alves", voice: "curious", role: "Product manager", dept: "Product" }, { name: "Lina Park", voice: "warm", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", voice: "dry", role: "Growth writer", dept: "Growth", tier: "cheapest" }] },
       { key: "indie", name: "Indie maker", description: "Build it and launch it yourself: an engineer, a designer, and a growth marketer.", runtime: null, hires: [{ name: "Maya Okafor", role: "Engineer", dept: "Product" }, { name: "Lina Park", role: "Product designer", dept: "Product" }, { name: "Sam Duarte", role: "Growth marketer", dept: "Growth" }] },
       { key: "agency", name: "Agency", description: "Client work: a PM who plans, two engineers, a designer, and a QA reviewer who checks every change.", runtime: null, hires: [{ name: "Rui Alves", role: "Project manager", dept: "Delivery" }, { name: "Maya Okafor", role: "Engineer", dept: "Delivery" }, { name: "Tomás Reis", role: "Engineer", dept: "Delivery" }, { name: "Lina Park", role: "Product designer", dept: "Delivery" }, { name: "Odile Martin", role: "QA reviewer", dept: "Delivery" }] },
       { key: "oss", name: "Open source", description: "A maintainer who reviews every change, an engineer, and a writer for docs and changelogs.", runtime: null, hires: [{ name: "Odile Martin", role: "Maintainer", dept: "Engineering" }, { name: "Maya Okafor", role: "Engineer", dept: "Engineering" }, { name: "Sam Duarte", role: "Docs writer", dept: "Docs" }] },
