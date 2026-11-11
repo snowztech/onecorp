@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-11
+
+A calmer, more polished app: replies you can cancel, scrollbars out of the way, and chat that remembers what you've read.
+
 ### Changed
 
 - Asking for changes, answering a question or rewording a wiki rule opens a small box under the card, with Cancel. ⌘↵ sends it and Esc closes it. A card shows one thing at a time: your reply, or the discard confirmation.
@@ -130,6 +134,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.6]: https://github.com/snowztech/onecorp/releases/tag/v0.1.6
 [0.1.5]: https://github.com/snowztech/onecorp/releases/tag/v0.1.5
 [0.1.4]: https://github.com/snowztech/onecorp/releases/tag/v0.1.4
 [0.1.3]: https://github.com/snowztech/onecorp/releases/tag/v0.1.3
