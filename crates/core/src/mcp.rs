@@ -173,7 +173,11 @@ fn tools() -> Value {
 }
 
 fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
-    let s = |k: &str| args[k].as_str().unwrap_or("").trim().to_string();
+    // What agents write for people to read gets the writing rule enforced. A command is code, and kept exactly.
+    let s = |k: &str| {
+        let v = args[k].as_str().unwrap_or("").trim();
+        if k == "command" { v.to_string() } else { crate::runtime::plain(v) }
+    };
     match name.as_str().unwrap_or("") {
         "ask_human" => {
             let question = s("question");

@@ -618,8 +618,12 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 /// How OneCorp works, said once so nobody goes looking for it in the repo or in .claude/.
 const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
 start one. OneCorp does the git work: it commits, opens pull requests and merges once the founder approves. It also decides \
-which commands you can run; ask_to_run asks the founder for another one. Questions go to your lead or the founder with ask_human, \
-rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n";
+which commands you can run, and ask_to_run asks the founder for another one. Questions go to your lead or the founder with ask_human, \
+rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n\
+How we write, in summaries, reports, chat, the wiki, comments and commit messages: plain words and short sentences, the way \
+a good colleague talks. Say it once. No filler, no recap at the end, no headings or bullets for a few lines. Never use \
+semicolons, em dashes or double hyphens in prose: end the sentence with a full stop instead. Code, commands and file names \
+go in backticks. These rules come first. Your personality sets your tone within them, not your length.\n\n";
 
 /// What every employee should know before starting: the wiki, and who does what.
 pub fn company_knowledge(c: &Company) -> Result<String> {
@@ -1035,8 +1039,8 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
                 ("start", format!("{} ({model}), {verb}", e.runtime))
             }
             Event::Say(text) => {
-                last_say = text.clone();
-                ("say", runtime::clip(text, 2_000))
+                last_say = runtime::plain(text);
+                ("say", runtime::clip(&last_say, 2_000))
             }
             Event::Tool { name, detail } => {
                 let name = name.strip_prefix("mcp__onecorp__").unwrap_or(name);
@@ -1079,7 +1083,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         c.finish_ticket(id, "failed", cost, tokens)?;
         return wait_for_limit(c, e, id);
     }
-    let text = if text.is_empty() { last_say } else { text };
+    let text = runtime::plain(if text.is_empty() { &last_say } else { &text });
     // A writing ticket's whole reply is its work, kept in full for whoever reads it next.
     if c.ticket(id)?.is_some_and(|t| t.kind == "wiki") {
         c.add_event(id, "wiki-text", &text, "")?;

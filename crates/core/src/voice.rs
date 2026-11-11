@@ -63,6 +63,6 @@ pub fn set(c: &Company, id: &str, voice: &str) -> Result<()> {
 pub fn intro(c: &Company, e: &Employee) -> Result<String> {
     let k = of(c, e)?;
     let how = VOICES.iter().find(|v| v.0 == k).map(|v| v.2).unwrap_or_default();
-    Ok(format!("{} {how} Let it show in how you write chat, comments and summaries, never in the care you put into the work.", e.bio))
+    Ok(format!("{} {how} Let it show in the tone of your chat, comments and summaries, within the company's writing rules, never in the care you put into the work.", e.bio))
 }
 

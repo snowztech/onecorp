@@ -14,6 +14,8 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Changed
 
+- Employees write plainly: short sentences, no filler or recaps, and never semicolons, em dashes or double hyphens in prose. It applies to everyone, whatever their personality, in summaries, reports, chat, the wiki and their questions to you. If a model slips anyway, OneCorp turns those into commas and full stops before you see them. Code is never touched.
+- Codex runs with low verbosity, so its replies are shorter and use fewer tokens.
 - Tickets an employee creates while working show up with that work, so you see what they propose next to what they did.
 - Diffs keep their colors when you scroll sideways, and added and removed lines are easier to tell apart.
 - Your existing wiki becomes pages the first time the app opens. The old file stays next to them as `wiki-before-pages.md`.
