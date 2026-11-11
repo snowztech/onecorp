@@ -416,7 +416,7 @@ pub fn plain_tool(summary: &str) -> String {
     }
 }
 
-fn last_said(c: &Company, ticket: i64) -> Option<String> {
+pub(crate) fn last_said(c: &Company, ticket: i64) -> Option<String> {
     let events = c.events(ticket).ok()?;
     events.iter().rev().find(|(_, k, _)| k == "say").map(|(_, _, s)| s.clone())
 }

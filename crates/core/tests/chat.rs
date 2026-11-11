@@ -53,6 +53,12 @@ fn channels_posts_and_replies() {
     assert!(mine.contains(&format!("{} Login (", c.key(ticket))), "{mine}");
     assert_eq!(chat::own_tickets(&c, "odile").unwrap(), "");
 
+    // A ticket named in chat comes with its details, whoever has it, and in any case.
+    let key = c.key(ticket);
+    let named = chat::mentioned_tickets(&c, &format!("is {}? still current", key.to_lowercase())).unwrap();
+    assert!(named.contains(&format!("{key} Login")) && named.contains("Assigned to Maya"), "{named}");
+    assert_eq!(chat::mentioned_tickets(&c, "nothing here, and no XYZ-1 either").unwrap(), "");
+
     // @all calls the channel: the whole company in #general, the team in a department's channel.
     assert_eq!(chat::say(&c, "engineering", "@all standup in 5").unwrap().len(), 2, "odile and maya");
     assert_eq!(chat::say(&c, "general", "@everyone shipping Friday, @maya too").unwrap().len(), 4, "everyone once, even when named twice");
