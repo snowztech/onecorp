@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-11
+
+Faster tickets, readable logs, and employees who ask instead of getting stuck.
+
 ### Added
 
 - Discard work you don't want, from its review in the Inbox or on the ticket. The pull request is closed, the branch deleted, and the ticket goes back to the backlog to start again or delete.
@@ -111,6 +115,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.5]: https://github.com/snowztech/onecorp/releases/tag/v0.1.5
 [0.1.4]: https://github.com/snowztech/onecorp/releases/tag/v0.1.4
 [0.1.3]: https://github.com/snowztech/onecorp/releases/tag/v0.1.3
 [0.1.2]: https://github.com/snowztech/onecorp/releases/tag/v0.1.2
