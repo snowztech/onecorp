@@ -260,6 +260,16 @@ pub fn stream(
     Ok(())
 }
 
+/// The text trimmed to `max` characters, line breaks kept, marked when cut. For the run log, where
+/// a first line alone hides what the agent said or ran.
+pub fn clip(s: &str, max: usize) -> String {
+    let s = s.trim();
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    format!("{}…", s.chars().take(max).collect::<String>().trim_end())
+}
+
 pub fn first_line(s: &str) -> String {
     s.lines().find(|l| !l.trim().is_empty()).unwrap_or("").chars().take(120).collect()
 }

@@ -4,6 +4,11 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- Run logs show what employees say in full, and whole commands and errors, wrapped under themselves instead of cut to one line.
+- The Repos section in Settings is calmer: a card per repo with its commands, Add a repo at the top, and shorter paths.
+
 ### Added
 
 - An employee who needs a command they can't run asks for it in your Inbox, like `xcodegen generate` with the reason. Allow it and the whole team can run it in that repo, and the ticket picks back up. Git, root and pull request commands are never asked: OneCorp handles those.
