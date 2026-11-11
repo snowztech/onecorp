@@ -73,7 +73,7 @@ export function gettingStarted() {
   const plan = (s.projects || [])[0];
   const steps = [
     { done: s.employees.length > 0, title: "Hire your team", sub: "Who works here, and on which AI.", act: firstDept ? `<button class="btn primary" data-hire="${firstDept.id}">Hire someone</button>` : `<button class="btn primary" data-add-dept="1">Add a department</button>` },
-    { done: !!s.kickoff.brief, title: "Read your wiki", sub: "What we're building, the codebase and its conventions, written from your repo. Fix anything that's off.",
+    { done: !!s.kickoff.brief, title: "Read your wiki", sub: "Your team drafted it from the repo: who it's for, the rules, the code. Fix anything that's off, and say what you're focused on in Now.",
       act: s.tickets.some(t => t.kind === "wiki" && ["todo", "queued", "doing"].includes(t.status)) ? `<span class="muted">Being written…</span>` : `<button class="btn primary" data-view="wiki">Open the wiki</button>` },
     { done: !!plan, title: "Start your first project", sub: "Say what you want. Your planner breaks it into tickets with owners.", act: `<button class="btn primary" data-plan-new="1">New project</button>` },
     { done: work.some(t => !["backlog"].includes(t.status)) || plan?.status === "done", title: "Approve the plan", sub: "Change owners, remove tickets, then start it.", act: plan?.status === "review" ? `<button class="btn primary" data-goto="${esc(plan.key)}">Review the plan</button>` : `<span class="muted">Waiting for the plan</span>` },

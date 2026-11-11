@@ -121,7 +121,7 @@ export async function refresh(force: boolean) {
     // The wiki is a small file and can change outside the app, so it's read with every refresh.
     const book = S.view === "wiki" ? await invoke("wiki", { company: S.company }) : S.wiki;
     if (S.view === "chat") S.chat = await invoke("chat", { company: S.company, channel: S.channel }).catch(() => S.chat);
-    const json = JSON.stringify(snap) + (book ?? "") + (S.view === "chat" ? JSON.stringify(S.chat) : "");
+    const json = JSON.stringify(snap) + JSON.stringify(book) + (S.view === "chat" ? JSON.stringify(S.chat) : "");
     if (!force && (json === S.last || typing() || S.profile || S.setup)) return;
     S.snap = snap; S.last = json; S.wiki = book;
     alertNew(snap);

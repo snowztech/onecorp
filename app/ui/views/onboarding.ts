@@ -290,7 +290,7 @@ export function viewSetup() {
       <div class="field"><span class="flabel">Logo</span><div class="look-row"><div class="swatches">${PALETTE.map(c => `<button type="button" class="swatch" data-su="color-${c}" aria-pressed="${c === s.color && !s.logoUrl}" style="--c:${c}" aria-label="Color ${c}"></button>`).join("")}</div>
         ${picker ? `<button class="btn" type="button" data-su="logo">${s.logoUrl ? "Change logo…" : "Upload a logo…"}</button>` : ""}${s.logoUrl ? `<button class="link-btn" type="button" data-su="logo-remove">Use the letter</button>` : ""}</div></div>
       <div class="field"><label for="su-mission">Mission <span class="muted">(optional, it opens the wiki)</span></label><input id="su-mission" value="${esc(s.mission)}" placeholder="Open source tools for building AI agents" autocomplete="off"></div>
-      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, it starts your wiki. Your lead fills in the rest from the repo)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
+      <div class="field"><label for="su-brief">What are you building? <span class="muted">(optional, it starts your wiki. Your team drafts the rest from the repo)</span></label><textarea id="su-brief" rows="3" placeholder="A notes app for writers. Magic link login, sync, export to Markdown.">${esc(s.brief || "")}</textarea></div>
       ${nav("Continue")}`;
   } else if (s.step === 2) {
     const toList = `<button class="btn" type="button" data-su="mode-existing">Back to your repos</button>`;
@@ -376,7 +376,7 @@ export function viewSetup() {
         <header>${badge(s.name, look, "xl")}<div><b>${esc(s.name)}</b><span>${esc(s.mission || "No mission yet")}</span></div></header>
         <dl class="kv"><dt>${s.extra.length ? "Repos" : "Repo"}</dt><dd class="mono">${esc(s.repo!.path)} <span class="muted">on ${esc(s.repo!.branch)}</span>${s.extra.map(x => `<br>${esc(x.path)} <span class="muted">as ${esc(x.name)}</span>`).join("")}</dd>
           <dt>Ships</dt><dd>${ships}</dd>
-          <dt>Wiki</dt><dd>Your lead writes it from the repo</dd>
+          <dt>Wiki</dt><dd>Your team drafts it from the repo</dd>
           ${s.brief && s.people.length ? `<dt>First plan</dt><dd>Your planner starts right after launch</dd>` : ""}
           <dt>Team</dt><dd>${s.people.length ? `<span class="launch-team">${s.people.map(p => `<span title="${esc(p.name)}, ${esc(p.role)}">${face(p.name, "happy")}</span>`).join("")}</span> ${s.people.length} ${s.people.length === 1 ? "person" : "people"}` : "Nobody yet, hire after launch"}</dd></dl>
       </div>
