@@ -1008,7 +1008,31 @@ impl Company {
             self.add_event(ticket, "error", "stopped before it finished", "")?;
             keys.push(self.key(ticket));
         }
+        // A ticket waiting on you always has something in your Inbox to answer. One blocked with no
+        // open question (marked blocked with only a note, by an older version) gets one now.
+        let mut st = self.db.prepare(
+            "SELECT t.id, coalesce(t.assignee, '') FROM tickets t WHERE t.status = 'blocked'
+             AND NOT EXISTS (SELECT 1 FROM inbox i WHERE i.ticket_id = t.id AND i.blocking = 1 AND i.answer IS NULL)",
+        )?;
+        let stuck: Vec<(i64, String)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?;
+        for (ticket, employee) in stuck {
+            let note = self.events(ticket)?.into_iter().rev().find(|(_, k, _)| k == "block").map(|(_, _, s)| s);
+            self.ask_to_unblock(ticket, &employee, note.as_deref().unwrap_or("Stopped and marked the ticket blocked, without saying why."))?;
+        }
         Ok(keys)
+    }
+
+    /// A blocking question to you, from a block the employee only described. Answering it resumes the ticket.
+    pub fn ask_to_unblock(&self, ticket: i64, employee: &str, note: &str) -> Result<i64> {
+        self.ask(&Question {
+            ticket_id: Some(ticket),
+            employee: employee.to_string(),
+            question: note.to_string(),
+            blocking: true,
+            kind: "question".into(),
+            stage: "founder".into(),
+            ..Default::default()
+        })
     }
 
     pub fn memory_path(&self, employee: &str) -> PathBuf {
