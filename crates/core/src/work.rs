@@ -415,6 +415,16 @@ pub fn write_wiki(c: &Company, by: Option<&str>) -> Result<Vec<i64>> {
     Ok(ids)
 }
 
+/// Drafts the wiki once there's someone to write it: at launch, or with the first hire of a
+/// company that started empty. Never again by itself after that. Redrafting is up to you.
+pub fn draft_wiki_if_new(c: &Company) -> Result<()> {
+    let drafted = c.tickets()?.iter().any(|t| t.kind == "wiki");
+    if !drafted && c.employees()?.iter().any(|e| e.runtime != "fake") {
+        write_wiki(c, None)?;
+    }
+    Ok(())
+}
+
 /// The pages a writing ticket drafts, from its description. Older tickets wrote them all.
 fn wiki_pages(t: &Ticket) -> Vec<&'static str> {
     let listed: Vec<&str> = wiki::DRAFTS.iter().map(|(p, _)| *p).filter(|p| t.description.lines().any(|l| l.trim() == *p)).collect();
