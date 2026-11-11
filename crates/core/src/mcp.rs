@@ -159,12 +159,12 @@ fn tools() -> Value {
         },
         {
             "name": "update_ticket",
-            "description": "Mark your ticket blocked, with the reason. The founder sees it on the board.",
+            "description": "Mark your ticket blocked, with what you need. It goes to the founder's Inbox to answer, and the ticket resumes with their answer.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "status": {"type": "string", "enum": ["blocked"]},
-                    "note": {"type": "string", "description": "Why, in one sentence"}
+                    "note": {"type": "string", "description": "What you need from the founder to carry on, in a sentence or two"}
                 },
                 "required": ["status", "note"]
             }
@@ -298,9 +298,12 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
         "update_ticket" => {
             anyhow::ensure!(s("status") == "blocked", "the only status you can set is blocked");
             let note = s("note");
+            anyhow::ensure!(!note.trim().is_empty(), "note is required: say what you need to carry on");
+            // A block lands in the founder's Inbox as a question, so there's always something to answer.
+            c.ask_to_unblock(ctx.ticket, &ctx.employee, &note)?;
             c.set_status(ctx.ticket, "blocked")?;
             c.add_event(ctx.ticket, "block", &note, &args.to_string())?;
-            Ok("Ticket marked blocked. Stop here and summarize where you are.".into())
+            Ok("Ticket marked blocked, and your note is in the founder's Inbox. Stop here and summarize where you are.".into())
         }
         other => anyhow::bail!("no tool called {other}"),
     }
@@ -384,6 +387,36 @@ mod tests {
         c.hire(&maya).unwrap();
         assert!(c.employee("maya").unwrap().is_some());
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_block_always_reaches_the_inbox() {
+        let dir = std::env::temp_dir().join(format!("onecorp-mcp-block-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let c = Company::open_dir("snowztech", dir.clone()).unwrap();
+        let maya = Employee { id: "maya".into(), name: "Maya".into(), role: "Engineer".into(), runtime: "claude".into(), model: None, bio: String::new(), department: None };
+        c.hire(&maya).unwrap();
+        let req = |args: Value| json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "update_ticket", "arguments": args}});
+
+        // Blocked with a note: the note is a question in your Inbox, and the ticket waits on it.
+        let t = c.add_ticket("rebase on main", "maya").unwrap();
+        let ctx = Ctx { ticket: t, employee: "maya".into() };
+        handle(&c, &ctx, &req(json!({"status": "blocked", "note": "git rebase origin/main needs your approval"}))).unwrap();
+        let q = c.inbox().unwrap().into_iter().find(|q| q.ticket_id == Some(t)).expect("an Inbox item for the block");
+        assert_eq!((q.question.as_str(), q.blocking), ("git rebase origin/main needs your approval", true));
+        assert_eq!(c.ticket(t).unwrap().unwrap().status, "blocked");
+
+        // A ticket an older version left blocked with only a note gets its question on recovery, once.
+        let old = c.add_ticket("stuck since 0.1.3", "maya").unwrap();
+        c.set_status(old, "blocked").unwrap();
+        c.add_event(old, "block", "run the rebase yourself, or allow it", "").unwrap();
+        c.recover_interrupted().unwrap();
+        c.recover_interrupted().unwrap();
+        let asked: Vec<_> = c.inbox().unwrap().into_iter().filter(|q| q.ticket_id == Some(old)).collect();
+        assert_eq!(asked.len(), 1);
+        assert_eq!(asked[0].question, "run the rebase yourself, or allow it");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1,6 +1,6 @@
 import { esc, hash, initials } from "./lib.ts";
 import { render, typing } from "./render.ts";
-import { S, invoke } from "./state.ts";
+import { S } from "./state.ts";
 import type { Employee, Look, Model } from "./types.ts";
 import { renderSheet } from "./views/settings.ts";
 
@@ -15,23 +15,17 @@ export const HAIR = ["#1e1916", "#4b301e", "#8b5b2c", "#d0a660", "#b4442f", "#70
 
 export function face(name: string, status: string) {
   const e = S.snap?.employees?.find(x => x.name === name);
-  if (e?.photo) {
-    const url = loadPhoto(e);
-    if (url) return `<span class="av"><img src="${esc(url)}" alt=""></span>`;
-  }
+  const url = e && photoUrl(e);
+  if (url) return `<span class="av"><img src="${esc(url)}" alt=""></span>`;
   return drawFace(e?.face || name, status);
 }
 
-// Photos load once per change, then come from here: the snapshot only carries a stamp.
-export const photos: Record<string, string | null> = {};
-
-export function loadPhoto(e: Employee) {
-  const key = `${S.company}/${e.id}/${e.photo}`;
-  if (key in photos) return photos[key];
-  photos[key] = null;
-  invoke("employee_photo", { company: S.company, id: e.id }).then(url => { photos[key] = url; if (!typing()) render(); }).catch(() => {});
-  return null;
-}
+// A photo straight from its file, so it shows on the first render. The stamp changes with the file,
+// so a new photo isn't served from the webview's cache.
+const photoUrl = (e: Employee) => {
+  const toUrl = window.__TAURI__?.core.convertFileSrc;
+  return e.photo && e.photo_path && toUrl ? `${toUrl(e.photo_path)}?v=${e.photo}` : null;
+};
 
 // Other face sets, drawn once per person and kept. Ours is the default. Each person keeps their
 // colour, light enough under the ink to read in both themes.

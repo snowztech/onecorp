@@ -2,7 +2,7 @@ import { candidates, openHire, openPerson, openTicket, readPerson, renderDrawer,
 import { $, esc, first, initials, toast } from "./lib.ts";
 import { PALETTE, drawFace, face, icon } from "./look.ts";
 import { md } from "./md.ts";
-import { refresh, render } from "./render.ts";
+import { chatToEnd, refresh, render } from "./render.ts";
 import { renderPop, renderSide, toggleRail } from "./shell.ts";
 import { S, byId, call, invoke, myName } from "./state.ts";
 import type { PersonForm } from "./types.ts";
@@ -459,7 +459,7 @@ document.addEventListener("submit", async e => {
   if (f.id === "say") {
     const input = $("#say-text"), text = input.value.trim();
     if (!text) return input.focus();
-    input.value = ""; updateMentions(input);
+    input.value = ""; updateMentions(input); chatToEnd();
     await call("say", { company: S.company, channel: S.channel, text }).catch(() => { input.value = text; updateMentions(input); });
     return $("#say-text")?.focus();
   }

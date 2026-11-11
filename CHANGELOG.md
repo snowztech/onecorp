@@ -4,6 +4,13 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Fixed
+
+- A ticket waiting on you always has something in your Inbox to answer. When an employee marks a ticket blocked, what they need lands in your Inbox as a question, and answering it picks the ticket back up. Tickets already stuck this way get their question the next time the app opens. (#26)
+- Codex errors and your change requests show in full in a ticket's history, instead of stopping mid-sentence. (#21)
+- Chat stays where you are: at the latest message while new ones and photos arrive, or where you scrolled up to read. Sending a message brings you back to the end. (#20)
+- Custom photos show as soon as the app opens, instead of the drawn face for a few seconds first. (#14)
+
 ## [0.1.6] - 2026-11-11
 
 A calmer, more polished app: replies you can cancel, scrollbars out of the way, and chat that remembers what you've read.

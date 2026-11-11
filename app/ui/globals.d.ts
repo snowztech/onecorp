@@ -5,7 +5,7 @@ type Filter = { name: string; extensions: string[] };
 
 interface Window {
   __TAURI__?: {
-    core: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
+    core: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>; convertFileSrc(path: string): string };
     app?: { getVersion(): Promise<string> };
     window?: { getCurrentWindow(): { setTheme(t: "light" | "dark" | null): Promise<void>; setBadgeCount(n?: number): Promise<void> } };
     dialog?: { open(o: { multiple?: boolean; directory?: boolean; title?: string; defaultPath?: string; filters?: Filter[] }): Promise<string | string[] | null> };
