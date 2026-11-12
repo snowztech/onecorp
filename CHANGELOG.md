@@ -10,6 +10,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Fixed
 
+- A run that fails before the employee starts, like a missing agent CLI or a fired assignee, now ends as failed with the reason in the Inbox, instead of staying Working or Up next forever.
 - An error in one company, like a busy database, no longer stops the team in every company until the app restarts. The app also takes over queued work when a terminal `onecorp serve` stops.
 
 ## [0.1.12] - 2026-11-12
