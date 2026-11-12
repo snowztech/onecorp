@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-11-12
+
+Conversations with your team flow better: employees comment on tickets from Chat, keep answering without an @mention, and you can search the wiki.
+
 ### Added
 
 - Employees can add a comment to a ticket when you ask them in Chat, like the text to paste into a file. It shows in the ticket's history, and whoever works on the ticket reads it. In Chat they're also told what they can't do from there, so they don't promise it.
@@ -259,6 +263,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.12]: https://github.com/snowztech/onecorp/releases/tag/v0.1.12
 [0.1.11]: https://github.com/snowztech/onecorp/releases/tag/v0.1.11
 [0.1.10]: https://github.com/snowztech/onecorp/releases/tag/v0.1.10
 [0.1.9]: https://github.com/snowztech/onecorp/releases/tag/v0.1.9
