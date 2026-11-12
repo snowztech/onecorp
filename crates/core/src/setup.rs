@@ -13,7 +13,7 @@ use std::process::Command;
 pub const DEFAULT_BUDGET: f64 = 10.0;
 
 /// `brief` is what you're building. With a brief and a team, planning starts right away.
-pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], brief: &str) -> Result<(Company, Vec<Employee>)> {
+pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], brief: &str) -> Result<(Company, Vec<Employee>, Option<i64>)> {
     // Checked first, so a bad team never leaves a half-made company behind.
     templates::check(people)?;
     let c = Company::create(name, repo, mission)?;
@@ -26,13 +26,14 @@ pub fn new_company(name: &str, repo: &Path, mission: &str, people: &[Person], br
     let hired = templates::hire(&c, people)?;
     crate::store::set_current(&c.name)?;
     crate::work::draft_wiki_if_new(&c)?;
+    let mut plan_id = None;
     if !brief.trim().is_empty() {
         c.write_brief(brief)?;
         if !hired.is_empty() {
-            crate::work::kickoff(&c, None)?;
+            plan_id = Some(crate::work::kickoff(&c, None)?);
         }
     }
-    Ok((c, hired))
+    Ok((c, hired, plan_id))
 }
 
 /// Deletes a company: its tickets, chat, wiki and memory, everything OneCorp keeps for it.

@@ -467,7 +467,7 @@ fn create_company(name: String, repo: String, mission: String, people: Vec<Value
             voice: Some(s(p, "voice")).filter(|v| !v.is_empty()),
         })
         .collect();
-    let (c, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, &people, brief.as_deref().unwrap_or("")).map_err(err)?;
+    let (c, _, _) = onecorp::setup::new_company(name.trim(), std::path::Path::new(repo.trim()), &mission, &people, brief.as_deref().unwrap_or("")).map_err(err)?;
     // What tickets and the planner call the primary repo, when you named it yourself.
     if let Some(n) = repo_name.map(|n| onecorp::templates::suggest_name(&n)).filter(|n| !n.is_empty()) {
         let _ = c.set_setting("repo.name", &n);

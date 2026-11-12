@@ -679,7 +679,8 @@ pub fn finish_report(c: &Company, t: &Ticket, start: bool) -> Result<()> {
     }
     if start {
         let started = start_proposed(c, t)?;
-        out(&format!("Closed {key} and started {started} tickets."));
+        let noun = if started == 1 { "ticket" } else { "tickets" };
+        out(&format!("Closed {key} and started {started} {noun}."));
     } else {
         c.set_status(t.id, "done")?;
         c.add_event(t.id, "merge", "the founder read it", "")?;
@@ -1276,18 +1277,22 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         ship::publish_or_note(c, &t, &text);
         t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
     }
-    let what = match t.status.as_str() {
+    let status = match t.status.as_str() {
         "review" => match &t.pr_url {
-            Some(url) => format!("ready for review: {url}"),
-            None => "ready for review".to_string(),
+            Some(url) => format!("is ready for review: {url}"),
+            None => "is ready for review".to_string(),
         },
-        "blocked" => "blocked. See what they need: onecorp inbox".to_string(),
-        s => s.to_string(),
+        "blocked" => "is blocked. See what they need: onecorp inbox".to_string(),
+        "failed" => "failed".to_string(),
+        s => format!("is {s}"),
     };
-    out(&format!("\n{text}\n\n{key} is {what}"));
+    out(&format!("\n{text}\n\n{key} {status}"));
+    let run = match &t.branch {
+        Some(branch) => format!("Branch {branch}, this run"),
+        None => "This run".to_string(),
+    };
     out(&format!(
-        "Branch {}, this run {}, ticket total {}.",
-        t.branch.unwrap_or_default(),
+        "{run} {}, ticket total {}.",
         spend(cost, tokens as i64),
         spend(t.cost_usd, t.tokens)
     ));
