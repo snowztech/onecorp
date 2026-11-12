@@ -7,6 +7,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 ### Added
 
 - Employees can add a comment to a ticket when you ask them in Chat, like the text to paste into a file. It shows in the ticket's history, and whoever works on the ticket reads it. In Chat they're also told what they can't do from there, so they don't promise it.
+- Changes in a review show old and new line numbers next to each line.
 
 ### Fixed
 
