@@ -9,7 +9,7 @@ import { viewChat } from "./views/chat.ts";
 import { viewCompany } from "./views/company.ts";
 import { viewInbox } from "./views/inbox.ts";
 import { startSetup, viewProfile, viewSetup, viewWelcome } from "./views/onboarding.ts";
-import { viewWiki } from "./views/wiki.ts";
+import { markWiki, viewWiki } from "./views/wiki.ts";
 
 // Drawing the current page, and polling the company snapshot while you're in a workspace.
 /* Rendering and polling */
@@ -66,6 +66,7 @@ export function render() {
     const chat = keepChatScroll();
     v.innerHTML = views[S.view]?.() ?? viewCompany();
     chat();
+    if (S.view === "wiki") markWiki();
   }
   renderDrawer();
 }

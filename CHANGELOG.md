@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- Wiki search highlights what you searched: in a few words under each page that mentions it, and in the page you open, which scrolls to the first match.
+
 ## [0.1.12] - 2026-11-12
 
 Conversations with your team flow better: employees comment on tickets from Chat, keep answering without an @mention, and you can search the wiki.

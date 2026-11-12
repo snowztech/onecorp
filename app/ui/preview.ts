@@ -26,7 +26,7 @@ export async function previewScreen() {
   if (screen === "rail") toggleRail(true);
   if (screen === "start") { S.snap!.tickets = []; S.snap!.projects = []; S.snap!.kickoff.brief = ""; render(); }
   if (screen === "wiki-edit") { S.view = "wiki"; S.hbEdit = true; await refresh(true); render(); }
-  if (screen === "wiki-search") { S.view = "wiki"; S.wikiQ = "magic"; await refresh(true); }
+  if (screen === "wiki-search") { S.view = "wiki"; S.wikiQ = "magic"; S.page = "Company/Decisions"; await refresh(true); }
   if (screen === "wiki-page") { S.view = "wiki"; S.page = "Product/Customers"; await refresh(true); }
   if (screen === "wiki-drafting") { S.view = "wiki"; S.page = "Engineering/Codebase"; await refresh(true); S.snap!.tickets.push({ key: "SNO-40", title: "Write the Engineering pages", assignee: "odile", status: "doing", spend: "$0.04", after: null, kind: "wiki", repo: null, created_by: null, plan: null } as never, { key: "SNO-41", title: "Write the Product pages", assignee: "rui", status: "queued", spend: "$0.00", after: null, kind: "wiki", repo: null, created_by: null, plan: null } as never); render(); }
   if (screen === "wiki-new") { S.view = "wiki"; S.wikiNew = true; S.wikiSpace = "Product"; await refresh(true); render(); }
