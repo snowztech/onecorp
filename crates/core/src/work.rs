@@ -410,6 +410,10 @@ fn ticket_details(c: &Company, t: &Ticket) -> Result<String> {
     {
         out.push_str(&format!("{}, {}, created this ticket.\n\n", e.name, e.role));
     }
+    let comments: Vec<String> = c.events(t.id)?.into_iter().filter(|(_, k, _)| k == "comment").map(|(_, _, s)| s).collect();
+    if !comments.is_empty() {
+        out.push_str(&format!("Comments on this ticket:\n{}\n\n", comments.join("\n\n")));
+    }
     Ok(out)
 }
 
