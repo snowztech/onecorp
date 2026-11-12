@@ -40,6 +40,11 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         if said.contains("[split]") {
             text.push_str("\nTICKET: Maya | Cache the checkout page | Under 200ms\n- TICKET: Rui | Write the release note | \nTICKET: Maya |  | nothing");
         }
+        // Asked to [comment] on a ticket: a two-line comment on the key it names, and one on a ticket that doesn't exist.
+        if said.contains("[comment]") {
+            let key = said.split_whitespace().find(|w| w.contains('-') && w.ends_with(|ch: char| ch.is_ascii_digit())).unwrap_or("");
+            text.push_str(&format!("\nCOMMENT: {key}\nPaste this in config.toml:\nport = 8080\nCOMMENT: NOPE-999 | lost"));
+        }
         on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
         return Ok(());
     }
