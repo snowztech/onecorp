@@ -8,6 +8,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 - Wiki search highlights what you searched: in a few words under each page that mentions it, and in the page you open, which scrolls to the first match.
 
+### Fixed
+
+- A pull request that can't be checked, like when gh is logged out, no longer stops OneCorp noticing the others that were merged.
+
 ## [0.1.12] - 2026-11-12
 
 Conversations with your team flow better: employees comment on tickets from Chat, keep answering without an @mention, and you can search the wiki.

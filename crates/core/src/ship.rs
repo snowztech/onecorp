@@ -243,7 +243,15 @@ pub fn sync(c: &Company) -> Result<Vec<String>> {
         let repo = c.repo_of(t)?;
         let Some(f) = forge_for(c, &repo)? else { continue };
         let key = c.key(t.id);
-        match f.state(&repo, n)? {
+        // One that can't be checked (gh logged out, a remote that moved) mustn't hold up the rest.
+        let state = match f.state(&repo, n) {
+            Ok(s) => s,
+            Err(e) => {
+                changed.push(format!("couldn't check {key}'s {}: {e:#}", f.pr_word()));
+                continue;
+            }
+        };
+        match state {
             PrState::Open => {}
             PrState::Merged => {
                 landed(c, t, Some(f), &format!("#{n} was merged on {}", f.name()))?;
