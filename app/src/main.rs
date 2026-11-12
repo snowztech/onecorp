@@ -843,11 +843,16 @@ fn main() {
         return;
     }
 
-    // The team works while the app is open. If a standalone `onecorp serve` is already running,
-    // this one stops right away and the app queues work for that one instead.
+    // The team works while the app is open. While a standalone `onecorp serve` is running, the app
+    // queues work for that one, and takes over when it stops so queued work never runs inline.
     std::thread::spawn(|| {
-        if let Err(e) = onecorp::serve::serve(3) {
-            eprintln!("serve: {e:#}");
+        loop {
+            if let Err(e) = onecorp::serve::serve(3)
+                && !onecorp::serve::running()
+            {
+                eprintln!("serve: {e:#}");
+            }
+            std::thread::sleep(std::time::Duration::from_secs(5));
         }
     });
 
