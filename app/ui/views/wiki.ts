@@ -49,29 +49,60 @@ export const currentPage = () => {
 // Search is a filter on the page list: the wiki is a handful of pages, so titles and text are enough.
 const hit = (p: WikiPage, q: string) => !q || (p.title + "\n" + p.text).toLowerCase().includes(q);
 
-// Typing filters the list in place, so the search box keeps focus.
+// A few words around the first match in a page's text, so you see why it matched before opening it.
+function snippet(text: string, q: string) {
+  const plain = text.replace(/^\s*([-+*]|\d+\.)\s+/gm, "").replace(/[#*`>_\[\]]/g, "").replace(/\s+/g, " "), i = plain.toLowerCase().indexOf(q);
+  if (!q || i < 0) return "";
+  const from = Math.max(0, i - 30), to = Math.min(plain.length, i + q.length + 40);
+  return `<span class="wk-snip">${from ? "…" : ""}${esc(plain.slice(from, i))}<mark>${esc(plain.slice(i, i + q.length))}</mark>${esc(plain.slice(i + q.length, to))}${to < plain.length ? "…" : ""}</span>`;
+}
+
+// Highlights the search in the open page. Returns the first match, to scroll to.
+export function markWiki() {
+  const root = document.querySelector(".wk-main .wiki");
+  if (!root) return null;
+  root.querySelectorAll("mark.wk-hit").forEach(m => m.replaceWith(m.textContent || ""));
+  root.normalize();
+  const q = (S.wikiQ || "").trim().toLowerCase();
+  if (!q) return null;
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), found: Text[] = [];
+  while (walk.nextNode()) if (walk.currentNode.textContent!.toLowerCase().includes(q)) found.push(walk.currentNode as Text);
+  for (const node of found) {
+    let t = node, i: number;
+    while ((i = t.textContent!.toLowerCase().indexOf(q)) >= 0) {
+      const hit = t.splitText(i), rest = hit.splitText(q.length), m = document.createElement("mark");
+      m.className = "wk-hit"; hit.replaceWith(m); m.append(hit); t = rest;
+    }
+  }
+  return root.querySelector("mark.wk-hit");
+}
+
+// Typing redraws only the page list, so the search box keeps focus.
 export function filterTree(value: string) {
   S.wikiQ = value;
-  const q = value.trim().toLowerCase(), pages = allPages();
-  document.querySelectorAll<HTMLElement>(".wk-link").forEach(b => { const p = pages.find(x => x.path === b.dataset.wkPage); b.hidden = !!p && !hit(p, q); });
-  document.querySelectorAll<HTMLElement>(".wk-space").forEach(s => { s.hidden = !!q && !s.querySelector(".wk-link:not([hidden])"); });
-  const none = document.querySelector<HTMLElement>(".wk-none");
-  if (none) none.hidden = !q || !!document.querySelector(".wk-link:not([hidden])");
+  const list = document.querySelector(".wk-list");
+  if (list) list.outerHTML = pageList(allPages(), currentPage());
+  markWiki();
+}
+
+function pageList(pages: WikiPage[], cur: WikiPage | null) {
+  const q = (S.wikiQ || "").trim().toLowerCase();
+  const spaces = [...new Set([...SPACES.filter(s => pages.some(p => p.space === s)), ...pages.map(p => p.space)])];
+  const shown = (s: string) => pages.filter(p => p.space === s && hit(p, q));
+  if (q && !pages.some(p => hit(p, q))) return `<div class="wk-list"><p class="fine">No page mentions that.</p></div>`;
+  return `<div class="wk-list">${spaces.filter(s => !q || shown(s).length).map(s => `<div class="wk-space"><span class="wk-space-name">${esc(s)}</span>
+      ${shown(s).map(p => {
+        const n = proposals(p.path).length;
+        return `<button class="wk-link ${p.path === cur?.path && !S.wikiNew ? "on" : ""} ${p.text ? "" : "empty"}" data-wk-page="${esc(p.path)}"><span class="wk-lt">${esc(p.title)}${n ? `<span class="wk-badge" title="${n} proposed">${n}</span>` : ""}</span>${snippet(p.text, q)}</button>`;
+      }).join("")}
+      ${q ? "" : `<button class="wk-add" data-wk-new="${esc(s)}">+ Page</button>`}</div>`).join("")}</div>`;
 }
 
 function tree(pages: WikiPage[], cur: WikiPage | null) {
-  const q = (S.wikiQ || "").trim().toLowerCase();
-  const spaces = [...new Set([...SPACES.filter(s => pages.some(p => p.space === s)), ...pages.map(p => p.space)])];
   return `<nav class="wk-tree" aria-label="Wiki pages">
     <input id="wk-q" class="wk-q" type="search" placeholder="Search the wiki" aria-label="Search the wiki" value="${esc(S.wikiQ || "")}">
     <div class="wk-tree-head"><span class="label">Spaces</span><button class="icon-btn" data-wk-new="" title="New page" aria-label="New page">+</button></div>
-    <p class="fine wk-none" ${q && !pages.some(p => hit(p, q)) ? "" : "hidden"}>No page mentions that.</p>
-    ${spaces.map(s => `<div class="wk-space" ${q && !pages.some(p => p.space === s && hit(p, q)) ? "hidden" : ""}><span class="wk-space-name">${esc(s)}</span>
-      ${pages.filter(p => p.space === s).map(p => {
-        const n = proposals(p.path).length;
-        return `<button class="wk-link ${p.path === cur?.path && !S.wikiNew ? "on" : ""} ${p.text ? "" : "empty"}" data-wk-page="${esc(p.path)}" ${hit(p, q) ? "" : "hidden"}>${esc(p.title)}${n ? `<span class="wk-badge" title="${n} proposed">${n}</span>` : ""}</button>`;
-      }).join("")}
-      <button class="wk-add" data-wk-new="${esc(s)}">+ Page</button></div>`).join("")}
+    ${pageList(pages, cur)}
     <p class="fine">Rules are read on every ticket. Other pages are read by the people in their space, and by anyone whose work needs them.</p>
     ${(S.wiki?.rules_tokens || 0) > 3000 ? `<p class="fine wk-warn">Rules are long: about ${Math.round(S.wiki!.rules_tokens! * 0.75 / 100) * 100} words on every ticket. Keep them to rules, and move the rest to other pages.</p>` : ""}
     ${!S.snap!.tickets.some(t => t.kind === "wiki") || drafting().length ? "" : S.open.redraft ? `<form class="wk-redraft" id="wk-redraft"><span class="label">Redraft from the repo</span>

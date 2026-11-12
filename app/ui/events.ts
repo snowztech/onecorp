@@ -9,7 +9,7 @@ import type { PersonForm } from "./types.ts";
 import { restartToUpdate } from "./update.ts";
 import { pickMention, updateMentions } from "./views/chat.ts";
 import { approvalCopy } from "./views/inbox.ts";
-import { currentPage, filterTree } from "./views/wiki.ts";
+import { currentPage, filterTree, markWiki } from "./views/wiki.ts";
 import { addExtraRepo, addRepo, backToYou, checkRepo, hasPhoto, loadGithub, makeRepo, readSetup, recheckTools, saveProfile, setTemplate, startSetup, setupPlaybook } from "./views/onboarding.ts";
 import { loadSection, loadSpend, openSettings, renderSheet, saved, setTheme } from "./views/settings.ts";
 
@@ -384,7 +384,7 @@ document.addEventListener("click", async e => {
     return;
   }
   if (d.hbEdit) { S.hbEdit = d.hbEdit === "1"; S.wikiNew = false; S.confirm = null; render(); return $("#hb-text")?.focus(); }
-  if (d.wkPage !== undefined) { S.page = d.wkPage; S.hbEdit = false; S.wikiNew = false; S.history = null; S.version = null; render(); return document.querySelector(".wk-main")?.scrollTo(0, 0); }
+  if (d.wkPage !== undefined) { S.page = d.wkPage; S.hbEdit = false; S.wikiNew = false; S.history = null; S.version = null; render(); const m = markWiki(); return m ? m.scrollIntoView({ block: "center" }) : document.querySelector(".wk-main")?.scrollTo(0, 0); }
   if (d.wkNew !== undefined) { S.wikiNew = true; S.wikiSpace = d.wkNew || currentPage()?.space; S.hbEdit = false; render(); return $("#wk-title")?.focus(); }
   if (d.wkHistory !== undefined) {
     if (!d.wkHistory) { S.history = null; S.version = null; return render(); }
