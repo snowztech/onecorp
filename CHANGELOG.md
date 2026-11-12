@@ -8,6 +8,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 - Employees can add a comment to a ticket when you ask them in Chat, like the text to paste into a file. It shows in the ticket's history, and whoever works on the ticket reads it. In Chat they're also told what they can't do from there, so they don't promise it.
 - Changes in a review show old and new line numbers next to each line.
+- In a channel, a message with no @mention goes to whoever replied to you last, so a conversation carries on without mentioning them every time. The hint under the message box says who will reply.
 
 ### Fixed
 

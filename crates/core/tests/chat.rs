@@ -48,6 +48,13 @@ fn channels_posts_and_replies() {
     assert!(!r.pending && r.author == "odile" && r.text.contains("can you check Maya's login?"), "{}", r.text);
     assert!(chat::say(&c, "general", "  ").is_err());
 
+    // No @mention after their reply: Odile carries on. After a work update, nobody does.
+    let slots = chat::say(&c, "engineering", "thanks, and the signup page?").unwrap();
+    assert_eq!(slots.iter().map(|s| c.message(*s).unwrap().unwrap().author).collect::<Vec<_>>(), ["odile"]);
+    chat::reply(&c, slots[0]).unwrap();
+    post(json!({"text": "Login is merged"}));
+    assert!(chat::say(&c, "engineering", "nice").unwrap().is_empty(), "a work update isn't a conversation");
+
     // A reply knows its own tickets, and only its own.
     let mine = chat::own_tickets(&c, "maya").unwrap();
     assert!(mine.contains(&format!("{} Login (", c.key(ticket))), "{mine}");

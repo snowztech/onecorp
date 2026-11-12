@@ -81,7 +81,10 @@ export function calledBy(text: string) {
     const add = ["all", "everyone", "channel"].includes(id) ? channelPeople() : team.filter(e => e.id === id);
     for (const e of add) if (!out.includes(e)) out.push(e);
   }
-  return out;
+  // No @mention: whoever replied last carries on, as the server decides in chat::say.
+  const last = S.chat?.channel === S.channel ? S.chat.messages.at(-1) : undefined;
+  const them = !out.length && last && !last.key && !last.pending ? team.find(e => e.id === last.author) : undefined;
+  return them ? [them] : out;
 }
 
 export function mentionAt(input: HTMLInputElement) {
