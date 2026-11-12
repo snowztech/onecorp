@@ -6,6 +6,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Changed
 
+- CLI wording: a plan's run summary no longer names a branch, "1 ticket" is singular, a failed ticket reads "ACM-6 failed", `onecorp diff` on a plan says a plan has no diff, and `onecorp new --brief` ends by pointing at the plan to review.
 - Wiki search highlights what you searched: in a few words under each page that mentions it, and in the page you open, which scrolls to the first match.
 
 ## [0.1.12] - 2026-11-12

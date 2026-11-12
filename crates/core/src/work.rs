@@ -679,7 +679,8 @@ pub fn finish_report(c: &Company, t: &Ticket, start: bool) -> Result<()> {
     }
     if start {
         let started = start_proposed(c, t)?;
-        out(&format!("Closed {key} and started {started} tickets."));
+        let noun = if started == 1 { "ticket" } else { "tickets" };
+        out(&format!("Closed {key} and started {started} {noun}."));
     } else {
         c.set_status(t.id, "done")?;
         c.add_event(t.id, "merge", "the founder read it", "")?;
@@ -701,7 +702,8 @@ fn start_proposed(c: &Company, from: &Ticket) -> Result<usize> {
         started += 1;
     }
     c.set_status(from.id, "done")?;
-    c.add_event(from.id, "merge", &format!("the founder started {started} tickets"), "")?;
+    let noun = if started == 1 { "ticket" } else { "tickets" };
+    c.add_event(from.id, "merge", &format!("the founder started {started} {noun}"), "")?;
     if !skipped.is_empty() {
         out(&format!("{} have nobody on them yet, so they wait in the backlog: onecorp assign <ticket> <name>", skipped.join(", ")));
     }
@@ -1284,13 +1286,17 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         "blocked" => "blocked. See what they need: onecorp inbox".to_string(),
         s => s.to_string(),
     };
-    out(&format!("\n{text}\n\n{key} is {what}"));
-    out(&format!(
-        "Branch {}, this run {}, ticket total {}.",
-        t.branch.unwrap_or_default(),
-        spend(cost, tokens as i64),
-        spend(t.cost_usd, t.tokens)
-    ));
+    if t.status == "failed" {
+        out(&format!("\n{text}\n\n{key} failed"));
+    } else {
+        out(&format!("\n{text}\n\n{key} is {what}"));
+    }
+    let (run, total) = (spend(cost, tokens as i64), spend(t.cost_usd, t.tokens));
+    // A plan has no branch, so there is none to name.
+    match t.branch.as_deref().filter(|b| !b.is_empty()) {
+        Some(branch) => out(&format!("Branch {branch}, this run {run}, ticket total {total}.")),
+        None => out(&format!("This run {run}, ticket total {total}.")),
+    }
     let waiting = c.inbox()?.len();
     if waiting > 0 && t.status != "blocked" {
         let item = if waiting == 1 { "item" } else { "items" };

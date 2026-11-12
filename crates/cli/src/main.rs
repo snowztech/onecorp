@@ -424,9 +424,12 @@ fn run(cmd: Cmd) -> Result<()> {
                 None => println!("Approved work merges into your local repo. To open pull requests instead: onecorp ship github"),
             }
             println!("Its wiki is at {}. Everyone reads it before each ticket.", onecorp::wiki::dir(&c).display());
-            match hired.first() {
-                Some(e) => println!("Next, give someone a ticket: onecorp run \"<task>\" --to {}", e.id),
-                None => println!("Next, hire someone: onecorp hire"),
+            // With a brief the planner has already proposed the first tickets, so the next step is the plan.
+            let plan = c.tickets()?.into_iter().rev().find(|t| t.kind == "plan" && t.status == "review");
+            match (plan, hired.first()) {
+                (Some(p), _) => println!("Next, review the plan: onecorp approve {}. Or open the Inbox.", c.key(p.id)),
+                (None, Some(e)) => println!("Next, give someone a ticket: onecorp run \"<task>\" --to {}", e.id),
+                (None, None) => println!("Next, hire someone: onecorp hire"),
             }
         }
         Cmd::Use { name } => {
@@ -746,6 +749,9 @@ fn run(cmd: Cmd) -> Result<()> {
         Cmd::Diff { ticket, company } => {
             let c = open(company)?;
             let t = find_ticket(&c, &ticket)?;
+            if t.kind == "plan" {
+                bail!("{} is a plan, so it has no diff. See its tickets: onecorp status", c.key(t.id));
+            }
             let Some(branch) = &t.branch else { bail!("{} hasn't started, so there's nothing to show", c.key(t.id)) };
             if t.status == "done" {
                 println!("{} is merged. See it in your repo's history.", c.key(t.id));
