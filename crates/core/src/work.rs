@@ -67,11 +67,22 @@ pub fn dispatch(c: &Company, ticket: i64, job: Job) -> Result<()> {
 
 pub fn execute(c: &Company, ticket: i64, job: &Job) -> Result<()> {
     let t = c.ticket(ticket)?.ok_or_else(|| anyhow!("no ticket {}", c.key(ticket)))?;
-    match job {
+    let result = match job {
         Job::Start => run_ticket(c, &t),
         Job::Resume { why, prompt, label } => pick_up(c, &t, why, prompt, label),
-        Job::Consult { question } => consult(c, *question),
+        Job::Consult { question } => return consult(c, *question),
+    };
+    if let Err(err) = &result {
+        // The job is finished either way, so recover_interrupted won't come back for this ticket.
+        // Anything still active would show Working or Up next forever, with no reason in the Inbox.
+        if let Some(now) = c.ticket(ticket)?
+            && matches!(now.status.as_str(), "todo" | "queued" | "doing")
+        {
+            c.set_status(ticket, "failed")?;
+            c.add_event(ticket, "error", &format!("{err:#}"), "")?;
+        }
     }
+    result
 }
 
 /// Runs everything queued, here, for when serve isn't running. Used after resuming a paused company.
@@ -249,6 +260,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         Ok(b) => b,
         Err(err) => {
             c.finish_ticket(id, "failed", 0.0, 0)?;
+            c.add_event(id, "error", &format!("couldn't create the worktree: {err:#}"), "")?;
             return Err(err);
         }
     };
