@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- Search the wiki: type in the box above the page list to see only the pages that mention it.
+
 ## [0.1.11] - 2026-11-11
 
 Your employees work on their own, up to your approval: they run what they need, own their branch, and stop getting stuck on merges.
