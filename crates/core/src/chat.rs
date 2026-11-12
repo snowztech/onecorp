@@ -1,6 +1,7 @@
 //! Team chat: #general for everyone and one channel per department. Employees post with the
 //! post_message tool and read recent chat before each ticket. The founder posts from the app or
-//! `onecorp say`, and whoever they @mention replies in the channel.
+//! `onecorp say`, and whoever they @mention replies in the channel. Without a mention, whoever
+//! replied last carries on.
 
 use crate::runtime::{self, Event};
 use crate::store::{Company, Employee, Message};
@@ -115,6 +116,7 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     let text = text.trim();
     ensure!(!text.is_empty(), "say something first");
     let channel = resolve(c, channel)?;
+    let last = c.messages(Some(&channel))?.pop();
     c.post(&channel, "founder", text, None)?;
     if channel == HELP {
         return Ok(vec![c.post_pending(HELP, ONECORP)?]);
@@ -127,6 +129,12 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     // daily cap, or whose agent hit its limit, reads it later, with their next ticket.
     let capped = crate::limits::away(c)?;
     let who = if dm_of(&channel).is_some() { members(c, &channel)? } else { mentions(c, &channel, text)? };
+    // No @mention carries on the conversation: whoever replied last answers. A work update or a
+    // note is tied to a ticket, not a reply to you, so it doesn't count.
+    let who = match last.filter(|m| who.is_empty() && m.ticket.is_none() && !m.pending) {
+        Some(m) => c.employee(&m.author)?.into_iter().collect(),
+        None => who,
+    };
     who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id)).collect()
 }
 

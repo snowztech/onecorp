@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- In a channel, a message with no @mention goes to whoever replied to you last, so a conversation carries on without mentioning them every time. The hint under the message box says who will reply.
+
 ## [0.1.11] - 2026-11-11
 
 Your employees work on their own, up to your approval: they run what they need, own their branch, and stop getting stuck on merges.
