@@ -11,6 +11,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 ### Fixed
 
 - Starting the tickets a report proposes closes it right away. Before, while OneCorp was checking pull requests, one ticket could run inside the click, leaving the report and its Start button in the Inbox until that ticket finished.
+- Changing or removing an employee's photo shows in their profile right away, before you save.
 
 ## [0.1.11] - 2026-11-11
 
