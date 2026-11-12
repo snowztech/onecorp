@@ -60,7 +60,7 @@ fn work_ships_as_pull_requests() {
     git(&repo, &["remote", "add", "origin", &origin.to_string_lossy()]);
     git(&repo, &["push", "-q", "-u", "origin", "main"]);
 
-    let (c, _) = setup::new_company("acme", &repo, "", &[], "").unwrap();
+    let (c, _, _) = setup::new_company("acme", &repo, "", &[], "").unwrap();
     assert_eq!(onecorp::spend::budget(&c).unwrap(), 10.0, "a new company starts with a daily budget");
     assert_eq!(c.ship_mode().unwrap(), "local", "a remote that isn't on GitHub ships locally by default");
     ship::set_mode(&c, "github").unwrap();

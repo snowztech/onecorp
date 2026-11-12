@@ -414,7 +414,7 @@ fn run(cmd: Cmd) -> Result<()> {
             } else {
                 repo
             };
-            let (c, hired) = onecorp::setup::new_company(&name, &repo, mission_text, &people, brief.as_deref().unwrap_or(""))?;
+            let (c, hired, plan_id) = onecorp::setup::new_company(&name, &repo, mission_text, &people, brief.as_deref().unwrap_or(""))?;
             println!("Created {} around {}. It's now your current company.", c.name, c.repo()?.display());
             for e in &hired {
                 println!("  hired {} as {} ({})", e.name, e.role, e.runtime);
@@ -424,9 +424,13 @@ fn run(cmd: Cmd) -> Result<()> {
                 None => println!("Approved work merges into your local repo. To open pull requests instead: onecorp ship github"),
             }
             println!("Its wiki is at {}. Everyone reads it before each ticket.", onecorp::wiki::dir(&c).display());
-            match hired.first() {
-                Some(e) => println!("Next, give someone a ticket: onecorp run \"<task>\" --to {}", e.id),
-                None => println!("Next, hire someone: onecorp hire"),
+            if let Some(id) = plan_id {
+                println!("Next, review the plan in the Inbox. When ready, start it: onecorp approve {}", c.key(id));
+            } else {
+                match hired.first() {
+                    Some(e) => println!("Next, give someone a ticket: onecorp run \"<task>\" --to {}", e.id),
+                    None => println!("Next, hire someone: onecorp hire"),
+                }
             }
         }
         Cmd::Use { name } => {
@@ -746,6 +750,10 @@ fn run(cmd: Cmd) -> Result<()> {
         Cmd::Diff { ticket, company } => {
             let c = open(company)?;
             let t = find_ticket(&c, &ticket)?;
+            if t.kind == "plan" {
+                println!("{} is a plan and has no diff. See its tickets: onecorp status", c.key(t.id));
+                return Ok(());
+            }
             let Some(branch) = &t.branch else { bail!("{} hasn't started, so there's nothing to show", c.key(t.id)) };
             if t.status == "done" {
                 println!("{} is merged. See it in your repo's history.", c.key(t.id));
