@@ -24,6 +24,16 @@ pub fn running() -> bool {
     s.trim().parse::<u64>().is_ok_and(|t| now().saturating_sub(t) < 5)
 }
 
+fn sync_all() {
+    for name in store::list().unwrap_or_default() {
+        let Ok(c) = Company::open(&name) else { continue };
+        match crate::ship::sync(&c) {
+            Ok(changed) => changed.iter().for_each(|m| println!("{m}")),
+            Err(e) => println!("{name}: couldn't check pull requests: {e:#}"),
+        }
+    }
+}
+
 pub fn serve(max: usize) -> Result<()> {
     if running() {
         bail!("onecorp serve is already running");
@@ -44,17 +54,14 @@ pub fn serve(max: usize) -> Result<()> {
 
     let mut workers: Vec<JoinHandle<()>> = vec![];
     // Asking GitHub or GitLab about open pull requests is slow and rate-limited, so about once a minute.
+    // It runs on its own thread: if it held up this loop, the heartbeat would go stale and the app
+    // would run work inline instead of queueing it, blocking the click that started it.
     let mut last_sync: Option<Instant> = None;
+    let mut syncing: Option<JoinHandle<()>> = None;
     loop {
-        if last_sync.is_none_or(|t| t.elapsed() > Duration::from_secs(60)) {
+        if last_sync.is_none_or(|t| t.elapsed() > Duration::from_secs(60)) && syncing.as_ref().is_none_or(|s| s.is_finished()) {
             last_sync = Some(Instant::now());
-            for name in store::list()? {
-                let Ok(c) = Company::open(&name) else { continue };
-                match crate::ship::sync(&c) {
-                    Ok(changed) => changed.iter().for_each(|m| println!("{m}")),
-                    Err(e) => println!("{name}: couldn't check pull requests: {e:#}"),
-                }
-            }
+            syncing = Some(thread::spawn(sync_all));
         }
         std::fs::write(heartbeat_path(), now().to_string())?;
         workers.retain(|w| !w.is_finished());
