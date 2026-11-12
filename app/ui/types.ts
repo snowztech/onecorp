@@ -225,7 +225,7 @@ export interface State {
   drawer: Drawer | null; person: Person | null; ticket: TicketDetail | null;
   addingDept: boolean; open: Record<string, boolean>; channel: string; chat: Chat | null;
   diffs: Record<string, Diff | "loading">; wiki: Wiki | null; hbEdit: boolean;
-  page: string | null; wikiNew?: boolean; wikiSpace?: string; history?: PageEdit[] | null; historyOf?: string | null; version?: number | null;
+  page: string | null; wikiQ?: string; wikiNew?: boolean; wikiSpace?: string; history?: PageEdit[] | null; historyOf?: string | null; version?: number | null;
   setup: Setup | null; founder: Founder | null | undefined; profile: Profile | null; welcome?: boolean; onboarding?: boolean;
   project: string | null; rail: boolean; needs: Record<string, number>; pop: false | "menu" | "forget";
   settings: Settings | null; health: Check[] | null; ready?: Check[] | null; spend?: SpendReport;

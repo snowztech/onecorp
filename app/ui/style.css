@@ -1390,6 +1390,8 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .wk:not(:has(> .toc)) { grid-template-columns: 200px minmax(0, 720px); }
 .wk-tree { position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 110px); overflow: auto; padding: 6px 2px 12px 0; }
 .wk-tree-head { display: flex; align-items: center; justify-content: space-between; }
+.wk-q { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface-2); color: var(--fg); font-size: 13px; }
+.wk-link[hidden], .wk-space[hidden] { display: none; }
 .icon-btn { width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 15px; line-height: 1; }
 .icon-btn:hover { color: var(--fg); background: var(--surface-2); }
 .wk-space { display: flex; flex-direction: column; gap: 1px; }

@@ -9,7 +9,7 @@ import type { PersonForm } from "./types.ts";
 import { restartToUpdate } from "./update.ts";
 import { pickMention, updateMentions } from "./views/chat.ts";
 import { approvalCopy } from "./views/inbox.ts";
-import { currentPage } from "./views/wiki.ts";
+import { currentPage, filterTree } from "./views/wiki.ts";
 import { addExtraRepo, addRepo, backToYou, checkRepo, hasPhoto, loadGithub, makeRepo, readSetup, recheckTools, saveProfile, setTemplate, startSetup, setupPlaybook } from "./views/onboarding.ts";
 import { loadSection, loadSpend, openSettings, renderSheet, saved, setTheme } from "./views/settings.ts";
 
@@ -598,6 +598,7 @@ document.addEventListener("input", e => {
   if (p?.pb) { clearTimeout(roleLater.t); roleLater.t = setTimeout(async () => { p.pb = await invoke("role_for", { title: target.value.trim() || "Engineer" }).catch(() => p.pb); const li = $(`#su-p${row![1]}-pb`); if (li) li.innerHTML = setupPlaybook(p.pb!); }, 350); }
   if (target.id === "pf-r") { clearTimeout(roleLater.t); roleLater.t = setTimeout(followRole, 350); }
   if (target.id === "su-name" && !S.setup?.logoUrl) { const b = $(".co-card .logo"); if (b) b.textContent = (target.value.trim() || "?")[0].toUpperCase(); }
+  if (target.id === "wk-q") filterTree(target.value);
   if (target.id === "wk-space") target.style.width = `${Math.max(target.value.length, 5) + 2}ch`;
   if (target.id === "pf-n" && S.drawer?.type === "hire") {
     clearTimeout(faceLater.t);
