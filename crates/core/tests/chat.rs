@@ -104,6 +104,16 @@ fn channels_posts_and_replies() {
     assert_eq!(who, [("Cache the checkout page", "maya", "backlog"), ("Write the release note", "odile", "backlog")]);
     assert_eq!(made[0].description, "Under 200ms");
 
+    // Asked to comment on a ticket, the reply adds it to the ticket's history and says which key didn't exist.
+    let key = c.key(made[0].id);
+    let slots = chat::say(&c, "dm:odile", &format!("put the config on {key} [comment]")).unwrap();
+    chat::reply(&c, slots[0]).unwrap();
+    let reply = c.message(slots[0]).unwrap().unwrap();
+    assert!(!reply.text.contains("COMMENT:") && !reply.text.contains("port = 8080"), "{}", reply.text);
+    assert!(reply.text.contains("Couldn't comment on NOPE-999"), "{}", reply.text);
+    let comments: Vec<_> = c.events(made[0].id).unwrap().into_iter().filter(|(_, k, _)| k == "comment").map(|(_, _, s)| s).collect();
+    assert_eq!(comments, ["Odile Martin: Paste this in config.toml:\nport = 8080"]);
+
     // How someone works: their role's playbook, what leading asks of them, then your notes.
     use onecorp::roles;
     let odile = c.employee("odile").unwrap().unwrap();
