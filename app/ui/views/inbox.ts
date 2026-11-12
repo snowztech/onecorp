@@ -169,7 +169,15 @@ export function changes(key: string) {
     const path = (b.match(/^diff --git a\/(.+?) b\//) || [])[1] || "file";
     const f = d.files.find(x => x.path === path) || { added: 0, removed: 0 };
     const lines = b.replace(/\n$/, "").split("\n").slice(1).filter(l => !/^(index |--- |\+\+\+ |new file mode|deleted file mode|similarity|rename )/.test(l));
-    const html = lines.map(l => `<span class="${l.startsWith("@@") ? "hunk" : l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : ""}">${esc(l) || " "}</span>`).join("\n");
+    // Old and new line numbers in the gutter, counted from each hunk's header.
+    let o = 0, n = 0;
+    const ln = (a: number | string, b: number | string) => `${String(a).padStart(4)} ${String(b).padStart(4)}`;
+    const html = lines.map(l => {
+      const h = l.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/);
+      if (h) { o = +h[1]; n = +h[2]; return `<span class="hunk">${esc(l)}</span>`; }
+      const [cls, gut] = l.startsWith("+") ? ["add", ln("", n++)] : l.startsWith("-") ? ["del", ln(o++, "")] : l.startsWith("\\") ? ["", ln("", "")] : ["", ln(o++, n++)];
+      return `<span class="${cls}" data-ln="${gut}">${esc(l) || " "}</span>`;
+    }).join("\n");
     return `<details class="file" ${open ? "open" : ""}><summary><span class="mono">${esc(path)}</span><span class="n"><span class="ok">+${f.added}</span> <span class="del">−${f.removed}</span></span></summary><pre class="patch">${html}</pre></details>`;
   }).join("");
   return `<div class="changes">
