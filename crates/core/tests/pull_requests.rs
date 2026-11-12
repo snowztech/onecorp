@@ -28,7 +28,7 @@ case "$1 $2" in
     echo "https://github.com/acme/notes/pull/$n" ;;
   "pr merge") read head base < "$state/pr-$3"; git push -q origin "$head:$base" && echo MERGED > "$state/state-$3" ;;
   "pr close") echo CLOSED > "$state/state-$3" ;;
-  "pr view") echo "{\"state\":\"$(cat "$state/state-$3")\"}" ;;
+  "pr view") s=$(cat "$state/state-$3") || exit 1; echo "{\"state\":\"$s\"}" ;;
   "repo create")
     bare="$(dirname "$0")/github/$3.git"; mkdir -p "$(dirname "$bare")"; git init -q --bare -b main "$bare"
     git remote add origin "$bare" && git push -q -u origin main && echo "https://github.com/$3" ;;
@@ -92,10 +92,17 @@ fn work_ships_as_pull_requests() {
     let b = c.add_ticket("second note", "maya").unwrap();
     work::dispatch(&c, b, Job::Start).unwrap();
     assert_eq!(ticket(b).pr_number, Some(2));
+    // Even when another pull request can't be checked.
+    let lost = c.add_ticket("lost note", "maya").unwrap();
+    work::dispatch(&c, lost, Job::Start).unwrap();
+    c.set_pr(lost, 99, "https://github.com/acme/notes/pull/99").unwrap();
     let merged_on_github = Command::new(&gh).args(["pr", "merge", "2"]).current_dir(&repo).status().unwrap();
     assert!(merged_on_github.success());
-    assert_eq!(ship::sync(&c).unwrap(), vec!["ACM-2 was merged on GitHub".to_string()]);
+    let changed = ship::sync(&c).unwrap();
+    assert!(changed.contains(&"ACM-2 was merged on GitHub".to_string()), "{changed:?}");
+    assert!(changed.iter().any(|m| m.starts_with("couldn't check ACM-3's pull request")), "{changed:?}");
     assert_eq!(ticket(b).status, "done");
+    assert_eq!(ticket(lost).status, "review");
 
     // Work you don't want is discarded: the pull request closes, the branch goes, and the ticket
     // is back in the backlog with nothing left of the attempt.
