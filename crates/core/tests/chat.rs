@@ -48,6 +48,13 @@ fn channels_posts_and_replies() {
     assert!(!r.pending && r.author == "odile" && r.text.contains("can you check Maya's login?"), "{}", r.text);
     assert!(chat::say(&c, "general", "  ").is_err());
 
+    // No @mention after their reply: Odile carries on. After a work update, nobody does.
+    let slots = chat::say(&c, "engineering", "thanks, and the signup page?").unwrap();
+    assert_eq!(slots.iter().map(|s| c.message(*s).unwrap().unwrap().author).collect::<Vec<_>>(), ["odile"]);
+    chat::reply(&c, slots[0]).unwrap();
+    post(json!({"text": "Login is merged"}));
+    assert!(chat::say(&c, "engineering", "nice").unwrap().is_empty(), "a work update isn't a conversation");
+
     // A reply knows its own tickets, and only its own.
     let mine = chat::own_tickets(&c, "maya").unwrap();
     assert!(mine.contains(&format!("{} Login (", c.key(ticket))), "{mine}");
@@ -96,6 +103,16 @@ fn channels_posts_and_replies() {
     let who: Vec<_> = made.iter().map(|t| (t.title.as_str(), t.assignee.as_deref().unwrap(), t.status.as_str())).collect();
     assert_eq!(who, [("Cache the checkout page", "maya", "backlog"), ("Write the release note", "odile", "backlog")]);
     assert_eq!(made[0].description, "Under 200ms");
+
+    // Asked to comment on a ticket, the reply adds it to the ticket's history and says which key didn't exist.
+    let key = c.key(made[0].id);
+    let slots = chat::say(&c, "dm:odile", &format!("put the config on {key} [comment]")).unwrap();
+    chat::reply(&c, slots[0]).unwrap();
+    let reply = c.message(slots[0]).unwrap().unwrap();
+    assert!(!reply.text.contains("COMMENT:") && !reply.text.contains("port = 8080"), "{}", reply.text);
+    assert!(reply.text.contains("Couldn't comment on NOPE-999"), "{}", reply.text);
+    let comments: Vec<_> = c.events(made[0].id).unwrap().into_iter().filter(|(_, k, _)| k == "comment").map(|(_, _, s)| s).collect();
+    assert_eq!(comments, ["Odile Martin: Paste this in config.toml:\nport = 8080"]);
 
     // How someone works: their role's playbook, what leading asks of them, then your notes.
     use onecorp::roles;

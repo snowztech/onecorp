@@ -1,6 +1,7 @@
 //! Team chat: #general for everyone and one channel per department. Employees post with the
 //! post_message tool and read recent chat before each ticket. The founder posts from the app or
-//! `onecorp say`, and whoever they @mention replies in the channel.
+//! `onecorp say`, and whoever they @mention replies in the channel. Without a mention, whoever
+//! replied last carries on.
 
 use crate::runtime::{self, Event};
 use crate::store::{Company, Employee, Message};
@@ -115,6 +116,7 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     let text = text.trim();
     ensure!(!text.is_empty(), "say something first");
     let channel = resolve(c, channel)?;
+    let last = c.messages(Some(&channel))?.pop();
     c.post(&channel, "founder", text, None)?;
     if channel == HELP {
         return Ok(vec![c.post_pending(HELP, ONECORP)?]);
@@ -127,6 +129,12 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     // daily cap, or whose agent hit its limit, reads it later, with their next ticket.
     let capped = crate::limits::away(c)?;
     let who = if dm_of(&channel).is_some() { members(c, &channel)? } else { mentions(c, &channel, text)? };
+    // No @mention carries on the conversation: whoever replied last answers. A work update or a
+    // note is tied to a ticket, not a reply to you, so it doesn't count.
+    let who = match last.filter(|m| who.is_empty() && m.ticket.is_none() && !m.pending) {
+        Some(m) => c.employee(&m.author)?.into_iter().collect(),
+        None => who,
+    };
     who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id)).collect()
 }
 
@@ -168,7 +176,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         {propose}\n\n{knowledge}{tickets}{now}{mentioned}{elsewhere}{notes}",
+         {propose}\n\n{comment}\n\n{knowledge}{tickets}{now}{mentioned}{elsewhere}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -187,6 +195,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         notes = crate::work::own_notes(c, &e.id)?,
         checkout = checkout_note(c),
         propose = propose_note(&e, &team),
+        comment = COMMENT_NOTE,
     );
     let repo = c.repo()?;
     let model = crate::work::talk_model(c, &e)?;
@@ -216,6 +225,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         None => false,
     };
     if run.is_ok() && !limited {
+        said = comment(c, &e, &said)?;
         said = propose(c, &e, &team, id, &said)?;
     }
     let text = match (run, limited) {
@@ -240,6 +250,59 @@ fn team_of(c: &Company, e: &Employee) -> Result<Vec<Employee>> {
 }
 
 const TICKET: &str = "TICKET:";
+const COMMENT: &str = "COMMENT:";
+
+const COMMENT_NOTE: &str = "To add a comment to an existing ticket, so it stays with the ticket and whoever works on it reads it, \
+    put it after your reply: a line COMMENT: <ticket key>, then the comment on the lines below. It ends at the next COMMENT: or TICKET: line. \
+    That and proposing tickets are all you can do from chat: you can't change files, or start, move or close tickets. \
+    Never say you did something you can't do here. Say what the founder can do instead.";
+
+fn marker(line: &str) -> Option<(&'static str, &str)> {
+    let l = line.trim_start().trim_start_matches(['-', '*', ' ']);
+    [TICKET, COMMENT].into_iter().find_map(|m| l.strip_prefix(m).map(|rest| (m, rest)))
+}
+
+/// Saves the reply's comment blocks on their tickets and returns the reply without them. A comment
+/// on a ticket that doesn't exist is said in the reply, so nobody believes it was posted.
+fn comment(c: &Company, e: &Employee, said: &str) -> Result<String> {
+    let (mut keep, mut failed) = (vec![], vec![]);
+    let mut open: Option<(String, Vec<&str>)> = None;
+    let mut save = |block: Option<(String, Vec<&str>)>| -> Result<()> {
+        let Some((key, body)) = block else { return Ok(()) };
+        let text = runtime::plain(body.join("\n").trim());
+        match c.parse_key(&key).ok().filter(|id| c.ticket(*id).ok().flatten().is_some()) {
+            Some(id) if !text.is_empty() => c.add_event(id, "comment", &format!("{}: {text}", e.name), ""),
+            Some(_) => Ok(()),
+            None => {
+                failed.push(key);
+                Ok(())
+            }
+        }
+    };
+    for line in said.lines() {
+        match marker(line) {
+            Some((COMMENT, rest)) => {
+                let (key, first) = rest.split_once('|').unwrap_or((rest, ""));
+                save(open.take())?;
+                open = Some((key.trim().to_string(), vec![first.trim()].into_iter().filter(|f| !f.is_empty()).collect()));
+            }
+            Some(_) => {
+                save(open.take())?;
+                keep.push(line);
+            }
+            None => match &mut open {
+                Some((_, body)) => body.push(line),
+                None => keep.push(line),
+            },
+        }
+    }
+    save(open.take())?;
+    let mut out = keep.join("\n");
+    if !failed.is_empty() {
+        out.push_str(&format!("\n\n(Couldn't comment on {}: no such ticket.)", failed.join(", ")));
+    }
+    Ok(out)
+}
 
 fn propose_note(e: &Employee, team: &[Employee]) -> String {
     let who = if team.is_empty() {

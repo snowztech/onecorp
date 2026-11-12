@@ -6,7 +6,15 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
+- Employees can add a comment to a ticket when you ask them in Chat, like the text to paste into a file. It shows in the ticket's history, and whoever works on the ticket reads it. In Chat they're also told what they can't do from there, so they don't promise it.
+- Changes in a review show old and new line numbers next to each line.
+- In a channel, a message with no @mention goes to whoever replied to you last, so a conversation carries on without mentioning them every time. The hint under the message box says who will reply.
 - Search the wiki: type in the box above the page list to see only the pages that mention it.
+
+### Fixed
+
+- Starting the tickets a report proposes closes it right away. Before, while OneCorp was checking pull requests, one ticket could run inside the click, leaving the report and its Start button in the Inbox until that ticket finished.
+- Changing or removing an employee's photo shows in their profile right away, before you save.
 
 ## [0.1.11] - 2026-11-11
 

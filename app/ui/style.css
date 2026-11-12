@@ -364,6 +364,7 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .patch .del { background: color-mix(in srgb, #d0473a 9%, transparent); box-shadow: inset 2px 0 color-mix(in srgb, #d0473a 65%, transparent); color: inherit; }
 .patch .hunk { color: var(--muted); background: var(--surface-2); padding-block: 3px; margin-block: 4px; }
 .patch .hunk:first-child { margin-top: -6px; }
+.patch [data-ln]::before { content: attr(data-ln); color: var(--muted); opacity: .7; margin-right: 12px; }
 /* A report reads like a page, not a log line. */
 .report-doc { margin: 8px 0 12px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); max-width: none; }
 .report-doc .wiki > :first-child { margin-top: 0; }

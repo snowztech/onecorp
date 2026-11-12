@@ -115,10 +115,10 @@ export function renderDrawer() {
   if (!p) return (d.innerHTML = `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
   const e = byId(p.id) || { status: "idle" };
   const depts = S.snap!.departments.filter(x => x.id !== null), dept = depts.find(x => x.id === p.department);
-  const head = `<div class="dhead"><span class="with-agent">${face(p.name, e.status)}${agentBadge(p.runtime)}</span><div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
-  if (S.drawer.edit && S.drawer.form?.photoUrl) {
-    d.innerHTML = head.replace(/<span class="with-agent">[\s\S]*?<\/span>(?=<div>)/, `<span class="with-agent"><span class="av"><img src="${esc(S.drawer.form.photoUrl)}" alt=""></span>${agentBadge(p.runtime)}</span>`);
-  }
+  // While editing, the header previews the photo you picked, or the drawn face once you remove it, before you save.
+  const f = S.drawer.edit ? S.drawer.form : null;
+  const av = f?.photoUrl ? `<span class="av"><img src="${esc(f.photoUrl)}" alt=""></span>` : f?.removePhoto ? drawFace(f.face || p.name, "neutral") : face(p.name, e.status);
+  const head = `<div class="dhead"><span class="with-agent">${av}${agentBadge(p.runtime)}</span><div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
   if (S.drawer.edit) {
     d.innerHTML = `${head}<form class="dbody" id="emp-form">
       ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, kind: p.kind, kindPicked: p.picked, rewrite: p.playbook, rewriting: !!p.playbook, voice: p.voice, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
