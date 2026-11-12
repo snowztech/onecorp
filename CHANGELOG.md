@@ -8,6 +8,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 - Wiki search highlights what you searched: in a few words under each page that mentions it, and in the page you open, which scrolls to the first match.
 
+### Fixed
+
+- An error in one company, like a busy database, no longer stops the team in every company until the app restarts. The app also takes over queued work when a terminal `onecorp serve` stops.
+
 ## [0.1.12] - 2026-11-12
 
 Conversations with your team flow better: employees comment on tickets from Chat, keep answering without an @mention, and you can search the wiki.

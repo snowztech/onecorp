@@ -63,40 +63,58 @@ pub fn serve(max: usize) -> Result<()> {
             last_sync = Some(Instant::now());
             syncing = Some(thread::spawn(sync_all));
         }
-        std::fs::write(heartbeat_path(), now().to_string())?;
+        if let Err(e) = std::fs::write(heartbeat_path(), now().to_string()) {
+            println!("couldn't write the heartbeat: {e:#}");
+        }
         workers.retain(|w| !w.is_finished());
 
-        // New companies show up without a restart.
-        'claim: for name in store::list()? {
-            // A company deleted from the app vanishes between the listing and here.
-            let Ok(c) = Company::open(&name) else { continue };
-            for key in c.recover_interrupted()? {
-                println!("{key} stopped before it finished. It's marked failed: onecorp retry {key}");
-            }
-            crate::spend::new_day(&c)?;
-            if c.paused()? {
-                continue;
-            }
-            while workers.len() < max {
-                let Some(job) = c.claim_job()? else { continue 'claim };
-                let key = c.key(job.ticket);
-                let who = c.ticket(job.ticket)?.and_then(|t| t.assignee).unwrap_or_default();
-                let name = name.clone();
-                workers.push(thread::spawn(move || {
-                    work::set_tag(&format!("{key} {who:<7} "));
-                    // Each thread gets its own connection: rusqlite connections can't be shared across threads.
-                    let result = Company::open(&name).and_then(|c| {
-                        let r = work::execute(&c, job.ticket, &job.job);
-                        c.finish_job(job.id, r.as_ref().err().map(|e| format!("{e:#}")).as_deref())?;
-                        r
-                    });
-                    if let Err(e) = result {
-                        println!("{key} {who:<7} error: {e:#}");
+        // New companies show up without a restart. An error in one company is logged and skipped:
+        // ending the loop would leave nothing to run queued work until the app restarts.
+        match store::list() {
+            Ok(names) => {
+                for name in names {
+                    if workers.len() >= max {
+                        break;
                     }
-                }));
+                    if let Err(e) = claim(&name, &mut workers, max) {
+                        println!("{name}: {e:#}");
+                    }
+                }
             }
-            break;
+            Err(e) => println!("couldn't list companies: {e:#}"),
         }
         thread::sleep(Duration::from_secs(1));
     }
+}
+
+/// Recovers, rolls the day over and starts queued jobs for one company, until the slots are full.
+fn claim(name: &str, workers: &mut Vec<JoinHandle<()>>, max: usize) -> Result<()> {
+    // A company deleted from the app vanishes between the listing and here.
+    let Ok(c) = Company::open(name) else { return Ok(()) };
+    for key in c.recover_interrupted()? {
+        println!("{key} stopped before it finished. It's marked failed: onecorp retry {key}");
+    }
+    crate::spend::new_day(&c)?;
+    if c.paused()? {
+        return Ok(());
+    }
+    while workers.len() < max {
+        let Some(job) = c.claim_job()? else { break };
+        let key = c.key(job.ticket);
+        let who = c.ticket(job.ticket)?.and_then(|t| t.assignee).unwrap_or_default();
+        let name = name.to_string();
+        workers.push(thread::spawn(move || {
+            work::set_tag(&format!("{key} {who:<7} "));
+            // Each thread gets its own connection: rusqlite connections can't be shared across threads.
+            let result = Company::open(&name).and_then(|c| {
+                let r = work::execute(&c, job.ticket, &job.job);
+                c.finish_job(job.id, r.as_ref().err().map(|e| format!("{e:#}")).as_deref())?;
+                r
+            });
+            if let Err(e) = result {
+                println!("{key} {who:<7} error: {e:#}");
+            }
+        }));
+    }
+    Ok(())
 }
