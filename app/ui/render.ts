@@ -3,7 +3,7 @@ import { $, esc, money, toast } from "./lib.ts";
 import { AGENTS, icon } from "./look.ts";
 import { alertNew, watchAll } from "./notify.ts";
 import { renderSide, renderTop } from "./shell.ts";
-import { S, booted, invoke, seenFirstTime } from "./state.ts";
+import { S, booted, invoke, seenFirstTime, settling } from "./state.ts";
 import { viewBoard } from "./views/board.ts";
 import { viewChat } from "./views/chat.ts";
 import { viewCompany } from "./views/company.ts";
@@ -124,7 +124,7 @@ export async function refresh(force: boolean) {
     const book = S.view === "wiki" ? await invoke("wiki", { company: S.company }) : S.wiki;
     if (S.view === "chat") S.chat = await invoke("chat", { company: S.company, channel: S.channel }).catch(() => S.chat);
     const json = JSON.stringify(snap) + JSON.stringify(book) + (S.view === "chat" ? JSON.stringify(S.chat) : "");
-    if (!force && (json === S.last || typing() || S.profile || S.setup)) return;
+    if (!force && (json === S.last || typing() || settling() || S.profile || S.setup)) return;
     S.snap = snap; S.last = json; S.wiki = book;
     alertNew(snap);
     for (const ch of snap.channels || []) seenFirstTime(ch.name, ch.last);
