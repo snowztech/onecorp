@@ -4,7 +4,7 @@ import { PALETTE, drawFace, face, icon } from "./look.ts";
 import { md } from "./md.ts";
 import { chatToEnd, refresh, render } from "./render.ts";
 import { renderPop, renderSide, toggleRail } from "./shell.ts";
-import { S, byId, call, invoke, myName } from "./state.ts";
+import { S, busy, byId, call, invoke, myName } from "./state.ts";
 import type { PersonForm } from "./types.ts";
 import { restartToUpdate } from "./update.ts";
 import { pickMention, updateMentions } from "./views/chat.ts";
@@ -32,15 +32,16 @@ document.addEventListener("click", async e => {
   if (!el) return;
   const d = el.dataset;
   if (d.updateRestart) return restartToUpdate();
-  if (d.closeReport) { el.disabled = true; await call("close_report", { company: S.company, key: d.closeReport }, "Report closed").catch(() => (el.disabled = false)); return; }
+  if (d.closeReport) { await busy(el, "Closing…", () => call("close_report", { company: S.company, key: d.closeReport }, "Report closed")).catch(() => {}); return; }
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
-  if (d.dismissQ) { el.disabled = true; await call("dismiss_question", { company: S.company, id: Number(d.dismissQ) }, "Dismissed").catch(() => (el.disabled = false)); return; }
+  if (d.dismissQ) { await busy(el, "Dismissing…", () => call("dismiss_question", { company: S.company, id: Number(d.dismissQ) }, "Dismissed")).catch(() => {}); return; }
   if (d.discard) {
-    el.disabled = true;
-    try { await invoke("discard_ticket", { company: S.company, key: d.discard }); toast(`Discarded the work. ${d.discard} is back in the backlog`); S.confirm = null; } catch (err) { el.disabled = false; return toast(String(err), true); }
-    return refresh(true);
+    return busy(el, "Discarding…", async () => {
+      try { await invoke("discard_ticket", { company: S.company, key: d.discard }); toast(`Discarded the work. ${d.discard} is back in the backlog`); S.confirm = null; } catch (err) { return toast(String(err), true); }
+      return refresh(true);
+    });
   }
-  if (d.dismiss) { el.disabled = true; await call("dismiss_plan", { company: S.company, key: d.dismiss }, "Plan dismissed").catch(() => (el.disabled = false)); return; }
+  if (d.dismiss) { await busy(el, "Dismissing…", () => call("dismiss_plan", { company: S.company, key: d.dismiss }, "Plan dismissed")).catch(() => {}); return; }
   if (d.replan) {
     const brief = $("#brief-text").value.trim();
     if (!brief) return $("#brief-text").focus();
@@ -50,15 +51,15 @@ document.addEventListener("click", async e => {
   if (d.newTicket) { S.drawer = { type: "new-ticket", who: byId(d.newTicket) ? d.newTicket : null }; renderDrawer(); return $("#nt-title")?.focus(); }
   if (d.nt) { e.preventDefault(); return saveNewTicket(d.nt === "later"); }
   if (d.startAll) {
-    el.disabled = true;
     const keys = d.startAll.split(",");
-    try { for (const key of keys) await invoke("start_ticket", { company: S.company, key }); toast(keys.length === 1 ? `${keys[0]} is starting` : `${keys.length} tickets are starting`); }
-    catch (err) { el.disabled = false; toast(String(err), true); }
-    return refresh(true);
+    return busy(el, "Starting…", async () => {
+      try { for (const key of keys) await invoke("start_ticket", { company: S.company, key }); toast(keys.length === 1 ? `${keys[0]} is starting` : `${keys.length} tickets are starting`); }
+      catch (err) { toast(String(err), true); }
+      return refresh(true);
+    });
   }
   if (d.start) {
-    el.disabled = true;
-    await call("start_ticket", { company: S.company, key: d.start }, `${d.start} is starting`).catch(() => (el.disabled = false));
+    await busy(el, "Starting…", () => call("start_ticket", { company: S.company, key: d.start }, `${d.start} is starting`)).catch(() => {});
     return;
   }
   if (d.channel) { S.channel = d.channel; S.chat = null; render(); return refresh(true); }
@@ -106,10 +107,11 @@ document.addEventListener("click", async e => {
   if ("editPerson" in d) { S.drawer!.edit = !!d.editPerson; S.drawer!.form = null; S.confirm = null; renderDrawer(); return $("#pf-n")?.focus(); }
   if (d.makeLead) { await call("make_lead", { company: S.company, id: d.makeLead }, "They lead the department now").catch(() => {}); return openPerson(d.makeLead); }
   if (d.fire) {
-    el.disabled = true;
-    const who = first(byId(d.fire)?.name || d.fire);
-    try { await invoke("fire", { company: S.company, id: d.fire }); } catch (err) { el.disabled = false; return toast(String(err), true); }
-    toast(`${who} has left the company`); S.confirm = null; S.drawer = null; renderDrawer(); return refresh(true);
+    return busy(el, "", async () => {
+      const who = first(byId(d.fire)?.name || d.fire);
+      try { await invoke("fire", { company: S.company, id: d.fire }); } catch (err) { return toast(String(err), true); }
+      toast(`${who} has left the company`); S.confirm = null; S.drawer = null; renderDrawer(); return refresh(true);
+    });
   }
   if (d.deptCancel) { S.addingDept = false; return render(); }
   if (d.goto) {
@@ -156,15 +158,17 @@ document.addEventListener("click", async e => {
     if (d.confirm?.startsWith("ticket:")) S.open["rty-" + d.confirm.slice(7)] = false;
     S.confirm = d.confirm || null; if (S.drawer?.type === "ticket") renderDrawer(); else if (S.view === "inbox") render(); renderSheet(); return $("#del-name")?.focus(); }
   if (d.remove) {
-    el.disabled = true;
-    try { await invoke("remove_ticket", { company: S.company, key: d.remove }); }
-    catch (err) { el.disabled = false; return toast(String(err), true); }
-    toast(`Deleted ${d.remove}`); S.confirm = null; S.drawer = null; renderDrawer(); return refresh(true);
+    return busy(el, "Deleting…", async () => {
+      try { await invoke("remove_ticket", { company: S.company, key: d.remove }); }
+      catch (err) { return toast(String(err), true); }
+      toast(`Deleted ${d.remove}`); S.confirm = null; S.drawer = null; renderDrawer(); return refresh(true);
+    });
   }
   if (d.forget) {
-    el.disabled = true;
-    try { await invoke("forget_founder"); } catch (err) { el.disabled = false; return toast(String(err), true); }
-    S.founder = null; S.confirm = null; S.pop = false; S.sheet = null; S.profile = { name: "" }; renderPop(); renderSheet(); return render();
+    return busy(el, "", async () => {
+      try { await invoke("forget_founder"); } catch (err) { return toast(String(err), true); }
+      S.founder = null; S.confirm = null; S.pop = false; S.sheet = null; S.profile = { name: "" }; renderPop(); renderSheet(); return render();
+    });
   }
   if (d.more) { if (/^(chg|ans|rty)-/.test(d.more)) S.confirm = null; S.open[d.more] = !S.open[d.more]; render(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) return openSettings("you");
@@ -234,10 +238,11 @@ document.addEventListener("click", async e => {
     return renderSheet();
   }
   if (d.runAnyQ) {
-    el.disabled = true;
-    try { await invoke("set_run_any", { company: S.company, on: true }); await invoke("answer", { company: S.company, id: Number(d.runAnyQ), text: "allow" }); toast("Your team runs any command now. Change it in Settings, Company"); }
-    catch (err) { el.disabled = false; toast(String(err), true); }
-    return refresh(true);
+    return busy(el, "", async () => {
+      try { await invoke("set_run_any", { company: S.company, on: true }); await invoke("answer", { company: S.company, id: Number(d.runAnyQ), text: "allow" }); toast("Your team runs any command now. Change it in Settings, Company"); }
+      catch (err) { toast(String(err), true); }
+      return refresh(true);
+    });
   }
   if (d.repoRm) {
     try { S.settings!.repos = await invoke("remove_repo", { company: S.company, name: d.repoRm }); toast(`Removed ${d.repoRm}. Its files and finished tickets stay`); } catch (err) { toast(String(err), true); }
@@ -285,8 +290,7 @@ document.addEventListener("click", async e => {
   }
   if (d.ticket) return openTicket(d.ticket);
   if (d.stop) {
-    el.disabled = true;
-    await call("stop", { company: S.company, key: d.stop }, `Stopped ${d.stop}. Retry it anytime.`).catch(() => (el.disabled = false));
+    await busy(el, "Stopping…", () => call("stop", { company: S.company, key: d.stop }, `Stopped ${d.stop}. Retry it anytime.`)).catch(() => {});
     return;
   }
   if (d.newCo) { S.switching = false; return startSetup(); }
@@ -379,8 +383,7 @@ document.addEventListener("click", async e => {
     }
   }
   if (d.retry) {
-    el.disabled = true;
-    await call("retry", { company: S.company, key: d.retry }, `${d.retry} is running again`).catch(() => (el.disabled = false));
+    await busy(el, "Retrying…", () => call("retry", { company: S.company, key: d.retry }, `${d.retry} is running again`)).catch(() => {});
     return;
   }
   if (d.hbEdit) { S.hbEdit = d.hbEdit === "1"; S.wikiNew = false; S.confirm = null; render(); return $("#hb-text")?.focus(); }
@@ -421,12 +424,11 @@ document.addEventListener("click", async e => {
   else if (d.hire) { openHire(Number(d.hire)); }
   else if (d.addDept) { S.addingDept = true; S.view = "company"; render(); $("#dept-name")?.focus(); }
   else if (d.close) { S.drawer = null; renderDrawer(); }
-  else if (d.answer) { el.disabled = true; await call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.said || (d.val === "no" ? "Left out of the wiki" : "Answered")).catch(() => (el.disabled = false)); }
+  else if (d.answer) { await busy(el, "", () => call("answer", { company: S.company, id: Number(d.answer), text: d.val }, d.said || (d.val === "no" ? "Left out of the wiki" : "Answered"))).catch(() => {}); }
   else if (d.approve) {
     const t = S.snap?.reviews.find(t => t.key === d.approve) || (S.ticket?.key === d.approve ? S.ticket : null);
     const copy = approvalCopy(t);
-    el.disabled = true; el.textContent = copy.busy;
-    await call("approve", { company: S.company, key: d.approve }, copy.done).catch(() => { el.disabled = false; el.textContent = copy.label; });
+    await busy(el, copy.busy, () => call("approve", { company: S.company, key: d.approve }, copy.done)).catch(() => {});
   }
 
 });
