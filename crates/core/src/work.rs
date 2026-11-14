@@ -450,15 +450,42 @@ pub fn start(c: &Company, t: &Ticket) -> Result<()> {
     dispatch(c, t.id, Job::Start)
 }
 
-/// Starts the tickets that were waiting for `done` to be merged.
+/// Starts the tickets that were waiting for `done` to be merged. One that can't start is said and
+/// skipped: the merge it follows already happened, and the others still start.
 pub fn release_waiting(c: &Company, done: i64) -> Result<()> {
     for id in c.waiting_for(done)? {
         if let Some(t) = c.ticket(id)? {
-            out(&format!("{} was waiting for {}, so it starts now.", c.key(id), c.key(done)));
-            start(c, &t)?;
+            match start(c, &t) {
+                Ok(()) => out(&format!("{} was waiting for {}, so it starts now.", c.key(id), c.key(done))),
+                Err(e) => {
+                    c.add_event(id, "error", &format!("couldn't start after {} was merged: {e:#}", c.key(done)), "")?;
+                    out(&format!("{} was waiting for {} but couldn't start: {e:#}", c.key(id), c.key(done)));
+                }
+            }
         }
     }
     Ok(())
+}
+
+/// Lets someone go. Their tickets that haven't started go back to the backlog with nobody on
+/// them, so nothing waits in line for a person who left. Returns those tickets' keys.
+/// Work they started stays theirs: it's in the history, and in review it can still be merged.
+pub fn fire(c: &Company, id: &str) -> Result<Vec<String>> {
+    let name = c.employee(id)?.map(|e| e.name).unwrap_or_else(|| id.to_string());
+    c.fire(id)?;
+    let mut freed = vec![];
+    for t in c.tickets()? {
+        let fresh = t.session_id.is_none() && ["backlog", "todo", "waiting", "queued"].contains(&t.status.as_str());
+        if t.assignee.as_deref() != Some(id) || !fresh {
+            continue;
+        }
+        c.cancel_queued(t.id)?;
+        c.unassign(t.id)?;
+        c.set_status(t.id, "backlog")?;
+        c.add_event(t.id, "stop", &format!("{name} left the company, so this is back in the backlog with nobody on it"), "")?;
+        freed.push(c.key(t.id));
+    }
+    Ok(freed)
 }
 
 /// Who plans: the one you pick, or someone whose role sounds like product, or a department lead,
@@ -705,7 +732,8 @@ pub fn finish_report(c: &Company, t: &Ticket, start: bool) -> Result<()> {
 fn start_proposed(c: &Company, from: &Ticket) -> Result<usize> {
     let (mut started, mut skipped) = (0, vec![]);
     for t in c.plan_tickets(from.id)?.iter().filter(|t| t.status == "backlog") {
-        if t.assignee.is_none() {
+        // Nobody on it, or somebody who has left since the plan was written.
+        if t.assignee.as_deref().map(|a| c.employee(a)).transpose()?.flatten().is_none() {
             skipped.push(c.key(t.id));
             continue;
         }
