@@ -7,6 +7,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 ### Changed
 
 - Wiki search highlights what you searched: in a few words under each page that mentions it, and in the page you open, which scrolls to the first match.
+- Claude Code employees no longer load your personal Claude Code setup: your plugins, skills, hooks and your own CLAUDE.md stay out of their runs, so each run starts with a much smaller prompt and costs less. Your sign-in and default model still apply, and so do the repo's own CLAUDE.md and settings. Chat replies, plans and wiki drafts also start with only the tools they can use.
 
 ### Fixed
 

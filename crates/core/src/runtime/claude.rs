@@ -19,6 +19,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode])
         // Only the company server loads, if any. The user's own MCP servers stay out.
         .arg("--strict-mcp-config")
+        // So do their plugins, skills, hooks and personal CLAUDE.md: they're read again on every
+        // turn, and they'd change how an employee behaves. The repo's own settings still apply.
+        .args(["--setting-sources", "project"])
         .args(["--allowedTools", &allowed(o)])
         .current_dir(o.cwd)
         .envs(o.env.iter().map(|(k, v)| (k, v)));
@@ -26,6 +29,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         let env: serde_json::Map<String, Value> = m.env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
         let mcp = json!({"mcpServers": {"onecorp": {"command": m.command, "args": m.args, "env": env}}});
         cmd.args(["--mcp-config", &mcp.to_string()]);
+    }
+    if let Some(keep) = user_settings() {
+        cmd.args(["--settings", &keep]);
     }
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
@@ -39,12 +45,29 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         for d in o.dirs {
             cmd.arg("--add-dir").arg(d);
         }
+        // A run that only reads and talks, like a chat reply, is mostly its fixed prompt. The
+        // tools it can't use and the skills list are most of that. The company tools still load.
+        cmd.args(["--tools", "Read,Grep,Glob,Bash", "--disable-slash-commands"]);
     }
     if let Some(s) = o.resume {
         cmd.args(["--resume", s]);
     }
     // The prompt goes on stdin: --allowedTools takes a list and would swallow a trailing argument.
     stream(cmd, prompt, parse, o.on_spawn, on)
+}
+
+/// What a run still needs from the user's own Claude Code settings once they're left out: how
+/// they sign in, and the model "Default" stands for.
+fn user_settings() -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    let text = std::fs::read_to_string(std::path::Path::new(&home).join(".claude/settings.json")).ok()?;
+    kept(&serde_json::from_str(&text).ok()?)
+}
+
+fn kept(all: &Value) -> Option<String> {
+    const KEEP: [&str; 5] = ["env", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "model"];
+    let keep: serde_json::Map<String, Value> = KEEP.iter().filter_map(|k| Some((k.to_string(), all.get(k)?.clone()))).collect();
+    (!keep.is_empty()).then(|| Value::Object(keep).to_string())
 }
 
 fn allowed(o: &Opts) -> String {
@@ -147,6 +170,13 @@ mod tests {
         assert!(!listed.split(',').any(|r| r == "Bash"));
         assert!(allowed(&opts(true, false)).split(',').any(|r| r == "Bash"), "running anything allows every command");
         assert!(!allowed(&opts(true, true)).split(',').any(|r| r == "Bash"), "never for a read-only run");
+    }
+
+    #[test]
+    fn keeps_sign_in_and_model_from_the_users_settings() {
+        let all = json!({"model": "opus", "env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "hooks": {"SessionStart": []}, "enabledPlugins": {"x": true}});
+        assert_eq!(kept(&all).unwrap(), json!({"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "model": "opus"}).to_string());
+        assert_eq!(kept(&json!({"hooks": {}})), None, "nothing to pass when only the rest is set");
     }
 
     #[test]
