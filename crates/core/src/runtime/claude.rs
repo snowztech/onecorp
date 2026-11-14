@@ -19,6 +19,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode])
         // Only the company server loads, if any. The user's own MCP servers stay out.
         .arg("--strict-mcp-config")
+        // So do their plugins, skills, hooks and personal CLAUDE.md: they're read again on every
+        // turn, and they'd change how an employee behaves. The repo's own settings still apply.
+        .args(["--setting-sources", "project"])
         .args(["--allowedTools", &allowed(o)])
         .current_dir(o.cwd)
         .envs(o.env.iter().map(|(k, v)| (k, v)));
@@ -26,6 +29,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         let env: serde_json::Map<String, Value> = m.env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
         let mcp = json!({"mcpServers": {"onecorp": {"command": m.command, "args": m.args, "env": env}}});
         cmd.args(["--mcp-config", &mcp.to_string()]);
+    }
+    if let Some(keep) = user_settings() {
+        cmd.args(["--settings", &keep]);
     }
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
@@ -39,12 +45,32 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         for d in o.dirs {
             cmd.arg("--add-dir").arg(d);
         }
+        // A run that only reads and talks, like a chat reply, is mostly its fixed prompt. The
+        // tools it can't use and the skills list are most of that. The company tools still load.
+        cmd.args(["--tools", "Read,Grep,Glob,Bash", "--disable-slash-commands"]);
     }
     if let Some(s) = o.resume {
         cmd.args(["--resume", s]);
     }
+    if let Some(max) = o.max_cost {
+        cmd.args(["--max-budget-usd", &format!("{max:.2}")]);
+    }
     // The prompt goes on stdin: --allowedTools takes a list and would swallow a trailing argument.
     stream(cmd, prompt, parse, o.on_spawn, on)
+}
+
+/// What a run still needs from the user's own Claude Code settings once they're left out: how
+/// they sign in, and the model "Default" stands for.
+fn user_settings() -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    let text = std::fs::read_to_string(std::path::Path::new(&home).join(".claude/settings.json")).ok()?;
+    kept(&serde_json::from_str(&text).ok()?)
+}
+
+fn kept(all: &Value) -> Option<String> {
+    const KEEP: [&str; 5] = ["env", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "model"];
+    let keep: serde_json::Map<String, Value> = KEEP.iter().filter_map(|k| Some((k.to_string(), all.get(k)?.clone()))).collect();
+    (!keep.is_empty()).then(|| Value::Object(keep).to_string())
 }
 
 fn allowed(o: &Opts) -> String {
@@ -94,13 +120,19 @@ pub fn parse(line: &str) -> Vec<Event> {
             let u = &v["usage"];
             let n = |k: &str| u[k].as_u64().unwrap_or(0);
             let (fresh, cached, output) = (n("input_tokens") + n("cache_creation_input_tokens"), n("cache_read_input_tokens"), n("output_tokens"));
-            let tokens = fresh + cached + output;
+            let mut tokens = fresh + cached + output;
             let usage = (tokens > 0).then_some(Event::Usage { fresh, cached, output });
+            // A run stopped at its budget reports no usage of its own, only what each model used.
+            if tokens == 0 {
+                let models = v["modelUsage"].as_object().into_iter().flatten();
+                tokens = models.flat_map(|(_, m)| ["inputTokens", "cacheReadInputTokens", "cacheCreationInputTokens", "outputTokens"].map(|k| m[k].as_u64().unwrap_or(0))).sum();
+            }
+            let stopped = v["subtype"] == "error_max_budget_usd";
             usage.into_iter().chain([Event::Done {
                 ok: v["subtype"] == "success" && v["is_error"] != true,
                 cost: v["total_cost_usd"].as_f64().unwrap_or(0.0),
                 tokens,
-                text: s(&v, "result"),
+                text: if stopped { super::BUDGET_STOP.to_string() } else { s(&v, "result") },
             }])
             .collect()
         }
@@ -139,7 +171,7 @@ mod tests {
     #[test]
     fn allowed_tools_follow_the_list_or_run_anything() {
         let (cmds, dirs) = (vec!["tools/check.sh".to_string(), "./gradlew assembleDebug".to_string()], vec![std::path::PathBuf::from("/c/reading/wiki")]);
-        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any };
+        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any, max_cost: None };
         let listed = allowed(&opts(false, false));
         for rule in ["Bash(tools/check.sh:*)", "Bash(./tools/check.sh:*)", "Bash(./gradlew assembleDebug:*)", "Bash(gradlew assembleDebug:*)", "Read(//c/reading/wiki/**)"] {
             assert!(listed.split(',').any(|r| r == rule), "{rule} in {listed}");
@@ -147,6 +179,19 @@ mod tests {
         assert!(!listed.split(',').any(|r| r == "Bash"));
         assert!(allowed(&opts(true, false)).split(',').any(|r| r == "Bash"), "running anything allows every command");
         assert!(!allowed(&opts(true, true)).split(',').any(|r| r == "Bash"), "never for a read-only run");
+    }
+
+    #[test]
+    fn keeps_sign_in_and_model_from_the_users_settings() {
+        let all = json!({"model": "opus", "env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "hooks": {"SessionStart": []}, "enabledPlugins": {"x": true}});
+        assert_eq!(kept(&all).unwrap(), json!({"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "model": "opus"}).to_string());
+        assert_eq!(kept(&json!({"hooks": {}})), None, "nothing to pass when only the rest is set");
+    }
+
+    #[test]
+    fn a_run_stopped_at_its_budget_says_so_and_still_counts() {
+        let line = r#"{"type":"result","subtype":"error_max_budget_usd","is_error":true,"total_cost_usd":0.52,"usage":{"input_tokens":0,"output_tokens":0},"modelUsage":{"claude-haiku-5-5":{"inputTokens":4,"outputTokens":248,"cacheReadInputTokens":33466,"cacheCreationInputTokens":1051}},"errors":["Reached maximum budget ($0.5)"]}"#;
+        assert_eq!(parse(line), vec![Event::Done { ok: false, cost: 0.52, tokens: 34769, text: crate::runtime::BUDGET_STOP.into() }]);
     }
 
     #[test]

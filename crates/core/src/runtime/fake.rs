@@ -5,7 +5,7 @@
 //! A test steers it through the prompt: a ticket containing `[fail]` fails, and a conflict
 //! prompt makes it resolve the markers by keeping both sides. `[fail once]` fails the first run
 //! in a worktree and succeeds after, to test retries. `[limit]` answers like a plan that hit its
-//! usage limit.
+//! usage limit, and `[budget]` spends all the run is allowed and stops there.
 
 use super::{Event, Opts};
 use anyhow::Result;
@@ -85,6 +85,9 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         fs::write(&first_try, "")?;
         on("", Event::Done { ok: false, cost: 0.0, tokens: 0, text: "Failed on purpose, this once.".into() })?;
         return Ok(());
+    }
+    if let Some(max) = o.max_cost.filter(|_| own.contains("[budget]")) {
+        return on("", Event::Done { ok: false, cost: max, tokens: 1, text: super::BUDGET_STOP.into() });
     }
     // Like a plan that ran out: Claude's own wording, with a reset an hour from now.
     if own.contains("[limit]") {

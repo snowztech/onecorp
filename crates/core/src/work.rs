@@ -175,7 +175,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
     let model = talk_model(c, &lead)?;
-    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false };
+    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false, max_cost: None };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -1173,7 +1173,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
         _ => vec![],
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)? };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)? };
 
     // Where the base branch stood before the run. Your approval is the only way work should reach
     // it, so an employee's commits showing up there are flagged, whatever command put them there.
@@ -1242,6 +1242,19 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
         c.finish_ticket(id, "failed", cost, tokens)?;
         return wait_for_limit(c, e, id);
+    }
+    if !ok && text == runtime::BUDGET_STOP {
+        let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+        c.finish_ticket(id, "failed", cost, tokens)?;
+        let whose = if crate::spend::paused_by_budget(c)? { "the daily budget".to_string() } else { format!("{}'s daily cap", e.name) };
+        c.add_event(id, "wait", &format!("stopped at {whose}, after {} on this run. Their work is kept", spend(cost, tokens as i64)), "")?;
+        out(&format!("{key} stopped at {whose}. It picks up where it stopped tomorrow, or when you raise the limit."));
+        let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+        // Only when something holds it in line. Otherwise it would start again right away.
+        if c.paused()? || crate::limits::away(c)?.contains(&e.id) {
+            return requeue(c, &t, None);
+        }
+        return Ok(());
     }
     let text = runtime::plain(if text.is_empty() { &last_say } else { &text });
     // A writing ticket's whole reply is its work, kept in full for whoever reads it next.

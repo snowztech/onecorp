@@ -57,7 +57,13 @@ pub struct Opts<'a> {
     /// Any command in the worktree instead of only `commands`, the founder's choice in Settings.
     /// What's never allowed stays off. Codex also gets network, for installs.
     pub run_any: bool,
+    /// The most this run may cost, in dollars: what's left of today's budget. Claude Code stops
+    /// itself there. Codex has no such limit, so its runs are still only counted when they end.
+    pub max_cost: Option<f64>,
 }
+
+/// What a run says when it stopped at `max_cost`.
+pub const BUDGET_STOP: &str = "Reached today's budget";
 
 pub fn run(runtime: &str, o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
     match runtime {

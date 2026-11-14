@@ -201,7 +201,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let model = crate::work::talk_model(c, &e)?;
     let mut dirs = crate::work::reading_dirs(c)?;
     dirs.extend(doing.and_then(|(wt, _)| wt));
-    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false };
+    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {
