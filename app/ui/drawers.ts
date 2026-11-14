@@ -1,7 +1,7 @@
 import { $, esc, first, hash, shortPaths, toast, utc } from "./lib.ts";
 import { AGENTS, agentBadge, agentMark, chip, drawFace, face, modelsOf, prLink } from "./look.ts";
 import { inline, md } from "./md.ts";
-import { S, byId, call, invoke } from "./state.ts";
+import { S, byId, call, invoke, markBusy } from "./state.ts";
 import type { LogLine, PersonForm } from "./types.ts";
 import { changes, replyForm, discardBtn, discardConfirm, more, reviewActions, ticketStatus, wikiDraft } from "./views/inbox.ts";
 
@@ -104,6 +104,11 @@ export async function openTicket(key: string) {
 
 /* Drawers: a person, or hiring into a department */
 export function renderDrawer() {
+  drawDrawer();
+  markBusy();
+}
+
+function drawDrawer() {
   const d = $("#drawer"), open = !!S.drawer;
   d.classList.toggle("open", open); $("#scrim").classList.toggle("open", open); d.setAttribute("aria-hidden", String(!open));
   if (!open || !S.drawer) return;

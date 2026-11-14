@@ -16,6 +16,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - An error in one company, like a busy database, no longer stops the team in every company until the app restarts. The app also takes over queued work when a terminal `onecorp serve` stops.
 - A pull request that can't be checked, like when gh is logged out, no longer stops OneCorp noticing the others that were merged.
 - What an employee writes is kept in full. Before, a message longer than 2,000 characters ended with "…" in the Inbox and the ticket's history, even when expanded. Messages cut before this update stay cut. (#90)
+- A button you clicked keeps showing that it's working until it's done: a spinner, "Merging…" or the like, and no second click. Before, the next refresh put it back as if nothing had happened, so a merge, a discard, a stop or a retry looked like it hadn't started. In the Inbox the card dims too, and its other actions wait. (#89)
 
 ## [0.1.12] - 2026-11-12
 
