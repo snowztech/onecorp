@@ -1193,7 +1193,9 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             }
             Event::Say(text) => {
                 last_say = runtime::plain(text);
-                ("say", runtime::clip(&last_say, 2_000))
+                // In full: the end of a summary is often what to check before merging. Whoever
+                // shows it or puts it in a prompt shortens it there.
+                ("say", last_say.clone())
             }
             Event::Tool { name, detail } => {
                 let name = name.strip_prefix("mcp__onecorp__").unwrap_or(name);
