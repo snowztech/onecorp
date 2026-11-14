@@ -339,6 +339,12 @@ fn set_budget(company: String, dollars: f64) -> Res<()> {
     onecorp::spend::set_budget(&open(&company)?, dollars).map_err(err)
 }
 
+/// The most one ticket run may spend, 0 for no limit.
+#[tauri::command(async)]
+fn set_run_limit(company: String, dollars: f64) -> Res<()> {
+    onecorp::spend::set_run_limit(&open(&company)?, dollars).map_err(err)
+}
+
 #[tauri::command(async)]
 fn set_cap(company: String, id: String, dollars: f64) -> Res<()> {
     open(&company)?.set_daily_cap(&id, dollars).map_err(err)
@@ -915,6 +921,7 @@ fn main() {
             attention,
             spend_report,
             set_budget,
+            set_run_limit,
             set_cap,
             keep_going_today,
             delete_company,

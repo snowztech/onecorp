@@ -1276,14 +1276,24 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     if !ok && text == runtime::BUDGET_STOP {
         let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
         c.finish_ticket(id, "failed", cost, tokens)?;
-        let whose = if crate::spend::paused_by_budget(c)? { "the daily budget".to_string() } else { format!("{}'s daily cap", e.name) };
-        c.add_event(id, "wait", &format!("stopped at {whose}, after {} on this run. Their work is kept", spend(cost, tokens as i64)), "")?;
-        out(&format!("{key} stopped at {whose}. It picks up where it stopped tomorrow, or when you raise the limit."));
         let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
-        // Only when something holds it in line. Otherwise it would start again right away.
-        if c.paused()? || crate::limits::away(c)?.contains(&e.id) {
+        let after = format!("after ${cost:.2} on this run. Their work is kept");
+        // The day's budget or the person's cap holds the ticket in line until it lifts. The limit
+        // for one run holds nothing: the ticket stops there and the Inbox asks what to do.
+        let whose = if crate::spend::paused_by_budget(c)? {
+            Some(format!("your ${:.2} daily budget", crate::spend::budget(c)?))
+        } else if crate::limits::away(c)?.contains(&e.id) {
+            Some(format!("{}'s ${:.2} daily cap", e.name, c.daily_cap(&e.id)?))
+        } else {
+            None
+        };
+        if let Some(whose) = whose {
+            c.add_event(id, "wait", &format!("stopped at {whose}, {after}"), "")?;
+            out(&format!("{key} stopped at {whose}. It picks up where it stopped tomorrow, or when you raise the limit."));
             return requeue(c, &t, None);
         }
+        c.add_event(id, "limit", &format!("stopped at the ${:.2} limit for one run, after ${cost:.2}. Their work is kept", crate::spend::run_limit(c)?), "")?;
+        out(&format!("{key} stopped at the limit for one run. Keep going: onecorp retry {key}. See what they did: onecorp logs {key}"));
         return Ok(());
     }
     let text = runtime::plain(if text.is_empty() { &last_say } else { &text });

@@ -163,7 +163,7 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
     founder: { name: "Lucas", photo: null },
     save_founder: null,
     create_company: "acme",
-    spend_report: { budget: 5, estimated: true,
+    spend_report: { budget: 5, run_limit: 5, estimated: true,
       totals: { today: { cost: 3.24, tokens: 180000, label: "$3.24" }, week: { cost: 14.8, tokens: 900000, label: "$14.80" }, all: { cost: 31.5, tokens: 2100000, label: "$31.50" } },
       days: [0.4, 1.2, 0, 2.1, 3.8, 1.1, 0, 0.6, 2.9, 4.6, 1.8, 2.2, 3.1, 3.24].map((cost, i) => ({ day: new Date(Date.UTC(2026, 9, 27 + i)).toISOString().slice(0, 10), cost, kinds: { ticket: cost * 0.78, chat: cost * 0.14, lead: cost * 0.05, help: cost * 0.03 } })),
       people: [["odile", "Odile Martin", 1.31, 6.2, 12.4, 0], ["tomas", "Tomás Reis", 1.12, 4.1, 9.8, 3], ["maya", "Maya Okafor", 0.52, 3.0, 6.1, 0], ["rui", "Rui Alves", 0.29, 1.5, 3.2, 0]].map(([id, name, t, w, a, cap]) => ({ id, name, cap, today: { cost: t }, week: { cost: w }, all: { cost: a } })),

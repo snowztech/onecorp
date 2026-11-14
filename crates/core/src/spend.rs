@@ -2,7 +2,8 @@
 //! estimate from its tokens when it doesn't say (Codex reports tokens only). Budgets are checked
 //! after every run: a heads-up at 80% of the day's budget, and a pause at 100%, lifted the next
 //! day. People can have their own daily cap too. A ticket run on Claude Code also gets what's left
-//! as its own ceiling (`left`), so one long run stops near the budget instead of far past it.
+//! as its own ceiling (`left`), so one long run stops near the budget instead of far past it. One run
+//! has a limit of its own too (`run_limit`): there it stops and asks, whatever is left of the day.
 
 use crate::store::Company;
 use anyhow::{Result, bail};
@@ -86,15 +87,32 @@ pub fn spent_today(c: &Company) -> Result<f64> {
     Ok(c.spent_since(0, None)?.0)
 }
 
-/// What one run may still spend today: what's left of the company's budget and of the person's
-/// own cap, whichever is less. None when neither is set, or the budget was lifted for today.
+/// The most one ticket run may spend before it stops and asks, for a company that hasn't chosen.
+/// A normal ticket costs well under it. A run stuck in a loop doesn't.
+pub const DEFAULT_RUN_LIMIT: f64 = 5.0;
+
+/// The most one ticket run may spend, in dollars. 0 means no limit.
+pub fn run_limit(c: &Company) -> Result<f64> {
+    Ok(c.setting("budget.run")?.and_then(|v| v.parse().ok()).unwrap_or(DEFAULT_RUN_LIMIT))
+}
+
+pub fn set_run_limit(c: &Company, dollars: f64) -> Result<()> {
+    if dollars.is_nan() || dollars < 0.0 {
+        bail!("a limit is a positive amount, or 0 for none");
+    }
+    c.set_setting("budget.run", &dollars.to_string())
+}
+
+/// What one run may spend: the limit for one run, what's left of the company's budget today and
+/// what's left of the person's own cap, whichever is least. None when none of them is set. The
+/// company's budget doesn't count once it was lifted for today.
 pub fn left(c: &Company, employee: &str) -> Result<Option<f64>> {
-    let (budget, cap, day) = (budget(c)?, c.daily_cap(employee)?, c.today()?);
+    let (budget, cap, run, day) = (budget(c)?, c.daily_cap(employee)?, run_limit(c)?, c.today()?);
     let overridden = c.setting("paused.reason")?.is_some_and(|r| r == format!("override:{day}"));
     let company = (budget > 0.0 && !overridden).then_some(budget - spent_today(c)?);
     let own = (cap > 0.0).then_some(cap - c.spent_since(0, Some(employee))?.0);
     // A cent at least: a run only starts while there's something left.
-    Ok([company, own].into_iter().flatten().reduce(f64::min).map(|d| d.max(0.01)))
+    Ok([company, own, (run > 0.0).then_some(run)].into_iter().flatten().reduce(f64::min).map(|d| d.max(0.01)))
 }
 
 /// Why the company is paused, when it's the budget: "budget:<day>".

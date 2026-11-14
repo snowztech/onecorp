@@ -102,8 +102,10 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         .map(|t| {
             let who = t.assignee.clone().unwrap_or_default();
             let events = c.events(t.id).unwrap_or_default();
-            let why = events.iter().rev().find(|(_, k, _)| k == "error" || k == "done").map(|(_, _, s)| s.clone()).unwrap_or_default();
-            json!({"key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who), "why": why})
+            let last = events.iter().rev().find(|(_, k, _)| k == "error" || k == "done" || k == "limit");
+            let why = last.map(|(_, _, s)| s.clone()).unwrap_or_default();
+            // Stopped at the limit for one run: nothing went wrong, the card asks whether to go on.
+            json!({"key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who), "why": why, "limit": last.is_some_and(|(_, k, _)| k == "limit")})
         })
         .collect();
 
@@ -296,7 +298,7 @@ pub fn spend_report(c: &Company) -> Result<Value> {
         .collect();
     Ok(json!({
         "kinds": kinds,
-        "totals": windows(&|_| true), "budget": crate::spend::budget(c)?, "days": days,
+        "totals": windows(&|_| true), "budget": crate::spend::budget(c)?, "run_limit": crate::spend::run_limit(c)?, "days": days,
         "people": people, "projects": projects, "agents": agents,
         "prices": crate::spend::DEFAULT_PRICES.iter().map(|(rt, _)| json!({"runtime": rt, "price": crate::spend::price(c, rt).unwrap_or(0.0)})).collect::<Vec<_>>(),
         "estimated": rows.iter().any(|r| r.6),
