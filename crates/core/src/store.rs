@@ -840,6 +840,12 @@ impl Company {
         wiki::write(self, wiki::OVERVIEW, &doc, "founder", "")
     }
 
+    /// Takes a ticket off whoever had it.
+    pub fn unassign(&self, ticket: i64) -> Result<()> {
+        self.db.execute("UPDATE tickets SET assignee = NULL WHERE id = ?1", [ticket])?;
+        Ok(())
+    }
+
     pub fn assign(&self, ticket: i64, employee: &str) -> Result<()> {
         if self.employee(employee)?.is_none() {
             bail!("nobody called {employee} works at {}", self.name);

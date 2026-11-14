@@ -109,8 +109,9 @@ document.addEventListener("click", async e => {
   if (d.fire) {
     return busy(el, "", async () => {
       const who = first(byId(d.fire)?.name || d.fire);
-      try { await invoke("fire", { company: S.company, id: d.fire }); } catch (err) { return toast(String(err), true); }
-      toast(`${who} has left the company`); S.confirm = null; S.drawer = null; renderDrawer(); return refresh(true);
+      let freed: string[];
+      try { freed = await invoke("fire", { company: S.company, id: d.fire }); } catch (err) { return toast(String(err), true); }
+      toast(`${who} has left the company${freed.length ? `. ${freed.join(", ")} ${freed.length === 1 ? "is" : "are"} back in the backlog with nobody on ${freed.length === 1 ? "it" : "them"}` : ""}`); S.confirm = null; S.drawer = null; renderDrawer(); return refresh(true);
     });
   }
   if (d.deptCancel) { S.addingDept = false; return render(); }

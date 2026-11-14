@@ -815,8 +815,8 @@ fn set_avatar(company: String, id: String, face: Option<String>, photo: Option<S
 }
 
 #[tauri::command(async)]
-fn fire(company: String, id: String) -> Res<()> {
-    open(&company)?.fire(&id).map_err(err)
+fn fire(company: String, id: String) -> Res<Vec<String>> {
+    onecorp::work::fire(&open(&company)?, &id).map_err(err)
 }
 
 #[tauri::command(async)]

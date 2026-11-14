@@ -506,8 +506,11 @@ fn run(cmd: Cmd) -> Result<()> {
         }
         Cmd::Fire { name, company } => {
             let c = open(company)?;
-            c.fire(&slug(&name))?;
+            let freed = onecorp::work::fire(&c, &slug(&name))?;
             println!("{name} no longer works at {}.", c.name);
+            if !freed.is_empty() {
+                println!("Back in the backlog with nobody on them: {}. Give them to someone: onecorp assign <ticket> <name>", freed.join(", "));
+            }
         }
         Cmd::Team { company } => {
             let c = open(company)?;

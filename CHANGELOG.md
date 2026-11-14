@@ -19,6 +19,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - A button you clicked keeps showing that it's working until it's done: a spinner, "Merging…" or the like, and no second click. Before, the next refresh put it back as if nothing had happened, so a merge, a discard, a stop or a retry looked like it hadn't started. In the Inbox the card dims too, and its other actions wait. (#89)
 - Merging from the Inbox ends on the card: the button says "Merged" with a check for a moment before the card leaves. Saving a wiki draft, starting a plan and closing a report do the same. (#89)
 - Forms show they're sending too: Send back, an answer you write, a retry with a note, Plan it, Hire, saving a page or the brief. If sending fails, what you wrote stays in the box.
+- Letting someone go sends their tickets that hadn't started back to the backlog with nobody on them, and says which. Before, they stayed theirs: one in line never started, and merging a ticket another was waiting on ended with an error. A ticket that can't start after a merge is now skipped with a note, and the rest still start. (#65)
 
 ## [0.1.12] - 2026-11-12
 

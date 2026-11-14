@@ -154,6 +154,7 @@ export interface Results {
   companies: Companies;
   create_company: string;
   create_repo: string;
+  fire: string[];
   founder: Founder | null;
   github_repos: GithubRepo[];
   health: Check[];
