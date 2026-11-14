@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-11-14
+
+Claude Code runs start with smaller prompts and stop at your spending limits. The Inbox keeps full replies, actions show their progress, and drawers stay where you scrolled.
+
 ### Changed
 
 - Wiki search highlights what you searched: in a few words under each page that mentions it, and in the page you open, which scrolls to the first match.
@@ -282,6 +286,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.13]: https://github.com/snowztech/onecorp/releases/tag/v0.1.13
 [0.1.12]: https://github.com/snowztech/onecorp/releases/tag/v0.1.12
 [0.1.11]: https://github.com/snowztech/onecorp/releases/tag/v0.1.11
 [0.1.10]: https://github.com/snowztech/onecorp/releases/tag/v0.1.10
