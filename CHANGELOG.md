@@ -17,6 +17,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - A pull request that can't be checked, like when gh is logged out, no longer stops OneCorp noticing the others that were merged.
 - What an employee writes is kept in full. Before, a message longer than 2,000 characters ended with "…" in the Inbox and the ticket's history, even when expanded. Messages cut before this update stay cut. (#90)
 - A button you clicked keeps showing that it's working until it's done: a spinner, "Merging…" or the like, and no second click. Before, the next refresh put it back as if nothing had happened, so a merge, a discard, a stop or a retry looked like it hadn't started. In the Inbox the card dims too, and its other actions wait. (#89)
+- A ticket or a person's drawer stays where you scrolled while the team works. Before, each update sent it back to the top. The log in "Everything that happened" follows its last line only while you're at the end of it. (#86)
 
 ## [0.1.12] - 2026-11-12
 

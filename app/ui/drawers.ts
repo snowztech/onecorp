@@ -103,8 +103,20 @@ export async function openTicket(key: string) {
 }
 
 /* Drawers: a person, or hiring into a department */
+let drawerAt = "";
 export function renderDrawer() {
+  // A redraw makes new elements, which start at the top. Stay where the reader was, unless it's
+  // another drawer. The log follows its last line only while you're already at the end of it.
+  const which = S.drawer ? `${S.drawer.type}:${S.drawer.key ?? S.drawer.id ?? ""}` : "";
+  const top = $("#drawer .dbody")?.scrollTop ?? 0, log = $("#term");
+  const logTop = log && log.scrollHeight - log.scrollTop - log.clientHeight > 40 ? log.scrollTop : null;
   drawDrawer();
+  if (which && which === drawerAt) {
+    const body = $("#drawer .dbody"), term = $("#term");
+    if (body) body.scrollTop = top;
+    if (term && logTop !== null) term.scrollTop = logTop;
+  }
+  drawerAt = which;
   markBusy();
 }
 
