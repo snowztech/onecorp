@@ -52,6 +52,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     if let Some(s) = o.resume {
         cmd.args(["--resume", s]);
     }
+    if let Some(max) = o.max_cost {
+        cmd.args(["--max-budget-usd", &format!("{max:.2}")]);
+    }
     // The prompt goes on stdin: --allowedTools takes a list and would swallow a trailing argument.
     stream(cmd, prompt, parse, o.on_spawn, on)
 }
@@ -117,13 +120,19 @@ pub fn parse(line: &str) -> Vec<Event> {
             let u = &v["usage"];
             let n = |k: &str| u[k].as_u64().unwrap_or(0);
             let (fresh, cached, output) = (n("input_tokens") + n("cache_creation_input_tokens"), n("cache_read_input_tokens"), n("output_tokens"));
-            let tokens = fresh + cached + output;
+            let mut tokens = fresh + cached + output;
             let usage = (tokens > 0).then_some(Event::Usage { fresh, cached, output });
+            // A run stopped at its budget reports no usage of its own, only what each model used.
+            if tokens == 0 {
+                let models = v["modelUsage"].as_object().into_iter().flatten();
+                tokens = models.flat_map(|(_, m)| ["inputTokens", "cacheReadInputTokens", "cacheCreationInputTokens", "outputTokens"].map(|k| m[k].as_u64().unwrap_or(0))).sum();
+            }
+            let stopped = v["subtype"] == "error_max_budget_usd";
             usage.into_iter().chain([Event::Done {
                 ok: v["subtype"] == "success" && v["is_error"] != true,
                 cost: v["total_cost_usd"].as_f64().unwrap_or(0.0),
                 tokens,
-                text: s(&v, "result"),
+                text: if stopped { super::BUDGET_STOP.to_string() } else { s(&v, "result") },
             }])
             .collect()
         }
@@ -162,7 +171,7 @@ mod tests {
     #[test]
     fn allowed_tools_follow_the_list_or_run_anything() {
         let (cmds, dirs) = (vec!["tools/check.sh".to_string(), "./gradlew assembleDebug".to_string()], vec![std::path::PathBuf::from("/c/reading/wiki")]);
-        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any };
+        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any, max_cost: None };
         let listed = allowed(&opts(false, false));
         for rule in ["Bash(tools/check.sh:*)", "Bash(./tools/check.sh:*)", "Bash(./gradlew assembleDebug:*)", "Bash(gradlew assembleDebug:*)", "Read(//c/reading/wiki/**)"] {
             assert!(listed.split(',').any(|r| r == rule), "{rule} in {listed}");
@@ -177,6 +186,12 @@ mod tests {
         let all = json!({"model": "opus", "env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "hooks": {"SessionStart": []}, "enabledPlugins": {"x": true}});
         assert_eq!(kept(&all).unwrap(), json!({"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "model": "opus"}).to_string());
         assert_eq!(kept(&json!({"hooks": {}})), None, "nothing to pass when only the rest is set");
+    }
+
+    #[test]
+    fn a_run_stopped_at_its_budget_says_so_and_still_counts() {
+        let line = r#"{"type":"result","subtype":"error_max_budget_usd","is_error":true,"total_cost_usd":0.52,"usage":{"input_tokens":0,"output_tokens":0},"modelUsage":{"claude-haiku-5-5":{"inputTokens":4,"outputTokens":248,"cacheReadInputTokens":33466,"cacheCreationInputTokens":1051}},"errors":["Reached maximum budget ($0.5)"]}"#;
+        assert_eq!(parse(line), vec![Event::Done { ok: false, cost: 0.52, tokens: 34769, text: crate::runtime::BUDGET_STOP.into() }]);
     }
 
     #[test]

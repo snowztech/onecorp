@@ -8,6 +8,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 - Wiki search highlights what you searched: in a few words under each page that mentions it, and in the page you open, which scrolls to the first match.
 - Claude Code employees no longer load your personal Claude Code setup: your plugins, skills, hooks and your own CLAUDE.md stay out of their runs, so each run starts with a much smaller prompt and costs less. Your sign-in and default model still apply, and so do the repo's own CLAUDE.md and settings. Chat replies, plans and wiki drafts also start with only the tools they can use.
+- The daily budget and a person's daily cap now stop a Claude Code run while it's going, not only once it ends. The ticket waits in line with its work kept, and picks up where it stopped the next day, when you raise the limit, or when you choose to keep going. A run can still go a little past the limit, by the step it was on. Codex runs are still counted when they end. (#76)
 
 ### Fixed
 

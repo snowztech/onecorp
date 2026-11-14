@@ -1,7 +1,8 @@
 //! What your team spends. Every run lands in a ledger in dollars: what the agent reports, or an
 //! estimate from its tokens when it doesn't say (Codex reports tokens only). Budgets are checked
 //! after every run: a heads-up at 80% of the day's budget, and a pause at 100%, lifted the next
-//! day. People can have their own daily cap too.
+//! day. People can have their own daily cap too. A ticket run on Claude Code also gets what's left
+//! as its own ceiling (`left`), so one long run stops near the budget instead of far past it.
 
 use crate::store::Company;
 use anyhow::{Result, bail};
@@ -83,6 +84,17 @@ pub fn set_budget(c: &Company, dollars: f64) -> Result<()> {
 
 pub fn spent_today(c: &Company) -> Result<f64> {
     Ok(c.spent_since(0, None)?.0)
+}
+
+/// What one run may still spend today: what's left of the company's budget and of the person's
+/// own cap, whichever is less. None when neither is set, or the budget was lifted for today.
+pub fn left(c: &Company, employee: &str) -> Result<Option<f64>> {
+    let (budget, cap, day) = (budget(c)?, c.daily_cap(employee)?, c.today()?);
+    let overridden = c.setting("paused.reason")?.is_some_and(|r| r == format!("override:{day}"));
+    let company = (budget > 0.0 && !overridden).then_some(budget - spent_today(c)?);
+    let own = (cap > 0.0).then_some(cap - c.spent_since(0, Some(employee))?.0);
+    // A cent at least: a run only starts while there's something left.
+    Ok([company, own].into_iter().flatten().reduce(f64::min).map(|d| d.max(0.01)))
 }
 
 /// Why the company is paused, when it's the budget: "budget:<day>".
