@@ -21,11 +21,11 @@ export function viewInbox() {
 export function stopped(t: Failed) {
   return `<article class="ask stopped" id="in-${esc(t.key)}">${face(t.name, "blocked")}<div>
     <span class="kind">Stopped · ${esc(t.key)}</span><h4>${esc(t.title)}</h4>
-    <p>${esc(first(t.name))}'s run ${t.why && !/^stopped before/.test(t.why) ? `failed: ${esc(t.why)}` : "stopped before it finished."}</p>
+    <p>${t.limit ? `${esc(first(t.name))}'s run ${esc(t.why)}. Keep going, or look at what they did first.` : `${esc(first(t.name))}'s run ${t.why && !/^stopped before/.test(t.why) ? `failed: ${esc(t.why)}` : "stopped before it finished."}`}</p>
     ${S.confirm === "ticket:" + t.key
       ? `<div class="confirm"><p>Delete ${esc(t.key)}? Its log and unfinished branch go with it.</p>
           <div class="acts"><button class="btn danger" data-remove="${esc(t.key)}">Delete</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
-      : `<div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">Retry</button>${S.open[`rty-${t.key}`] ? "" : `<button class="btn ghost" type="button" data-more="rty-${esc(t.key)}">Retry with a note…</button>`}<button class="btn ghost" data-confirm="ticket:${esc(t.key)}">Delete…</button></div>`}
+      : `<div class="acts"><button class="btn primary" data-retry="${esc(t.key)}">${t.limit ? "Keep going" : "Retry"}</button>${t.limit ? `<button class="btn" data-ticket="${esc(t.key)}">See what they did</button>` : ""}${S.open[`rty-${t.key}`] ? "" : `<button class="btn ghost" type="button" data-more="rty-${esc(t.key)}">${t.limit ? "Keep going with a note…" : "Retry with a note…"}</button>`}<button class="btn ghost" data-confirm="ticket:${esc(t.key)}">Delete…</button></div>`}
     ${S.open[`rty-${t.key}`] ? replyForm(`rty-${t.key}`, `data-retry-note="${esc(t.key)}"`, "What should they do differently?", "Retry") : ""}</div></article>`;
 }
 

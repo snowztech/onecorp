@@ -170,6 +170,8 @@ export function spendTab() {
     <div class="row-set"><div><b>Daily budget</b><span>The company pauses there until tomorrow.</span></div>
       <div class="seg">${presets.map(p => `<button data-budget="${p}" aria-pressed="${p === b && !S.customBudget}">${p ? `$${p}` : "None"}</button>`).join("")}<button data-budget-custom="1" aria-pressed="${custom || !!S.customBudget}">${custom ? money(b) : "Other"}</button></div></div>
     ${S.customBudget ? `<form id="budget-form" class="row-set"><div><b>Your budget</b><span>Press Enter to save.</span></div><label class="money-in inline"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b || ""}" placeholder="12"><span class="unit">a day</span></label></form>` : ""}
+    <div class="row-set"><div><b>Limit for one run</b><span>A ticket run that gets there stops and asks you, with its work kept. Claude Code only: Codex says what it spent when a run ends.</span></div>
+      <div class="seg">${[0, 2, 5, 10, 25].map(p => `<button data-run-limit="${p}" aria-pressed="${p === r.run_limit}">${p ? `$${p}` : "None"}</button>`).join("")}</div></div>
     ${limits}
     ${S.settings ? (() => {
       // Says exactly which model runs, so there's nothing to guess about "lighter".
