@@ -428,7 +428,13 @@ document.addEventListener("click", async e => {
   else if (d.approve) {
     const t = S.snap?.reviews.find(t => t.key === d.approve) || (S.ticket?.key === d.approve ? S.ticket : null);
     const copy = approvalCopy(t);
-    await busy(el, copy.busy, () => call("approve", { company: S.company, key: d.approve }, copy.done)).catch(() => {});
+    await busy(el, copy.busy, async done => {
+      try { await invoke("approve", { company: S.company, key: d.approve }); } catch (err) { return toast(String(err), true); }
+      // The card says it's merged before it leaves, so you see it land.
+      await done(copy.after);
+      toast(copy.done);
+      return refresh(true);
+    });
   }
 
 });
@@ -436,17 +442,19 @@ document.addEventListener("click", async e => {
 document.addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target as HTMLFormElement;
+  // The button that sent the form shows the action going, like any other button.
+  // Sent from the keyboard, there's no button in the event: it's the form's own send button.
+  const sent = ((e as SubmitEvent).submitter ?? f.querySelector('button:not([type="button"])')) as HTMLElement;
   if (f.id === "plan-form") {
     const name = $("#pj-name").value.trim(), goal = $("#pj-goal").value.trim(), by = $("#pj-by").value || null;
     if (!name) return $("#pj-name").focus();
     if (!goal && !S.snap!.kickoff.brief) { toast("Say what the project should do", true); return $("#pj-goal").focus(); }
-    const btn = f.querySelector<HTMLButtonElement>(".btn.primary")!; btn.disabled = true; btn.textContent = "Starting…";
-    const key = await call("plan_project", { company: S.company, name, goal, by }, `${first(byId(by)?.name || "Your planner")} is planning ${name}. The plan shows up in your Inbox`).catch(() => null);
-    if (!key) { btn.disabled = false; btn.textContent = "Plan it"; return; }
+    const key = await busy(sent, "Starting…", () => call("plan_project", { company: S.company, name, goal, by }, `${first(byId(by)?.name || "Your planner")} is planning ${name}. The plan shows up in your Inbox`)).catch(() => null);
+    if (!key) return;
     S.drawer = null; S.view = "board"; S.project = key; return render();
   }
   if (f.id === "brief-form") {
-    await call("save_brief", { company: S.company, brief: $("#brief-text").value }, "Brief saved. Everyone reads it from their next ticket").then(() => { S.open.brief = false; render(); }).catch(() => {});
+    await busy(sent, "Saving…", () => call("save_brief", { company: S.company, brief: $("#brief-text").value }, "Brief saved. Everyone reads it from their next ticket")).then(() => { S.open.brief = false; render(); }).catch(() => {});
     return;
   }
   if (f.id === "profile") {
@@ -518,11 +526,12 @@ document.addEventListener("submit", async e => {
   if (f.id === "del-co") {
     const name = S.settings!.name;
     if ($("#del-name").value.trim() !== name) { toast(`Type ${name} to confirm`, true); return $("#del-name").focus(); }
-    const btn = f.querySelector<HTMLButtonElement>(".danger")!; btn.disabled = true; btn.textContent = "Deleting…";
-    try { await invoke("delete_company", { name }); } catch (err) { btn.disabled = false; btn.textContent = `Delete ${name}`; return toast(String(err), true); }
-    toast(`Deleted ${name}. Your repo is untouched.`);
-    S.company = null; S.snap = null; S.last = ""; S.settings = null; S.confirm = null; S.sheet = null; S.view = "company"; renderSheet();
-    return refresh(true);
+    return busy(sent, "Deleting…", async () => {
+      try { await invoke("delete_company", { name }); } catch (err) { return toast(String(err), true); }
+      toast(`Deleted ${name}. Your repo is untouched.`);
+      S.company = null; S.snap = null; S.last = ""; S.settings = null; S.confirm = null; S.sheet = null; S.view = "company"; renderSheet();
+      return refresh(true);
+    });
   }
   if (f.id === "say") {
     const input = $("#say-text"), text = input.value.trim();
@@ -537,18 +546,17 @@ document.addEventListener("submit", async e => {
     const id = await call("add_department", { company: S.company, name }, `${name} is set up. Hire its first person.`).catch(() => null);
     if (id !== null) { S.addingDept = false; render(); openHire(id); }
   } else if (f.id === "wk-redraft") {
-    await call("redraft_wiki", { company: S.company, by: $<HTMLSelectElement>("#wk-by").value || null }, "Drafting from the repo. Pages fill in as each draft lands").then(() => { S.open.redraft = false; render(); }).catch(() => {});
+    await busy(sent, "Starting…", () => call("redraft_wiki", { company: S.company, by: $<HTMLSelectElement>("#wk-by").value || null }, "Drafting from the repo. Pages fill in as each draft lands")).then(() => { S.open.redraft = false; render(); }).catch(() => {});
   } else if (f.id === "hb-raw") {
     const space = $("#wk-space").value.trim(), title = $("#wk-title").value.trim();
     if (!space) return $("#wk-space").focus();
     if (!title) return $("#wk-title").focus();
-    const path = await call("save_page", { company: S.company, path: `${space}/${title}`, text: $("#hb-text").value, from: f.dataset.from || null }, "Saved. Everyone reads it from their next ticket").catch(() => null);
+    const path = await busy(sent, "Saving…", () => call("save_page", { company: S.company, path: `${space}/${title}`, text: $("#hb-text").value, from: f.dataset.from || null }, "Saved. Everyone reads it from their next ticket")).catch(() => null);
     if (path) { S.page = path; S.hbEdit = false; S.wikiNew = false; S.history = null; render(); }
   } else if (f.id === "hire-form" || f.id === "emp-form") {
     const p = readPerson();
     if (!p.name) { toast("Give them a name", true); return $("#pf-n").focus(); }
-    const btn = f.querySelector<HTMLButtonElement>(".btn.primary")!; btn.disabled = true;
-    try {
+    await busy(sent, f.id === "hire-form" ? "Hiring…" : "Saving…", async () => { try {
       if (f.id === "hire-form") {
         await invoke("hire", { company: S.company, ...p, department: S.drawer!.dept });
         toast(`${first(p.name)} joined. Give them a ticket whenever you're ready`); S.drawer = null; renderDrawer();
@@ -560,23 +568,23 @@ document.addEventListener("submit", async e => {
         toast("Saved"); S.drawer!.edit = false; await openPerson(S.drawer!.id!);
       }
       await refresh(true);
-    } catch (err) { btn.disabled = false; toast(String(err), true); }
+    } catch (err) { toast(String(err), true); } });
   } else if (f.dataset.reply) {
     const input = f.querySelector("textarea")!, text = input.value.trim();
     if (!text) return input.focus();
     // Ticked, the answer also goes in the wiki as a decision, so nobody has to ask again.
     const keep = f.querySelector<HTMLInputElement>("[data-keep]");
     const q = S.snap?.inbox.find(x => x.id === Number(f.dataset.reply));
-    const ok = await call("answer", { company: S.company, id: Number(f.dataset.reply), text }, keep?.checked ? "Answered, and saved to Decisions" : "Answered").then(() => true).catch(() => false);
+    const ok = await busy(sent, "Sending…", () => call("answer", { company: S.company, id: Number(f.dataset.reply), text }, keep?.checked ? "Answered, and saved to Decisions" : "Answered")).then(() => true).catch(() => false);
     if (ok && keep?.checked && q) await invoke("add_to_wiki", { company: S.company, page: "Company/Decisions", text: `${q.question.split("\n")[0].slice(0, 160)} → ${text}` }).catch(e => toast(String(e), true));
   } else if (f.dataset.retryNote) {
     const input = f.querySelector("textarea")!, note = input.value.trim();
     if (!note) return input.focus();
-    await call("retry", { company: S.company, key: f.dataset.retryNote, note }, `${f.dataset.retryNote} is running again, with your note`).catch(() => {});
+    await busy(sent, "Retrying…", () => call("retry", { company: S.company, key: f.dataset.retryNote, note }, `${f.dataset.retryNote} is running again, with your note`)).catch(() => {});
   } else if (f.dataset.changes) {
     const input = f.querySelector("textarea")!, feedback = input.value.trim();
     if (!feedback) return input.focus();
-    await call("request_changes", { company: S.company, key: f.dataset.changes, feedback }, "Sent back. It's saved to their memory too.").catch(() => {});
+    await busy(sent, "Sending…", () => call("request_changes", { company: S.company, key: f.dataset.changes, feedback }, "Sent back. It's saved to their memory too.")).catch(() => {});
   }
 });
 

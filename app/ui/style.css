@@ -103,6 +103,7 @@ main > .topbar { grid-row: 1; } main > .paused-bar { grid-row: 2; } main > .view
 .btn:disabled { opacity: .5; cursor: progress; }
 .btn.busy:disabled { opacity: 1; }
 .btn.busy::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 7px; vertical-align: -1px; border-radius: 99px; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; animation-delay: var(--spin-at, 0s); }
+.btn.busy.done::before { width: 4px; height: 8px; margin: 0 9px 0 3px; vertical-align: 0; border-radius: 0; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); animation: none; }
 .ask.working { pointer-events: none; }
 .ask.working > div > :not(.busy-row) { opacity: .55; }
 .btn.ghost { background: none; border-color: transparent; color: var(--muted); }
