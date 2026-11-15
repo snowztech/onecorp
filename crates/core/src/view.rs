@@ -205,6 +205,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             "repo": t.repo,
             "created_by": (t.created_by != "founder").then(|| name_of(&t.created_by)),
             "plan": t.plan.map(|p| c.key(p)),
+            "reviewed": review_mark(c, t),
         })).collect::<Vec<_>>(),
         "inbox": inbox,
         "with_leads": with_leads,
@@ -512,6 +513,21 @@ pub fn plain_tool(summary: &str) -> String {
             }
         }
         _ => summary.to_string(),
+    }
+}
+
+/// The badge on a card for work in review: who reviewed it and how it went, or who is reviewing it now.
+fn review_mark(c: &Company, t: &Ticket) -> Value {
+    if t.status != "review" || t.kind != "work" {
+        return Value::Null;
+    }
+    if let Some(who) = c.pending_review(t.id).ok().flatten() {
+        let name = c.employee(&who).ok().flatten().map(|e| e.name).unwrap_or(who);
+        return json!({"name": name, "state": "reviewing"});
+    }
+    match lead_review(c, t.id) {
+        Some(v) => json!({"name": v["name"], "state": if v["ok"] == true { "good" } else { "changes" }}),
+        None => Value::Null,
     }
 }
 

@@ -34,9 +34,13 @@ export interface Review {
   lead_review?: { name: string; ok: boolean; notes: string; at: string } | null;
 }
 
+export interface ReviewMark { name: string; state: "good" | "changes" | "reviewing" }
+
 export interface Ticket {
   key: string; title: string; assignee: string | null; status: Status; spend: string;
   after?: string | null; kind?: string; repo?: string | null; created_by?: string | null; plan?: string | null;
+  /** A teammate's review of work waiting for you, or one in progress. */
+  reviewed?: ReviewMark | null;
 }
 
 export interface Department { id: number | null; name: string; lead: string | null; members: string[] }

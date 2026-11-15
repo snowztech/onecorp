@@ -198,6 +198,12 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .ask.blocking { border-color: var(--signal); }
 .ask.lead { opacity: .85; border-style: dashed; }
 .ask .via { margin: -2px 0 8px; font-size: 13px; color: var(--fg); background: var(--accent-soft); border-radius: 6px; padding: 5px 8px; }
+/* A teammate's review on a card: green when it looks good, quiet otherwise, breathing while it runs. */
+.rv { display: inline-flex; align-items: center; margin-left: 6px; color: var(--muted); vertical-align: -2px; }
+.rv .ic { width: 14px; height: 14px; }
+.rv-good { color: var(--good); }
+.rv-reviewing { animation: breathe 1.6s var(--ease) infinite; }
+@keyframes breathe { 50% { opacity: .35; } }
 .ask .lead-verdict p { margin: 0 0 4px; white-space: normal; }
 .ask .lead-verdict ul, .ask .lead-verdict ol { margin: 4px 0 0; padding-left: 18px; }
 .section { font: 600 14px var(--display); margin: 18px 0 0; display: flex; flex-direction: column; gap: 2px; }

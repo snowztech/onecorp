@@ -1,5 +1,5 @@
 import { esc, first } from "../lib.ts";
-import { face, icon } from "../look.ts";
+import { face, icon, reviewMark } from "../look.ts";
 import { S, byId } from "../state.ts";
 import type { Project, Ticket } from "../types.ts";
 
@@ -31,7 +31,7 @@ export function viewBoard() {
     return `<section class="col"><h4>${title}<span>${ts.length}</span></h4>${ts.slice().reverse().map(t => `
       <button class="tk ${t.status} ${t.kind === "plan" ? "is-plan" : ""}" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}${t.kind === "plan" ? " · plan" : ""}${PILL[t.status] ? `<span class="pill ${PILL[t.status][1]}">${PILL[t.status][0]}</span>` : ""}</span><span class="t">${esc(t.title)}</span>
         ${t.repo ? `<span class="repo-tag">${esc(t.repo)}</span>` : ""}${t.after && t.status !== "done" ? `<span class="after">after ${esc(t.after)}</span>` : ""}
-        <span class="row">${t.assignee ? `${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span>` : `<span class="muted">Nobody yet</span>`}${spent(t) ? `<span class="cost">${esc(t.spend)}</span>` : ""}</span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
+        <span class="row">${t.assignee ? `${face(nameOf(t.assignee), "neutral")}<span class="muted">${esc(first(nameOf(t.assignee)))}</span>${reviewMark(t.reviewed)}` : `<span class="muted">Nobody yet</span>`}${spent(t) ? `<span class="cost">${esc(t.spend)}</span>` : ""}</span></button>`).join("") || `<p class="muted none">Nothing here</p>`}</section>`;
   }).join("");
   return `${bar}<div class="board">${cols}</div>`;
 }

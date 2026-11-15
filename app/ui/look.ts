@@ -1,7 +1,7 @@
 import { esc, hash, initials } from "./lib.ts";
 import { render, typing } from "./render.ts";
 import { S } from "./state.ts";
-import type { Employee, Look, Model } from "./types.ts";
+import type { Employee, Look, Model, ReviewMark } from "./types.ts";
 import { renderSheet } from "./views/settings.ts";
 
 // How people, agents and companies look: faces, icons, agent marks and company badges.
@@ -97,6 +97,14 @@ export function me() {
   return f?.photo ? `<span class="av"><img src="${esc(f.photo)}" alt=""></span>` : monogram(f?.name);
 }
 
+// The review badge on a card, with the words in its tooltip.
+export function reviewMark(m: ReviewMark | null | undefined) {
+  if (!m) return "";
+  const who = esc(String(m.name || "").split(" ")[0]);
+  const [ic, tip] = m.state === "good" ? ["reviewed", `Reviewed by ${who}: looks good`] : m.state === "changes" ? ["review-changes", `Reviewed by ${who}: changes needed`] : ["reviewed", `${who} is reviewing it`];
+  return `<span class="rv rv-${m.state}" title="${tip}" aria-label="${tip}">${icon(ic)}</span>`;
+}
+
 export const monogram = (name: string | null | undefined) => `<span class="av mono-av">${String(name || "").trim() ? esc(initials(name)) : icon("user")}</span>`;
 
 /* Icons: one small stroke set, so every page speaks the same visual language */
@@ -115,6 +123,9 @@ export const ICON: Record<string, string> = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  // A teammate signed off: a shield, so it reads as someone vouching, not just "done".
+  reviewed: '<path d="M12 3l7 3v5.5c0 4.2-2.9 7.9-7 9.5-4.1-1.6-7-5.3-7-9.5V6z"/><path d="M8.8 12.2l2.3 2.3 4.2-4.4"/>',
+  "review-changes": '<path d="M12 3l7 3v5.5c0 4.2-2.9 7.9-7 9.5-4.1-1.6-7-5.3-7-9.5V6z"/><path d="M12 8.5v4M12 15.5v.01"/>',
   chevrons: '<path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4"/>',
   pause: '<path d="M9 5v14M15 5v14"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',

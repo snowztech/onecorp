@@ -56,6 +56,8 @@ fn a_lead_reviews_work_before_the_founder() {
     let review = card(&c, &key_a);
     assert_eq!((review["lead_review"]["name"].as_str(), review["lead_review"]["ok"].as_bool()), (Some("Odile Martin"), Some(true)));
     assert!(review["reviewing"].is_null());
+    let board = view::snapshot(&c).unwrap()["tickets"].as_array().unwrap().iter().find(|t| t["key"] == key_a).cloned().unwrap();
+    assert_eq!(board["reviewed"], json!({"name": "Odile Martin", "state": "good"}), "the Board card shows the badge");
     let said = chat::home(&c, &c.employee("maya").unwrap().unwrap()).unwrap();
     assert!(c.messages(Some(&said)).unwrap().iter().any(|m| m.author == "odile" && m.text.contains("looks good")));
 
