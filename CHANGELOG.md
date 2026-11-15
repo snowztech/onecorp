@@ -6,7 +6,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
-- A teammate can review work before you do. On a review in the Inbox, Ask {lead} to review has the author's lead read the changes in their worktree, run the build and test commands, and leave a verdict on the card: looks good, or changes needed with the list. Merging stays your call, and Send back with their notes passes the list on as it is. An employee can ask for it themselves when they finish (`request_review`), a lead can start one from chat, and `onecorp ask-review` does it from the terminal. (#100)
+- Leads review their team's work before it reaches you. When an employee with a lead finishes, the lead reads the changes in their worktree, runs the build and test commands, and leaves a verdict on the Inbox card and the Board: looks good, or changes needed with the list. Merging stays your call, and Send back with their notes passes the list on as it is. It's on for every company: turn it off in Settings, Company, Reviews, and work comes straight to you again. Either way, you can ask a lead to review from the Inbox or with `onecorp ask-review`, an employee can ask someone with `request_review`, and a lead can start one from chat. (#100)
 
 ### Changed
 

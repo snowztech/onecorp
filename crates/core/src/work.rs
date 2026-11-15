@@ -245,24 +245,37 @@ pub fn ask_review(c: &Company, t: &Ticket, by: Option<&str>) -> Result<String> {
     Ok(who.name)
 }
 
-/// A review asked for during the run, through `request_review`, starts once the work is in review.
-/// Only one asked after the last review: work sent back and redone isn't reviewed again unasked.
-fn requested_review(c: &Company, t: &Ticket) -> Result<()> {
+/// Whether leads review their team's work before it reaches the founder. On unless turned off.
+pub fn leads_review(c: &Company) -> Result<bool> {
+    Ok(c.setting("lead_review")?.as_deref() != Some("off"))
+}
+
+pub fn set_leads_review(c: &Company, on: bool) -> Result<()> {
+    c.set_setting("lead_review", if on { "on" } else { "off" })
+}
+
+/// Work that just reached review gets its review here, with nobody clicking anything: from whoever
+/// the author asked with `request_review`, or else from their lead when leads review first. Work
+/// sent back and redone is reviewed again, since what was reviewed has changed.
+fn review_on_finish(c: &Company, t: &Ticket) -> Result<()> {
     if t.status != "review" || t.kind != "work" || c.pending_review(t.id)?.is_some() {
         return Ok(());
     }
-    let Some((asked, _, _, raw)) = c.last_event(t.id, "review-requested")? else { return Ok(()) };
-    if c.last_event(t.id, "lead-review")?.is_some_and(|(done, ..)| done > asked) {
-        return Ok(());
-    }
-    let by = serde_json::from_str::<serde_json::Value>(&raw).ok().and_then(|v| v["by"].as_str().map(String::from));
-    match reviewer_for(c, t, by.as_deref()) {
-        Ok(who) => {
-            c.add_event(t.id, "review-asked", &format!("asked {} to review", who.name), &serde_json::json!({ "by": who.id }).to_string())?;
-            queue_review(c, t.id, &who.id)
-        }
-        Err(err) => c.add_event(t.id, "error", &format!("couldn't start the review: {err:#}"), ""),
-    }
+    let reviewed = c.last_event(t.id, "lead-review")?.map(|(id, ..)| id).unwrap_or(0);
+    let asked = c.last_event(t.id, "review-requested")?.filter(|(id, ..)| *id > reviewed);
+    let by = match &asked {
+        Some((_, _, _, raw)) => serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|v| v["by"].as_str().map(String::from)),
+        None if leads_review(c)? => None,
+        None => return Ok(()),
+    };
+    let who = match reviewer_for(c, t, by.as_deref()) {
+        Ok(who) => who,
+        // Nobody asked and the author has no lead, like a lead's own work: it comes straight to the founder.
+        Err(_) if asked.is_none() => return Ok(()),
+        Err(err) => return c.add_event(t.id, "error", &format!("couldn't start the review: {err:#}"), ""),
+    };
+    c.add_event(t.id, "review-asked", &format!("{} reviews it first", who.name), &serde_json::json!({ "by": who.id }).to_string())?;
+    queue_review(c, t.id, &who.id)
 }
 
 fn queue_review(c: &Company, ticket: i64, reviewer: &str) -> Result<()> {
@@ -469,7 +482,7 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
          You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
          or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
          If something outside your control stops you, use update_ticket to mark the ticket blocked. \
-         Finishing needs no tool: when you end with your summary, OneCorp moves the ticket to review. \
+         Finishing needs no tool: when you end with your summary, OneCorp moves the ticket to review. {review} \
          If you learn or decide something every teammate should know from now on, propose it with propose_wiki. \
          If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
          save it with remember: one line per note.\n\n\
@@ -477,6 +490,10 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         name = e.name,
         role = e.role,
         company = c.name,
+        review = match c.lead_of(&e.id)?.filter(|_| leads_review(c).unwrap_or(true)) {
+            Some(lead) => format!("{} reviews your work then, before the founder sees it. To ask someone else, call request_review. Asking in chat doesn't start a review.", lead.name),
+            None => "To have a teammate review your work before the founder sees it, call request_review. Asking in chat doesn't start a review.".into(),
+        },
         abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?, crate::commands::run_any(c)?, &branch),
         commits = if crate::commands::run_any(c)? {
             "Commit as you go if it helps: when you finish, OneCorp commits whatever you left, under your name."
@@ -1553,7 +1570,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         ship::publish_or_note(c, &t, &text);
         t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
         // The work is in review either way. A review that can't run says why on the ticket.
-        if let Err(err) = requested_review(c, &t) {
+        if let Err(err) = review_on_finish(c, &t) {
             out(&format!("{key}  the review didn't run: {err:#}"));
         }
     }

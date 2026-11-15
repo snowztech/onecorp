@@ -46,10 +46,18 @@ fn a_lead_reviews_work_before_the_founder() {
     c.set_department("maya", eng.id).unwrap();
     let status = |id: i64| c.ticket(id).unwrap().unwrap().status;
 
-    // Asked from the Inbox: the lead reads the work and says it's good. It stays the founder's to merge.
+    // Leads review first by default: work reaches the founder with its verdict, nobody asked.
+    assert!(work::leads_review(&c).unwrap());
+    let auto = c.add_ticket("add the share button", "maya").unwrap();
+    work::dispatch(&c, auto, Job::Start).unwrap();
+    assert_eq!(card(&c, &c.key(auto))["lead_review"]["ok"], true);
+
+    // Turned off, work comes straight to the founder, who can still ask from the Inbox.
+    work::set_leads_review(&c, false).unwrap();
     let a = c.add_ticket("add the export button", "maya").unwrap();
     work::dispatch(&c, a, Job::Start).unwrap();
     let key_a = c.key(a);
+    assert!(card(&c, &key_a)["lead_review"].is_null());
     assert_eq!(card(&c, &key_a)["lead"]["name"], "Odile Martin");
     assert_eq!(work::ask_review(&c, &c.ticket(a).unwrap().unwrap(), None).unwrap(), "Odile Martin");
     assert_eq!(status(a), "review");

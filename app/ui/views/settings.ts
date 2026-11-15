@@ -52,6 +52,8 @@ export function companySection() {
         ? (st.commits === "you" ? `Every commit is yours, as ${esc(st.git_you.name)}` : `The employee writes it, you're credited too`)
         : "By the employee. Set your name in git (git config user.name and user.email) to commit as you."}</span></div>
       <div class="seg">${[["team", "As your team"], ["you", "As you"]].map(([m, n]) => `<button data-commits="${m}" aria-pressed="${m === (st.commits || "team")}" ${!st.git_you && m === "you" ? "disabled" : ""}>${n}</button>`).join("")}</div></div>
+    <div class="row-set"><div><b>Reviews</b><span>${st.lead_review !== false ? "A lead reviews their team's work before it reaches you. Merging stays yours" : "Work comes straight to you. Ask a lead to review it from the Inbox"}</span></div>
+      <div class="seg">${[[true, "Leads first"], [false, "Straight to you"]].map(([on, n]) => `<button data-lead-review="${on}" aria-pressed="${on === (st.lead_review !== false)}">${n}</button>`).join("")}</div></div>
     ${st.ship === "local" ? "" : `<div class="row-set"><div><b>Pull requests</b><span>${st.pr_sign === false ? "Just the summary" : `End with “Jonas Berg, Engineer at ${esc(st.name)} · made with OneCorp”`}</span></div>
       <div class="seg">${[[true, "Signed"], [false, "Plain"]].map(([on, n]) => `<button data-pr-sign="${on}" aria-pressed="${on === (st.pr_sign !== false)}">${n}</button>`).join("")}</div></div>`}
     <div class="sec-h"><h3 class="label">Repos</h3>${window.__TAURI__?.dialog ? `<button class="btn sm" type="button" data-repo-add="pick">Add a repo…</button>` : ""}</div>
