@@ -27,6 +27,9 @@ pub fn running() -> bool {
 fn sync_all() {
     for name in store::list().unwrap_or_default() {
         let Ok(c) = Company::open(&name) else { continue };
+        if let Err(e) = crate::backup::maybe(&c) {
+            println!("{name}: couldn't copy the company: {e:#}");
+        }
         match crate::ship::sync(&c) {
             Ok(changed) => changed.iter().for_each(|m| println!("{m}")),
             Err(e) => println!("{name}: couldn't check pull requests: {e:#}"),
@@ -108,6 +111,9 @@ fn claim(name: &str, workers: &mut Vec<JoinHandle<()>>, max: usize) -> Result<()
     match crate::routine::fire_due(&c) {
         Ok(lines) => lines.iter().for_each(|l| println!("{l}")),
         Err(e) => println!("{name}: couldn't run routines: {e:#}"),
+    }
+    for key in work::stop_quiet(&c)? {
+        println!("{key} stopped: no output for {} minutes. Retry picks it up where it was: onecorp retry {key}", work::quiet_limit(&c)?);
     }
     if c.paused()? {
         return Ok(());

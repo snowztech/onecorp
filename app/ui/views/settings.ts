@@ -3,6 +3,7 @@ import { $, esc, first, money, tilde, toast } from "../lib.ts";
 import { AGENTS, FACE_SETS, PALETTE, agentMark, badge, drawFace, face, faceSet, icon, me } from "../look.ts";
 import { renderPop } from "../shell.ts";
 import { S, bugUrl, invoke, version } from "../state.ts";
+import type { Backup, Settings } from "../types.ts";
 
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
    OneCorp needs is in place. Your own profile lives in your menu. */
@@ -52,6 +53,8 @@ export function companySection() {
         ? (st.commits === "you" ? `Every commit is yours, as ${esc(st.git_you.name)}` : `The employee writes it, you're credited too`)
         : "By the employee. Set your name in git (git config user.name and user.email) to commit as you."}</span></div>
       <div class="seg">${[["team", "As your team"], ["you", "As you"]].map(([m, n]) => `<button data-commits="${m}" aria-pressed="${m === (st.commits || "team")}" ${!st.git_you && m === "you" ? "disabled" : ""}>${n}</button>`).join("")}</div></div>
+    <div class="row-set"><div><b>Quiet runs</b><span>A run that shows nothing for this long is stopped, with its work kept. You hear about it a third of the way in.</span></div>
+      <div class="seg">${[[0, "Never"], [15, "15 min"], [30, "30 min"], [60, "1 hour"]].map(([m, n]) => `<button data-quiet-limit="${m}" aria-pressed="${m === (st.quiet_limit ?? 30)}">${n}</button>`).join("")}</div></div>
     <div class="row-set"><div><b>Reviews</b><span>${st.lead_review !== false ? "A lead reviews their team's work before it reaches you. Merging stays yours" : "Work comes straight to you. Ask a lead to review it from the Inbox"}</span></div>
       <div class="seg">${[[true, "Leads first"], [false, "Straight to you"]].map(([on, n]) => `<button data-lead-review="${on}" aria-pressed="${on === (st.lead_review !== false)}">${n}</button>`).join("")}</div></div>
     ${st.ship === "local" ? "" : `<div class="row-set"><div><b>Pull requests</b><span>${st.pr_sign === false ? "Just the summary" : `End with “Jonas Berg, Engineer at ${esc(st.name)} · made with OneCorp”`}</span></div>
@@ -72,6 +75,7 @@ export function companySection() {
     ${window.__TAURI__?.dialog && !S.open["repo-path"] ? `<button class="link-btn type-path" type="button" data-more="repo-path">Or type a repo's path</button>`
       : `<div class="su-row add-repo"><input id="repo-path" class="mono" placeholder="~/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-repo-add="path">Add repo</button></div>`}
     <div class="row-set data-row"><div><b>Company data</b><span class="mono">${esc(tilde(st.data))}</span></div>${reveal(st.data)}</div>
+    ${backupsRow(st)}
     <h3 class="label danger-label">Danger zone</h3>${del}`;
 }
 
@@ -152,6 +156,21 @@ export async function loadSection(tab: string) {
 export async function loadSpend() {
   try { S.spend = await invoke("spend_report", { company: S.company }); } catch (e) { toast(String(e), true); }
   renderSheet();
+}
+
+// Copies of the company, made every hour while it changes and before each update. Putting one back
+// asks once, and what's there now is copied first, so it can be undone the same way.
+function backupsRow(st: Settings) {
+  const list = st.backups || [], last = list[0];
+  const why = (b: Backup) => b.why === "before-restore" ? "before a restore" : b.why.startsWith("before-") ? `before ${b.why.slice(7)}` : "";
+  const row = `<div class="row-set"><div><b>Copies</b><span>${last ? `Last one ${esc(last.at)}. One every hour while things change, and before each update. Kept 14 days.` : "One every hour while things change, and before each update. Kept 14 days."}</span></div>
+    <span class="acts"><button class="btn" type="button" data-backup-now="1">Copy now</button>${list.length ? `<button class="link-btn" type="button" data-more="backups">${S.open.backups ? "Hide" : "Restore…"}</button>` : ""}</span></div>`;
+  if (!S.open.backups || !list.length) return row;
+  const items = list.map(b => S.confirm === "restore:" + b.name
+    ? `<li class="confirm"><p>Put the company back to ${esc(b.at)}? Tickets, chat, the wiki and notes go back to then. What's there now is copied first.</p>
+        <div class="acts"><button class="btn danger" data-restore="${esc(b.name)}">Put it back</button><button class="btn ghost" data-confirm="">Cancel</button></div></li>`
+    : `<li><span>${esc(b.at)}${why(b) ? ` <small class="muted">${esc(why(b))}</small>` : ""}</span><button class="link-btn" type="button" data-confirm="restore:${esc(b.name)}">Restore</button></li>`).join("");
+  return `${row}<ul class="backups">${items}</ul>`;
 }
 
 /* Routines: recurring work. Each makes an ordinary ticket when it's due, so review, the budget and

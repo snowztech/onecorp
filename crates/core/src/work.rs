@@ -679,6 +679,37 @@ fn ticket_details(c: &Company, t: &Ticket) -> Result<String> {
     if !comments.is_empty() {
         out.push_str(&format!("Comments on this ticket:\n{}\n\n", comments.join("\n\n")));
     }
+    out.push_str(&project_of(c, t)?);
+    Ok(out)
+}
+
+/// The project a ticket belongs to, when it came from a plan: its goal, and the other tickets in
+/// it with who has them and where they stand. Without it, the pieces of one project drift: two
+/// tickets choose differently for the same shared thing, or one does more than its part. Kept
+/// short: the goal clipped, at most 10 other tickets.
+pub fn project_of(c: &Company, t: &Ticket) -> Result<String> {
+    const GOAL: usize = 400;
+    const OTHERS: usize = 10;
+    let Some(plan) = t.plan.map(|p| c.ticket(p)).transpose()?.flatten() else { return Ok(String::new()) };
+    let goal = match plan.description.trim() {
+        "" => "the first version, from the brief".to_string(),
+        g => runtime::clip(&g.replace('\n', " "), GOAL),
+    };
+    let others: Vec<String> = c
+        .plan_tickets(plan.id)?
+        .iter()
+        .filter(|o| o.id != t.id)
+        .take(OTHERS)
+        .map(|o| {
+            let who = o.assignee.as_deref().and_then(|a| c.employee(a).ok().flatten()).map(|e| e.name).unwrap_or_else(|| "nobody yet".into());
+            format!("- {} {} ({who}, {})", c.key(o.id), o.title, o.status)
+        })
+        .collect();
+    let mut out = format!("This ticket is part of the project {}, {}. Its goal: {goal}\n", plan.title, c.key(plan.id));
+    if !others.is_empty() {
+        out.push_str(&format!("The other tickets in it, so your part fits theirs:\n{}\n", others.join("\n")));
+    }
+    out.push('\n');
     Ok(out)
 }
 
@@ -1312,10 +1343,14 @@ pub fn request_changes(c: &Company, t: &Ticket, feedback: &str) -> Result<()> {
 /// Stops a ticket: ends its agent if it's working, or cancels it if it's waiting in the queue.
 /// Either way it ends up stopped (failed), and `retry` picks it back up, in the same session when there is one.
 pub fn stop(c: &Company, t: &Ticket) -> Result<()> {
+    stop_because(c, t, "stopped by the founder")
+}
+
+fn stop_because(c: &Company, t: &Ticket, why: &str) -> Result<()> {
     let key = c.key(t.id);
     match t.status.as_str() {
         "doing" => {
-            c.add_event(t.id, "stop", "stopped by the founder", "")?;
+            c.add_event(t.id, "stop", why, "")?;
             // No pid means nothing to end: it's between steps, or on the stand-in runtime.
             if let Some(pid) = c.agent_pid(t.id)? {
                 // Ask nicely first, so the agent can wrap up its session file.
@@ -1349,6 +1384,70 @@ pub fn stop(c: &Company, t: &Ticket) -> Result<()> {
         s => bail!("{key} is {s}, so there's nothing to stop"),
     }
     Ok(())
+}
+
+/// After how many minutes without any output a run is stopped, from Settings. 0 means never.
+pub fn quiet_limit(c: &Company) -> Result<i64> {
+    Ok(c.setting("watch.stop")?.and_then(|v| v.parse().ok()).unwrap_or(30))
+}
+
+pub fn set_quiet_limit(c: &Company, minutes: i64) -> Result<()> {
+    if minutes < 0 {
+        bail!("minutes are 0 for never, or more");
+    }
+    c.set_setting("watch.stop", &minutes.to_string())
+}
+
+/// A run that has shown nothing for a while: (ticket, minutes quiet, its last step).
+pub struct Quiet {
+    pub ticket: Ticket,
+    pub minutes: i64,
+    pub last: String,
+}
+
+/// Running tickets quiet for a third of the limit or more: worth a look. A run that's alive but
+/// stuck, on a command that never returns or a prompt nobody answers, looks like it's working and
+/// holds a work slot. Quiet means no step, no text and no tool result logged on the ticket. A
+/// single command can't stay quiet long on its own: Claude Code times commands out at 10 minutes.
+pub fn quiet_runs(c: &Company) -> Result<Vec<Quiet>> {
+    let limit = quiet_limit(c)?;
+    if limit <= 0 {
+        return Ok(vec![]);
+    }
+    let notice = (limit / 3).max(5);
+    let mut out = vec![];
+    for (id, minutes) in c.quiet_tickets()? {
+        if minutes < notice {
+            continue;
+        }
+        let Some(ticket) = c.ticket(id)? else { continue };
+        let last = c.events(id)?.into_iter().rev().find(|(_, k, _)| k == "tool").map(|(_, _, s)| runtime::clip(&s.replace('\n', " "), 120)).unwrap_or_default();
+        out.push(Quiet { ticket, minutes, last });
+    }
+    Ok(out)
+}
+
+/// Stops the runs that stayed quiet past the limit, the way Stop does: the session and worktree are
+/// kept, so Retry picks up where it was. The card says why. Called from serve's loop.
+pub fn stop_quiet(c: &Company) -> Result<Vec<String>> {
+    let limit = quiet_limit(c)?;
+    let mut stopped = vec![];
+    for q in quiet_runs(c)?.into_iter().filter(|q| q.minutes >= limit) {
+        let last = if q.last.is_empty() { String::new() } else { format!(" Last step: {}", q.last) };
+        stop_because(c, &q.ticket, &format!("stopped after {} minutes with no output", q.minutes))?;
+        c.add_event(q.ticket.id, "error", &format!("stopped after {} minutes with no output.{last}", q.minutes), "")?;
+        stopped.push(c.key(q.ticket.id));
+    }
+    Ok(stopped)
+}
+
+/// "Keep waiting" on a quiet run: logged on the ticket, which counts as activity, so it has the
+/// whole limit again before it's stopped.
+pub fn keep_waiting(c: &Company, t: &Ticket) -> Result<()> {
+    if t.status != "doing" {
+        bail!("{} isn't running", c.key(t.id));
+    }
+    c.add_event(t.id, "wait", "the founder chose to keep waiting", "")
 }
 
 /// Throws away the work on a ticket in review: its pull request is closed, its branch and

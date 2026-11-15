@@ -209,6 +209,12 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "with_leads": with_leads,
         "reviews": reviews,
         "failed": failed,
+        // Running but quiet a while: worth a look before the watchdog stops them.
+        "quiet": crate::work::quiet_runs(c)?.iter().map(|q| {
+            let who = q.ticket.assignee.clone().unwrap_or_default();
+            json!({"key": c.key(q.ticket.id), "title": q.ticket.title, "employee": who, "name": name_of(&who), "minutes": q.minutes, "last": q.last})
+        }).collect::<Vec<_>>(),
+        "quiet_limit": crate::work::quiet_limit(c)?,
         "feed": feed,
         "channels": channels,
         "dms": dms,

@@ -321,6 +321,18 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// Copy the company now: its database, wiki and everyone's notes. OneCorp also does it every hour
+    Backup {
+        #[arg(short, long)]
+        company: Option<String>,
+    },
+    /// Put a copy back. With no copy named, lists them. What's there now is copied first
+    Restore {
+        /// The copy, like "2026-11-15_14-00-05" or "2026-11-15 14:00:05"
+        copy: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Recurring work on a schedule: list routines, add one, run one now, pause, resume or remove it
     Routine {
         #[command(subcommand)]
@@ -912,6 +924,29 @@ fn run(cmd: Cmd) -> Result<()> {
             match onecorp::ship::forge(&c)? {
                 Some(f) => println!("{}: finished work opens a {} on {}, and approving merges it.", c.name, f.pr_word(), f.name()),
                 None => println!("{}: approving merges into your local repo. Push it yourself when you want.", c.name),
+            }
+        }
+        Cmd::Backup { company } => {
+            let c = open(company)?;
+            println!("Copied {} to {}", c.name, onecorp::backup::take(&c, "")?.display());
+        }
+        Cmd::Restore { copy, company } => {
+            let c = open(company)?;
+            match copy {
+                Some(name) => {
+                    onecorp::backup::restore(&c, &name)?;
+                    println!("{} is back to {name}. What was there before is kept as a copy too: onecorp restore", c.name);
+                }
+                None => {
+                    let copies = onecorp::backup::list(&c)?;
+                    if copies.is_empty() {
+                        println!("No copies of {} yet. Make one: onecorp backup", c.name);
+                    }
+                    for x in copies {
+                        println!("{}", x.name);
+                    }
+                    println!("Put one back: onecorp restore <copy>");
+                }
             }
         }
         Cmd::Routine { action, company } => {
