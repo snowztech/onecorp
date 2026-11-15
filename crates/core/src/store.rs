@@ -971,16 +971,24 @@ impl Company {
         // People at their daily cap, or whose agent hit its plan limit, take no new work for now.
         // Matched against a ",a,b," list.
         let capped = format!(",{},", crate::limits::away(self)?.join(","));
+        // Who does a job: the reviewer for a review, whose id rides in `label`, otherwise the
+        // ticket's assignee. A reviewer is busy while reviewing, like anyone on a ticket.
+        let who = |j: &str, t: &str| format!("(CASE WHEN {j}.kind = 'review' THEN {j}.label ELSE {t}.assignee END)");
         let next = self
             .db
             .query_row(
-                "SELECT j.id, j.ticket_id, j.kind, j.why, j.prompt, j.label FROM jobs j JOIN tickets t ON t.id = j.ticket_id
-                 WHERE j.started_at IS NULL AND (?1 IS NULL OR j.kind = ?1) AND NOT EXISTS (
-                   SELECT 1 FROM jobs r JOIN tickets rt ON rt.id = r.ticket_id
-                   WHERE r.started_at IS NOT NULL AND r.finished_at IS NULL
-                     AND (r.ticket_id = j.ticket_id OR rt.assignee = t.assignee))
-                   AND instr(?2, ',' || coalesce(t.assignee, '') || ',') = 0
-                 ORDER BY j.id LIMIT 1",
+                &format!(
+                    "SELECT j.id, j.ticket_id, j.kind, j.why, j.prompt, j.label FROM jobs j JOIN tickets t ON t.id = j.ticket_id
+                     WHERE j.started_at IS NULL AND (?1 IS NULL OR j.kind = ?1) AND NOT EXISTS (
+                       SELECT 1 FROM jobs r JOIN tickets rt ON rt.id = r.ticket_id
+                       WHERE r.started_at IS NOT NULL AND r.finished_at IS NULL
+                         AND (r.ticket_id = j.ticket_id OR {} = {}))
+                       AND instr(?2, ',' || coalesce({}, '') || ',') = 0
+                     ORDER BY j.id LIMIT 1",
+                    who("r", "rt"),
+                    who("j", "t"),
+                    who("j", "t"),
+                ),
                 params![kind, capped],
                 |r| {
                     let job = match r.get::<_, String>(2)?.as_str() {
