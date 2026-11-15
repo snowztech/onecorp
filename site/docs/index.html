@@ -32,13 +32,14 @@
     .ico { width: 15px; height: 15px; flex: none; }
     .nav nav a { display: inline-flex; align-items: center; gap: 7px; color: var(--sn-fg-muted); text-decoration: none; transition: color 0.15s; }
     .nav nav a:hover, .nav nav a[aria-current="page"] { color: var(--sn-fg); }
-    .nav nav a.get { padding: 6px 12px; border-radius: 8px; background: var(--sn-fg); color: var(--sn-bg); font-weight: 500; transition: opacity 0.15s; }
-    .nav nav a.get:hover { color: var(--sn-bg); opacity: 0.85; }
+    .nav nav a.get { height: 30px; padding: 0 12px; border: 1px solid var(--sn-border-strong); border-radius: var(--sn-r-xs); color: var(--sn-fg); font-weight: 500; transition: border-color 0.15s; }
+    .nav nav a.get:hover { border-color: var(--sn-fg-muted); }
 
     /* The guide: its sections on the left, always in reach, and the text at a readable width. */
     .docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; padding-top: 32px; }
     .toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
-    .toc p { margin: 0 0 10px; color: var(--sn-fg-subtle); font: 500 12px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
+    .toc summary { list-style: none; pointer-events: none; margin: 0 0 10px; color: var(--sn-fg-subtle); font: 500 12px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
+    .toc summary::-webkit-details-marker { display: none; }
     .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
     .toc a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--sn-fg-muted); text-decoration: none; transition: color 0.15s, background-color 0.15s; }
     .toc a:hover { color: var(--sn-fg); background: var(--code-bg); }
@@ -79,8 +80,12 @@
     }
     @media (max-width: 860px) {
       .docs { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-      .toc { position: static; max-height: none; }
-      .toc ol { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+      /* On a phone the sections fold away so the guide starts on screen. */
+      .toc { position: static; max-height: none; border: 1px solid var(--sn-border-subtle); border-radius: 10px; }
+      .toc summary { pointer-events: auto; margin: 0; padding: 12px 14px; cursor: pointer; display: flex; justify-content: space-between; }
+      .toc summary::after { content: "+"; font-size: 15px; line-height: 1; }
+      .toc[open] summary::after { content: "−"; }
+      .toc ol { padding: 0 6px 8px; }
       article h1 { font-size: 32px; }
     }
   </style>
@@ -95,7 +100,7 @@
     </nav>
   </header>
   <main class="wrap docs">
-    <aside class="toc" aria-label="Sections"><p>Guide</p><ol id="toc"></ol></aside>
+    <details class="toc" id="toc-box" aria-label="Sections"><summary>Guide</summary><ol id="toc"></ol></details>
     <article id="guide"><p class="loading">Loading the guide…</p></article>
   </main>
   <footer>
@@ -118,6 +123,11 @@
       // Screenshots point at the site's copies when the guide is read in the repo.
       article.querySelectorAll("img").forEach(img => { img.src = img.getAttribute("src").replace("../site/shots/", "/shots/"); img.loading = "lazy"; });
       const sections = [...article.querySelectorAll("h2")];
+      // Open as a sidebar on wide screens, folded on a phone and folded again after picking a section.
+      const box = document.getElementById("toc-box"), wide = matchMedia("(min-width: 861px)");
+      const fold = () => { box.open = wide.matches; };
+      fold(); wide.addEventListener("change", fold);
+      toc.addEventListener("click", e => { if (e.target.closest("a") && !wide.matches) box.open = false; });
       toc.innerHTML = sections.map(h => `<li><a href="#${h.id}">${h.textContent}</a></li>`).join("");
       heads.forEach(h => h.insertAdjacentHTML("beforeend", `<a class="anchor" href="#${h.id}" aria-label="Link to this section">#</a>`));
       article.querySelectorAll("pre").forEach(pre => {
