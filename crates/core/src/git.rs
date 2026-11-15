@@ -41,6 +41,26 @@ pub fn add_worktree(repo: &Path, path: &Path, branch: &str, from: &str) -> Resul
     Ok(name)
 }
 
+/// Copies the checkout's env files into a new worktree: `.env` and `.env.*` that git ignores,
+/// at any depth outside ignored folders like node_modules. A worktree gets only what git tracks,
+/// so without these an employee starts with no API keys or database URLs and gets stuck.
+/// Ignored, they never end up in a commit. Returns what it copied, like ".env" and "api/.env".
+pub fn copy_env(repo: &Path, wt: &Path) -> Vec<String> {
+    let pattern = ["--", ".env", ".env.*", "*/.env", "*/.env.*"];
+    let Ok(listed) = git(repo, &[&["ls-files", "--others", "--ignored", "--exclude-standard", "--directory"][..], &pattern].concat(), &[]) else { return vec![] };
+    let mut copied = vec![];
+    for file in listed.lines().filter(|f| !f.ends_with('/')) {
+        let (from, to) = (repo.join(file), wt.join(file));
+        if !from.is_file() || to.exists() || !to.parent().is_some_and(Path::is_dir) {
+            continue;
+        }
+        if std::fs::copy(&from, &to).is_ok() {
+            copied.push(file.to_string());
+        }
+    }
+    copied
+}
+
 /// Lets a ticket's worktree push only its own branch: a pre-push hook in a hooks folder that's this
 /// worktree's alone, so your own checkout and other tickets are untouched. Deleting the branch on
 /// the remote is refused too. It stops mistakes, not someone set on getting around it.
@@ -385,6 +405,26 @@ mod tests {
             assert_eq!(std::fs::read_to_string(wt3.join("target/debug/built")).unwrap(), "yes");
         }
         assert!(warm_builds(&repo, &wt3).is_empty(), "never twice");
+
+        // And its env files, the ones git ignores. Not ones inside an ignored folder, and never into a commit.
+        write(&repo.join(".gitignore"), "target/\n.env\n.env.local\nnode_modules/\n");
+        commit_all(&repo, "ignore env", &me).unwrap();
+        std::fs::create_dir_all(repo.join("api")).unwrap();
+        std::fs::create_dir_all(repo.join("node_modules/x")).unwrap();
+        write(&repo.join("api/.gitignore"), ".env\n");
+        commit_all(&repo, "api", &me).unwrap();
+        write(&repo.join(".env"), "KEY=1\n");
+        write(&repo.join(".env.local"), "LOCAL=1\n");
+        write(&repo.join("api/.env"), "DB=x\n");
+        write(&repo.join("node_modules/x/.env"), "no\n");
+        let wt4 = root.join("wt4");
+        add_worktree(&repo, &wt4, "t/4", "main").unwrap();
+        let mut env = copy_env(&repo, &wt4);
+        env.sort();
+        assert_eq!(env, [".env", ".env.local", "api/.env"]);
+        assert_eq!(std::fs::read_to_string(wt4.join("api/.env")).unwrap(), "DB=x\n");
+        assert!(commit_all(&wt4, "nothing", &me).unwrap().is_none(), "env files never get committed");
+        assert!(copy_env(&repo, &wt4).is_empty(), "never over what's there");
 
         // Ticket 2 started before a conflicting change landed on main.
         let wt2 = root.join("wt2");

@@ -270,13 +270,20 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     if !warmed.is_empty() {
         out(&format!("      reusing your builds in {}", warmed.join(", ")));
     }
+    let env = git::copy_env(&repo, &wt);
+    if !env.is_empty() {
+        out(&format!("      copied {} from your checkout", env.join(", ")));
+        c.add_event(id, "tool", &format!("copied {} from the founder's checkout", env.join(", ")), "")?;
+    }
     // The ticket's branch is the only one its worktree can push.
     if let Err(err) = git::guard_pushes(&repo, &wt, &branch, &c.dir.join("hooks").join(key.to_lowercase())) {
         out(&format!("      warning: couldn't guard pushes: {err:#}"));
     }
     let setup = run_setup(c, t, id, &wt)?;
 
-    let (bio, details) = (crate::voice::intro(c, &e)?, format!("{}{setup}", ticket_details(c, t)?));
+    // Said, so they look there before asking you for a key.
+    let env = if env.is_empty() { String::new() } else { format!("\n\nYour worktree has the env files from the founder's checkout: {}. Read keys and URLs from there. Never commit them or paste their values anywhere.", env.join(", ")) };
+    let (bio, details) = (crate::voice::intro(c, &e)?, format!("{}{setup}{env}", ticket_details(c, t)?));
     let knowledge = company_knowledge(c, crate::roles::spaces(crate::roles::role_of(c, &e)?))?;
     let (notes, chat) = (own_notes(c, &e.id)?, crate::chat::catch_up(c, &e)?);
     let prompt = format!(
