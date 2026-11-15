@@ -117,6 +117,8 @@ Leads are how your company handles most things without you.
 - An employee can ask a specific teammate to review their work instead.
 - Merging is always yours.
 
+![A lead's verdict on the Inbox card](../site/shots/review.jpg)
+
 ## Chat
 
 Team chat has a channel for the whole company, one per department, and direct messages with each person.
@@ -194,6 +196,8 @@ Add one in Settings, Routines: what to do, who does it, and when. Every day, wee
 - A Mac that slept through a time runs it once when it wakes.
 - Run now, Pause and Delete are next to each one.
 
+![Routines in Settings](../site/shots/routines.jpg)
+
 From the command line:
 
 ```sh
@@ -241,6 +245,8 @@ onecorp serve                                     # run queued work, several peo
 **Start with `onecorp doctor`**, or Settings, Integrations. It checks git, each agent and its login, and your companies, and says how to fix what isn't right.
 
 **A run is quiet.** When an employee shows nothing for 10 minutes, the Inbox says so, with their last step. Keep waiting, or stop it. After 30 minutes OneCorp stops it with the work kept, and Retry picks up where it was. Change the time, or turn it off, in Settings, Company, Quiet runs.
+
+![A quiet run in the Inbox](../site/shots/quiet.jpg)
 
 **A run stopped.** The Inbox card says why. Retry continues in the same session when it can. Retry with a note to tell them what to do differently.
 
