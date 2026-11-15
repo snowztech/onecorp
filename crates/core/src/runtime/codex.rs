@@ -52,8 +52,13 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     if let Some(s) = o.resume {
         cmd.args(["resume", s]);
     }
-    // No prompt argument: codex reads it from stdin.
-    stream(cmd, prompt, parse, o.on_spawn, on)
+    // No prompt argument: codex reads it from stdin. What stays the same goes first, where its
+    // prompt caching looks.
+    let prompt = match o.system {
+        Some(system) => format!("{system}\n\n{prompt}"),
+        None => prompt.to_string(),
+    };
+    stream(cmd, &prompt, parse, o.on_spawn, on)
 }
 
 pub fn parse(line: &str) -> Vec<Event> {

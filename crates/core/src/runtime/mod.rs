@@ -60,6 +60,11 @@ pub struct Opts<'a> {
     /// The most this run may cost, in dollars: what's left of today's budget. Claude Code stops
     /// itself there. Codex has no such limit, so its runs are still only counted when they end.
     pub max_cost: Option<f64>,
+    /// What stays the same from one run to the next, like who they are, the rules and the wiki.
+    /// Claude Code gets it as its system prompt, which it caches across runs, so only the prompt
+    /// is paid for in full each time. Other agents get it at the start of the prompt, where their
+    /// own caching looks.
+    pub system: Option<&'a str>,
 }
 
 /// What a run says when it stopped at `max_cost`.

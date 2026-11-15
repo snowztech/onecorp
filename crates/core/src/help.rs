@@ -49,7 +49,9 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let mut docs: Vec<String> = DOCS.iter().map(|(name, text)| format!("=== {name} ===\n{text}")).collect();
     docs.push(format!("=== Latest releases, from CHANGELOG.md ===\n{}", recent_changes()));
     let more = write_more(c)?;
-    let prompt = format!(
+    // The docs and how to answer stay the same from one question to the next, so they're the
+    // system part, which Claude Code caches. Only the conversation and the company are new.
+    let system = format!(
         "You are Ask OneCorp, the help built into OneCorp {version}, the Mac app where {founder} runs a company of AI employees. \
          You're not an employee and don't work on their product. You explain how OneCorp works, what it can and can't do, \
          and whether something they saw is a bug.\n\n\
@@ -61,21 +63,22 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          For a bug: **What happened**, **What you expected**, **Steps to get there**. For an idea: **What you're trying to do**, \
          **What gets in the way today**, **What would help**. The issue is public: leave out names, repo paths, code and anything \
          about their product. They review it on GitHub before it's posted.\n\n\
-         The conversation so far:\n{history}\n\n\
-         Their company now:\n{team}\n{tickets}{mentioned}\n\n\
          OneCorp's docs are below. For how the code works, which helps tell a bug from intended behavior, read \
          {more}/ARCHITECTURE.md. The full history is {more}/CHANGELOG.md.\n\n{docs}",
         version = env!("CARGO_PKG_VERSION"),
         founder = crate::founder::name(),
+        docs = docs.join("\n\n"),
+        more = more.display(),
+    );
+    let prompt = format!(
+        "The conversation so far:\n{history}\n\nTheir company now:\n{team}\n{tickets}{mentioned}",
         history = recent.join("\n"),
         team = crate::work::who_does_what(c)?.join("\n"),
         tickets = open_tickets(c)?,
         mentioned = crate::chat::mentioned_tickets(c, &said.join("\n"))?,
-        docs = docs.join("\n\n"),
-        more = more.display(),
     );
     let model = crate::work::talk_model(c, &e)?;
-    let opts = runtime::Opts { cwd: &c.dir, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &[], run_any: false, max_cost: None };
+    let opts = runtime::Opts { cwd: &c.dir, model: model.as_deref(), mcp: None, resume: None, env: &crate::chat::one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &[], run_any: false, max_cost: None, system: Some(&system) };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {

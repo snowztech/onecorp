@@ -219,23 +219,32 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let recent: Vec<&Message> = before.iter().collect();
     let history: Vec<String> = recent.iter().map(|m| line(c, m)).collect();
     let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
-    let prompt = format!(
+    // What stays the same between this person's replies is their system part, which Claude Code
+    // caches: an exchange of a few messages then pays mostly for the conversation, not the company.
+    let system = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
-         {founder} {place}. The conversation so far, with long messages shortened here (everyone saw them in full):\n\n{history}\n\n\
-         They wrote: {asked}\n\n\
          Reply like a colleague would in chat, in your own manner: plain words, no headings, and short. \
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         {propose}\n\n{comment}\n\n{knowledge}{tickets}{now}{mentioned}{elsewhere}{notes}",
+         {propose}\n\n{comment}\n\n{rules}{notes}",
         name = e.name,
         role = e.role,
         company = c.name,
         bio = crate::voice::intro(c, &e)?,
+        checkout = checkout_note(c),
+        propose = propose_note(&e, &team),
+        comment = COMMENT_NOTE,
+        rules = crate::work::company_rules(c, &[])?,
+        notes = crate::work::own_notes(c, &e.id)?,
+    );
+    let prompt = format!(
+        "{founder} {place}. The conversation so far, with long messages shortened here (everyone saw them in full):\n\n{history}\n\n\
+         They wrote: {asked}\n\n{team}{tickets}{now}{mentioned}{elsewhere}",
         founder = asker.unwrap_or_else(crate::founder::name),
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
-        knowledge = crate::work::company_knowledge(c, &[])?,
+        team = crate::work::team_now(c)?,
         tickets = own_tickets(c, &e.id)?,
         now = doing.as_ref().map(|(_, text)| text.clone()).unwrap_or_default(),
         mentioned = mentioned_tickets(c, &said.join("\n"))?,
@@ -243,10 +252,6 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
             lines if lines.is_empty() => String::new(),
             lines => format!("\n\nMeanwhile in your other channels, newest last:\n{}", lines.join("\n")),
         },
-        notes = crate::work::own_notes(c, &e.id)?,
-        checkout = checkout_note(c),
-        propose = propose_note(&e, &team),
-        comment = COMMENT_NOTE,
     );
     let repo = c.repo()?;
     let model = crate::work::talk_model(c, &e)?;
@@ -256,7 +261,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     for t in c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(e.id.as_str()) && t.status == "review") {
         dirs.extend(t.worktree.map(std::path::PathBuf::from).filter(|p| p.is_dir()));
     }
-    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None };
+    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None, system: Some(&system) };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -291,6 +296,15 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let cost = crate::spend::record(c, "chat", &e.id, None, &e.runtime, model.as_deref(), cost, tokens)?;
     c.finish_message(id, &text, cost, tokens)
+}
+
+/// For a run that answers once and is done, like a chat reply: its conversation is cached for
+/// 5 minutes instead of Claude Code's hour. Writing to the hour-long cache costs twice the input
+/// price, and nothing comes back to read a one-off answer later. The system part keeps the hour,
+/// so the next reply still reads it from cache. Ticket runs keep the hour: a step there can take
+/// longer than 5 minutes.
+pub(crate) fn one_off_cache() -> [(String, String); 1] {
+    [("CLAUDE_CODE_MESSAGES_PROMPT_CACHE_TTL".into(), "5m".into())]
 }
 
 /// The people a lead can give work to: everyone in the departments they lead.
