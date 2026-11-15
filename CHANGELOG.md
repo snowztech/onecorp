@@ -7,6 +7,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 ### Changed
 
 - A new ticket's worktree gets the env files from your checkout, like `.env` and `api/.env.local`: the ones git ignores, so employees start with the same keys and database URLs you have, and never commit them. Before, they started with none and stopped to ask you. A ticket that picks back up gets what you changed since. To choose what's copied, add a `.worktreeinclude` to your repo in .gitignore syntax, like `.env*`, `config/local.yml` and `!.env.production`. It's the same file Claude Code reads for `claude --worktree`. (#98)
+- Quitting OneCorp or restarting to update no longer costs the team their work. A ticket cut short picks up where it left off the next time OneCorp opens, in the same session. Only one that can't, like a plan, waits in the Inbox as stopped. A paused company stays stopped, so Pause before quitting is how you keep the team from starting again. (#75)
 
 ## [0.1.13] - 2026-11-14
 
