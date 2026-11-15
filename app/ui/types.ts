@@ -116,7 +116,9 @@ export interface Settings {
   origin: string | null; tickets: number; people: number; version: string; repos: SettingsRepo[];
   commits: string; pr_sign: boolean; lead_review?: boolean; talk: string; talk_models: Record<string, string[]>; run_any?: boolean;
   git_you: { name: string; email: string } | null;
+  backups?: Backup[];
 }
+export interface Backup { name: string; at: string; why: string }
 
 export interface SpendReport {
   totals: Windows; budget: number; run_limit: number; estimated: boolean;
@@ -186,6 +188,7 @@ export interface Results {
   set_commands: SettingsRepo[];
   set_projects_folder: string;
   settings: Settings;
+  take_backup: Backup[];
   setup_info: SetupInfo;
   snapshot: Snapshot;
   spend_report: SpendReport;

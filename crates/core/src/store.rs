@@ -348,9 +348,24 @@ impl Company {
         // lets them take turns instead of failing with "database is locked".
         db.busy_timeout(std::time::Duration::from_secs(5))?;
         db.execute_batch("PRAGMA journal_mode = WAL;")?;
+        // A new version may change the database: copy it first, once, so an update can't lose it.
+        let was: Option<String> = db
+            .query_row("SELECT value FROM meta WHERE key = 'version'", [], |r| r.get(0))
+            .optional()
+            .unwrap_or(None);
+        let now = env!("CARGO_PKG_VERSION");
+        let opened = db.query_row("SELECT count(*) > 0 FROM sqlite_master WHERE name = 'meta'", [], |r| r.get::<_, bool>(0))?;
         db.execute_batch(SCHEMA)?;
         migrate(&db)?;
         let c = Company { name: name.to_string(), dir, db };
+        if was.as_deref() != Some(now) {
+            // Best effort: two processes opening at once after an update race for the same copy,
+            // and a copy that fails mustn't keep the company from opening.
+            if opened && let Err(e) = crate::backup::take(&c, &format!("before-{now}")) {
+                eprintln!("couldn't copy {name} before the update: {e:#}");
+            }
+            c.set_setting("version", now)?;
+        }
         wiki::migrate(&c)?;
         Ok(c)
     }
@@ -407,6 +422,34 @@ impl Company {
     }
 
     /// Today's date in local time, from the same clock as the spend ledger.
+    /// The time now, or `offset` from now like "-1 hour", in local time, formatted with strftime.
+    pub fn local_time(&self, format: &str, offset: &str) -> Result<String> {
+        let offset = if offset.is_empty() { "+0 seconds" } else { offset };
+        Ok(self.db.query_row("SELECT strftime(?1, 'now', 'localtime', ?2)", params![format, offset], |r| r.get(0))?)
+    }
+
+    /// A consistent copy of the database at `to`, taken while others keep writing.
+    pub fn copy_database(&self, to: &Path) -> Result<()> {
+        self.db.execute("VACUUM INTO ?1", [to.to_string_lossy()])?;
+        Ok(())
+    }
+
+    /// Replaces the database with the one at `from`, through SQLite's own backup, so open
+    /// connections see the restored data instead of a file swapped under them.
+    pub fn restore_database(&self, from: &Path) -> Result<()> {
+        let src = Connection::open_with_flags(from, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let mut db = Connection::open(self.dir.join("company.db"))?;
+        db.busy_timeout(std::time::Duration::from_secs(5))?;
+        let backup = rusqlite::backup::Backup::new(&src, &mut db)?;
+        backup.run_to_completion(256, std::time::Duration::from_millis(0), None)?;
+        Ok(())
+    }
+
+    /// Jobs started and not finished: work running right now.
+    pub fn running_jobs(&self) -> Result<i64> {
+        Ok(self.db.query_row("SELECT count(*) FROM jobs WHERE started_at IS NOT NULL AND finished_at IS NULL", [], |r| r.get(0))?)
+    }
+
     pub fn today(&self) -> Result<String> {
         Ok(self.db.query_row("SELECT date('now', 'localtime')", [], |r| r.get(0))?)
     }

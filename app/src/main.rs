@@ -218,7 +218,27 @@ fn settings(company: String) -> Res<Value> {
         // The model names each choice means, for the agents this team uses.
         "talk_models": talk_models,
         "git_you": onecorp::git::config(&repo, "user.name").zip(onecorp::git::config(&repo, "user.email")).map(|(n, e)| json!({"name": n, "email": e})),
+        "backups": backups_json(&c).map_err(err)?,
     }))
+}
+
+/// The company's copies, newest first: when, and why when it wasn't the hourly one.
+fn backups_json(c: &Company) -> anyhow::Result<Vec<Value>> {
+    Ok(onecorp::backup::list(c)?.into_iter().map(|x| json!({"name": x.name, "at": x.at, "why": x.why})).collect())
+}
+
+/// Copies the company now. Returns the copies, with the new one first.
+#[tauri::command(async)]
+fn take_backup(company: String) -> Res<Vec<Value>> {
+    let c = open(&company)?;
+    onecorp::backup::take(&c, "").map_err(err)?;
+    backups_json(&c).map_err(err)
+}
+
+/// Puts a copy back, after copying what's there now.
+#[tauri::command(async)]
+fn restore_backup(company: String, name: String) -> Res<()> {
+    onecorp::backup::restore(&open(&company)?, &name).map_err(err)
 }
 
 /// Each repo with the build and test commands employees may run in it.
@@ -942,6 +962,8 @@ fn main() {
             set_cap,
             keep_going_today,
             delete_company,
+            take_backup,
+            restore_backup,
             forget_founder,
             snapshot,
             person,
