@@ -32,9 +32,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         let mcp = json!({"mcpServers": {"onecorp": {"command": m.command, "args": m.args, "env": env}}});
         cmd.args(["--mcp-config", &mcp.to_string()]);
     }
-    if let Some(keep) = user_settings() {
-        cmd.args(["--settings", &keep]);
-    }
+    cmd.args(["--settings", &settings(o, user_settings()).to_string()]);
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
     }
@@ -56,6 +54,12 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     }
     if let Some(system) = o.system {
         cmd.args(["--append-system-prompt", system]);
+        // A ticket run's folder is its own worktree, which Claude Code names in its system prompt.
+        // Moved to the first message, the system prompt is the same for every ticket, so the
+        // shared base before it comes from cache. A chat reply always runs in the same folder.
+        if !o.read_only {
+            cmd.arg("--exclude-dynamic-system-prompt-sections");
+        }
     }
     if let Some(max) = o.max_cost {
         cmd.args(["--max-budget-usd", &format!("{max:.2}")]);
@@ -66,16 +70,29 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
 
 /// What a run still needs from the user's own Claude Code settings once they're left out: how
 /// they sign in, and the model "Default" stands for.
-fn user_settings() -> Option<String> {
-    let home = std::env::var("HOME").ok()?;
-    let text = std::fs::read_to_string(std::path::Path::new(&home).join(".claude/settings.json")).ok()?;
-    kept(&serde_json::from_str(&text).ok()?)
+fn user_settings() -> serde_json::Map<String, Value> {
+    let Some(home) = std::env::var("HOME").ok() else { return Default::default() };
+    let text = std::fs::read_to_string(std::path::Path::new(&home).join(".claude/settings.json")).unwrap_or_default();
+    kept(&serde_json::from_str(&text).unwrap_or_default())
 }
 
-fn kept(all: &Value) -> Option<String> {
+fn kept(all: &Value) -> serde_json::Map<String, Value> {
     const KEEP: [&str; 5] = ["env", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "model"];
-    let keep: serde_json::Map<String, Value> = KEEP.iter().filter_map(|k| Some((k.to_string(), all.get(k)?.clone()))).collect();
-    (!keep.is_empty()).then(|| Value::Object(keep).to_string())
+    KEEP.iter().filter_map(|k| Some((k.to_string(), all.get(k)?.clone()))).collect()
+}
+
+/// The most of a successful command's output a ticket run reads inline, in characters. Past it,
+/// Claude Code saves the output to a file and the agent gets the end of it and the path. A long
+/// test log otherwise sits in the conversation and is read again on every later step. Failed
+/// commands keep their whole output: that's where the error is.
+const COMMAND_OUTPUT: u64 = 8_000;
+
+/// The settings a run gets: the user's sign-in and model, and for ticket runs, shorter command output.
+fn settings(o: &Opts, mut keep: serde_json::Map<String, Value>) -> Value {
+    if !o.read_only {
+        keep.insert("bashOutputMaxChars".into(), json!(COMMAND_OUTPUT));
+    }
+    Value::Object(keep)
 }
 
 fn allowed(o: &Opts) -> String {
@@ -190,8 +207,8 @@ mod tests {
     #[test]
     fn keeps_sign_in_and_model_from_the_users_settings() {
         let all = json!({"model": "opus", "env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "hooks": {"SessionStart": []}, "enabledPlugins": {"x": true}});
-        assert_eq!(kept(&all).unwrap(), json!({"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "model": "opus"}).to_string());
-        assert_eq!(kept(&json!({"hooks": {}})), None, "nothing to pass when only the rest is set");
+        assert_eq!(Value::Object(kept(&all)), json!({"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "model": "opus"}));
+        assert!(kept(&json!({"hooks": {}})).is_empty(), "nothing to pass when only the rest is set");
     }
 
     #[test]

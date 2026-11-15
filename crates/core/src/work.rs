@@ -284,24 +284,18 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     // Said, so they look there before asking you for a key.
     let env = if env.is_empty() { String::new() } else { format!("\n\nYour worktree has the env files from the founder's checkout: {}. Read keys and URLs from there. Never commit them or paste their values anywhere.", env.join(", ")) };
     let (bio, details) = (crate::voice::intro(c, &e)?, format!("{}{setup}{env}", ticket_details(c, t)?));
-    let knowledge = company_knowledge(c, crate::roles::spaces(crate::roles::role_of(c, &e)?))?;
-    let (notes, chat) = (own_notes(c, &e.id)?, crate::chat::catch_up(c, &e)?);
+    // The company's base is the same for everyone on the same side of the wiki: how tickets work
+    // here, the rules and the wiki. It's the system part, which Claude Code caches, so the whole
+    // team reads one copy from cache instead of each ticket paying for it. What's theirs and this
+    // ticket's, and who's doing what right now, is the prompt.
+    let knowledge = format!("{TICKET_RULES}{}", company_rules(c, crate::roles::spaces(crate::roles::role_of(c, &e)?))?);
+    let (notes, chat, team) = (own_notes(c, &e.id)?, crate::chat::catch_up(c, &e)?, team_now(c)?);
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          Your ticket is {key}: {title}\n\n{details}\
          You are in a git worktree on branch {branch}{in_repo}. {abilities} {commits} \
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
-         If the ticket asks for an audit, research, a review or advice rather than a change, don't write files for it: \
-         your final reply is the work, a report in Markdown the founder reads in OneCorp. Turn each piece of follow-up work \
-         you recommend into a ticket with create_ticket, given to whoever fits, so the founder picks what to start.\n\n\
-         You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
-         or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
-         If something outside your control stops you, use update_ticket to mark the ticket blocked. \
-         Finishing needs no tool: when you end with your summary, OneCorp moves the ticket to review. \
-         If you learn or decide something every teammate should know from now on, propose it with propose_wiki. \
-         If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
-         save it with remember: one line per note.\n\n\
-         {knowledge}{notes}{chat}",
+         {team}{notes}{chat}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -318,9 +312,9 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         },
     );
     // What the prompt is made of, so where the tokens go is something you can see on the ticket.
-    let rest = prompt.len() - bio.len() - details.len() - knowledge.len() - notes.len() - chat.len();
-    c.add_event(id, "prompt", &prompt_sizes(&[("wiki and team", knowledge.len()), ("playbook", bio.len()), ("ticket", details.len() + rest), ("their notes", notes.len()), ("chat", chat.len())]), "")?;
-    drive(c, &e, id, &wt, None, &prompt, title)
+    let rest = prompt.len() - bio.len() - details.len() - team.len() - notes.len() - chat.len();
+    c.add_event(id, "prompt", &prompt_sizes(&[("wiki and rules, shared", knowledge.len()), ("team", team.len()), ("playbook", bio.len()), ("ticket", details.len() + rest), ("their notes", notes.len()), ("chat", chat.len())]), "")?;
+    drive(c, &e, id, &wt, None, &prompt, Some(&knowledge), title)
 }
 
 /// The base branch to watch during a run: the forge's copy when there is one, fetched now, or
@@ -615,7 +609,7 @@ fn run_wiki(c: &Company, t: &Ticket) -> Result<()> {
         first = wiki_pages(t)[0],
         knowledge = company_knowledge(c, &["*"])?,
     );
-    drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
+    drive(c, &e, id, &c.repo()?, None, &prompt, None, &t.title)
 }
 
 /// Saves a writer's pages, including drafts left in review by older versions. Only the pages
@@ -698,7 +692,7 @@ fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
         },
         knowledge = company_knowledge(c, &["*"])?,
     );
-    drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
+    drive(c, &e, id, &c.repo()?, None, &prompt, None, &t.title)
 }
 
 /// Starts a reviewed plan: each of its tickets starts, and ones waiting for others start in order
@@ -779,6 +773,18 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 }
 
 /// How OneCorp works, said once so nobody goes looking for it in the repo or in .claude/.
+/// How a ticket run works here, the same for every ticket: the start of the cached base.
+const TICKET_RULES: &str = "If the ticket asks for an audit, research, a review or advice rather than a change, don't write files for it: \
+your final reply is the work, a report in Markdown the founder reads in OneCorp. Turn each piece of follow-up work \
+you recommend into a ticket with create_ticket, given to whoever fits, so the founder picks what to start.\n\n\
+You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
+or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
+If something outside your control stops you, use update_ticket to mark the ticket blocked. \
+Finishing needs no tool: when you end with your summary, OneCorp moves the ticket to review. \
+If you learn or decide something every teammate should know from now on, propose it with propose_wiki. \
+If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
+save it with remember: one line per note.\n\n";
+
 const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
 start one. Your work reaches the base branch through a pull request the founder approves: OneCorp opens one for your \
 branch if you haven't, and merges it once they approve. \
@@ -1205,7 +1211,7 @@ fn pick_up(c: &Company, t: &Ticket, why: &str, prompt: &str, label: &str) -> Res
         out(&format!("      updated {} from your checkout", env.join(", ")));
         c.add_event(t.id, "tool", &format!("updated {} from the founder's checkout", env.join(", ")), "")?;
     }
-    drive(c, &e, t.id, Path::new(wt), Some(session), prompt, label)
+    drive(c, &e, t.id, Path::new(wt), Some(session), prompt, None, label)
 }
 
 /// Who a commit is by, per the company's choice (setting "commits"):
@@ -1236,7 +1242,8 @@ pub fn signature(c: &Company, e: &Employee, repo: &Path) -> Result<Signature> {
 
 /// Runs one agent session on a ticket, logging every event, commits what it left, then reports where the ticket landed.
 /// `label` names this run in the commit message, like the ticket title or "changes from review".
-fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, prompt: &str, label: &str) -> Result<()> {
+#[allow(clippy::too_many_arguments)]
+fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, prompt: &str, system: Option<&str>, label: &str) -> Result<()> {
     let key = c.key(id);
     // The agent starts this same binary as the company's MCP server, scoped to this ticket.
     let mcp = company_tools(c, id, &e.id)?;
@@ -1250,7 +1257,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
         _ => vec![],
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)?, system: None };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)?, system };
 
     // Where the base branch stood before the run. Your approval is the only way work should reach
     // it, so an employee's commits showing up there are flagged, whatever command put them there.
