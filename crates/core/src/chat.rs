@@ -228,27 +228,29 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
     // What stays the same between this person's replies is their system part, which Claude Code
     // caches: an exchange of a few messages then pays mostly for the conversation, not the company.
+    // The same for every reply from anyone at this company, so the whole team reads one cached
+    // copy: how chat works here, the rules and the wiki. Who they are is in the prompt.
     let system = format!(
-        "You are {name}, {role} at {company}. {bio}\n\n\
-         Reply like a colleague would in chat, in your own manner: plain words, no headings, and short. \
-         A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
+        "You're answering in team chat as an employee of {company}. Reply like a colleague would, in your own manner: \
+         plain words, no headings, and short. A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
-         {checkout}\
-         {propose}\n\n{comment}\n\n{summary}\n\n{rules}{notes}",
+         {checkout}\n\n{comment}\n\n{summary}\n\n{rules}",
+        company = c.name,
+        checkout = checkout_note(c),
+        comment = COMMENT_NOTE,
         summary = SUMMARY_NOTE,
+        rules = crate::work::company_rules(c, &[])?,
+    );
+    let prompt = format!(
+        "You are {name}, {role} at {company}. {bio} {propose}{notes}\n\n\
+         {founder} {place}. {earlier}The latest messages, older ones shortened here (everyone saw them in full):\n\n{history}\n\n\
+         They wrote: {asked}\n\n{team}{done}{tickets}{now}{mentioned}{elsewhere}",
         name = e.name,
         role = e.role,
         company = c.name,
         bio = crate::voice::intro(c, &e)?,
-        checkout = checkout_note(c),
         propose = propose_note(&e, &team),
-        comment = COMMENT_NOTE,
-        rules = crate::work::company_rules(c, &[])?,
         notes = crate::work::own_notes(c, &e.id)?,
-    );
-    let prompt = format!(
-        "{founder} {place}. {earlier}The latest messages, older ones shortened here (everyone saw them in full):\n\n{history}\n\n\
-         They wrote: {asked}\n\n{team}{done}{tickets}{now}{mentioned}{elsewhere}",
         founder = asker.unwrap_or_else(crate::founder::name),
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
