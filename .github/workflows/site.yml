@@ -4,7 +4,7 @@ name: site
 on:
   push:
     branches: [main]
-    paths: [site/**]
+    paths: [site/**, docs/GUIDE.md]
   workflow_dispatch:
 
 permissions:
@@ -24,6 +24,8 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # The docs page renders the guide from the repo, so there's one text to keep up to date.
+      - run: cp docs/GUIDE.md site/docs/guide.md
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

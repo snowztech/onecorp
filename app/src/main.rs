@@ -1133,6 +1133,7 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
         main.insert(&MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?, 3)?;
     }
     if let Some(MenuItemKind::Submenu(help)) = menu.get(HELP_SUBMENU_ID) {
+        help.append(&MenuItem::with_id(app, "docs", "OneCorp Guide", true, None::<&str>)?)?;
         help.append(&MenuItem::with_id(app, "report-bug", "Report a Bug…", true, None::<&str>)?)?;
         help.append(&MenuItem::with_id(app, "github", "OneCorp on GitHub", true, None::<&str>)?)?;
     }
@@ -1150,6 +1151,7 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
             return;
         }
         let url = match event.id.as_ref() {
+            "docs" => "https://onecorp.dev/docs/".into(),
             "report-bug" => bug_url(&app.package_info().version.to_string()),
             "github" => "https://github.com/snowztech/onecorp".into(),
             _ => return,

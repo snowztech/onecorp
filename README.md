@@ -8,7 +8,7 @@
 
 Hire a team on Claude Code or Codex, give them tickets, watch them work in your real repo, and approve what ships.
 
-[onecorp.dev](https://onecorp.dev)
+[onecorp.dev](https://onecorp.dev) · [Guide](https://onecorp.dev/docs/)
 
 [![CI](https://github.com/snowztech/onecorp/actions/workflows/ci.yml/badge.svg)](https://github.com/snowztech/onecorp/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/snowztech/onecorp?include_prereleases&sort=semver&label=release)](https://github.com/snowztech/onecorp/releases)
@@ -79,6 +79,8 @@ Or download [OneCorp.dmg](https://github.com/snowztech/onecorp/releases/latest/d
 **3. Give them work.** Describe a project or write a ticket. Answer what lands in your Inbox, and approve what ships.
 
 For pull requests, install the [GitHub CLI](https://cli.github.com) and run `gh auth login`. GitLab works the same way with `glab`. Without either, approving merges on your Mac.
+
+Everything else, from reviews and routines to spending and backups, is in the [guide](https://onecorp.dev/docs/) ([docs/GUIDE.md](docs/GUIDE.md) in this repo).
 
 **What it costs:** your agents' usage, nothing else. Every company has a daily budget ($10 to start) and every run shows what it spent. On a Claude or ChatGPT plan, when the usage limit is hit, work waits and picks up again by itself.
 
