@@ -79,8 +79,8 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         mentioned = crate::chat::mentioned_tickets(c, &said.join("\n"))?,
     );
     let model = crate::work::talk_model(c, &e)?;
-    let opts = runtime::Opts { cwd: &c.dir, model: model.as_deref(), mcp: None, resume: None, env: &crate::chat::one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &[], run_any: false, max_cost: None, system: Some(&system) };
-    let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    let opts = runtime::Opts { cwd: &c.dir, model: model.as_deref(), mcp: None, resume: None, env: &crate::chat::one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &[], run_any: false, max_cost: None, system: Some(&system), effort: None };
+    let (mut said, mut cost, mut tokens, mut cached) = (String::new(), 0.0, 0, 0);
     let (mut live, mut shown_at) = (String::new(), std::time::Instant::now());
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -94,6 +94,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
             }
             Event::Tool { .. } => live.clear(),
             Event::Say(text) => said = text,
+            Event::Usage { cached: n, .. } => cached = n,
             Event::Done { cost: c2, tokens: t2, text, .. } => {
                 (cost, tokens) = (c2, t2);
                 if !text.is_empty() {
@@ -104,7 +105,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     });
-    let cost = crate::spend::record(c, "help", ONECORP, None, &e.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record_cached(c, "help", ONECORP, None, &e.runtime, model.as_deref(), cost, tokens, cached)?;
     let text = match run {
         Err(err) => format!("(couldn't answer: {err:#})"),
         Ok(()) => {

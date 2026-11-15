@@ -175,11 +175,12 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
     let model = talk_model(c, &lead)?;
-    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false, max_cost: None, system: None };
-    let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false, max_cost: None, system: None, effort: None };
+    let (mut said, mut cost, mut tokens, mut cached) = (String::new(), 0.0, 0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
             Event::Say(text) => said = text,
+            Event::Usage { cached: n, .. } => cached = n,
             Event::Done { cost: c2, tokens: t2, text, .. } => {
                 (cost, tokens) = (c2, t2);
                 if !text.is_empty() {
@@ -190,7 +191,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     })?;
-    let cost = crate::spend::record(c, "lead", &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record_cached(c, "lead", &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens, cached)?;
     c.add_cost(t.id, cost, tokens)?;
 
     match verdict(&said) {
@@ -866,6 +867,23 @@ pub fn who_does_what(c: &Company) -> Result<Vec<String>> {
         .collect())
 }
 
+/// How hard someone thinks on a ticket: "low", "medium" or "high", or None for their agent's own
+/// default. Low takes fewer steps on routine work and costs less. Each level keeps its own prompt
+/// cache, so a team on one level shares one cached base.
+pub const EFFORTS: [&str; 3] = ["low", "medium", "high"];
+
+pub fn effort(c: &Company, employee: &str) -> Result<Option<String>> {
+    Ok(c.setting(&format!("effort.{employee}"))?.filter(|e| EFFORTS.contains(&e.as_str())))
+}
+
+pub fn set_effort(c: &Company, employee: &str, effort: Option<&str>) -> Result<()> {
+    match effort.map(str::trim).filter(|e| !e.is_empty()) {
+        Some(e) if EFFORTS.contains(&e) => c.set_setting(&format!("effort.{employee}"), e),
+        Some(e) => bail!("effort is low, medium or high, not {e}"),
+        None => c.delete_setting(&format!("effort.{employee}")),
+    }
+}
+
 /// The model for talk, per the company's choice (setting "talk"): "balanced" by default,
 /// "cheapest", or "same" for each person's own model. Tickets always use the person's model.
 pub fn talk_tier(c: &Company) -> Result<String> {
@@ -1257,7 +1275,8 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
         _ => vec![],
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)?, system };
+    let effort = effort(c, &e.id)?;
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)?, system, effort: effort.as_deref() };
 
     // Where the base branch stood before the run. Your approval is the only way work should reach
     // it, so an employee's commits showing up there are flagged, whatever command put them there.
@@ -1266,6 +1285,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
     let mut last_say = String::new();
+    let mut from_cache = 0;
     let run = runtime::run(&e.runtime, &opts, prompt, |raw, ev| {
         let (kind, summary) = match &ev {
             Event::Init { session, model } => {
@@ -1288,6 +1308,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             Event::ToolResult { error: true, text } => ("error", text.clone()),
             Event::ToolResult { .. } | Event::Delta(_) => return Ok(()),
             Event::Usage { fresh, cached, output } => {
+                from_cache = *cached;
                 let k = |n: &u64| format!("{:.1}k", *n as f64 / 1000.0);
                 ("tokens", format!("read {} tokens, {} of them from cache, and wrote {}", k(&(fresh + cached)), k(cached), k(output)))
             }
@@ -1325,12 +1346,12 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
 
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     if !ok && crate::limits::hit(&e.runtime, &text)? {
-        let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+        let cost = crate::spend::record_cached(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens, from_cache)?;
         c.finish_ticket(id, "failed", cost, tokens)?;
         return wait_for_limit(c, e, id);
     }
     if !ok && text == runtime::BUDGET_STOP {
-        let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+        let cost = crate::spend::record_cached(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens, from_cache)?;
         c.finish_ticket(id, "failed", cost, tokens)?;
         let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
         let after = format!("after ${cost:.2} on this run. Their work is kept");
@@ -1384,7 +1405,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             c.add_event(id, "report-text", &text, "")?;
         }
     }
-    let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record_cached(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens, from_cache)?;
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost, tokens)?;
 
     let mut t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;

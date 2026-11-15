@@ -10,6 +10,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - Employees remember a chat conversation past its last few messages. Each reply keeps a short summary of what you've talked about, so in a long DM they still know what you told them at the start, for the same cost a reply. The last few messages reach them in full, not cut short.
 - Replies in chat and Ask OneCorp appear as they're written, instead of all at once after "writing…".
 - In chat and Ask OneCorp, employees know what the whole team finished lately: the last 20 merged tickets, who did each, when, and what changed in a sentence. Before, they only knew their own tickets, so work merged since their last answer went unseen. Older work is a ticket key away.
+- Choose how hard each employee thinks on tickets: Low, Medium, High, or their agent's default, in their profile or with `onecorp hire --effort low`. Low takes fewer steps on routine work: in a test, the same ticket took 3 steps instead of 5 and cost about 20% less.
 
 ### Changed
 
@@ -23,6 +24,8 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - Chat stays still while the team works. Before, every change anywhere in the company redrew the whole page every 1.5 seconds, so it flickered and lost what you were hovering or selecting. Switching channels no longer flashes "Loading…". The same goes for every page and drawer.
 - When you @mention two people in one message, each answers your message. Before, the second could answer the first one's reply instead. A reply that isn't right under its question shows what it answers.
 - Opening a channel reads only its latest messages, and the company page no longer reads every message to find what's unread.
+- Codex spend is counted right. Codex reports a session's usage as a running total, so a ticket picked back up, after changes from review or a retry, counted every earlier run again. A resumed run that cost $0.38 was recorded as $0.98. Each run now counts only its own share.
+- Codex estimates price tokens read from cache at a tenth, as providers bill them. Most of a run's tokens come from cache, so the same small ticket is now estimated at $0.14 instead of $0.72. Codex tickets also show how their tokens split in their log, like Claude's.
 
 ## [0.1.13] - 2026-11-14
 

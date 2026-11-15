@@ -68,6 +68,8 @@ pub struct Opts<'a> {
     /// is paid for in full each time. Other agents get it at the start of the prompt, where their
     /// own caching looks.
     pub system: Option<&'a str>,
+    /// How hard the agent thinks: "low", "medium" or "high". None for its own default.
+    pub effort: Option<&'a str>,
 }
 
 /// What a run says when it stopped at `max_cost`.

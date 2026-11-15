@@ -49,6 +49,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
     }
+    if let Some(e) = o.effort {
+        cmd.args(["-c", &format!("model_reasoning_effort={}", q(e))]);
+    }
     if let Some(s) = o.resume {
         cmd.args(["resume", s]);
     }
@@ -58,7 +61,66 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         Some(system) => format!("{system}\n\n{prompt}"),
         None => prompt.to_string(),
     };
-    stream(cmd, &prompt, parse, o.on_spawn, on)
+    // Codex reports a session's usage as a running total, so a resumed session would count every
+    // earlier run again. What this run used is the total now minus the total last time.
+    let mut on = on;
+    let mut session = o.resume.unwrap_or_default().to_string();
+    stream(cmd, &prompt, parse, o.on_spawn, |raw, ev| match ev {
+        Event::Init { session: s, model } => {
+            session = s.clone();
+            on(raw, Event::Init { session: s, model })
+        }
+        Event::Usage { fresh, cached, output } => {
+            let now = [fresh, cached, output];
+            let [fresh, cached, output] = this_run(&session, now);
+            on(raw, Event::Usage { fresh, cached, output })
+        }
+        Event::Done { ok, cost, tokens, text } => {
+            // Done follows Usage, which already saved the new total: read back what this run added.
+            let tokens = if tokens > 0 { last_run(&session) } else { 0 };
+            on(raw, Event::Done { ok, cost, tokens, text })
+        }
+        other => on(raw, other),
+    })
+}
+
+/// Where a session's running total is kept between runs: one small file per session.
+fn totals_file(session: &str) -> std::path::PathBuf {
+    crate::store::home().join("usage").join(format!("codex-{session}"))
+}
+
+/// What this run used, from the session's running total: [fresh input, cached input, output].
+/// Saves the total and this run's share for the next run and for `last_run`.
+fn this_run(session: &str, now: [u64; 3]) -> [u64; 3] {
+    if session.is_empty() {
+        return now;
+    }
+    let file = totals_file(session);
+    let before = std::fs::read_to_string(&file).ok().and_then(|s| parse_totals(s.lines().next()?)).unwrap_or([0; 3]);
+    let run = since(before, now);
+    let _ = std::fs::create_dir_all(file.parent().unwrap());
+    let line = |n: [u64; 3]| n.map(|x| x.to_string()).join(" ");
+    let _ = std::fs::write(&file, format!("{}\n{}\n", line(now), line(run)));
+    run
+}
+
+/// The tokens this run used, as saved by `this_run`.
+fn last_run(session: &str) -> u64 {
+    std::fs::read_to_string(totals_file(session)).ok().and_then(|s| parse_totals(s.lines().nth(1)?)).map(|r| r.iter().sum()).unwrap_or(0)
+}
+
+fn parse_totals(line: &str) -> Option<[u64; 3]> {
+    let n: Vec<u64> = line.split_whitespace().filter_map(|x| x.parse().ok()).collect();
+    (n.len() == 3).then(|| [n[0], n[1], n[2]])
+}
+
+/// A running total minus the one before. Never below zero: a session Codex started over counts
+/// from its new total.
+fn since(before: [u64; 3], now: [u64; 3]) -> [u64; 3] {
+    if now.iter().zip(before).any(|(n, b)| *n < b) {
+        return now;
+    }
+    [now[0] - before[0], now[1] - before[1], now[2] - before[2]]
 }
 
 pub fn parse(line: &str) -> Vec<Event> {
@@ -68,10 +130,16 @@ pub fn parse(line: &str) -> Vec<Event> {
         Some("thread.started") => vec![Event::Init { session: s(&v, "thread_id"), model: String::new() }],
         Some("item.completed") => item(&v["item"]),
         Some("turn.completed") => {
+            // Totals for the whole session so far, not this run: `run` turns them into this run's share.
             let u = &v["usage"];
-            let tokens = u["input_tokens"].as_u64().unwrap_or(0) + u["output_tokens"].as_u64().unwrap_or(0);
+            let n = |k: &str| u[k].as_u64().unwrap_or(0);
+            let (input, cached, output) = (n("input_tokens"), n("cached_input_tokens"), n("output_tokens"));
+            let tokens = input + output;
             // Codex doesn't send a final summary here. The caller uses the last message instead.
-            vec![Event::Done { ok: true, cost: 0.0, tokens, text: String::new() }]
+            vec![
+                Event::Usage { fresh: input.saturating_sub(cached), cached: cached.min(input), output },
+                Event::Done { ok: true, cost: 0.0, tokens, text: String::new() },
+            ]
         }
         Some("turn.failed") => {
             vec![Event::Done { ok: false, cost: 0.0, tokens: 0, text: clip(&s(&v["error"], "message"), 600) }]
@@ -124,6 +192,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_resumed_session_counts_only_its_own_run() {
+        // What Codex reported over three runs of one session, each a few words long.
+        let (one, two, three) = ([4722, 12160, 5], [4853, 28928, 10], [8701, 45696, 15]);
+        assert_eq!(since([0; 3], one), one);
+        assert_eq!(since(one, two), [131, 16768, 5]);
+        assert_eq!(since(two, three), [3848, 16768, 5]);
+        assert_eq!(since(three, [10, 0, 1]), [10, 0, 1], "a session started over counts from its new total");
+    }
+
+    #[test]
     fn parses_codex_exec_json() {
         let start = r#"{"type":"thread.started","thread_id":"t-1"}"#;
         assert_eq!(parse(start), vec![Event::Init { session: "t-1".into(), model: String::new() }]);
@@ -144,7 +222,7 @@ mod tests {
         assert_eq!(parse(edit), vec![Event::Tool { name: "Edit".into(), detail: "a.rs, b.rs".into() }]);
 
         let done = r#"{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":900,"output_tokens":50}}"#;
-        assert_eq!(parse(done), vec![Event::Done { ok: true, cost: 0.0, tokens: 1050, text: String::new() }]);
+        assert_eq!(parse(done), vec![Event::Usage { fresh: 100, cached: 900, output: 50 }, Event::Done { ok: true, cost: 0.0, tokens: 1050, text: String::new() }]);
 
         assert!(parse(r#"{"type":"item.started","item":{"type":"command_execution"}}"#).is_empty());
     }

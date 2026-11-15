@@ -36,6 +36,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
     }
+    if let Some(e) = o.effort {
+        cmd.args(["--effort", e]);
+    }
     if o.run_any && !o.read_only {
         let never: Vec<String> = super::NEVER_ANY.iter().map(|c| format!("Bash({c}:*)")).collect();
         cmd.args(["--disallowedTools", &never.join(",")]);
@@ -194,7 +197,7 @@ mod tests {
     #[test]
     fn allowed_tools_follow_the_list_or_run_anything() {
         let (cmds, dirs) = (vec!["tools/check.sh".to_string(), "./gradlew assembleDebug".to_string()], vec![std::path::PathBuf::from("/c/reading/wiki")]);
-        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any, max_cost: None, system: None };
+        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any, max_cost: None, system: None, effort: None };
         let listed = allowed(&opts(false, false));
         for rule in ["Bash(tools/check.sh:*)", "Bash(./tools/check.sh:*)", "Bash(./gradlew assembleDebug:*)", "Bash(gradlew assembleDebug:*)", "Read(//c/reading/wiki/**)"] {
             assert!(listed.split(',').any(|r| r == rule), "{rule} in {listed}");
