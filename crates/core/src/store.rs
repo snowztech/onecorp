@@ -1015,7 +1015,8 @@ impl Company {
             }
             self.finish_job(job, Some("interrupted"))?;
             self.set_status(ticket, "failed")?;
-            self.add_event(ticket, "error", "stopped before it finished", "")?;
+            // Its own kind, not an error: nothing went wrong in the work, and the next serve picks it back up.
+            self.add_event(ticket, "interrupted", "stopped before it finished", "")?;
             keys.push(self.key(ticket));
         }
         // A ticket waiting on you always has something in your Inbox to answer. One blocked with no
@@ -1454,6 +1455,7 @@ mod tests {
         c.db.execute("UPDATE jobs SET pid = 999999 WHERE finished_at IS NULL", []).unwrap();
         assert_eq!(c.recover_interrupted().unwrap(), vec![c.key(m2), c.key(t1)]);
         assert_eq!(c.ticket(t1).unwrap().unwrap().status, "failed");
+        assert_eq!(c.events(t1).unwrap().last().unwrap().1, "interrupted");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1098,11 +1098,38 @@ pub fn retry(c: &Company, t: &Ticket, note: Option<&str>) -> Result<()> {
     requeue(c, t, note)
 }
 
+/// Whether a ticket can go on where it stopped: same session, same worktree. A plan never does,
+/// it starts over from the brief.
+fn resumable(t: &Ticket) -> bool {
+    t.kind != "plan" && t.session_id.is_some() && t.worktree.as_deref().is_some_and(|w| Path::new(w).exists())
+}
+
+/// Picks back up the runs OneCorp itself cut short, by quitting or restarting to update, like a
+/// retry nobody had to ask for. Only tickets whose last word is that they were interrupted, and
+/// that can go on where they stopped: a plan, or a run that never got going, stays a Stopped card.
+/// Nothing while the company is paused, since pausing is how you keep the team stopped.
+/// Returns the keys picked back up.
+pub fn resume_interrupted(c: &Company) -> Result<Vec<String>> {
+    if c.paused()? {
+        return Ok(vec![]);
+    }
+    let mut back = vec![];
+    for t in c.tickets()?.into_iter().filter(|t| t.status == "failed" && resumable(t)) {
+        if c.events(t.id)?.last().is_none_or(|(_, kind, _)| kind != "interrupted") {
+            continue;
+        }
+        c.add_event(t.id, "retry", "picked back up after OneCorp restarted", "")?;
+        requeue(c, &t, None)?;
+        back.push(c.key(t.id));
+    }
+    Ok(back)
+}
+
 /// Sends a failed ticket back to work: resumed where it stopped when its session is still there,
 /// started over otherwise.
 fn requeue(c: &Company, t: &Ticket, note: Option<&str>) -> Result<()> {
     let key = c.key(t.id);
-    let resumable = t.kind != "plan" && t.session_id.is_some() && t.worktree.as_deref().is_some_and(|w| Path::new(w).exists());
+    let resumable = resumable(t);
     // Starting over reads the ticket again, so the note becomes part of it.
     if let Some(note) = note.filter(|_| !resumable) {
         c.set_description(t.id, format!("{}\n\nWhen the founder retried it: {note}", t.description).trim())?;

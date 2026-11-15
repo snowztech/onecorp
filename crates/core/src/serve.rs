@@ -39,10 +39,20 @@ pub fn serve(max: usize) -> Result<()> {
         bail!("onecorp serve is already running");
     }
     std::fs::create_dir_all(store::home())?;
+    // Written first, so the work picked back up below is queued for this loop, not run right here.
+    std::fs::write(heartbeat_path(), now().to_string())?;
     let companies = store::list()?;
     for name in &companies {
         let Ok(c) = Company::open(name) else { continue };
-        for key in c.recover_interrupted()? {
+        let stopped = c.recover_interrupted()?;
+        let back = work::resume_interrupted(&c).unwrap_or_else(|e| {
+            println!("{name}: couldn't pick interrupted work back up: {e:#}");
+            vec![]
+        });
+        for key in &back {
+            println!("{key} was interrupted when serve last stopped. It picks up where it left off.");
+        }
+        for key in stopped.iter().filter(|k| !back.contains(k)) {
             println!("{key} was interrupted when serve last stopped. It's marked failed: onecorp retry {key}");
         }
     }
