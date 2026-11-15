@@ -102,7 +102,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         .map(|t| {
             let who = t.assignee.clone().unwrap_or_default();
             let events = c.events(t.id).unwrap_or_default();
-            let last = events.iter().rev().find(|(_, k, _)| k == "error" || k == "done" || k == "limit");
+            let last = events.iter().rev().find(|(_, k, _)| ["error", "done", "limit", "interrupted"].contains(&k.as_str()));
             let why = last.map(|(_, _, s)| s.clone()).unwrap_or_default();
             // Stopped at the limit for one run: nothing went wrong, the card asks whether to go on.
             json!({"key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who), "why": why, "limit": last.is_some_and(|(_, k, _)| k == "limit")})

@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+- Quitting OneCorp or restarting to update no longer costs the team their work. A ticket cut short picks up where it left off the next time OneCorp opens, in the same session. Only one that can't, like a plan, waits in the Inbox as stopped. A paused company stays stopped, so Pause before quitting is how you keep the team from starting again. (#75)
+
 ## [0.1.13] - 2026-11-14
 
 Claude Code runs start with smaller prompts and stop at your spending limits. The Inbox keeps full replies, actions show their progress, and drawers stay where you scrolled.
