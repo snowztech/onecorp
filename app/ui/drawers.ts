@@ -145,7 +145,7 @@ function drawDrawer() {
   const head = `<div class="dhead"><span class="with-agent">${av}${agentBadge(p.runtime)}</span><div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
   if (S.drawer.edit) {
     put(d, `${head}<form class="dbody" id="emp-form">
-      ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, kind: p.kind, kindPicked: p.picked, rewrite: p.playbook, rewriting: !!p.playbook, voice: p.voice, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
+      ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, kind: p.kind, kindPicked: p.picked, rewrite: p.playbook, rewriting: !!p.playbook, voice: p.voice, effort: p.effort ?? "", face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
       ${personFields(S.drawer.form!)}
       <div class="field"><label for="pf-cap">Daily cap <span class="muted">(optional)</span></label><div class="money-in"><span>$</span><input id="pf-cap" type="number" min="0" step="0.5" value="${(byId(p.id)?.cap ?? 0) > 0 ? byId(p.id)!.cap : ""}" placeholder="No cap"><span class="unit">a day. They stop picking up work when they reach it</span></div></div>
       <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`);
@@ -206,7 +206,17 @@ export function agentPicker(f: PersonForm) {
       return `<button type="button" class="agent" data-agent="${k}" aria-pressed="${k === f.runtime}" ${ok ? "" : 'disabled title="Not installed on this Mac. Settings shows how to install it"'}>
         <span class="glyph" style="--c:${x.color}">${agentMark(k)}</span><span><b>${x.name}</b><small>${ok ? x.by : "Not installed"}</small></span></button>`;
     }).join("")}</div><input type="hidden" id="pf-rt" value="${esc(f.runtime)}"></div>
-    <div class="field"><span class="flabel">Model</span><div class="models">${models.map(([v, n, about]) => `<button type="button" class="mchip" data-model="${esc(v)}" aria-pressed="${same(v)}" ${about ? `title="${esc(about)}"` : ""}>${esc(n)}</button>`).join("")}</div><input type="hidden" id="pf-m" value="${esc(f.model || "")}"></div>`;
+    <div class="field"><span class="flabel">Model</span><div class="models">${models.map(([v, n, about]) => `<button type="button" class="mchip" data-model="${esc(v)}" aria-pressed="${same(v)}" ${about ? `title="${esc(about)}"` : ""}>${esc(n)}</button>`).join("")}</div><input type="hidden" id="pf-m" value="${esc(f.model || "")}"></div>
+    ${effortPicker(f)}`;
+}
+
+// How hard they think on a ticket. Low is cheaper on routine work. One level for the whole team
+// keeps one shared cache, so it says that rather than leaving it to be found on the bill.
+function effortPicker(f: PersonForm) {
+  const levels: [string, string, string][] = [["", "Default", "Their agent's own setting"], ["low", "Low", "Fewer steps, costs less. Good for routine tickets"], ["medium", "Medium", ""], ["high", "High", "For hard problems. Costs more"]];
+  const cur = f.effort || "";
+  return `<div class="field"><span class="flabel">Effort on tickets</span><div class="models">${levels.map(([v, n, about]) => `<button type="button" class="mchip echip" data-effort="${v}" aria-pressed="${v === cur}" ${about ? `title="${esc(about)}"` : ""}>${n}</button>`).join("")}</div>
+    <input type="hidden" id="pf-e" value="${esc(cur)}"><p class="fine">Low takes fewer steps on routine work and costs less. The team shares its cached rules when everyone is on the same level.</p></div>`;
 }
 
 // The fields for a person, shared by hiring and editing, so both look and behave the same.
@@ -243,7 +253,7 @@ export function voicePicker(f: PersonForm) {
 }
 
 export const readPerson = () => ({ name: $("#pf-n").value.trim(), role: $("#pf-r").value.trim() || "Engineer", runtime: $("#pf-rt").value, model: $("#pf-m").value.trim() || null, bio: $("#pf-b").value.trim(), voice: $("#pf-v")?.value || null,
-  kind: $("#pf-k")?.value || null, playbook: $<HTMLTextAreaElement>("#pf-pb-text")?.value ?? null });
+  kind: $("#pf-k")?.value || null, effort: $("#pf-e")?.value || null, playbook: $<HTMLTextAreaElement>("#pf-pb-text")?.value ?? null });
 
 export const roleInfo = (key?: string | null) => (S.roles || []).find(r => r.key === key) || S.roles?.find(r => r.key === "engineer") || { key: "engineer", label: "Engineer", playbook: "" };
 

@@ -77,7 +77,7 @@ export interface RoleInfo { key: string; label: string; playbook: string }
 
 export interface Person {
   id: string; name: string; role: string; runtime: string; model: string | null; bio: string; kind: string; picked: boolean; playbook: string | null; lead: boolean; department: number | null;
-  voice: string; voices: Voice[];
+  voice: string; voices: Voice[]; effort?: string | null;
   current: { key: string; title: string; status: Status } | null;
   activity: LogLine[];
   tickets: { key: string; title: string; status: Status; kind: string; spend: string }[];
@@ -197,7 +197,7 @@ export interface PageEdit { id: number; by: string; note: string; at: string; te
 /* The UI's own state */
 
 export interface PersonForm {
-  name: string; role: string; runtime: string; model: string | null; bio: string; kind?: string | null; kindPicked?: boolean; rewrite?: string | null; rewriting?: boolean; voice?: string | null; face?: string;
+  name: string; role: string; runtime: string; model: string | null; bio: string; kind?: string | null; kindPicked?: boolean; rewrite?: string | null; rewriting?: boolean; voice?: string | null; effort?: string | null; face?: string;
   photoUrl?: string | null; photoPath?: string | null; removePhoto?: boolean; hasPhoto?: boolean;
 }
 

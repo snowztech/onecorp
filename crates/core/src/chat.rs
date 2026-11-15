@@ -273,8 +273,8 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     for t in c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(e.id.as_str()) && t.status == "review") {
         dirs.extend(t.worktree.map(std::path::PathBuf::from).filter(|p| p.is_dir()));
     }
-    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None, system: Some(&system) };
-    let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None, system: Some(&system), effort: None };
+    let (mut said, mut cost, mut tokens, mut cached) = (String::new(), 0.0, 0, 0);
     // The reply shows as it's written, a few times a second, not every word.
     let (mut live, mut shown_at) = (String::new(), std::time::Instant::now());
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
@@ -289,6 +289,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
             // Text before a tool call was "let me look": what shows is the answer that follows.
             Event::Tool { .. } => live.clear(),
             Event::Say(text) => said = text,
+            Event::Usage { cached: n, .. } => cached = n,
             Event::Done { cost: c2, tokens: t2, text, .. } => {
                 (cost, tokens) = (c2, t2);
                 if !text.is_empty() {
@@ -322,7 +323,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         (Ok(()), _) => "(no reply)".into(),
         (Err(err), _) => format!("(couldn't reply: {err:#})"),
     };
-    let cost = crate::spend::record(c, "chat", &e.id, None, &e.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record_cached(c, "chat", &e.id, None, &e.runtime, model.as_deref(), cost, tokens, cached)?;
     c.finish_message(id, &text, cost, tokens)
 }
 

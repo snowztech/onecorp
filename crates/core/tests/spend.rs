@@ -73,5 +73,11 @@ fn budgets_pause_the_company_and_caps_pause_a_person() {
     assert_eq!(r["days"].as_array().unwrap().len(), 14);
     let _ = store::list();
 
+    // Tokens read from cache are billed at about a tenth: 100k fresh and 900k cached at the
+    // default $5 a million is priced like 190k.
+    spend::set_price(&c, "codex", 5.0).unwrap();
+    let cached = spend::record_cached(&c, "ticket", "maya", None, "codex", None, 0.0, 1_000_000, 900_000).unwrap();
+    assert!((cached - 0.95).abs() < 1e-9, "{cached}");
+
     let _ = std::fs::remove_dir_all(&root);
 }

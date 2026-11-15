@@ -444,6 +444,7 @@ pub fn person(c: &Company, id: &str) -> Result<Value> {
         "bio": crate::roles::notes(&e).unwrap_or(""), "kind": crate::roles::role_of(c, &e)?.key, "playbook": crate::roles::rewrite(c, &e)?,
         "lead": crate::roles::lead_part(c, &e)?.is_some(),
         "voice": crate::voice::of(c, &e)?,
+        "effort": crate::work::effort(c, &e.id)?,
         "voices": crate::voice::list(),
         "current": current.map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status})),
         "activity": activity,
