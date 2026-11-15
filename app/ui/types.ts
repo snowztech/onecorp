@@ -51,7 +51,9 @@ export interface Failed { key: string; title: string; employee: string; name: st
 export interface Project { key: string; title: string; goal: string; status: Status; planner: string | null; planner_name: string; total: number; done: number }
 export interface Spend { cost: number; tokens: number; label: string; today: number; today_label: string; budget: number; warn: boolean; paused_by_budget: boolean }
 
+export interface Quiet { key: string; title: string; employee: string; name: string; minutes: number; last: string }
 export interface Snapshot {
+  quiet?: Quiet[]; quiet_limit?: number;
   kickoff: { brief: string; planner: string | null; planned: boolean; planning: { key: string; name: string; title: string }[] };
   projects: Project[];
   paused: boolean;
@@ -114,9 +116,11 @@ export interface SettingsRepo { name: string; path: string; main: boolean; comma
 export interface Settings {
   name: string; repo: string; data: string; home: string; ship: string; forge: string | null; forge_name: string | null;
   origin: string | null; tickets: number; people: number; version: string; repos: SettingsRepo[];
-  commits: string; pr_sign: boolean; lead_review?: boolean; talk: string; talk_models: Record<string, string[]>; run_any?: boolean;
+  commits: string; pr_sign: boolean; lead_review?: boolean; quiet_limit?: number; talk: string; talk_models: Record<string, string[]>; run_any?: boolean;
   git_you: { name: string; email: string } | null;
+  backups?: Backup[];
 }
+export interface Backup { name: string; at: string; why: string }
 
 export interface SpendReport {
   totals: Windows; budget: number; run_limit: number; estimated: boolean;
@@ -186,6 +190,7 @@ export interface Results {
   set_commands: SettingsRepo[];
   set_projects_folder: string;
   settings: Settings;
+  take_backup: Backup[];
   setup_info: SetupInfo;
   snapshot: Snapshot;
   spend_report: SpendReport;
