@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS messages (
   ticket_id INTEGER REFERENCES tickets(id),
   at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- A channel is read newest first and a little at a time.
+CREATE INDEX IF NOT EXISTS messages_by_channel ON messages(channel, id);
 -- Every save of a wiki page: who, why, and the text it saved, so any version can come back.
 CREATE TABLE IF NOT EXISTS wiki_log (
   id INTEGER PRIMARY KEY,
@@ -209,6 +211,8 @@ pub struct Message {
     pub ticket: Option<i64>,
     /// A reply someone is still writing.
     pub pending: bool,
+    /// The message this one answers, for a reply.
+    pub reply_to: Option<i64>,
 }
 
 /// A job serve has claimed and is about to run.
@@ -1178,9 +1182,9 @@ impl Company {
         Ok(self.db.last_insert_rowid())
     }
 
-    /// A reply that shows as "typing" until `finish_message` fills it in.
-    pub fn post_pending(&self, channel: &str, author: &str) -> Result<i64> {
-        self.db.execute("INSERT INTO messages (channel, author, text, pending) VALUES (?1, ?2, '', 1)", params![channel, author])?;
+    /// A reply to `reply_to` that shows as "typing" until `finish_message` fills it in.
+    pub fn post_pending(&self, channel: &str, author: &str, reply_to: Option<i64>) -> Result<i64> {
+        self.db.execute("INSERT INTO messages (channel, author, text, pending, reply_to) VALUES (?1, ?2, '', 1, ?3)", params![channel, author, reply_to])?;
         Ok(self.db.last_insert_rowid())
     }
 
@@ -1223,19 +1227,43 @@ impl Company {
 
     /// Messages in a channel, or every channel when None. Oldest first.
     pub fn messages(&self, channel: Option<&str>) -> Result<Vec<Message>> {
-        let mut st = self.db.prepare(
-            "SELECT id, at, channel, author, text, ticket_id, pending FROM messages
-             WHERE ?1 IS NULL OR channel = ?1 ORDER BY id",
-        )?;
+        let mut st = self.db.prepare(&format!("{MESSAGE} WHERE ?1 IS NULL OR channel = ?1 ORDER BY id"))?;
         let rows = st.query_map([channel], row_to_message)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// The latest `limit` messages in a channel, before `before` when given. Oldest first.
+    pub fn recent_messages(&self, channel: &str, before: Option<i64>, limit: usize) -> Result<Vec<Message>> {
+        let mut st = self.db.prepare(&format!("{MESSAGE} WHERE channel = ?1 AND id < ?2 ORDER BY id DESC LIMIT ?3"))?;
+        let rows = st.query_map(params![channel, before.unwrap_or(i64::MAX), limit as i64], row_to_message)?;
+        let mut out: Vec<Message> = rows.collect::<Result<_, _>>()?;
+        out.reverse();
+        Ok(out)
+    }
+
+    /// The latest `limit` finished messages in any of `channels`, or that contain `tagged`, outside
+    /// `skip`. Oldest first. What someone has seen lately.
+    pub fn messages_seen(&self, channels: &[&str], tagged: &str, skip: &str, limit: usize) -> Result<Vec<Message>> {
+        let list = channels.iter().map(|c| format!("'{}'", c.replace('\'', "''"))).collect::<Vec<_>>().join(",");
+        let mut st = self.db.prepare(&format!(
+            "{MESSAGE} WHERE pending = 0 AND channel != ?1 AND channel != 'help'
+             AND (channel IN ({list}) OR lower(text) LIKE '%' || ?2 || '%') ORDER BY id DESC LIMIT ?3"
+        ))?;
+        let rows = st.query_map(params![skip, tagged.to_lowercase(), limit as i64], row_to_message)?;
+        let mut out: Vec<Message> = rows.collect::<Result<_, _>>()?;
+        out.reverse();
+        Ok(out)
+    }
+
+    /// The newest message id in each channel, for unread dots.
+    pub fn last_message_ids(&self) -> Result<std::collections::HashMap<String, i64>> {
+        let mut st = self.db.prepare("SELECT channel, max(id) FROM messages GROUP BY channel")?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     pub fn message(&self, id: i64) -> Result<Option<Message>> {
-        Ok(self
-            .db
-            .query_row("SELECT id, at, channel, author, text, ticket_id, pending FROM messages WHERE id = ?1", [id], row_to_message)
-            .optional()?)
+        Ok(self.db.query_row(&format!("{MESSAGE} WHERE id = ?1"), [id], row_to_message).optional()?)
     }
 
     /// Every channel anything was ever posted in.
@@ -1376,6 +1404,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("messages", "tokens", "INTEGER NOT NULL DEFAULT 0"),
         ("tickets", "message", "INTEGER REFERENCES messages(id)"),
         ("messages", "issue", "TEXT"),
+        ("messages", "reply_to", "INTEGER REFERENCES messages(id)"),
         ("spend", "kind", "TEXT NOT NULL DEFAULT 'ticket'"),
     ];
     for (table, column, decl) in ADDED {
@@ -1396,8 +1425,10 @@ fn migrate(db: &Connection) -> Result<()> {
     Ok(())
 }
 
+const MESSAGE: &str = "SELECT id, at, channel, author, text, ticket_id, pending, reply_to FROM messages";
+
 fn row_to_message(r: &rusqlite::Row) -> rusqlite::Result<Message> {
-    Ok(Message { id: r.get(0)?, at: r.get(1)?, channel: r.get(2)?, author: r.get(3)?, text: r.get(4)?, ticket: r.get(5)?, pending: r.get(6)? })
+    Ok(Message { id: r.get(0)?, at: r.get(1)?, channel: r.get(2)?, author: r.get(3)?, text: r.get(4)?, ticket: r.get(5)?, pending: r.get(6)?, reply_to: r.get(7)? })
 }
 
 fn row_to_employee(r: &rusqlite::Row) -> rusqlite::Result<Employee> {

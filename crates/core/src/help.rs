@@ -43,7 +43,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let Some(e) = c.employees()?.into_iter().next() else {
         return c.finish_message(id, "Hire someone first. I run on your team's agent, so I need one to answer.", 0.0, 0);
     };
-    let before: Vec<_> = c.messages(Some(HELP))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
+    let before: Vec<_> = c.recent_messages(HELP, Some(id), 12)?.into_iter().filter(|m| !m.pending).collect();
     let recent: Vec<String> = before.iter().rev().take(12).rev().map(|m| crate::chat::line(c, m)).collect();
     let said: Vec<&str> = before.iter().rev().take(12).map(|m| m.text.as_str()).collect();
     let mut docs: Vec<String> = DOCS.iter().map(|(name, text)| format!("=== {name} ===\n{text}")).collect();

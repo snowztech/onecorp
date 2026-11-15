@@ -120,16 +120,23 @@ export function renderDrawer() {
   markBusy();
 }
 
+// What the drawer holds now. Like the page, it's left alone when a redraw would change nothing,
+// so a form you're filling in keeps what you typed.
+let drawerHtml = "";
+function put(d: HTMLElement, html: string) {
+  if (html !== drawerHtml) d.innerHTML = drawerHtml = html;
+}
+
 function drawDrawer() {
   const d = $("#drawer"), open = !!S.drawer;
   d.classList.toggle("open", open); $("#scrim").classList.toggle("open", open); d.setAttribute("aria-hidden", String(!open));
-  if (!open || !S.drawer) return;
-  if (S.drawer.type === "hire") return (d.innerHTML = drawerHire());
-  if (S.drawer.type === "new-ticket") return (d.innerHTML = drawerNewTicket());
-  if (S.drawer.type === "plan") return (d.innerHTML = drawerPlan());
-  if (S.drawer.type === "ticket") { d.innerHTML = drawerTicket(); const term = $("#term"); if (term) term.scrollTop = term.scrollHeight; return; }
+  if (!open || !S.drawer) return void (drawerHtml = "");
+  if (S.drawer.type === "hire") return put(d, drawerHire());
+  if (S.drawer.type === "new-ticket") return put(d, drawerNewTicket());
+  if (S.drawer.type === "plan") return put(d, drawerPlan());
+  if (S.drawer.type === "ticket") { put(d, drawerTicket()); const term = $("#term"); if (term) term.scrollTop = term.scrollHeight; return; }
   const p = S.person;
-  if (!p) return (d.innerHTML = `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
+  if (!p) return put(d, `<div class="dhead"><h2>Loading</h2><button class="close" data-close="1" aria-label="Close">×</button></div>`);
   const e = byId(p.id) || { status: "idle" };
   const depts = S.snap!.departments.filter(x => x.id !== null), dept = depts.find(x => x.id === p.department);
   // While editing, the header previews the photo you picked, or the drawn face once you remove it, before you save.
@@ -137,11 +144,11 @@ function drawDrawer() {
   const av = f?.photoUrl ? `<span class="av"><img src="${esc(f.photoUrl)}" alt=""></span>` : f?.removePhoto ? drawFace(f.face || p.name, "neutral") : face(p.name, e.status);
   const head = `<div class="dhead"><span class="with-agent">${av}${agentBadge(p.runtime)}</span><div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.role)}${dept ? ` · ${esc(dept.name)}` : ""}</span></div><button class="close" data-close="1" aria-label="Close">×</button></div>`;
   if (S.drawer.edit) {
-    d.innerHTML = `${head}<form class="dbody" id="emp-form">
+    put(d, `${head}<form class="dbody" id="emp-form">
       ${avatarPicker(S.drawer.form ||= { name: p.name, role: p.role, runtime: p.runtime, model: p.model, bio: p.bio, kind: p.kind, kindPicked: p.picked, rewrite: p.playbook, rewriting: !!p.playbook, voice: p.voice, face: byId(p.id)?.face || p.name, photoUrl: null, photoPath: null, removePhoto: false, hasPhoto: !!byId(p.id)?.photo })}
       ${personFields(S.drawer.form!)}
       <div class="field"><label for="pf-cap">Daily cap <span class="muted">(optional)</span></label><div class="money-in"><span>$</span><input id="pf-cap" type="number" min="0" step="0.5" value="${(byId(p.id)?.cap ?? 0) > 0 ? byId(p.id)!.cap : ""}" placeholder="No cap"><span class="unit">a day. They stop picking up work when they reach it</span></div></div>
-      <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`;
+      <div class="acts"><button class="btn primary">Save</button><button class="btn ghost" type="button" data-edit-person="">Cancel</button></div></form>`);
     return;
   }
   const leads = dept?.lead === p.id;
@@ -150,7 +157,7 @@ function drawDrawer() {
     ? `<div class="confirm"><p>Let ${esc(first(p.name))} go? They stop taking work. Their tickets and commits stay on record${leads ? `, and ${esc(dept.name)} passes to the next person in it` : ""}.</p>
         <div class="acts"><button class="btn danger" data-fire="${esc(p.id)}">Let go</button><button class="btn ghost" data-confirm="">Cancel</button></div></div>`
     : `<div class="dfoot"><button class="link-btn danger-link" data-confirm="fire:${esc(p.id)}">Let ${esc(first(p.name))} go…</button></div>`;
-  d.innerHTML = `${head}
+  put(d, `${head}
     <div class="dbody">
       <dl class="kv"><dt>Department</dt><dd><select id="move" data-move="${esc(p.id)}"><option value="">None</option>${depts.map(x => `<option value="${x.id}" ${p.department === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
           ${dept ? (leads ? `<span class="leadtag">Lead</span>` : `<button class="link-btn" data-make-lead="${esc(p.id)}">Make lead</button>`) : ""}</dd>
@@ -164,7 +171,7 @@ function drawDrawer() {
       <div><h5>What ${esc(first(p.name))} has learned</h5>${p.memory.length ? `<ul class="notes">${p.memory.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="muted" style="margin:0">Nothing yet. Notes build up as they work and as you review them.</p>`}</div>
       <div><h5>Tickets</h5>${p.tickets.length ? `<ul class="tlist">${p.tickets.map(t => `<li><button class="tl" data-ticket="${esc(t.key)}"><span class="k">${esc(t.key)}</span>${esc(t.title)}<span class="s chip">${esc(ticketStatus(t))}</span></button></li>`).join("")}</ul>` : `<p class="muted" style="margin:0">None yet.</p>`}</div>
       ${letGo}
-    </div>`;
+    </div>`);
   const term = $("#term"); if (term) term.scrollTop = term.scrollHeight;
 }
 

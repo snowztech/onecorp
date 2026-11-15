@@ -116,10 +116,10 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     let text = text.trim();
     ensure!(!text.is_empty(), "say something first");
     let channel = resolve(c, channel)?;
-    let last = c.messages(Some(&channel))?.pop();
-    c.post(&channel, "founder", text, None)?;
+    let last = c.recent_messages(&channel, None, 1)?.pop();
+    let asked = c.post(&channel, "founder", text, None)?;
     if channel == HELP {
-        return Ok(vec![c.post_pending(HELP, ONECORP)?]);
+        return Ok(vec![c.post_pending(HELP, ONECORP, Some(asked))?]);
     }
     // Replies cost money. A paused company reads your message later, with its next ticket.
     if c.paused()? {
@@ -135,7 +135,7 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
         Some(m) => c.employee(&m.author)?.into_iter().collect(),
         None => who,
     };
-    who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id)).collect()
+    who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id, Some(asked))).collect()
 }
 
 /// The most questions one ticket asks teammates. Each answer is a chat run, so this keeps a
@@ -169,8 +169,8 @@ pub fn ask_teammate(c: &Company, asker: &str, ticket: i64, who: &str, question: 
     // A channel you both read: your team's when they're in it, otherwise #general.
     let mine = home(c, &me)?;
     let channel = if members(c, &mine)?.iter().any(|e| e.id == them.id) { mine } else { GENERAL.to_string() };
-    c.post(&channel, &me.id, &format!("@{} {question}", them.id), Some(ticket))?;
-    let slot = c.post_pending(&channel, &them.id)?;
+    let asked = c.post(&channel, &me.id, &format!("@{} {question}", them.id), Some(ticket))?;
+    let slot = c.post_pending(&channel, &them.id, Some(asked))?;
     reply(c, slot)?;
     let answer = c.message(slot)?.map(|m| m.text).unwrap_or_default();
     c.add_event(ticket, "teammate", &format!("asked {first}: {} {first}: {}", crate::runtime::clip(question, 300), crate::runtime::clip(&answer, 600)), "")?;
@@ -200,9 +200,15 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let Some(e) = c.employee(&slot.author)? else {
         return c.finish_message(id, "(they've left the company)", 0.0, 0);
     };
-    let before: Vec<Message> = c.messages(Some(&slot.channel))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
-    // Who asked: whoever wrote last before this reply was asked for, the founder or a teammate.
-    let question = before.iter().rev().find(|m| m.author != e.id);
+    const HISTORY: usize = 12;
+    let before: Vec<Message> = c.recent_messages(&slot.channel, Some(id), HISTORY)?.into_iter().filter(|m| !m.pending).collect();
+    // What this answers: the message it was asked for. Replies from before that was kept answer
+    // whoever wrote last, founder or teammate.
+    let question = match slot.reply_to.map(|q| c.message(q)).transpose()?.flatten() {
+        Some(q) => Some(q),
+        None => before.iter().rev().find(|m| m.author != e.id).cloned(),
+    };
+    let question = question.as_ref();
     let asked = question.map(|m| m.text.clone()).unwrap_or_default();
     let asker = match question.map(|m| m.author.as_str()) {
         Some(id) if id != "founder" => c.employee(id)?.map(|a| format!("{}, {} here,", a.name, a.role)),
@@ -210,7 +216,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let doing = in_progress(c, &e.id)?;
     let team = team_of(c, &e)?;
-    let recent: Vec<&Message> = before.iter().rev().take(12).rev().collect();
+    let recent: Vec<&Message> = before.iter().collect();
     let history: Vec<String> = recent.iter().map(|m| line(c, m)).collect();
     let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
     let prompt = format!(
@@ -506,18 +512,9 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
 /// anything that @mentions them. Newest last.
 fn seen_elsewhere(c: &Company, e: &Employee, skip: &str) -> Result<Vec<String>> {
     const RECENT: usize = 15;
-    let home = home(c, e)?;
-    let tag = format!("@{}", e.id);
-    let msgs: Vec<Message> = c
-        .messages(None)?
-        .into_iter()
-        .filter(|m| !m.pending && m.channel != skip && m.channel != HELP && (m.channel == GENERAL || m.channel == home || m.channel == dm(&e.id) || m.text.to_lowercase().contains(&tag)))
-        .collect();
-    Ok(msgs
+    let (home, dm) = (home(c, e)?, dm(&e.id));
+    Ok(c.messages_seen(&[GENERAL, &home, &dm], &format!("@{}", e.id), skip, RECENT)?
         .iter()
-        .rev()
-        .take(RECENT)
-        .rev()
         .map(|m| format!("{} {}", if dm_of(&m.channel).is_some() { "(direct message)".to_string() } else { format!("#{}", m.channel) }, line(c, m)))
         .collect())
 }

@@ -62,7 +62,7 @@ document.addEventListener("click", async e => {
     await busy(el, "Starting…", () => call("start_ticket", { company: S.company, key: d.start }, `${d.start} is starting`)).catch(() => {});
     return;
   }
-  if (d.channel) { S.channel = d.channel; S.chat = null; render(); return refresh(true); }
+  if (d.channel) return openChannel(d.channel);
   if (d.members) { S.members = S.members === d.members ? null : d.members; return render(); }
   if (d.mention) {
     if (S.members) { S.members = null; render(); }
@@ -122,8 +122,8 @@ document.addEventListener("click", async e => {
     return;
   }
   if (d.rail) return toggleRail();
-  if (d.ask) { S.pop = false; renderPop(); S.view = "chat"; S.channel = "help"; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
-  if (d.dm) { S.view = "chat"; S.channel = "dm:" + d.dm; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
+  if (d.ask) { S.pop = false; renderPop(); S.drawer = null; await openChannel("help"); return $("#say-text")?.focus(); }
+  if (d.dm) { S.drawer = null; await openChannel("dm:" + d.dm); return $("#say-text")?.focus(); }
   if (d.spendBy) { S.spendBy = d.spendBy; return renderSheet(); }
   if (d.kpick && S.drawer?.form) { const f = S.drawer.form; f.kind = d.kpick; f.kindPicked = true; return showKind(f); }
   if (d.pbRewrite && S.drawer?.form) { const f = S.drawer.form; f.rewriting = true; f.rewrite = roleInfo(f.kind).playbook; showKind(f); return $("#pf-pb-text")?.focus(); }
@@ -689,3 +689,12 @@ document.addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "," && S.snap && !S.setup && !S.profile) { e.preventDefault(); return openSettings(); }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && S.snap && !S.setup && !S.profile) { e.preventDefault(); S.drawer = { type: "new-ticket" }; renderDrawer(); $("#nt-title")?.focus(); }
 });
+
+// Opens a channel with its messages already there: read from the company's database first, then
+// drawn once, so it never flashes "Loading…" in between. Nothing runs an agent here.
+async function openChannel(channel: string) {
+  const chat = await invoke("chat", { company: S.company, channel }).catch(() => null);
+  S.view = "chat"; S.channel = channel; S.chat = chat;
+  render();
+  return refresh(true);
+}

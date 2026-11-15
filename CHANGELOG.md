@@ -13,6 +13,12 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - A new ticket's worktree gets the env files from your checkout, like `.env` and `api/.env.local`: the ones git ignores, so employees start with the same keys and database URLs you have, and never commit them. Before, they started with none and stopped to ask you. A ticket that picks back up gets what you changed since. To choose what's copied, add a `.worktreeinclude` to your repo in .gitignore syntax, like `.env*`, `config/local.yml` and `!.env.production`. It's the same file Claude Code reads for `claude --worktree`. (#98)
 - Quitting OneCorp or restarting to update no longer costs the team their work. A ticket cut short picks up where it left off the next time OneCorp opens, in the same session. Only one that can't, like a plan, waits in the Inbox as stopped. A paused company stays stopped, so Pause before quitting is how you keep the team from starting again. (#75)
 
+### Fixed
+
+- Chat stays still while the team works. Before, every change anywhere in the company redrew the whole page every 1.5 seconds, so it flickered and lost what you were hovering or selecting. Switching channels no longer flashes "Loading…". The same goes for every page and drawer.
+- When you @mention two people in one message, each answers your message. Before, the second could answer the first one's reply instead. A reply that isn't right under its question shows what it answers.
+- Opening a channel reads only its latest messages, and the company page no longer reads every message to find what's unread.
+
 ## [0.1.13] - 2026-11-14
 
 Claude Code runs start with smaller prompts and stop at your spending limits. The Inbox keeps full replies, actions show their progress, and drawers stay where you scrolled.

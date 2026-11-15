@@ -30,7 +30,9 @@ export function viewChat() {
     const body = m.pending ? `<p class="typing">writing<span><i></i><i></i><i></i></span></p>` : `<div class="msg-text">${chatText(m.text)}</div>`;
     const meta = `<header><b>${esc(m.founder ? m.name : first(m.name))}</b>${m.founder ? '<span class="you">you</span>' : ""}<time>${hhmm(m.at)}</time>${m.key ? `<a class="tkey" data-ticket="${esc(m.key)}">${esc(m.key)}</a>` : ""}</header>`;
     const del = m.pending ? "" : `<button class="msg-del ${S.msgDel === m.id ? "sure" : ""}" data-msg-del="${m.id}" title="Delete message" aria-label="Delete message">${S.msgDel === m.id ? "Delete?" : icon("trash")}</button>`;
-    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${body}${proposal(m.proposed)}${issueDraft(m.issue)}</div>${del}</li>`;
+    // A reply that isn't right under its question says what it answers.
+    const re = m.re ? `<p class="re"><b>${esc(first(m.re.name))}</b> ${esc(m.re.text)}</p>` : "";
+    return `<li class="msg ${same ? "cont" : ""}">${same ? "<span></span>" : who}<div>${same ? "" : meta}${re}${body}${proposal(m.proposed)}${issueDraft(m.issue)}</div>${del}</li>`;
   }).join("");
   const empty = help
     ? `<li class="chat-empty"><b>Ask OneCorp</b>How something works, what's possible, or whether it's a bug. It only runs when you ask.</li>`
