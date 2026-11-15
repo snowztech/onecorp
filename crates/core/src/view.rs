@@ -140,21 +140,19 @@ pub fn snapshot(c: &Company) -> Result<Value> {
     let today = c.spent_since(0, None)?;
     let cost = tickets.iter().fold(chat_cost, |s, t| s + t.cost_usd);
     let tokens: i64 = chat_tokens + tickets.iter().map(|t| t.tokens).sum::<i64>();
-    let all_messages = c.messages(None)?;
-    // A direct message thread with each person, with its latest message for unread dots.
+    // The newest message in each channel, for unread dots. Not the messages themselves.
+    let last = c.last_message_ids()?;
+    // A direct message thread with each person.
     let dms: Vec<Value> = team
         .iter()
         .map(|e| {
             let ch = crate::chat::dm(&e.id);
-            json!({"id": e.id, "channel": ch, "last": all_messages.iter().filter(|m| m.channel == ch).map(|m| m.id).max()})
+            json!({"id": e.id, "channel": ch, "last": last.get(&ch)})
         })
         .collect();
     let channels: Vec<Value> = crate::chat::channels(c)?
         .into_iter()
-        .map(|ch| {
-            let last = all_messages.iter().filter(|m| m.channel == ch.name).map(|m| m.id).max();
-            json!({"name": ch.name, "title": ch.title, "department": ch.department, "last": last})
-        })
+        .map(|ch| json!({"name": ch.name, "title": ch.title, "department": ch.department, "last": last.get(&ch.name)}))
         .collect();
     let forge = crate::ship::forge(c)?;
     // Kickoff: what you're building, who'd plan it, and any planning happening now.
@@ -309,22 +307,30 @@ pub fn spend_report(c: &Company) -> Result<Value> {
 /// One channel's messages, newest last, for the Chat page.
 pub fn chat(c: &Company, channel: &str) -> Result<Value> {
     const SHOWN: usize = 200;
-    let msgs = c.messages(Some(channel))?;
+    let msgs = c.recent_messages(channel, None, SHOWN)?;
     let founder = crate::founder::name();
+    let names: std::collections::HashMap<String, String> = c.employees()?.into_iter().map(|e| (e.id, e.name)).collect();
+    let name = |author: &str| {
+        if author == "founder" {
+            founder.clone()
+        } else if author == crate::chat::ONECORP {
+            "OneCorp".into()
+        } else {
+            names.get(author).cloned().unwrap_or_else(|| author.to_string())
+        }
+    };
     let shown: Vec<Value> = msgs
         .iter()
-        .skip(msgs.len().saturating_sub(SHOWN))
-        .map(|m| {
-            let name = if m.author == "founder" {
-                founder.clone()
-            } else if m.author == crate::chat::ONECORP {
-                "OneCorp".into()
-            } else { c.employee(&m.author).ok().flatten().map(|e| e.name).unwrap_or_else(|| m.author.clone()) };
+        .enumerate()
+        .map(|(i, m)| {
+            // A reply that doesn't come right after its question says what it answers.
+            let re = m.reply_to.filter(|q| i == 0 || msgs[i - 1].id != *q).and_then(|q| msgs.iter().find(|x| x.id == q).cloned().or_else(|| c.message(q).ok().flatten()));
             json!({
-                "id": m.id, "at": m.at, "author": m.author, "name": name, "text": m.text,
+                "id": m.id, "at": m.at, "author": m.author, "name": name(&m.author), "text": m.text,
                 "key": m.ticket.map(|t| c.key(t)), "pending": m.pending, "founder": m.author == "founder",
                 "proposed": proposed(c, m.id),
                 "issue": c.issue_of(m.id).ok().flatten().and_then(|i| serde_json::from_str::<Value>(&i).ok()),
+                "re": re.map(|q| json!({"name": name(&q.author), "text": crate::runtime::clip(&q.text.replace('\n', " "), 140)})),
             })
         })
         .collect();

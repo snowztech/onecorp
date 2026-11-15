@@ -93,7 +93,7 @@ export interface Diff {
 
 export interface Proposed { key: string; title: string; employee: string | null; name: string | null; status: string }
 export interface Issue { kind: "bug" | "idea"; title: string; body: string }
-export interface Message { id: number; at: string; author: string; name: string; text: string; key: string | null; pending: boolean; founder: boolean; proposed?: Proposed[]; issue?: Issue | null }
+export interface Message { id: number; at: string; author: string; name: string; text: string; key: string | null; pending: boolean; founder: boolean; proposed?: Proposed[]; issue?: Issue | null; re?: { name: string; text: string } | null }
 export interface Chat { channel: string; messages: Message[] }
 
 export interface Look { color?: string; logo?: string | null }

@@ -72,7 +72,8 @@ Leads are told to pass up anything about product direction, money, anything publ
 
 ### To each other
 
-- **`post_message`**: a short post in their team's channel, or another one, with `@mentions`. It's a record. Nobody is woken up by it.
+- **`ask_teammate`**: a question to one teammate, answered while the asker waits (`chat::ask_teammate`). The question and the answer go in a channel both read, and on the asker's ticket. The answer is a chat reply, with no company tools, so it never asks anyone in turn. At most five a ticket, and none while the company is paused or the teammate is at their cap.
+- **`post_message`**: a short post in their team's channel, or another one, with `@mentions`. It's a record. Nobody is woken up by it, and the tool says so when it mentions someone.
 - **Catching up**: before every ticket and every chat reply, an employee reads recent chat in their channels and what was said lately elsewhere (`chat::catch_up`, `seen_elsewhere`). So a post is read at the reader's next run, not live.
 - **`create_ticket`** during a ticket run: proposes a follow-up, for themselves or a teammate. It's linked to the ticket it came from and waits for you (with a plan or report, starting it starts these).
 
@@ -90,7 +91,7 @@ Built fresh for each run (`work::company_knowledge`):
 - How OneCorp works: tickets live in OneCorp, OneCorp does git, how to ask, how to write.
 - Who works here: each person's team, whether they lead it, and what they're on right now.
 - Their own notes, and recent chat.
-- In chat, also their own tickets, their current steps and worktree, and any ticket named in the conversation, like TVC-4.
+- In chat, also what the whole team finished lately (the last 20 merged tickets, a line each), their own tickets, their current steps and worktree, and any ticket named in the conversation, like TVC-4.
 
 ## How work comes back to you
 

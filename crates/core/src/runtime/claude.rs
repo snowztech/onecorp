@@ -16,7 +16,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     let mut cmd = Command::new("claude");
     // Without acceptEdits, edits need a permission nobody can give in headless mode, so they're refused.
     let mode = if o.read_only { "default" } else { "acceptEdits" };
-    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode])
+    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", mode])
         // Only the company server loads, if any. The user's own MCP servers stay out.
         .arg("--strict-mcp-config")
         // So do their plugins, skills, hooks and personal CLAUDE.md: they're read again on every
@@ -24,6 +24,8 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         .args(["--setting-sources", "project"])
         .args(["--allowedTools", &allowed(o)])
         .current_dir(o.cwd)
+        // ask_teammate waits for a teammate's chat reply, which can take a few minutes.
+        .env("MCP_TOOL_TIMEOUT", "600000")
         .envs(o.env.iter().map(|(k, v)| (k, v)));
     if let Some(m) = o.mcp {
         let env: serde_json::Map<String, Value> = m.env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
@@ -51,6 +53,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     }
     if let Some(s) = o.resume {
         cmd.args(["--resume", s]);
+    }
+    if let Some(system) = o.system {
+        cmd.args(["--append-system-prompt", system]);
     }
     if let Some(max) = o.max_cost {
         cmd.args(["--max-budget-usd", &format!("{max:.2}")]);
@@ -103,6 +108,7 @@ pub fn parse(line: &str) -> Vec<Event> {
 
     match v["type"].as_str() {
         Some("system") if v["subtype"] == "init" => vec![Event::Init { session: s(&v, "session_id"), model: s(&v, "model") }],
+        Some("stream_event") if v["event"]["delta"]["type"] == "text_delta" => vec![Event::Delta(s(&v["event"]["delta"], "text"))],
         Some("assistant") => blocks()
             .iter()
             .filter_map(|b| match b["type"].as_str() {
@@ -171,7 +177,7 @@ mod tests {
     #[test]
     fn allowed_tools_follow_the_list_or_run_anything() {
         let (cmds, dirs) = (vec!["tools/check.sh".to_string(), "./gradlew assembleDebug".to_string()], vec![std::path::PathBuf::from("/c/reading/wiki")]);
-        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any, max_cost: None };
+        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any, max_cost: None, system: None };
         let listed = allowed(&opts(false, false));
         for rule in ["Bash(tools/check.sh:*)", "Bash(./tools/check.sh:*)", "Bash(./gradlew assembleDebug:*)", "Bash(gradlew assembleDebug:*)", "Read(//c/reading/wiki/**)"] {
             assert!(listed.split(',').any(|r| r == rule), "{rule} in {listed}");
@@ -192,6 +198,14 @@ mod tests {
     fn a_run_stopped_at_its_budget_says_so_and_still_counts() {
         let line = r#"{"type":"result","subtype":"error_max_budget_usd","is_error":true,"total_cost_usd":0.52,"usage":{"input_tokens":0,"output_tokens":0},"modelUsage":{"claude-haiku-5-5":{"inputTokens":4,"outputTokens":248,"cacheReadInputTokens":33466,"cacheCreationInputTokens":1051}},"errors":["Reached maximum budget ($0.5)"]}"#;
         assert_eq!(parse(line), vec![Event::Done { ok: false, cost: 0.52, tokens: 34769, text: crate::runtime::BUDGET_STOP.into() }]);
+    }
+
+    #[test]
+    fn text_comes_as_it_is_written() {
+        let delta = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}}"#;
+        assert_eq!(parse(delta), vec![Event::Delta("Hel".into())]);
+        let other = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{"}}}"#;
+        assert!(parse(other).is_empty(), "only text");
     }
 
     #[test]

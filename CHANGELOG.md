@@ -4,10 +4,24 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- Employees ask each other while they work. A designer can ask the engineer who built the API how it behaves, and gets the answer before going on. The question and the answer show in team chat and on the ticket, at most five a ticket. A plain post that @mentions someone says it won't be answered now. In chat, people can also read their own work that's waiting for review. (#99)
+- Employees remember a chat conversation past its last few messages. Each reply keeps a short summary of what you've talked about, so in a long DM they still know what you told them at the start, for the same cost a reply. The last few messages reach them in full, not cut short.
+- Replies in chat and Ask OneCorp appear as they're written, instead of all at once after "writing…".
+- In chat and Ask OneCorp, employees know what the whole team finished lately: the last 20 merged tickets, who did each, when, and what changed in a sentence. Before, they only knew their own tickets, so work merged since their last answer went unseen. Older work is a ticket key away.
+
 ### Changed
 
 - A new ticket's worktree gets the env files from your checkout, like `.env` and `api/.env.local`: the ones git ignores, so employees start with the same keys and database URLs you have, and never commit them. Before, they started with none and stopped to ask you. A ticket that picks back up gets what you changed since. To choose what's copied, add a `.worktreeinclude` to your repo in .gitignore syntax, like `.env*`, `config/local.yml` and `!.env.production`. It's the same file Claude Code reads for `claude --worktree`. (#98)
 - Quitting OneCorp or restarting to update no longer costs the team their work. A ticket cut short picks up where it left off the next time OneCorp opens, in the same session. Only one that can't, like a plan, waits in the Inbox as stopped. A paused company stays stopped, so Pause before quitting is how you keep the team from starting again. (#75)
+- Chat replies and Ask OneCorp cost about a third of what they did. What stays the same between replies, like who they are, the rules, the wiki and OneCorp's docs, is now cached across replies, and only the conversation is paid in full. Five short messages to an employee went from $0.040 to $0.013 a reply on average, and a follow-up question to Ask OneCorp from $0.054 to about $0.012. (#106)
+
+### Fixed
+
+- Chat stays still while the team works. Before, every change anywhere in the company redrew the whole page every 1.5 seconds, so it flickered and lost what you were hovering or selecting. Switching channels no longer flashes "Loading…". The same goes for every page and drawer.
+- When you @mention two people in one message, each answers your message. Before, the second could answer the first one's reply instead. A reply that isn't right under its question shows what it answers.
+- Opening a channel reads only its latest messages, and the company page no longer reads every message to find what's unread.
 
 ## [0.1.13] - 2026-11-14
 

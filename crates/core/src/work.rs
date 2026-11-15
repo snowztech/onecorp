@@ -175,7 +175,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
     let model = talk_model(c, &lead)?;
-    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false, max_cost: None };
+    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false, max_cost: None, system: None };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -784,7 +784,8 @@ start one. Your work reaches the base branch through a pull request the founder 
 branch if you haven't, and merges it once they approve. \
 You never set a ticket's status: when you end with your summary, the ticket goes to review, and OneCorp marks it done and \
 cleans up its branch once the founder approves, or closes it when there's nothing to merge. Merging into the base branch is \
-the founder's call, never yours. Don't redo work that's waiting to merge, and don't create tickets about git or permissions. Questions go to your lead or the founder with ask_human, \
+the founder's call, never yours. Don't redo work that's waiting to merge, and don't create tickets about git or permissions. Questions about a teammate's work go to them with ask_teammate, and you get the answer right \
+away. Questions for a decision go to your lead or the founder with ask_human, \
 rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n\
 How we write, in summaries, reports, chat, the wiki, comments and commit messages: plain words and short sentences, the way \
 a good colleague talks. Say it once. No filler, no recap at the end, no headings or bullets for a few lines. Never use \
@@ -794,6 +795,16 @@ go in backticks. These rules come first. Your personality sets your tone within 
 /// What every employee should know before starting: the wiki, and who does what. `spaces` are
 /// the wiki spaces read in full besides the rules: someone's own, or `["*"]` for all of it.
 pub fn company_knowledge(c: &Company, spaces: &[&str]) -> Result<String> {
+    Ok(format!("{}{}", company_rules(c, spaces)?, team_now(c)?))
+}
+
+/// Who works here and what they're on right now. Changes all day, so it's kept apart from the rules.
+pub fn team_now(c: &Company) -> Result<String> {
+    Ok(format!("Who works here:\n{}", who_does_what(c)?.join("\n")))
+}
+
+/// The part of `company_knowledge` that changes rarely: the founder, the wiki, how we work, the repos.
+pub fn company_rules(c: &Company, spaces: &[&str]) -> Result<String> {
     // Keeps a runaway wiki from eating the whole context window.
     const MAX: usize = 12_000;
     let mut doc = crate::wiki::for_prompt(c, spaces)?.trim().to_string();
@@ -802,7 +813,6 @@ pub fn company_knowledge(c: &Company, spaces: &[&str]) -> Result<String> {
         doc.truncate(cut);
         doc.push_str("\n\n(The wiki goes on. Ask the founder if you need more.)");
     }
-    let team = who_does_what(c)?;
     let mut out = String::new();
     if let Some(f) = crate::founder::load() {
         out.push_str(&format!("You work for {}, the founder of {}. Questions with ask_human go to them.\n\n", f.name, c.name));
@@ -811,11 +821,10 @@ pub fn company_knowledge(c: &Company, spaces: &[&str]) -> Result<String> {
         out.push_str(&format!("The company wiki. Follow it:\n\n{doc}\n\n"));
     }
     out.push_str(HOW_WE_WORK);
-    out.push_str(&format!("Who works here:\n{}", team.join("\n")));
     let repos = c.repos()?;
     if repos.len() > 1 {
         let list: Vec<String> = repos.iter().map(|r| format!("- {}{}: {}", r.name, if r.main { " (main)" } else { "" }, r.path.display())).collect();
-        out.push_str(&format!("\n\nThis company works in {} repos. Each ticket happens in one of them:\n{}", repos.len(), list.join("\n")));
+        out.push_str(&format!("This company works in {} repos. Each ticket happens in one of them:\n{}\n\n", repos.len(), list.join("\n")));
     }
     Ok(out)
 }
@@ -1241,7 +1250,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
         _ => vec![],
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)? };
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)?, system: None };
 
     // Where the base branch stood before the run. Your approval is the only way work should reach
     // it, so an employee's commits showing up there are flagged, whatever command put them there.
@@ -1270,7 +1279,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
                 ("tool", runtime::clip(&format!("{name} {}", detail.replace(&wt_prefix, "")), 600))
             }
             Event::ToolResult { error: true, text } => ("error", text.clone()),
-            Event::ToolResult { .. } => return Ok(()),
+            Event::ToolResult { .. } | Event::Delta(_) => return Ok(()),
             Event::Usage { fresh, cached, output } => {
                 let k = |n: &u64| format!("{:.1}k", *n as f64 / 1000.0);
                 ("tokens", format!("read {} tokens, {} of them from cache, and wrote {}", k(&(fresh + cached)), k(cached), k(output)))

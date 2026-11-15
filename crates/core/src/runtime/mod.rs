@@ -21,6 +21,9 @@ pub const RUNTIMES: &[&str] = &["claude", "codex", "fake"];
 pub enum Event {
     Init { session: String, model: String },
     Say(String),
+    /// A piece of text as the agent writes it, before its message is complete. For showing a
+    /// reply as it comes. The whole message still arrives as `Say`.
+    Delta(String),
     Tool { name: String, detail: String },
     ToolResult { error: bool, text: String },
     /// `cost` is 0 when the runtime doesn't report dollars (Codex on a subscription).
@@ -60,6 +63,11 @@ pub struct Opts<'a> {
     /// The most this run may cost, in dollars: what's left of today's budget. Claude Code stops
     /// itself there. Codex has no such limit, so its runs are still only counted when they end.
     pub max_cost: Option<f64>,
+    /// What stays the same from one run to the next, like who they are, the rules and the wiki.
+    /// Claude Code gets it as its system prompt, which it caches across runs, so only the prompt
+    /// is paid for in full each time. Other agents get it at the start of the prompt, where their
+    /// own caching looks.
+    pub system: Option<&'a str>,
 }
 
 /// What a run says when it stopped at `max_cost`.

@@ -42,7 +42,9 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
             .args(["-c", &format!("mcp_servers.onecorp.args={}", serde_json::to_string(&m.args)?)])
             .args(["-c", &format!("mcp_servers.onecorp.env={{{env}}}")])
             // Without this, every company tool call is refused in non-interactive mode.
-            .args(["-c", "mcp_servers.onecorp.default_tools_approval_mode=\"approve\""]);
+            .args(["-c", "mcp_servers.onecorp.default_tools_approval_mode=\"approve\""])
+            // ask_teammate waits for a teammate's chat reply, which can take a few minutes.
+            .args(["-c", "mcp_servers.onecorp.tool_timeout_sec=600"]);
     }
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
@@ -50,8 +52,13 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     if let Some(s) = o.resume {
         cmd.args(["resume", s]);
     }
-    // No prompt argument: codex reads it from stdin.
-    stream(cmd, prompt, parse, o.on_spawn, on)
+    // No prompt argument: codex reads it from stdin. What stays the same goes first, where its
+    // prompt caching looks.
+    let prompt = match o.system {
+        Some(system) => format!("{system}\n\n{prompt}"),
+        None => prompt.to_string(),
+    };
+    stream(cmd, &prompt, parse, o.on_spawn, on)
 }
 
 pub fn parse(line: &str) -> Vec<Event> {
