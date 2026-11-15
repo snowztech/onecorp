@@ -4,17 +4,21 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-11-15
+
+Your team runs more on its own: leads review work before it reaches you, routines bring back recurring work, employees ask each other, and a stuck run stops by itself. Each company is backed up, and chat and tickets cost less.
+
 ### Added
 
+- Leads review their team's work before it reaches you. When an employee with a lead finishes, the lead reads the changes in their worktree, runs the build and test commands, and leaves a verdict. Changes go straight back to the author, as a comment on the ticket, and the ticket is Up next or Working again until the redo is reviewed. Work they're happy with reaches your Inbox with the verdict and a shield on its card. After two rounds of changes it comes to you anyway, with the lead's notes, to settle. Merging stays your call. It's on for every company: turn it off in Settings, Company, Reviews, and work comes straight to you again. Either way, you can ask a lead to review from the Inbox or with `onecorp ask-review`, an employee can ask someone with `request_review`, and a lead can start one from chat. (#100)
+- Routines: work that comes back on a schedule, like a dependency check every Monday or a nightly test run. Each time, it makes an ordinary ticket for whoever you picked, so you review it and the budget and pause apply. It skips a turn while its last ticket is still open, and a Mac that slept through a time runs it once when it wakes. In Settings, Routines, or `onecorp routine`. (#111)
 - Employees ask each other while they work. A designer can ask the engineer who built the API how it behaves, and gets the answer before going on. The question and the answer show in team chat and on the ticket, at most five a ticket. A plain post that @mentions someone says it won't be answered now. In chat, people can also read their own work that's waiting for review. (#99)
+- A run that's stuck stops by itself. When an employee shows nothing for 10 minutes, the Inbox says so, with their last step, and offers Keep waiting or Stop. After 30 minutes it's stopped with its work kept, and Retry picks up where it was. Before, a run stuck on a command that never returned looked like it was working and held a slot for hours. Change the time, or turn it off, in Settings, Company. (#110)
+- OneCorp keeps copies of each company: its tickets, chat, Inbox, spend, wiki and everyone's notes. One every hour while things change, one before each update changes anything, kept for two weeks. Settings, Company shows the last one, makes one now, and puts one back after asking. What's there before a restore is copied too, so it can be undone. In the CLI: `onecorp backup` and `onecorp restore`. (#112)
 - Employees remember a chat conversation past its last few messages. Each reply keeps a short summary of what you've talked about, so in a long DM they still know what you told them at the start, for the same cost a reply. The last few messages reach them in full, not cut short.
 - Replies in chat and Ask OneCorp appear as they're written, instead of all at once after "writing…".
 - In chat and Ask OneCorp, employees know what the whole team finished lately: the last 20 merged tickets, who did each, when, and what changed in a sentence. Before, they only knew their own tickets, so work merged since their last answer went unseen. Older work is a ticket key away.
 - Choose how hard each employee thinks on tickets: Low, Medium, High, or their agent's default, in their profile or with `onecorp hire --effort low`. Low takes fewer steps on routine work: in a test, the same ticket took 3 steps instead of 5 and cost about 20% less.
-- Leads review their team's work before it reaches you. When an employee with a lead finishes, the lead reads the changes in their worktree, runs the build and test commands, and leaves a verdict. Changes go straight back to the author, as a comment on the ticket, and the ticket is Up next or Working again until the redo is reviewed. Work they're happy with reaches your Inbox with the verdict and a shield on its card. After two rounds of changes it comes to you anyway, with the lead's notes, to settle. Merging stays your call. It's on for every company: turn it off in Settings, Company, Reviews, and work comes straight to you again. Either way, you can ask a lead to review from the Inbox or with `onecorp ask-review`, an employee can ask someone with `request_review`, and a lead can start one from chat. (#100)
-- OneCorp keeps copies of each company: its tickets, chat, Inbox, spend, wiki and everyone's notes. One every hour while things change, one before each update changes anything, kept for two weeks. Settings, Company shows the last one, makes one now, and puts one back after asking. What's there before a restore is copied too, so it can be undone. In the CLI: `onecorp backup` and `onecorp restore`. (#112)
-- A run that's stuck stops by itself. When an employee shows nothing for 10 minutes, the Inbox says so, with their last step, and offers Keep waiting or Stop. After 30 minutes it's stopped with its work kept, and Retry picks up where it was. Before, a run stuck on a command that never returned looked like it was working and held a slot for hours. Change the time, or turn it off, in Settings, Company. (#110)
-- Routines: work that comes back on a schedule, like a dependency check every Monday or a nightly test run. Each time, it makes an ordinary ticket for whoever you picked, so you review it and the budget and pause apply. It skips a turn while its last ticket is still open, and a Mac that slept through a time runs it once when it wakes. In Settings, Routines, or `onecorp routine`. (#111)
 
 ### Changed
 
@@ -314,6 +318,7 @@ The first public release. Run a company of AI employees on Claude Code or Codex,
 - The `onecorp` command does everything the app does.
 - Signed and notarized. Install with `brew install --cask snowztech/tap/onecorp` or from onecorp.dev.
 
+[0.1.14]: https://github.com/snowztech/onecorp/releases/tag/v0.1.14
 [0.1.13]: https://github.com/snowztech/onecorp/releases/tag/v0.1.13
 [0.1.12]: https://github.com/snowztech/onecorp/releases/tag/v0.1.12
 [0.1.11]: https://github.com/snowztech/onecorp/releases/tag/v0.1.11
