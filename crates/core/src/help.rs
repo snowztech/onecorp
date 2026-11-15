@@ -80,8 +80,18 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let model = crate::work::talk_model(c, &e)?;
     let opts = runtime::Opts { cwd: &c.dir, model: model.as_deref(), mcp: None, resume: None, env: &crate::chat::one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &[], run_any: false, max_cost: None, system: Some(&system) };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    let (mut live, mut shown_at) = (String::new(), std::time::Instant::now());
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {
+            Event::Delta(text) => {
+                live.push_str(&text);
+                if shown_at.elapsed() > std::time::Duration::from_millis(400) {
+                    let so_far = live.split(ISSUE).next().unwrap_or("").trim_end();
+                    c.write_pending(id, &crate::runtime::plain(so_far))?;
+                    shown_at = std::time::Instant::now();
+                }
+            }
+            Event::Tool { .. } => live.clear(),
             Event::Say(text) => said = text,
             Event::Done { cost: c2, tokens: t2, text, .. } => {
                 (cost, tokens) = (c2, t2);

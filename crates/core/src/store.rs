@@ -1188,6 +1188,12 @@ impl Company {
         Ok(self.db.last_insert_rowid())
     }
 
+    /// What a reply says so far, while it's still being written.
+    pub fn write_pending(&self, id: i64, text: &str) -> Result<()> {
+        self.db.execute("UPDATE messages SET text = ?2 WHERE id = ?1 AND pending = 1", params![id, text])?;
+        Ok(())
+    }
+
     pub fn finish_message(&self, id: i64, text: &str, cost: f64, tokens: u64) -> Result<()> {
         self.db.execute(
             "UPDATE messages SET text = ?2, pending = 0, cost_usd = ?3, tokens = ?4, at = datetime('now') WHERE id = ?1",

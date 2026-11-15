@@ -21,6 +21,9 @@ pub const RUNTIMES: &[&str] = &["claude", "codex", "fake"];
 pub enum Event {
     Init { session: String, model: String },
     Say(String),
+    /// A piece of text as the agent writes it, before its message is complete. For showing a
+    /// reply as it comes. The whole message still arrives as `Say`.
+    Delta(String),
     Tool { name: String, detail: String },
     ToolResult { error: bool, text: String },
     /// `cost` is 0 when the runtime doesn't report dollars (Codex on a subscription).

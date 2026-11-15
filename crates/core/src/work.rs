@@ -1279,7 +1279,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
                 ("tool", runtime::clip(&format!("{name} {}", detail.replace(&wt_prefix, "")), 600))
             }
             Event::ToolResult { error: true, text } => ("error", text.clone()),
-            Event::ToolResult { .. } => return Ok(()),
+            Event::ToolResult { .. } | Event::Delta(_) => return Ok(()),
             Event::Usage { fresh, cached, output } => {
                 let k = |n: &u64| format!("{:.1}k", *n as f64 / 1000.0);
                 ("tokens", format!("read {} tokens, {} of them from cache, and wrote {}", k(&(fresh + cached)), k(cached), k(output)))

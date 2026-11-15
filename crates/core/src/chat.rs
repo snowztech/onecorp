@@ -217,7 +217,14 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let doing = in_progress(c, &e.id)?;
     let team = team_of(c, &e)?;
     let recent: Vec<&Message> = before.iter().collect();
-    let history: Vec<String> = recent.iter().map(|m| line(c, m)).collect();
+    // The last few in full, so nobody thinks their own message was cut off. Older ones shortened.
+    const IN_FULL: usize = 4;
+    let history: Vec<String> = recent
+        .iter()
+        .enumerate()
+        .map(|(i, m)| if i + IN_FULL >= recent.len() { line_full(c, m) } else { line(c, m) })
+        .collect();
+    let earlier = c.setting(&summary_key(&slot.channel))?.map(|s| format!("What this conversation covered before that, in your words from last time: {s}\n\n")).unwrap_or_default();
     let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
     // What stays the same between this person's replies is their system part, which Claude Code
     // caches: an exchange of a few messages then pays mostly for the conversation, not the company.
@@ -227,7 +234,8 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
          {checkout}\
-         {propose}\n\n{comment}\n\n{rules}{notes}",
+         {propose}\n\n{comment}\n\n{summary}\n\n{rules}{notes}",
+        summary = SUMMARY_NOTE,
         name = e.name,
         role = e.role,
         company = c.name,
@@ -239,7 +247,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         notes = crate::work::own_notes(c, &e.id)?,
     );
     let prompt = format!(
-        "{founder} {place}. The conversation so far, with long messages shortened here (everyone saw them in full):\n\n{history}\n\n\
+        "{founder} {place}. {earlier}The latest messages, older ones shortened here (everyone saw them in full):\n\n{history}\n\n\
          They wrote: {asked}\n\n{team}{tickets}{now}{mentioned}{elsewhere}",
         founder = asker.unwrap_or_else(crate::founder::name),
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
@@ -263,8 +271,19 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     }
     let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None, system: Some(&system) };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    // The reply shows as it's written, a few times a second, not every word.
+    let (mut live, mut shown_at) = (String::new(), std::time::Instant::now());
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {
+            Event::Delta(text) => {
+                live.push_str(&text);
+                if shown_at.elapsed() > std::time::Duration::from_millis(400) {
+                    c.write_pending(id, &shown_so_far(&live))?;
+                    shown_at = std::time::Instant::now();
+                }
+            }
+            // Text before a tool call was "let me look": what shows is the answer that follows.
+            Event::Tool { .. } => live.clear(),
             Event::Say(text) => said = text,
             Event::Done { cost: c2, tokens: t2, text, .. } => {
                 (cost, tokens) = (c2, t2);
@@ -285,6 +304,11 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         None => false,
     };
     if run.is_ok() && !limited {
+        let (kept, summary) = take_summary(&said);
+        said = kept;
+        if let Some(s) = summary {
+            c.set_setting(&summary_key(&slot.channel), &s)?;
+        }
         said = comment(c, &e, &said)?;
         said = propose(c, &e, &team, id, &said)?;
     }
@@ -320,6 +344,48 @@ fn team_of(c: &Company, e: &Employee) -> Result<Vec<Employee>> {
 
 const TICKET: &str = "TICKET:";
 const COMMENT: &str = "COMMENT:";
+const SUMMARY: &str = "SUMMARY:";
+
+/// How a reply keeps the conversation going past the messages it's shown: it ends with a summary
+/// line that nobody sees, saved for the next reply in this channel. A few sentences cost a lot
+/// less than resending a long conversation, and the cost stays the same however long it runs.
+const SUMMARY_NOTE: &str = "End every reply with one last line, SUMMARY: then two or three sentences on what this \
+    conversation has covered and agreed so far, keeping whatever the earlier summary said that still matters. \
+    Nobody sees that line. It's how you remember this conversation next time.";
+
+fn summary_key(channel: &str) -> String {
+    format!("chat.summary.{channel}")
+}
+
+/// The reply without its summary line, and the summary.
+fn take_summary(said: &str) -> (String, Option<String>) {
+    let mut summary = None;
+    let kept: Vec<&str> = said
+        .lines()
+        .filter(|l| match l.trim_start().trim_start_matches(['-', '*', ' ']).strip_prefix(SUMMARY) {
+            Some(rest) => {
+                summary = Some(rest.trim().to_string()).filter(|s| !s.is_empty());
+                false
+            }
+            None => true,
+        })
+        .collect();
+    (kept.join("\n").trim_end().to_string(), summary)
+}
+
+/// What a reply being written shows so far: up to its first line for OneCorp, like a proposed
+/// ticket or its summary, which are taken out when it's done.
+fn shown_so_far(live: &str) -> String {
+    let end = live.lines().position(|l| {
+        let l = l.trim_start().trim_start_matches(['-', '*', ' ']);
+        [TICKET, COMMENT, SUMMARY].iter().any(|m| l.starts_with(m) || (m.starts_with(l) && !l.is_empty() && l.chars().all(|c| c.is_ascii_uppercase())))
+    });
+    let text = match end {
+        Some(n) => live.lines().take(n).collect::<Vec<_>>().join("\n"),
+        None => live.to_string(),
+    };
+    runtime::plain(text.trim_end())
+}
 
 const COMMENT_NOTE: &str = "To add a comment to an existing ticket, so it stays with the ticket and whoever works on it reads it, \
     put it after your reply: a line COMMENT: <ticket key>, then the comment on the lines below. It ends at the next COMMENT: or TICKET: line. \
@@ -535,6 +601,12 @@ fn seen_elsewhere(c: &Company, e: &Employee, skip: &str) -> Result<Vec<String>> 
 
 /// "Name: text", with long messages cut so one rant can't fill the prompt. The cut is marked,
 /// or an employee reading its own reply thinks it failed to send and says it again.
+/// Like `line`, with the whole message.
+fn line_full(c: &Company, m: &Message) -> String {
+    let who = line(c, &Message { text: String::new(), ..m.clone() });
+    format!("{who}{}", m.text.replace('\n', " "))
+}
+
 pub(crate) fn line(c: &Company, m: &Message) -> String {
     let who = if m.author == "founder" {
         format!("{} (founder)", crate::founder::name())
@@ -547,4 +619,25 @@ pub(crate) fn line(c: &Company, m: &Message) -> String {
         text.push('…');
     }
     format!("{who}: {}", text.replace('\n', " "))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{shown_so_far, take_summary};
+
+    #[test]
+    fn the_summary_line_is_kept_apart() {
+        let (said, summary) = take_summary("Yes, Friday works.\nSUMMARY: Release is Friday, Sam owns the notes.");
+        assert_eq!((said.as_str(), summary.as_deref()), ("Yes, Friday works.", Some("Release is Friday, Sam owns the notes.")));
+        assert_eq!(take_summary("No summary here").1, None);
+        assert_eq!(take_summary("ok\n- SUMMARY:  ").1, None, "an empty one is no summary");
+    }
+
+    #[test]
+    fn a_reply_being_written_hides_what_isnt_for_people() {
+        assert_eq!(shown_so_far("Sure, on it.\nTICKET: Maya | Fix add"), "Sure, on it.");
+        assert_eq!(shown_so_far("Sure.\nSUMM"), "Sure.", "even half written");
+        assert_eq!(shown_so_far("All good.\nSUMMARY: x"), "All good.");
+        assert_eq!(shown_so_far("Plain text"), "Plain text");
+    }
 }
