@@ -11,6 +11,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - Replies in chat and Ask OneCorp appear as they're written, instead of all at once after "writing…".
 - In chat and Ask OneCorp, employees know what the whole team finished lately: the last 20 merged tickets, who did each, when, and what changed in a sentence. Before, they only knew their own tickets, so work merged since their last answer went unseen. Older work is a ticket key away.
 - Choose how hard each employee thinks on tickets: Low, Medium, High, or their agent's default, in their profile or with `onecorp hire --effort low`. Low takes fewer steps on routine work: in a test, the same ticket took 3 steps instead of 5 and cost about 20% less.
+- Leads review their team's work before it reaches you. When an employee with a lead finishes, the lead reads the changes in their worktree, runs the build and test commands, and leaves a verdict. Changes go straight back to the author, as a comment on the ticket, and the ticket is Up next or Working again until the redo is reviewed. Work they're happy with reaches your Inbox with the verdict and a shield on its card. After two rounds of changes it comes to you anyway, with the lead's notes, to settle. Merging stays your call. It's on for every company: turn it off in Settings, Company, Reviews, and work comes straight to you again. Either way, you can ask a lead to review from the Inbox or with `onecorp ask-review`, an employee can ask someone with `request_review`, and a lead can start one from chat. (#100)
 
 ### Changed
 

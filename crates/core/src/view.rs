@@ -89,6 +89,9 @@ pub fn snapshot(c: &Company) -> Result<Value> {
                 "document": wiki_draft(c, t),
                 "summary": last_said(c, t.id).unwrap_or_default(), "spend": spend(t.cost_usd, t.tokens),
                 "pr_number": t.pr_number, "pr_url": t.pr_url,
+                "lead": (t.kind == "work").then(|| c.lead_of(&who).ok().flatten()).flatten().filter(|l| l.id != who).map(|l| json!({"id": l.id, "name": l.name})),
+                "reviewing": c.pending_review(t.id).ok().flatten().map(|r| name_of(&r)),
+                "lead_review": lead_review(c, t.id),
                 // Work whose changes are all on base already: nothing to merge, only to close.
                 "empty": t.kind == "work" && t.branch.as_deref().is_some_and(|b| c.repo_of(t).is_ok_and(|r| crate::git::already_on(&r, t.base.as_deref().unwrap_or("main"), b))),
             })
@@ -200,6 +203,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             "repo": t.repo,
             "created_by": (t.created_by != "founder").then(|| name_of(&t.created_by)),
             "plan": t.plan.map(|p| c.key(p)),
+            "reviewed": review_mark(c, t),
         })).collect::<Vec<_>>(),
         "inbox": inbox,
         "with_leads": with_leads,
@@ -284,7 +288,7 @@ pub fn spend_report(c: &Company) -> Result<Value> {
         })
         .collect();
     // Where the money goes by kind of run, in this order, leaving out kinds with nothing spent.
-    let kinds: Vec<Value> = [("ticket", "Tickets"), ("chat", "Chat replies"), ("lead", "Lead decisions"), ("help", "Ask OneCorp")]
+    let kinds: Vec<Value> = [("ticket", "Tickets"), ("chat", "Chat replies"), ("lead", "Lead decisions"), ("review", "Reviews"), ("help", "Ask OneCorp")]
         .iter()
         .filter(|(k, _)| rows.iter().any(|r| r.7 == *k))
         .map(|(k, label)| {
@@ -407,16 +411,8 @@ pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
 /// Everything a reviewer needs for one ticket: the files, the commits and the patch.
 pub fn review(c: &Company, ticket: &Ticket) -> Result<Value> {
     let key = c.key(ticket.id);
-    let branch = ticket.branch.clone().ok_or_else(|| anyhow::anyhow!("{key} hasn't started, so there's nothing to review"))?;
-    let repo = c.repo_of(ticket)?;
-    let base = match &ticket.base {
-        Some(b) => b.clone(),
-        None => crate::git::default_branch(&repo)?,
-    };
-    // With pull requests the branch starts from the forge's copy of the base, like ship::start_point.
-    // Your local one can be behind it, and then other people's merged work would show up as this ticket's.
-    let pr = crate::ship::forge_for(c, &repo)?.is_some() && crate::git::has_ref(&repo, &format!("refs/remotes/origin/{base}"));
-    let from = if pr { format!("origin/{base}") } else { base.clone() };
+    let (repo, from, branch) = review_range(c, ticket)?;
+    let base = from.strip_prefix("origin/").unwrap_or(&from).to_string();
     let files = crate::git::changes(&repo, &from, &branch)?;
     let (patch, cut) = crate::git::patch(&repo, &from, &branch, 200_000)?;
     Ok(json!({
@@ -426,6 +422,22 @@ pub fn review(c: &Company, ticket: &Ticket) -> Result<Value> {
         "commits": crate::git::commits(&repo, &from, &branch)?.iter().map(|(h, a, s)| json!({"hash": h, "author": a, "subject": s})).collect::<Vec<_>>(),
         "patch": patch, "truncated": cut,
     }))
+}
+
+/// Where a ticket's changes are: (repo, what it's compared to, its branch).
+pub(crate) fn review_range(c: &Company, ticket: &Ticket) -> Result<(std::path::PathBuf, String, String)> {
+    let key = c.key(ticket.id);
+    let branch = ticket.branch.clone().ok_or_else(|| anyhow::anyhow!("{key} hasn't started, so there's nothing to review"))?;
+    let repo = c.repo_of(ticket)?;
+    let base = match &ticket.base {
+        Some(b) => b.clone(),
+        None => crate::git::default_branch(&repo)?,
+    };
+    // With pull requests the branch starts from the forge's copy of the base, like ship::start_point.
+    // Your local one can be behind it, and then other people's merged work would show up as this ticket's.
+    let pr = crate::ship::forge_for(c, &repo)?.is_some() && crate::git::has_ref(&repo, &format!("refs/remotes/origin/{base}"));
+    let from = if pr { format!("origin/{base}") } else { base };
+    Ok((repo, from, branch))
 }
 
 /// One employee, for the person drawer: their tickets, what they're doing, what they've learned.
@@ -509,6 +521,32 @@ pub fn plain_tool(summary: &str) -> String {
         }
         _ => summary.to_string(),
     }
+}
+
+/// The badge on a card for work in review: who reviewed it and how it went, or who is reviewing it now.
+fn review_mark(c: &Company, t: &Ticket) -> Value {
+    if t.status != "review" || t.kind != "work" {
+        return Value::Null;
+    }
+    if let Some(who) = c.pending_review(t.id).ok().flatten() {
+        let name = c.employee(&who).ok().flatten().map(|e| e.name).unwrap_or(who);
+        return json!({"name": name, "state": "reviewing"});
+    }
+    match lead_review(c, t.id) {
+        Some(v) => json!({"name": v["name"], "state": if v["ok"] == true { "good" } else { "changes" }}),
+        None => Value::Null,
+    }
+}
+
+/// The latest teammate review of a ticket, unless the work changed since: then it's out of date.
+fn lead_review(c: &Company, ticket: i64) -> Option<Value> {
+    let (id, at, _, raw) = c.last_event(ticket, "lead-review").ok()??;
+    let redone = c.last_event(ticket, "done").ok().flatten().is_some_and(|(done, ..)| done > id);
+    if redone {
+        return None;
+    }
+    let v: Value = serde_json::from_str(&raw).ok()?;
+    Some(json!({"name": v["name"], "ok": v["ok"], "notes": v["notes"], "at": at, "rounds": crate::work::sent_back(c, ticket).unwrap_or(0)}))
 }
 
 pub(crate) fn last_said(c: &Company, ticket: i64) -> Option<String> {

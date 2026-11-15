@@ -946,6 +946,8 @@ impl Company {
             Job::Resume { why, prompt, label } => ("resume", why.as_str(), prompt.as_str(), label.clone()),
             // The question id rides in `label`.
             Job::Consult { question } => ("consult", "", "", question.to_string()),
+            // So does the reviewer's id.
+            Job::Review { reviewer } => ("review", "", "", reviewer.clone()),
         };
         self.db.execute(
             "INSERT INTO jobs (ticket_id, kind, why, prompt, label) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -969,21 +971,30 @@ impl Company {
         // People at their daily cap, or whose agent hit its plan limit, take no new work for now.
         // Matched against a ",a,b," list.
         let capped = format!(",{},", crate::limits::away(self)?.join(","));
+        // Who does a job: the reviewer for a review, whose id rides in `label`, otherwise the
+        // ticket's assignee. A reviewer is busy while reviewing, like anyone on a ticket.
+        let who = |j: &str, t: &str| format!("(CASE WHEN {j}.kind = 'review' THEN {j}.label ELSE {t}.assignee END)");
         let next = self
             .db
             .query_row(
-                "SELECT j.id, j.ticket_id, j.kind, j.why, j.prompt, j.label FROM jobs j JOIN tickets t ON t.id = j.ticket_id
-                 WHERE j.started_at IS NULL AND (?1 IS NULL OR j.kind = ?1) AND NOT EXISTS (
-                   SELECT 1 FROM jobs r JOIN tickets rt ON rt.id = r.ticket_id
-                   WHERE r.started_at IS NOT NULL AND r.finished_at IS NULL
-                     AND (r.ticket_id = j.ticket_id OR rt.assignee = t.assignee))
-                   AND instr(?2, ',' || coalesce(t.assignee, '') || ',') = 0
-                 ORDER BY j.id LIMIT 1",
+                &format!(
+                    "SELECT j.id, j.ticket_id, j.kind, j.why, j.prompt, j.label FROM jobs j JOIN tickets t ON t.id = j.ticket_id
+                     WHERE j.started_at IS NULL AND (?1 IS NULL OR j.kind = ?1) AND NOT EXISTS (
+                       SELECT 1 FROM jobs r JOIN tickets rt ON rt.id = r.ticket_id
+                       WHERE r.started_at IS NOT NULL AND r.finished_at IS NULL
+                         AND (r.ticket_id = j.ticket_id OR {} = {}))
+                       AND instr(?2, ',' || coalesce({}, '') || ',') = 0
+                     ORDER BY j.id LIMIT 1",
+                    who("r", "rt"),
+                    who("j", "t"),
+                    who("j", "t"),
+                ),
                 params![kind, capped],
                 |r| {
                     let job = match r.get::<_, String>(2)?.as_str() {
                         "start" => Job::Start,
                         "consult" => Job::Consult { question: r.get::<_, String>(5)?.parse().unwrap_or(0) },
+                        "review" => Job::Review { reviewer: r.get(5)? },
                         _ => Job::Resume { why: r.get(3)?, prompt: r.get(4)?, label: r.get(5)? },
                     };
                     Ok(Claimed { id: r.get(0)?, ticket: r.get(1)?, job })
@@ -1019,14 +1030,19 @@ impl Company {
             "UPDATE messages SET pending = 0, text = '(stopped before replying)' WHERE pending = 1 AND at < datetime('now', '-30 minutes')",
             [],
         )?;
-        let mut st = self.db.prepare("SELECT id, ticket_id, pid FROM jobs WHERE started_at IS NOT NULL AND finished_at IS NULL")?;
-        let running: Vec<(i64, i64, Option<u32>)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<_, _>>()?;
+        let mut st = self.db.prepare("SELECT id, ticket_id, pid, kind FROM jobs WHERE started_at IS NOT NULL AND finished_at IS NULL")?;
+        let running: Vec<(i64, i64, Option<u32>, String)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?.collect::<Result<_, _>>()?;
         let mut keys = vec![];
-        for (job, ticket, pid) in running {
+        for (job, ticket, pid, kind) in running {
             if pid.is_some_and(alive) {
                 continue;
             }
             self.finish_job(job, Some("interrupted"))?;
+            // A review that stopped leaves the work itself as it was, still waiting for the founder.
+            if kind == "review" {
+                self.add_event(ticket, "error", "the review stopped before it finished. Ask for it again", "")?;
+                continue;
+            }
             self.set_status(ticket, "failed")?;
             // Its own kind, not an error: nothing went wrong in the work, and the next serve picks it back up.
             self.add_event(ticket, "interrupted", "stopped before it finished", "")?;
@@ -1338,7 +1354,7 @@ impl Company {
         let mut st = self.db.prepare(
             "SELECT e.at, e.ticket_id, coalesce(t.assignee, ''), e.kind, e.summary, t.title
              FROM events e JOIN tickets t ON t.id = e.ticket_id
-             WHERE e.kind IN ('start', 'done', 'merge', 'pr', 'block', 'lead', 'create', 'review', 'stop', 'retry', 'wait', 'wiki') ORDER BY e.id DESC LIMIT ?1",
+             WHERE e.kind IN ('start', 'done', 'merge', 'pr', 'block', 'lead', 'lead-review', 'create', 'review', 'stop', 'retry', 'wait', 'wiki') ORDER BY e.id DESC LIMIT ?1",
         )?;
         let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -1350,6 +1366,44 @@ impl Company {
         let mut st = self.db.prepare("SELECT summary FROM events WHERE kind = 'wait' AND summary LIKE '%usage limit%' AND at >= datetime('now', '-' || ?1 || ' days')")?;
         let rows = st.query_map([days], |r| r.get(0))?;
         Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The newest event of one kind on a ticket: (id, time, summary, raw).
+    pub fn last_event(&self, ticket: i64, kind: &str) -> Result<Option<(i64, String, String, String)>> {
+        Ok(self
+            .db
+            .query_row(
+                "SELECT id, at, summary, raw FROM events WHERE ticket_id = ?1 AND kind = ?2 ORDER BY id DESC LIMIT 1",
+                params![ticket, kind],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .optional()?)
+    }
+
+    /// Who is reviewing a ticket right now, or will once serve picks the job up.
+    pub fn pending_review(&self, ticket: i64) -> Result<Option<String>> {
+        Ok(self
+            .db
+            .query_row(
+                "SELECT label FROM jobs WHERE ticket_id = ?1 AND kind = 'review' AND finished_at IS NULL ORDER BY id DESC LIMIT 1",
+                [ticket],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+
+    /// Like `pending_review`, but a review running in this very process doesn't count: it's the one
+    /// that sent the work back and is waiting on the redo, and the redo needs a review of its own.
+    pub fn other_review(&self, ticket: i64) -> Result<bool> {
+        Ok(self
+            .db
+            .query_row(
+                "SELECT 1 FROM jobs WHERE ticket_id = ?1 AND kind = 'review' AND finished_at IS NULL AND NOT (started_at IS NOT NULL AND pid = ?2) LIMIT 1",
+                params![ticket, std::process::id()],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
     }
 
     pub fn events(&self, ticket: i64) -> Result<Vec<(String, String, String)>> {

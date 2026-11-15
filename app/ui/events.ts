@@ -28,10 +28,16 @@ document.addEventListener("click", async e => {
   if (S.switching && !target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-run-any],[data-run-any-q],[data-repo-main],[data-commands-rescan],[data-spend-by],[data-pb-reset],[data-pb-rewrite],[data-kpick],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-run-limit],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick],[data-effort]");
+  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-run-any],[data-run-any-q],[data-repo-main],[data-commands-rescan],[data-spend-by],[data-pb-reset],[data-pb-rewrite],[data-kpick],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-run-limit],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick],[data-effort],[data-ask-review],[data-lead-notes],[data-lead-review]");
   if (!el) return;
   const d = el.dataset;
   if (d.updateRestart) return restartToUpdate();
+  if (d.askReview) { await busy(el, "Asking…", () => call("ask_review", { company: S.company, key: d.askReview, by: null })).catch(() => {}); return; }
+  if (d.leadNotes) {
+    const r = S.snap?.reviews.find(x => x.key === d.leadNotes), v = r?.lead_review;
+    if (v) await busy(el, "Sending…", () => call("request_changes", { company: S.company, key: d.leadNotes, feedback: `${v.name}'s review:\n${v.notes}` }, "Sent back with the review notes.")).catch(() => {});
+    return;
+  }
   if (d.closeReport) { await busy(el, "Closing…", () => call("close_report", { company: S.company, key: d.closeReport }, "Report closed")).catch(() => {}); return; }
   if (d.planDel) { await call("delete_ticket", { company: S.company, key: d.planDel }, `Removed ${d.planDel} from the plan`).catch(() => {}); return; }
   if (d.dismissQ) { await busy(el, "Dismissing…", () => call("dismiss_question", { company: S.company, id: Number(d.dismissQ) }, "Dismissed")).catch(() => {}); return; }
@@ -210,6 +216,11 @@ document.addEventListener("click", async e => {
   }
   if (d.talk) {
     try { await invoke("set_talk", { company: S.company, mode: d.talk }); S.settings!.talk = d.talk; saved(); } catch (err) { toast(String(err), true); }
+    return renderSheet();
+  }
+  if (d.leadReview) {
+    const on = d.leadReview === "true";
+    try { await invoke("set_lead_review", { company: S.company, on }); S.settings!.lead_review = on; saved(); } catch (err) { toast(String(err), true); }
     return renderSheet();
   }
   if (d.prSign) {

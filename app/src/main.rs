@@ -137,6 +137,14 @@ fn approve(company: String, key: String) -> Res<()> {
     onecorp::ship::approve(&c, &t).map_err(err)
 }
 
+/// Has a teammate review work waiting for you: the author's lead unless `by` names someone.
+#[tauri::command(async)]
+fn ask_review(company: String, key: String, by: Option<String>) -> Res<String> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    work::ask_review(&c, &t, by.as_deref()).map_err(err)
+}
+
 #[tauri::command(async)]
 fn request_changes(company: String, key: String, feedback: String) -> Res<()> {
     let c = open(&company)?;
@@ -204,6 +212,7 @@ fn settings(company: String) -> Res<Value> {
         "repos": repos_json(&c).map_err(err)?,
         "commits": c.setting("commits").map_err(err)?.unwrap_or_else(|| if onecorp::git::config(&repo, "user.name").is_some() { "you" } else { "team" }.into()),
         "pr_sign": c.setting("pr_sign").map_err(err)?.as_deref() != Some("off"),
+        "lead_review": work::leads_review(&c).map_err(err)?,
         "talk": onecorp::work::talk_tier(&c).map_err(err)?,
         "run_any": onecorp::commands::run_any(&c).map_err(err)?,
         // The model names each choice means, for the agents this team uses.
@@ -282,6 +291,11 @@ fn set_commits(company: String, mode: String) -> Res<()> {
 }
 
 /// Whether pull requests end with who did the work, at which company, made with OneCorp.
+#[tauri::command(async)]
+fn set_lead_review(company: String, on: bool) -> Res<()> {
+    work::set_leads_review(&open(&company)?, on).map_err(err)
+}
+
 #[tauri::command(async)]
 fn set_pr_sign(company: String, on: bool) -> Res<()> {
     open(&company)?.set_setting("pr_sign", if on { "on" } else { "off" }).map_err(err)
@@ -902,6 +916,7 @@ fn main() {
             set_voice,
             set_commands,
             set_pr_sign,
+            set_lead_review,
             discard_ticket,
             add_repo,
             set_commits,
@@ -974,6 +989,7 @@ fn main() {
             answer,
             approve,
             request_changes,
+            ask_review,
             add_department,
             move_to_department,
             hire

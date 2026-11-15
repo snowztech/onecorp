@@ -41,8 +41,8 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 | `serve.rs` | Runs queued jobs in parallel. |
 | `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. `fake.rs` is a stand-in with no AI, for tests and trying things out. |
 | `setup.rs` › `repo_notes` | Reads a repo like a newcomer would (stack, commands, layout, README) for the wiki's Codebase section. No AI. |
-| `chat.rs` | Team chat: #general plus a channel per department. Resolves channel names, finds @mentions, runs a mentioned employee's reply (read-only, no company tools: `TICKET:` lines in the reply propose tickets, `COMMENT:` blocks add a `comment` event to a ticket, which goes into its prompt), and builds the recent chat that goes into each ticket prompt. |
-| `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the wiki, remember, mark blocked. |
+| `chat.rs` | Team chat: #general plus a channel per department. Resolves channel names, finds @mentions, runs a mentioned employee's reply (read-only, no company tools: `TICKET:` lines in the reply propose tickets, `COMMENT:` blocks add a `comment` event to a ticket, which goes into its prompt, `REVIEW:` lines start the replier's review of work in review), and builds the recent chat that goes into each ticket prompt. |
+| `mcp.rs` | The company tools agents call: ask you, post to chat, propose to the wiki, remember, ask for a review, mark blocked. |
 | `ship.rs` | How approved work lands: a local merge, or a pull request on GitHub or GitLab. Publishing, approving, and noticing PRs merged or closed on the forge. |
 | `forge.rs` | The only code that talks to `gh` and `glab`: open, look at and merge a pull request, check the login. |
 | `founder.rs` | You: a name and an optional photo in `~/.onecorp/founder.json`, shared by every company. Prompts use the name. No account. |
@@ -139,6 +139,14 @@ When someone in a department asks a question with `ask_human`, it goes to their 
 - Leads, people without a department and wiki proposals go straight to you. Questions still with a lead show under "With your leads", and you can answer them yourself.
 
 The consult job waits until the asker's own run is done. Without `serve`, `work::drain_consults` runs them right after the ticket finishes.
+
+## Leads review first
+
+Work in review gets a teammate's review before the founder's, usually the author's lead (`work::reviewer_for`). When a run ends in review, `work::review_on_finish` starts it with nobody asking: from whoever the author named with the `request_review` tool, or else from their lead, unless the company turned leads' reviews off (setting `lead_review`, on by default, `work::leads_review`). Work sent back and redone is reviewed again. Authors without a lead, like the leads themselves, come straight to the founder. A review can also be asked for by hand: the founder from the Inbox or `onecorp ask-review`, or a lead from chat with a `REVIEW: <key>` line in their reply. The ticket prompt tells each employee who reviews their work, and that asking in chat doesn't start a review.
+
+`work::ask_review` queues a `review` job, the reviewer's id in its label. It's queued with `enqueue`, not `dispatch`, so the ticket stays in `review`. `work::review` runs the reviewer's own model **read-only** in the author's worktree, with the ticket, the author's summary, the diff against its base (`view::review_range`, cut at 60,000 bytes) and the build and test commands they may run. The reviewer ends with `VERDICT: GOOD` or `VERDICT: CHANGES`, read by `work::review_verdict`. No clear verdict counts as changes, the safe side.
+
+The verdict is a `lead-review` event on the ticket, with the notes in its raw JSON, and a note to the author in their team channel. Good work stays in review for the founder, with the verdict on its Inbox card until the work changes again. Changes go straight back (`work::send_back`): the notes become a `comment` event on the ticket, go into the author's memory, and resume the author's session with a `Resume` job through `dispatch`, so the ticket shows Up next while the author is busy and Working once they're on it. When the redo ends, `review_on_finish` reviews it again. A reviewer sends the same work back at most `MAX_REVIEW_ROUNDS` times (2) since the founder last asked for changes (`work::sent_back`). Past that the work goes to the founder with the verdict and the count, and merging or sending it back stays their call. A review interrupted mid-run leaves the ticket in review with an error event, never failed. A redo started from inside a review, when serve isn't running, is reviewed too: `store::other_review` doesn't count the review job of the same process.
 
 ## Shared knowledge
 

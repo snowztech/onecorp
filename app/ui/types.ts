@@ -26,11 +26,21 @@ export interface PlanTicket { key: string; title: string; description: string; a
 export interface Review {
   key: string; title: string; employee: string; name: string; kind: string; tickets: PlanTicket[];
   document?: string | null; summary: string; spend: string; pr_number?: number | null; pr_url?: string | null; empty?: boolean;
+  /** The author's lead, who can review the work first. Work only. */
+  lead?: { id: string; name: string } | null;
+  /** Who is reviewing it right now, by name. */
+  reviewing?: string | null;
+  /** The latest teammate review, gone once the work changes again. */
+  lead_review?: { name: string; ok: boolean; notes: string; at: string; rounds?: number } | null;
 }
+
+export interface ReviewMark { name: string; state: "good" | "changes" | "reviewing" }
 
 export interface Ticket {
   key: string; title: string; assignee: string | null; status: Status; spend: string;
   after?: string | null; kind?: string; repo?: string | null; created_by?: string | null; plan?: string | null;
+  /** A teammate's review of work waiting for you, or one in progress. */
+  reviewed?: ReviewMark | null;
 }
 
 export interface Department { id: number | null; name: string; lead: string | null; members: string[] }
@@ -104,7 +114,7 @@ export interface SettingsRepo { name: string; path: string; main: boolean; comma
 export interface Settings {
   name: string; repo: string; data: string; home: string; ship: string; forge: string | null; forge_name: string | null;
   origin: string | null; tickets: number; people: number; version: string; repos: SettingsRepo[];
-  commits: string; pr_sign: boolean; talk: string; talk_models: Record<string, string[]>; run_any?: boolean;
+  commits: string; pr_sign: boolean; lead_review?: boolean; talk: string; talk_models: Record<string, string[]>; run_any?: boolean;
   git_you: { name: string; email: string } | null;
 }
 
@@ -172,6 +182,7 @@ export interface Results {
   make_main_repo: SettingsRepo[];
   set_setup: SettingsRepo[];
   review: Diff;
+  ask_review: string;
   set_commands: SettingsRepo[];
   set_projects_folder: string;
   settings: Settings;

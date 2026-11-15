@@ -89,7 +89,7 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
       repos: [{ name: "notes", path: "/Users/you/dev/notes", main: true }, { name: "notes-web", path: "/Users/you/dev/notes-web", main: false }],
       company: "snowztech", serve: true, kickoff: { brief: "A notes app for writers.", planner: "rui", planned: true, planning: [] }, ship: { mode: "github", forge: "GitHub", pr_word: "pull request" }, employees: team, tickets: [
         { key: "SNO-9", plan: "SNO-20", title: "Rate limit the public API", assignee: "tomas", status: "failed", spend: "40k tok" },
-        { key: "SNO-11", plan: "SNO-20", title: "Pricing page", assignee: "odile", status: "review", spend: "$0.31" },
+        { key: "SNO-11", plan: "SNO-20", title: "Pricing page", assignee: "odile", status: "review", spend: "$0.31", reviewed: { name: "Rui Alves", state: "reviewing" } },
         { key: "SNO-12", plan: "SNO-20", title: "Magic link login", assignee: "maya", status: "blocked", spend: "52k tok" },
         { key: "SNO-14", repo: "notes-web", plan: "SNO-20", title: "Empty state for the notes list", assignee: "lina", status: "queued", spend: "$0.00" },
         { key: "SNO-15", plan: "SNO-20", title: "Retry failed Stripe webhooks", assignee: "tomas", status: "doing", spend: "75k tok" },
@@ -114,7 +114,8 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
           tickets: [{ key: "SNO-31", title: "Add meta descriptions to every page", description: "One line per page, under 155 characters.", assignee: "lina", name: "Lina Park", after: null, status: "backlog" },
             { key: "SNO-32", title: "A landing page for writers", description: "", assignee: "rui", name: "Rui Alves", after: null, status: "backlog" },
             { key: "SNO-33", title: "Lazy-load the hero video", description: "", assignee: "maya", name: "Maya Okafor", after: null, status: "backlog" }] },
-        { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans, reusing `PlanCard` from settings. `cargo test` and `pnpm lint` pass. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41" }],
+        { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans, reusing `PlanCard` from settings. `cargo test` and `pnpm lint` pass. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41",
+          lead_review: { name: "Rui Alves", ok: false, notes: "- The Pro price reads 9.00 on mobile and 9 on desktop.\n- Add a test for the yearly toggle.", at: "2026-11-09 11:10:00" } }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31", title: "Pricing page" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "start", summary: "started", title: "Retry failed Stripe webhooks" }, { at: "2026-11-09 10:31:00", key: "SNO-12", employee: "maya", name: "Maya Okafor", kind: "block", summary: "asked you about magic link expiry", title: "Magic link login" }],
       spend: { cost: 3.24, tokens: 180000, label: "$3.24", today: 3.24, today_label: "$3.24", budget: 5, warn: false, paused_by_budget: false },
       dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),

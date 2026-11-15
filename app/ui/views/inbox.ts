@@ -1,5 +1,5 @@
 import { esc, first } from "../lib.ts";
-import { face, icon, prLink } from "../look.ts";
+import { face, icon, prLink, reviewMark } from "../look.ts";
 import { md } from "../md.ts";
 import { S, mergeLabel } from "../state.ts";
 import type { Failed, Question, Review } from "../types.ts";
@@ -143,10 +143,30 @@ export function ticketStatus(t: { status: string; kind?: string }) {
 export function review(r: Review) {
   if (r.kind === "report") return reportReview(r);
   return `<article class="ask review" id="in-${esc(r.key)}">${face(r.name, "done")}<div>
-    <span class="kind">Review · ${esc(r.key)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
-    ${r.empty ? `<p class="nothing-left">Nothing left to merge: everything on this branch is already on main. Close it as done${r.pr_url ? ", and its pull request is closed" : ""}.</p>` : ""}${r.kind === "wiki" ? `<p>Save these pages to the wiki. Only the pages in the draft change, and what you wrote yourself is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
+    <span class="kind">Review · ${esc(r.key)}${reviewMark(r.reviewing ? { name: r.reviewing, state: "reviewing" } : r.lead_review ? { name: r.lead_review.name, state: r.lead_review.ok ? "good" : "changes" } : null)}</span><h4>${esc(r.title)}</h4>${r.pr_url ? `<p class="prline">${prLink(r.pr_url, r.pr_number)}</p>` : ""}${clamp(`r-${r.key}`, `<div class="q-text summary">${md(r.summary || `${first(r.name)} finished and is waiting for your review.`).html}</div>`, r.summary || "")}
+    ${leadReview(r)}${r.empty ? `<p class="nothing-left">Nothing left to merge: everything on this branch is already on main. Close it as done${r.pr_url ? ", and its pull request is closed" : ""}.</p>` : ""}${r.kind === "wiki" ? `<p>Save these pages to the wiki. Only the pages in the draft change, and what you wrote yourself is kept.</p>` : ""}${wikiDraft(r)}<div class="acts">${reviewActions(r)}${askReviewBtn(r)}${S.open[`chg-${r.key}`] ? "" : `<button class="btn ghost" type="button" data-more="chg-${esc(r.key)}">Ask for changes</button>`}${discardBtn(r)}</div>
     ${S.open[`chg-${r.key}`] ? `${replyForm(`chg-${r.key}`, `data-changes="${esc(r.key)}"`, "What should change?", "Send back")}` : ""}
     ${discardConfirm(r)}${changes(r.key)}</div></article>`;
+}
+
+// A teammate's verdict on the work, or that one is on its way. Merging stays your call either way.
+function leadReview(r: Review) {
+  if (r.reviewing) return `<p class="via">${esc(first(r.reviewing))} is reviewing it…</p>`;
+  const v = r.lead_review;
+  if (!v) return "";
+  const notes = v.notes ? md(v.notes).html : "";
+  // Changes normally go straight back to the author. One here means they disagreed for a few rounds.
+  const rounds = !v.ok && v.rounds ? ` Sent back ${v.rounds === 1 ? "once" : `${v.rounds} times`} already, so it's your call now.` : "";
+  return `<div class="via lead-verdict"><p><b>${esc(first(v.name))} reviewed it:</b> ${v.ok ? "looks good." : "changes needed."}${rounds}</p>${notes}</div>`;
+}
+
+// Ask the lead first, or send their notes back as they are.
+function askReviewBtn(r: Review) {
+  if (r.kind !== "work" || r.reviewing) return "";
+  const v = r.lead_review;
+  if (v && !v.ok) return `<button class="btn" data-lead-notes="${esc(r.key)}">Send back with ${esc(first(v.name))}'s notes</button>`;
+  if (!r.lead || v) return "";
+  return `<button class="btn" data-ask-review="${esc(r.key)}">Ask ${esc(first(r.lead.name))} to review</button>`;
 }
 
 export function wiki(q: Question) {

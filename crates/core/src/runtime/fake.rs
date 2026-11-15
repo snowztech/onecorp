@@ -5,7 +5,8 @@
 //! A test steers it through the prompt: a ticket containing `[fail]` fails, and a conflict
 //! prompt makes it resolve the markers by keeping both sides. `[fail once]` fails the first run
 //! in a worktree and succeeds after, to test retries. `[limit]` answers like a plan that hit its
-//! usage limit, and `[budget]` spends all the run is allowed and stops there.
+//! usage limit, and `[budget]` spends all the run is allowed and stops there. Reviewing a ticket
+//! whose title has `[changes]`, it asks for changes; otherwise it says the work is good.
 
 use super::{Event, Opts};
 use anyhow::Result;
@@ -29,6 +30,19 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         return Ok(());
     }
 
+    // Asked to review someone's work: changes for a ticket marked [changes], good otherwise. One
+    // marked [merged meanwhile] is merged by the founder while the review runs.
+    if prompt.contains("\nVERDICT: GOOD\n") {
+        let reviewed = prompt.lines().find(|l| l.contains(" finished ") && l.contains("asked you to review")).unwrap_or("");
+        if reviewed.contains("[merged meanwhile]") {
+            merged_meanwhile(reviewed);
+        }
+        let text = if reviewed.contains("[changes]") { "- Add a test for the empty case.\nVERDICT: CHANGES" } else { "Does what the ticket asks.\nVERDICT: GOOD" };
+        on("", Event::Say(text.into()))?;
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text: text.into() })?;
+        return Ok(());
+    }
+
     // Ask OneCorp: a bug report draft when asked about a [bug], a plain answer otherwise.
     if prompt.starts_with("You are Ask OneCorp") {
         let text = if prompt.contains("[bug]") { "That's a bug.\nISSUE: bug | Drafts vanish\n**What happened**\nThe draft vanished." } else { "Leads can propose tickets for their team." };
@@ -47,6 +61,11 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         if said.contains("[comment]") {
             let key = said.split_whitespace().find(|w| w.contains('-') && w.ends_with(|ch: char| ch.is_ascii_digit())).unwrap_or("");
             text.push_str(&format!("\nCOMMENT: {key}\nPaste this in config.toml:\nport = 8080\nCOMMENT: NOPE-999 | lost"));
+        }
+        // Asked to [review] a ticket: the review line for the key it names.
+        if said.contains("[review]") {
+            let key = said.split_whitespace().find(|w| w.contains('-') && w.ends_with(|ch: char| ch.is_ascii_digit())).unwrap_or("");
+            text.push_str(&format!("\nREVIEW: {key}"));
         }
         on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
         return Ok(());
@@ -148,6 +167,18 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
 /// Calls `create_ticket` like an agent would, through the company's MCP handler, in-process: the
 /// stand-in has no MCP client, and in tests there's no onecorp binary to start one with.
 /// The company and ticket this run is for, read from its company tool settings.
+/// Marks the reviewed ticket done, the way merging it would, from the review prompt's
+/// "Maya finished ACM-3: title" line.
+fn merged_meanwhile(line: &str) {
+    let Some(key) = line.split(" finished ").nth(1).and_then(|r| r.split(':').next()) else { return };
+    for name in crate::store::list().unwrap_or_default() {
+        let Ok(c) = crate::store::Company::open(&name) else { continue };
+        if let Ok(id) = c.parse_key(key) {
+            let _ = c.set_status(id, "done");
+        }
+    }
+}
+
 fn company_ticket(o: &Opts) -> Option<(crate::store::Company, i64)> {
     let args = &o.mcp?.args;
     let arg = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).cloned();

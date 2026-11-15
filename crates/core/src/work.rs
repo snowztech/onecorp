@@ -36,6 +36,8 @@ pub enum Job {
     Resume { why: String, prompt: String, label: String },
     /// Ask the asker's department lead to answer an inbox question, or pass it up to the founder.
     Consult { question: i64 },
+    /// A teammate, usually the author's lead, reviews work waiting for the founder.
+    Review { reviewer: String },
 }
 
 /// Queues the job when `onecorp serve` is running, otherwise runs it right here.
@@ -71,6 +73,7 @@ pub fn execute(c: &Company, ticket: i64, job: &Job) -> Result<()> {
         Job::Start => run_ticket(c, &t),
         Job::Resume { why, prompt, label } => pick_up(c, &t, why, prompt, label),
         Job::Consult { question } => return consult(c, *question),
+        Job::Review { reviewer } => return review(c, ticket, reviewer),
     };
     if let Err(err) = &result {
         // The job is finished either way, so recover_interrupted won't come back for this ticket.
@@ -212,6 +215,249 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     }
 }
 
+/// Who reviews `t` when someone asks for it: the person named, or the author's lead.
+pub fn reviewer_for(c: &Company, t: &Ticket, by: Option<&str>) -> Result<Employee> {
+    let key = c.key(t.id);
+    let author = t.assignee.clone().unwrap_or_default();
+    let who = match by.map(str::trim).filter(|b| !b.is_empty()) {
+        Some(name) => c.employee(&store::slug(name))?.ok_or_else(|| anyhow!("nobody called {name} works at {}", c.name))?,
+        None => c.lead_of(&author)?.ok_or_else(|| anyhow!("{key}'s author has no lead to review it. Name someone: onecorp ask-review {key} --by <name>"))?,
+    };
+    if who.id == author {
+        bail!("{} can't review their own work on {key}", who.name);
+    }
+    Ok(who)
+}
+
+/// Asks a teammate, the author's lead unless someone is named, to review work waiting for the
+/// founder. It runs right away, or is queued when serve is running. Returns the reviewer's name.
+pub fn ask_review(c: &Company, t: &Ticket, by: Option<&str>) -> Result<String> {
+    let key = c.key(t.id);
+    if t.status != "review" || t.kind != "work" {
+        bail!("{key} is {}. Only work waiting for the founder's review can be reviewed", t.status);
+    }
+    let who = reviewer_for(c, t, by)?;
+    if let Some(busy) = c.pending_review(t.id)? {
+        let name = c.employee(&busy)?.map(|e| e.name).unwrap_or(busy);
+        bail!("{name} is already reviewing {key}");
+    }
+    c.add_event(t.id, "review-asked", &format!("asked {} to review", who.name), &serde_json::json!({ "by": who.id }).to_string())?;
+    queue_review(c, t.id, &who.id)?;
+    Ok(who.name)
+}
+
+/// Whether leads review their team's work before it reaches the founder. On unless turned off.
+pub fn leads_review(c: &Company) -> Result<bool> {
+    Ok(c.setting("lead_review")?.as_deref() != Some("off"))
+}
+
+pub fn set_leads_review(c: &Company, on: bool) -> Result<()> {
+    c.set_setting("lead_review", if on { "on" } else { "off" })
+}
+
+/// Work that just reached review gets its review here, with nobody clicking anything: from whoever
+/// the author asked with `request_review`, or else from their lead when leads review first. Work
+/// sent back and redone is reviewed again, since what was reviewed has changed.
+fn review_on_finish(c: &Company, t: &Ticket) -> Result<()> {
+    if t.status != "review" || t.kind != "work" || c.other_review(t.id)? {
+        return Ok(());
+    }
+    let reviewed = c.last_event(t.id, "lead-review")?.map(|(id, ..)| id).unwrap_or(0);
+    let asked = c.last_event(t.id, "review-requested")?.filter(|(id, ..)| *id > reviewed);
+    let by = match &asked {
+        Some((_, _, _, raw)) => serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|v| v["by"].as_str().map(String::from)),
+        None if leads_review(c)? => None,
+        None => return Ok(()),
+    };
+    let who = match reviewer_for(c, t, by.as_deref()) {
+        Ok(who) => who,
+        // Nobody asked and the author has no lead, like a lead's own work: it comes straight to the founder.
+        Err(_) if asked.is_none() => return Ok(()),
+        Err(err) => return c.add_event(t.id, "error", &format!("couldn't start the review: {err:#}"), ""),
+    };
+    c.add_event(t.id, "review-asked", &format!("{} reviews it first", who.name), &serde_json::json!({ "by": who.id }).to_string())?;
+    queue_review(c, t.id, &who.id)
+}
+
+fn queue_review(c: &Company, ticket: i64, reviewer: &str) -> Result<()> {
+    let job = Job::Review { reviewer: reviewer.into() };
+    // A reviewer at their cap, or whose agent hit its limit, reviews once that lifts.
+    if c.paused()? || serve::running() || crate::limits::away(c)?.contains(&reviewer.to_string()) {
+        // Not `dispatch`: the ticket stays in review while its reviewer reads it.
+        return c.enqueue(ticket, &job);
+    }
+    let id = c.run_now(ticket, &job)?;
+    let result = execute(c, ticket, &job);
+    c.finish_job(id, result.as_ref().err().map(|e| format!("{e:#}")).as_deref())?;
+    result
+}
+
+/// A teammate's verdict on work in review, with their notes.
+#[derive(Debug, PartialEq)]
+pub enum ReviewVerdict {
+    Good(String),
+    Changes(String),
+}
+
+/// Reads the last VERDICT: line, and keeps everything before it as the notes. No clear verdict
+/// reads as changes needed: the founder looks closer, which is the safe side.
+pub fn review_verdict(text: &str) -> ReviewVerdict {
+    let lines: Vec<&str> = text.lines().collect();
+    let clean = |l: &str| l.trim().trim_matches(['*', '_', '`']).trim().to_string();
+    let found = lines.iter().rposition(|l| clean(l).to_ascii_uppercase().starts_with("VERDICT:"));
+    let Some(at) = found else { return ReviewVerdict::Changes(text.trim().to_string()) };
+    let word = clean(lines[at])["VERDICT:".len()..].trim_start_matches(['*', '_', '`', ' ']).to_ascii_uppercase();
+    // Anything listed after the line belongs with the notes too.
+    let notes: Vec<&str> = lines[..at].iter().chain(lines[at + 1..].iter()).copied().collect();
+    let notes = notes.join("\n").trim().to_string();
+    if word.starts_with("GOOD") { ReviewVerdict::Good(notes) } else { ReviewVerdict::Changes(notes) }
+}
+
+/// The reviewer reads the work read-only in the author's worktree, can run the build and test
+/// commands, and leaves a verdict on the ticket. The work stays in review: merging, or sending it
+/// back with the notes, is still the founder's call.
+fn review(c: &Company, ticket: i64, reviewer: &str) -> Result<()> {
+    let Some(t) = c.ticket(ticket)? else { return Ok(()) };
+    let key = c.key(t.id);
+    if t.status != "review" || t.kind != "work" {
+        return Ok(()); // Merged, sent back or discarded meanwhile.
+    }
+    let Some(who) = c.employee(reviewer)? else { return Ok(()) };
+    let author = t.assignee.as_deref().and_then(|a| c.employee(a).ok().flatten());
+    let author_name = author.as_ref().map(|a| a.name.clone()).unwrap_or_else(|| "A teammate".into());
+    let (repo, from, branch) = crate::view::review_range(c, &t)?;
+    let files = git::changes(&repo, &from, &branch)?;
+    let (patch, cut) = git::patch(&repo, &from, &branch, 60_000)?;
+    let reports = author.as_ref().is_some_and(|a| c.lead_of(&a.id).ok().flatten().is_some_and(|l| l.id == who.id));
+    let summary = crate::view::last_said(c, t.id).unwrap_or_default();
+    let commands = crate::commands::for_ticket(c, &t)?;
+    let prompt = format!(
+        "You are {name}, {role} at {company}. {bio}\n\n\
+         {author_name}{reports} finished {key}: {title}, and asked you to review it before the founder merges it.\n\n\
+         What the ticket asked:\n{details}\n\n\
+         {author_name}'s summary:\n{summary}\n\n\
+         The work is on branch {branch}, compared to {from}: {n} files, +{added} -{removed}. \
+         This folder has the branch checked out. Read the code around the changes{run}. Don't change any files.\n\n```diff\n{patch}\n```{cut}\n\n\
+         Review it like a careful senior teammate. Does it do what the ticket asked? Is anything broken, risky or missing, like tests, \
+         docs or another platform the wiki asks for? Does it follow the wiki? Skip nits that don't matter. \
+         Be specific: name the file and what to change.\n\n\
+         Write your review in a few short lines or a list, then end with exactly one line:\n\
+         VERDICT: GOOD\nwhen it's ready to merge, or\nVERDICT: CHANGES\nwhen something must change first, with what to change listed above it.",
+        name = who.name,
+        role = who.role,
+        company = c.name,
+        bio = crate::voice::intro(c, &who)?,
+        reports = if reports { ", who reports to you," } else { "" },
+        title = t.title,
+        details = if t.description.trim().is_empty() { "(only the title)".to_string() } else { t.description.clone() },
+        summary = if summary.trim().is_empty() { "(none)".to_string() } else { summary },
+        n = files.len(),
+        added = files.iter().map(|f| f.added).sum::<u32>(),
+        removed = files.iter().map(|f| f.removed).sum::<u32>(),
+        // Codex reads in a read-only sandbox, where builds and tests can't write what they need.
+        run = match (who.runtime.as_str(), commands.is_empty()) {
+            ("codex", _) => ". You can't run builds or tests here, so judge from the code, the tests in the diff and the summary".to_string(),
+            (_, true) => String::new(),
+            _ => format!(", and run the build and test commands if they help ({})", commands.join(", ")),
+        },
+        cut = if cut { "\n(The diff is cut here. Read the rest with git diff in this folder.)" } else { "" },
+    );
+    // The rules and the wiki are the same cached base tickets read, so a review doesn't pay for them again.
+    let rules = company_rules(c, crate::roles::spaces(crate::roles::role_of(c, &who)?))?;
+    let effort = effort(c, &who.id)?;
+    c.add_event(t.id, "review-start", &format!("{} started reviewing", who.name), "")?;
+    out(&format!("{key}  {} is reviewing {}'s work", who.name, first_line(&author_name)));
+
+    let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(repo.clone());
+    let opts = runtime::Opts { cwd: &cwd, model: who.model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &commands, dirs: &reading_dirs(c)?, run_any: false, max_cost: crate::spend::left(c, &who.id)?, system: Some(&rules), effort: effort.as_deref() };
+    let (mut said, mut cost, mut tokens, mut cached, mut ok) = (String::new(), 0.0, 0, 0, true);
+    let run = runtime::run(&who.runtime, &opts, &prompt, |_, ev| {
+        match ev {
+            Event::Say(text) => said = text,
+            Event::Usage { cached: n, .. } => cached = n,
+            Event::Done { ok: o, cost: c2, tokens: t2, text } => {
+                (ok, cost, tokens) = (o, c2, t2);
+                if !text.is_empty() {
+                    said = text;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    });
+    let cost = crate::spend::record_cached(c, "review", &who.id, Some(t.id), &who.runtime, who.model.as_deref(), cost, tokens, cached)?;
+    c.add_cost(t.id, cost, tokens)?;
+    let failed = match &run {
+        Err(err) => Some(format!("{err:#}")),
+        Ok(()) if !ok => Some(said.clone()),
+        Ok(()) => None,
+    };
+    if let Some(why) = failed {
+        // A limit or the budget isn't a verdict. Held by the daily budget, a cap or a plan limit,
+        // the review waits in line until that lifts. Stopped by the limit for one run, it's said
+        // on the ticket: running it again would only stop there again.
+        if why == runtime::BUDGET_STOP || crate::limits::hit(&who.runtime, &why)? {
+            if c.paused()? || crate::limits::away(c)?.contains(&who.id) {
+                c.add_event(t.id, "wait", &format!("{}'s review waits for their limit or the budget", who.name), "")?;
+                return c.enqueue(t.id, &Job::Review { reviewer: who.id.clone() });
+            }
+            return c.add_event(t.id, "error", &format!("{}'s review stopped at the limit for one run. Ask for it again", who.name), "");
+        }
+        c.add_event(t.id, "error", &format!("{}'s review failed: {}", who.name, runtime::clip(&why, 600)), "")?;
+        return run.and(Err(anyhow!("{}'s review failed", who.name)));
+    }
+    let (good, notes) = match review_verdict(&runtime::plain(said.trim())) {
+        ReviewVerdict::Good(n) => (true, n),
+        ReviewVerdict::Changes(n) => (false, n),
+    };
+    let verdict = if good { "looks good" } else { "changes needed" };
+    let raw = serde_json::json!({ "by": who.id, "name": who.name, "ok": good, "notes": notes }).to_string();
+    c.add_event(t.id, "lead-review", &format!("{}: {verdict}\n{notes}", who.name), &raw)?;
+    // Changes go straight back to the author, so the founder gets work the lead is happy with.
+    // A few rounds at most: past that, lead and author disagree, and it's the founder's call.
+    // Merged, discarded or sent back by the founder while it was being reviewed: the verdict stays
+    // on the ticket, and nothing goes back to the author.
+    let still = c.ticket(t.id)?.is_some_and(|now| now.status == "review");
+    let back = still && !good && sent_back(c, t.id)? < MAX_REVIEW_ROUNDS && author.is_some();
+    if let Some(a) = &author {
+        let then = if back { " Sent back to you." } else if !good && still { " It's with the founder now." } else { "" };
+        crate::chat::note(c, &a.id, &who.id, &format!("@{} Reviewed {key}: {verdict}.{then}", a.id), Some(t.id))?;
+    }
+    out(&format!("{key}  {} reviewed it: {verdict}", who.name));
+    if back {
+        return send_back(c, &t, &who, &notes);
+    }
+    Ok(())
+}
+
+/// How many times a reviewer may send the same work back before it goes to the founder anyway.
+pub const MAX_REVIEW_ROUNDS: usize = 2;
+
+/// Reviews that sent this work back since the founder last asked for changes themselves.
+pub fn sent_back(c: &Company, ticket: i64) -> Result<usize> {
+    let events = c.events(ticket)?;
+    let since = events.iter().rposition(|(_, k, s)| k == "review" && s.starts_with("changes requested")).map_or(0, |i| i + 1);
+    Ok(events[since..].iter().filter(|(_, k, _)| k == "review-sendback").count())
+}
+
+/// The reviewer's notes go on the ticket as a comment and back to its author, who picks the work up
+/// in the same session: right away, or once they finish what they're on (Up next meanwhile).
+fn send_back(c: &Company, t: &Ticket, who: &Employee, notes: &str) -> Result<()> {
+    let key = c.key(t.id);
+    let notes = if notes.trim().is_empty() { "Changes needed, without details. Look again at what the ticket asked." } else { notes.trim() };
+    c.add_event(t.id, "comment", &format!("{}: {notes}", who.name), "")?;
+    c.add_event(t.id, "review-sendback", &format!("{} sent it back: {}", who.name, runtime::clip(notes, 600)), "")?;
+    if let Some(author) = &t.assignee {
+        c.remember(author, &format!("On {key} {} asked for changes in review: {notes}", who.name))?;
+    }
+    let prompt = format!(
+        "{} reviewed your work before the founder sees it, and asked for changes:\n\n{notes}\n\n\
+         Make them. Same rules as before, and end with two or three sentences on what changed.",
+        who.name
+    );
+    dispatch(c, t.id, Job::Resume { why: format!("with {}'s review", who.name), prompt, label: format!("changes from {}'s review", who.name) })
+}
+
 /// The company MCP server for one ticket and employee: this same binary, started by the agent.
 fn company_tools(c: &Company, ticket: i64, employee: &str) -> Result<runtime::Mcp> {
     Ok(runtime::Mcp {
@@ -296,10 +542,15 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
          Your ticket is {key}: {title}\n\n{details}\
          You are in a git worktree on branch {branch}{in_repo}. {abilities} {commits} \
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
+         {review}\n\n\
          {team}{notes}{chat}",
         name = e.name,
         role = e.role,
         company = c.name,
+        review = match c.lead_of(&e.id)?.filter(|_| leads_review(c).unwrap_or(true)) {
+            Some(lead) => format!("{} reviews your work then, before the founder sees it. To ask someone else, call request_review. Asking in chat doesn't start a review.", lead.name),
+            None => "To have a teammate review your work before the founder sees it, call request_review. Asking in chat doesn't start a review.".into(),
+        },
         abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?, crate::commands::run_any(c)?, &branch),
         commits = if crate::commands::run_any(c)? {
             "Commit as you go if it helps: when you finish, OneCorp commits whatever you left, under your name."
@@ -1417,6 +1668,10 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     if t.status == "review" && !planning {
         ship::publish_or_note(c, &t, &text);
         t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
+        // The work is in review either way. A review that can't run says why on the ticket.
+        if let Err(err) = review_on_finish(c, &t) {
+            out(&format!("{key}  the review didn't run: {err:#}"));
+        }
     }
     let what = match t.status.as_str() {
         "review" => match &t.pr_url {
@@ -1443,7 +1698,18 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
 
 #[cfg(test)]
 mod tests {
-    use super::{Verdict, verdict};
+    use super::{ReviewVerdict, Verdict, review_verdict, verdict};
+
+    #[test]
+    fn reads_a_review_verdict() {
+        let good = ReviewVerdict::Good;
+        assert_eq!(review_verdict("Clean and tested.\nVERDICT: GOOD"), good("Clean and tested.".into()));
+        assert_eq!(review_verdict("**VERDICT:** good, ship it"), good(String::new()));
+        assert_eq!(review_verdict("- Add a test\n- Rename foo\nVERDICT: CHANGES"), ReviewVerdict::Changes("- Add a test\n- Rename foo".into()));
+        assert_eq!(review_verdict("VERDICT: CHANGES\n- Fix the null case"), ReviewVerdict::Changes("- Fix the null case".into()));
+        // No verdict at all: the founder looks closer.
+        assert_eq!(review_verdict("Hmm, hard to say."), ReviewVerdict::Changes("Hmm, hard to say.".into()));
+    }
 
     #[test]
     fn reads_a_leads_verdict() {
