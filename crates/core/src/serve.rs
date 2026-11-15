@@ -27,6 +27,9 @@ pub fn running() -> bool {
 fn sync_all() {
     for name in store::list().unwrap_or_default() {
         let Ok(c) = Company::open(&name) else { continue };
+        if let Err(e) = crate::backup::maybe(&c) {
+            println!("{name}: couldn't copy the company: {e:#}");
+        }
         match crate::ship::sync(&c) {
             Ok(changed) => changed.iter().for_each(|m| println!("{m}")),
             Err(e) => println!("{name}: couldn't check pull requests: {e:#}"),

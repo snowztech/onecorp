@@ -608,6 +608,11 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 
 /* Settings rows: what it is on the left, the control on the right */
 .settings .doc-sec { padding-top: 32px; }
+.backups { list-style: none; margin: -4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.backups li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 10px; border-radius: var(--r-sm); font-size: 13px; }
+.backups li:hover { background: var(--surface-2); }
+.backups li.confirm { display: block; background: var(--surface-2); }
+.backups li.confirm p { margin: 0 0 8px; }
 .row-set { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .row-set > div:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .row-set span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }

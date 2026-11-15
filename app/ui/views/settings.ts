@@ -3,6 +3,7 @@ import { $, esc, first, money, tilde, toast } from "../lib.ts";
 import { AGENTS, FACE_SETS, PALETTE, agentMark, badge, drawFace, face, faceSet, icon, me } from "../look.ts";
 import { renderPop } from "../shell.ts";
 import { S, bugUrl, invoke, version } from "../state.ts";
+import type { Backup, Settings } from "../types.ts";
 
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
    OneCorp needs is in place. Your own profile lives in your menu. */
@@ -74,6 +75,7 @@ export function companySection() {
     ${window.__TAURI__?.dialog && !S.open["repo-path"] ? `<button class="link-btn type-path" type="button" data-more="repo-path">Or type a repo's path</button>`
       : `<div class="su-row add-repo"><input id="repo-path" class="mono" placeholder="~/dev/your-api" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-repo-add="path">Add repo</button></div>`}
     <div class="row-set data-row"><div><b>Company data</b><span class="mono">${esc(tilde(st.data))}</span></div>${reveal(st.data)}</div>
+    ${backupsRow(st)}
     <h3 class="label danger-label">Danger zone</h3>${del}`;
 }
 
@@ -153,6 +155,21 @@ export async function loadSection(tab: string) {
 export async function loadSpend() {
   try { S.spend = await invoke("spend_report", { company: S.company }); } catch (e) { toast(String(e), true); }
   renderSheet();
+}
+
+// Copies of the company, made every hour while it changes and before each update. Putting one back
+// asks once, and what's there now is copied first, so it can be undone the same way.
+function backupsRow(st: Settings) {
+  const list = st.backups || [], last = list[0];
+  const why = (b: Backup) => b.why === "before-restore" ? "before a restore" : b.why.startsWith("before-") ? `before ${b.why.slice(7)}` : "";
+  const row = `<div class="row-set"><div><b>Copies</b><span>${last ? `Last one ${esc(last.at)}. One every hour while things change, and before each update. Kept 14 days.` : "One every hour while things change, and before each update. Kept 14 days."}</span></div>
+    <span class="acts"><button class="btn" type="button" data-backup-now="1">Copy now</button>${list.length ? `<button class="link-btn" type="button" data-more="backups">${S.open.backups ? "Hide" : "Restore…"}</button>` : ""}</span></div>`;
+  if (!S.open.backups || !list.length) return row;
+  const items = list.map(b => S.confirm === "restore:" + b.name
+    ? `<li class="confirm"><p>Put the company back to ${esc(b.at)}? Tickets, chat, the wiki and notes go back to then. What's there now is copied first.</p>
+        <div class="acts"><button class="btn danger" data-restore="${esc(b.name)}">Put it back</button><button class="btn ghost" data-confirm="">Cancel</button></div></li>`
+    : `<li><span>${esc(b.at)}${why(b) ? ` <small class="muted">${esc(why(b))}</small>` : ""}</span><button class="link-btn" type="button" data-confirm="restore:${esc(b.name)}">Restore</button></li>`).join("");
+  return `${row}<ul class="backups">${items}</ul>`;
 }
 
 /* Spend: today against the budget, two weeks of days, and where it goes, by person, project and agent. */
