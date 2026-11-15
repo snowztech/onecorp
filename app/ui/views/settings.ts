@@ -8,14 +8,14 @@ import type { Backup, Settings } from "../types.ts";
 /* Settings: a sheet over the app, opened from your menu or ⌘,. The company, and whether everything
    OneCorp needs is in place. Your own profile lives in your menu. */
 /* Settings: sections on the left, the section on the right, and changes save as you make them. */
-export const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["agents", "Integrations", "spark"], ["appearance", "Appearance", "eye"], ["you", "You", "user"], ["about", "About", "info"]];
+export const SECTIONS = [["company", "Company", "company"], ["spend", "Spending", "coin"], ["routines", "Routines", "repeat"], ["agents", "Integrations", "spark"], ["appearance", "Appearance", "eye"], ["you", "You", "user"], ["about", "About", "info"]];
 
 export function renderSheet() {
   const el = $("#sheet");
   el.hidden = !S.sheet;
   if (!S.sheet) return (el.innerHTML = "");
   const tab = SECTIONS.some(([k]) => k === S.sheet) ? S.sheet : "company";
-  const sections: Record<string, () => string> = { company: companySection, spend: spendTab, agents: agentsSection, appearance: appearanceSection, you: youSection, about: aboutSection };
+  const sections: Record<string, () => string> = { company: companySection, spend: spendTab, routines: routinesSection, agents: agentsSection, appearance: appearanceSection, you: youSection, about: aboutSection };
   const body = sections[tab]();
   el.innerHTML = `<div class="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
     <nav class="set-nav"><h2>Settings</h2>${SECTIONS.map(([k, n, ic]) => `<button data-sheet="${k}" aria-current="${k === tab}">${icon(ic)}${n}</button>`).join("")}</nav>
@@ -148,6 +148,7 @@ export async function loadSection(tab: string) {
   // Loaded fresh for the company you're on: a switch since last time must never show the old one.
   if (S.settings?.name !== S.company) { S.settings = null; renderSheet(); try { S.settings = await invoke("settings", { company: S.company }); } catch (e) { toast(String(e), true); } }
   if (tab === "spend" || tab === "agents") await loadSpend();
+  if (tab === "routines") S.routines = await invoke("routines", { company: S.company }).catch(e => { toast(String(e), true); return null; });
   if (tab === "agents" && !S.ready) S.ready = await invoke("readiness").catch(() => []);
   renderSheet();
 }
@@ -170,6 +171,33 @@ function backupsRow(st: Settings) {
         <div class="acts"><button class="btn danger" data-restore="${esc(b.name)}">Put it back</button><button class="btn ghost" data-confirm="">Cancel</button></div></li>`
     : `<li><span>${esc(b.at)}${why(b) ? ` <small class="muted">${esc(why(b))}</small>` : ""}</span><button class="link-btn" type="button" data-confirm="restore:${esc(b.name)}">Restore</button></li>`).join("");
   return `${row}<ul class="backups">${items}</ul>`;
+}
+
+/* Routines: recurring work. Each makes an ordinary ticket when it's due, so review, the budget and
+   pause apply. A routine whose last ticket is still open skips its turn rather than piling up. */
+function routinesSection() {
+  const list = S.routines;
+  if (!list) return `<p class="muted">Loading…</p>`;
+  const people = S.snap?.employees || [];
+  const rows = list.map(r => {
+    const state = r.on ? (r.next ? `Next ${esc(r.next)}` : "") : "Paused";
+    const last = [r.last ? `last ${esc(r.last)}` : "", r.note ? esc(r.note) : ""].filter(Boolean).join(" · ");
+    const actions = S.confirm === "routine:" + r.id
+      ? `<span class="acts"><button class="btn danger" data-routine-rm="${r.id}">Delete</button><button class="btn ghost" data-confirm="">Cancel</button></span>`
+      : `<span class="acts"><button class="btn" data-routine-run="${r.id}">Run now</button><button class="link-btn" data-routine-on="${r.id}" data-on="${r.on ? 0 : 1}">${r.on ? "Pause" : "Resume"}</button><button class="link-btn" data-confirm="routine:${r.id}">Delete…</button></span>`;
+    return `<div class="row-set routine ${r.on ? "" : "off"}"><div><b>${esc(r.title)}</b><span>${esc(r.when)} · ${esc(first(r.name))}${state ? ` · ${state}` : ""}</span>${last ? `<span class="muted">${last}</span>` : ""}</div>${actions}</div>`;
+  }).join("");
+  const when = [["daily", "Every day"], ["weekdays", "Weekdays"], ["monday", "Every Monday"], ["tuesday", "Every Tuesday"], ["wednesday", "Every Wednesday"], ["thursday", "Every Thursday"], ["friday", "Every Friday"], ["saturday", "Every Saturday"], ["sunday", "Every Sunday"], ["hours", "Every few hours"]];
+  const form = `<form id="routine-form" class="routine-form">
+      <div class="field"><label for="rt-title">What</label><input id="rt-title" placeholder="Check dependencies and list what's outdated" autocomplete="off"></div>
+      <div class="field"><label for="rt-desc">Details <span class="muted">(optional)</span></label><textarea id="rt-desc" rows="2" placeholder="What done looks like, links, constraints"></textarea></div>
+      <div class="rt-row"><div class="field"><label for="rt-who">Who</label><select id="rt-who">${people.map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join("")}</select></div>
+        <div class="field"><label for="rt-when">When</label><select id="rt-when">${when.map(([v, n]) => `<option value="${v}">${n}</option>`).join("")}</select></div>
+        <div class="field"><label for="rt-at">At</label><input id="rt-at" type="time" value="09:00"></div>
+        <div class="field rt-hours" hidden><label for="rt-hours">Every</label><input id="rt-hours" type="number" min="1" max="168" value="6"></div></div>
+      <div class="acts"><button class="btn primary">Add routine</button></div></form>`;
+  return `<p class="fine sheet-intro">Work that comes back on a schedule, like a dependency check on Mondays or a nightly test run. Each time, it makes an ordinary ticket: you review it, and the budget and pause apply. It skips a turn while its last ticket is still open.</p>
+    ${rows || `<p class="muted">No routines yet.</p>`}<h3 class="label">New routine</h3>${form}`;
 }
 
 /* Spend: today against the budget, two weeks of days, and where it goes, by person, project and agent. */

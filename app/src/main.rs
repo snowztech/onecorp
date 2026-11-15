@@ -382,6 +382,48 @@ fn keep_waiting(company: String, key: String) -> Res<()> {
     work::keep_waiting(&c, &t).map_err(err)
 }
 
+/// The company's routines, with when each runs next and what it last did.
+#[tauri::command(async)]
+fn routines(company: String) -> Res<Vec<Value>> {
+    let c = open(&company)?;
+    onecorp::routine::list(&c)
+        .and_then(|all| {
+            all.iter()
+                .map(|r| {
+                    let name = c.employee(&r.assignee)?.map(|e| e.name).unwrap_or_else(|| r.assignee.clone());
+                    Ok(json!({"id": r.id, "title": r.title, "description": r.description, "assignee": r.assignee, "name": name,
+                        "every": r.every.code(), "when": r.every.words(), "on": r.on, "next": onecorp::routine::next(&c, r)?,
+                        "last": r.last_ticket.map(|t| c.key(t)), "note": r.note}))
+                })
+                .collect()
+        })
+        .map_err(err)
+}
+
+#[tauri::command(async)]
+fn add_routine(company: String, title: String, description: String, assignee: String, every: String) -> Res<i64> {
+    let c = open(&company)?;
+    let every = onecorp::routine::Every::parse(&every).map_err(err)?;
+    onecorp::routine::add(&c, &title, &description, &assignee, None, &every).map_err(err)
+}
+
+/// Makes the routine's ticket now. Returns its key.
+#[tauri::command(async)]
+fn run_routine(company: String, id: i64) -> Res<String> {
+    let c = open(&company)?;
+    onecorp::routine::run_now(&c, id).map(|t| c.key(t)).map_err(err)
+}
+
+#[tauri::command(async)]
+fn set_routine_on(company: String, id: i64, on: bool) -> Res<()> {
+    onecorp::routine::set_on(&open(&company)?, id, on).map_err(err)
+}
+
+#[tauri::command(async)]
+fn remove_routine(company: String, id: i64) -> Res<()> {
+    onecorp::routine::remove(&open(&company)?, id).map_err(err)
+}
+
 /// The daily budget in dollars, 0 for none.
 #[tauri::command(async)]
 fn set_budget(company: String, dollars: f64) -> Res<()> {
@@ -973,6 +1015,11 @@ fn main() {
             attention,
             spend_report,
             set_budget,
+            routines,
+            add_routine,
+            run_routine,
+            set_routine_on,
+            remove_routine,
             set_quiet_limit,
             keep_waiting,
             set_run_limit,

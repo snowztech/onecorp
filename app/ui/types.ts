@@ -52,6 +52,7 @@ export interface Project { key: string; title: string; goal: string; status: Sta
 export interface Spend { cost: number; tokens: number; label: string; today: number; today_label: string; budget: number; warn: boolean; paused_by_budget: boolean }
 
 export interface Quiet { key: string; title: string; employee: string; name: string; minutes: number; last: string }
+export interface Routine { id: number; title: string; description: string; assignee: string; name: string; every: string; when: string; on: boolean; next: string; last: string | null; note: string }
 export interface Snapshot {
   quiet?: Quiet[]; quiet_limit?: number;
   kickoff: { brief: string; planner: string | null; planned: boolean; planning: { key: string; name: string; title: string }[] };
@@ -190,6 +191,8 @@ export interface Results {
   set_commands: SettingsRepo[];
   set_projects_folder: string;
   settings: Settings;
+  routines: Routine[];
+  run_routine: string;
   take_backup: Backup[];
   setup_info: SetupInfo;
   snapshot: Snapshot;
@@ -245,7 +248,7 @@ export interface State {
   page: string | null; wikiQ?: string; wikiNew?: boolean; wikiSpace?: string; history?: PageEdit[] | null; historyOf?: string | null; version?: number | null;
   setup: Setup | null; founder: Founder | null | undefined; profile: Profile | null; welcome?: boolean; onboarding?: boolean;
   project: string | null; rail: boolean; needs: Record<string, number>; pop: false | "menu" | "forget";
-  settings: Settings | null; health: Check[] | null; ready?: Check[] | null; spend?: SpendReport;
+  settings: Settings | null; routines?: Routine[] | null; health: Check[] | null; ready?: Check[] | null; spend?: SpendReport;
   confirm: string | null; sheet: string | null; shown: string; customBudget?: boolean; spendBy?: string; spendAll?: number;
   voices?: Voice[] | null; roles?: RoleInfo[] | null; models?: Models | null; runtimes?: string[] | null;
   switching?: boolean; members?: string | null; msgDel?: number | null;

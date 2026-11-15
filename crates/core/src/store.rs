@@ -7,6 +7,19 @@ use std::path::{Path, PathBuf};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- Recurring work: a ticket template and when to make it. See routine.rs.
+CREATE TABLE IF NOT EXISTS routines (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  assignee TEXT NOT NULL,
+  repo TEXT,
+  every TEXT NOT NULL,
+  on_ INTEGER NOT NULL DEFAULT 1,
+  last_run TEXT NOT NULL,
+  last_ticket INTEGER REFERENCES tickets(id),
+  note TEXT NOT NULL DEFAULT ''
+);
 -- Repos beyond the main one (meta 'repo'), like an api next to an app.
 CREATE TABLE IF NOT EXISTS repos (name TEXT PRIMARY KEY, path TEXT NOT NULL, added_at TEXT NOT NULL DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS spend (

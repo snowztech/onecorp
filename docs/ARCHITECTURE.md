@@ -38,6 +38,7 @@ Logic lives only in `crates/core`. The CLI and the app parse input, call the lib
 |---|---|
 | `store.rs` | The company database: employees, departments, tickets, events, inbox, chat, jobs. Also the wiki and memory files. |
 | `work.rs` | The ticket lifecycle: start, resume, answer, request changes, approve. Builds the prompts. |
+| `routine.rs` | Routines: a ticket template (title, details, who, repo) and a schedule (every N hours, daily, weekdays, or one day of the week at a time), in the `routines` table. Serve's loop calls `fire_due`: a routine is due when a time on its schedule has come since it last ran, looking back up to a week so a sleeping Mac runs it once when it wakes. It makes an ordinary ticket and starts it, so review, budget and pause apply, and skips its turn while its last ticket is still open. A routine that can't run (its person left) says why on itself and waits for its next time. |
 | `serve.rs` | Runs queued jobs in parallel. |
 | `runtime/` | The agent CLIs. `mod.rs` is what they share, `claude.rs` and `codex.rs` build each command and read its JSON. `fake.rs` is a stand-in with no AI, for tests and trying things out. |
 | `setup.rs` › `repo_notes` | Reads a repo like a newcomer would (stack, commands, layout, README) for the wiki's Codebase section. No AI. |
