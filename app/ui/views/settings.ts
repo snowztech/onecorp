@@ -53,6 +53,8 @@ export function companySection() {
         ? (st.commits === "you" ? `Every commit is yours, as ${esc(st.git_you.name)}` : `The employee writes it, you're credited too`)
         : "By the employee. Set your name in git (git config user.name and user.email) to commit as you."}</span></div>
       <div class="seg">${[["team", "As your team"], ["you", "As you"]].map(([m, n]) => `<button data-commits="${m}" aria-pressed="${m === (st.commits || "team")}" ${!st.git_you && m === "you" ? "disabled" : ""}>${n}</button>`).join("")}</div></div>
+    <div class="row-set"><div><b>Quiet runs</b><span>A run that shows nothing for this long is stopped, with its work kept. You hear about it a third of the way in.</span></div>
+      <div class="seg">${[[0, "Never"], [15, "15 min"], [30, "30 min"], [60, "1 hour"]].map(([m, n]) => `<button data-quiet-limit="${m}" aria-pressed="${m === (st.quiet_limit ?? 30)}">${n}</button>`).join("")}</div></div>
     <div class="row-set"><div><b>Reviews</b><span>${st.lead_review !== false ? "A lead reviews their team's work before it reaches you. Merging stays yours" : "Work comes straight to you. Ask a lead to review it from the Inbox"}</span></div>
       <div class="seg">${[[true, "Leads first"], [false, "Straight to you"]].map(([on, n]) => `<button data-lead-review="${on}" aria-pressed="${on === (st.lead_review !== false)}">${n}</button>`).join("")}</div></div>
     ${st.ship === "local" ? "" : `<div class="row-set"><div><b>Pull requests</b><span>${st.pr_sign === false ? "Just the summary" : `End with “Jonas Berg, Engineer at ${esc(st.name)} · made with OneCorp”`}</span></div>

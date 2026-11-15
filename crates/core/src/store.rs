@@ -422,6 +422,18 @@ impl Company {
     }
 
     /// Today's date in local time, from the same clock as the spend ledger.
+    /// Tickets running now, with how many minutes since anything was logged on them or since
+    /// their run started, whichever is later.
+    pub fn quiet_tickets(&self) -> Result<Vec<(i64, i64)>> {
+        let mut st = self.db.prepare(
+            "SELECT t.id, CAST((julianday('now') - julianday(max(j.started_at, coalesce((SELECT max(e.at) FROM events e WHERE e.ticket_id = t.id), '')))) * 1440 AS INTEGER)
+             FROM tickets t JOIN jobs j ON j.ticket_id = t.id
+             WHERE t.status = 'doing' AND j.kind IN ('start', 'resume') AND j.started_at IS NOT NULL AND j.finished_at IS NULL",
+        )?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     /// The time now, or `offset` from now like "-1 hour", in local time, formatted with strftime.
     pub fn local_time(&self, format: &str, offset: &str) -> Result<String> {
         let offset = if offset.is_empty() { "+0 seconds" } else { offset };
