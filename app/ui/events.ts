@@ -28,7 +28,7 @@ document.addEventListener("click", async e => {
   if (S.switching && !target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-run-any],[data-run-any-q],[data-repo-main],[data-commands-rescan],[data-spend-by],[data-pb-reset],[data-pb-rewrite],[data-kpick],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-run-limit],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick],[data-effort],[data-ask-review],[data-lead-notes],[data-lead-review]");
+  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-run-any],[data-run-any-q],[data-repo-main],[data-commands-rescan],[data-spend-by],[data-pb-reset],[data-pb-rewrite],[data-kpick],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-run-limit],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick],[data-effort],[data-ask-review],[data-lead-notes],[data-lead-review],[data-routine-run],[data-routine-on],[data-routine-rm]");
   if (!el) return;
   const d = el.dataset;
   if (d.updateRestart) return restartToUpdate();
@@ -164,6 +164,14 @@ document.addEventListener("click", async e => {
     renderSheet(); return refresh(true);
   }
   if (d.reveal) return window.__TAURI__!.opener!.revealItemInDir(d.reveal).catch(err => toast(String(err), true));
+  if (d.routineRun) {
+    return busy(el, "Making it…", async () => {
+      try { const key = await invoke("run_routine", { company: S.company, id: Number(d.routineRun) }); toast(`Made ${key}`); } catch (err) { toast(String(err), true); }
+      S.routines = await invoke("routines", { company: S.company }).catch(() => S.routines); renderSheet(); return refresh(true);
+    });
+  }
+  if (d.routineOn) { await invoke("set_routine_on", { company: S.company, id: Number(d.routineOn), on: d.on === "1" }).then(saved).catch(err => toast(String(err), true)); S.routines = await invoke("routines", { company: S.company }).catch(() => S.routines); return renderSheet(); }
+  if (d.routineRm) { await invoke("remove_routine", { company: S.company, id: Number(d.routineRm) }).catch(err => toast(String(err), true)); S.confirm = null; S.routines = await invoke("routines", { company: S.company }).catch(() => S.routines); return renderSheet(); }
   if (d.health) { S.health = null; renderSheet(); S.ready = await invoke("readiness").catch(() => S.ready); S.health = await invoke("health").catch(() => []); return renderSheet(); }
   if ("confirm" in d) {
     // One open panel per card: asking to discard closes the reply you were writing.
@@ -535,6 +543,16 @@ document.addEventListener("submit", async e => {
     } catch (e) { clearInterval(tick); s.launch = null; render(); toast(String(e), true); }
     return;
   }
+  if (f.id === "routine-form") {
+    const title = $("#rt-title").value.trim(), when = $<HTMLSelectElement>("#rt-when").value;
+    if (!title) return $("#rt-title").focus();
+    const every = when === "hours" ? `every ${$("#rt-hours").value || 6} hours` : `${when} ${$("#rt-at").value || "09:00"}`;
+    return busy(sent, "Adding…", async () => {
+      try { await invoke("add_routine", { company: S.company, title, description: $("#rt-desc").value, assignee: $<HTMLSelectElement>("#rt-who").value, every }); toast("Routine added"); }
+      catch (err) { return toast(String(err), true); }
+      S.routines = await invoke("routines", { company: S.company }).catch(() => S.routines); renderSheet();
+    });
+  }
   if (f.id === "budget-form") {
     const v = Number($("#budget-in").value || 0);
     S.customBudget = false;
@@ -611,6 +629,15 @@ const roleLater: { t?: ReturnType<typeof setTimeout> } = {};
 
 // The drawn face follows your name as you type it.
 export const faceLater: { t?: ReturnType<typeof setTimeout> } = {};
+
+document.addEventListener("change", e => {
+  const target = e.target as HTMLSelectElement;
+  if (target.id === "rt-when") {
+    const hours = target.value === "hours";
+    ($(".rt-hours") as HTMLElement).hidden = !hours;
+    ($("#rt-at").closest(".field") as HTMLElement).hidden = hours;
+  }
+});
 
 document.addEventListener("input", e => {
   const target = e.target as HTMLInputElement;

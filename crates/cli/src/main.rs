@@ -321,6 +321,13 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// Recurring work on a schedule: list routines, add one, run one now, pause, resume or remove it
+    Routine {
+        #[command(subcommand)]
+        action: Option<RoutineCmd>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Check that git, the agent CLIs and your companies are all set up, and how to fix what isn't
     Doctor,
     /// Work queued tickets for every company, several employees at a time
@@ -352,6 +359,33 @@ enum RepoCmd {
     },
     /// Remove a repo. Its finished tickets stay in the history
     Rm { name: String },
+}
+
+#[derive(Subcommand)]
+enum RoutineCmd {
+    /// A routine: what to do, who does it, and when, like --every "monday 09:00"
+    Add {
+        title: String,
+        #[arg(long)]
+        to: String,
+        /// "every 6 hours", "daily 09:00", "weekdays 09:00" or a day like "monday 09:00"
+        #[arg(long)]
+        every: String,
+        /// What done looks like, links, constraints
+        #[arg(short, long, default_value = "")]
+        description: String,
+        /// Which repo it works in, when the company has several
+        #[arg(long)]
+        repo: Option<String>,
+    },
+    /// Make its ticket now, whatever its schedule
+    Run { id: i64 },
+    /// Stop it running until resumed
+    Pause { id: i64 },
+    /// Run it on its schedule again
+    Resume { id: i64 },
+    /// Delete it. The tickets it made stay
+    Rm { id: i64 },
 }
 
 #[derive(Subcommand)]
@@ -878,6 +912,47 @@ fn run(cmd: Cmd) -> Result<()> {
             match onecorp::ship::forge(&c)? {
                 Some(f) => println!("{}: finished work opens a {} on {}, and approving merges it.", c.name, f.pr_word(), f.name()),
                 None => println!("{}: approving merges into your local repo. Push it yourself when you want.", c.name),
+            }
+        }
+        Cmd::Routine { action, company } => {
+            use onecorp::routine;
+            let c = open(company)?;
+            match action {
+                None => {
+                    let all = routine::list(&c)?;
+                    if all.is_empty() {
+                        println!("No routines yet. Add one: onecorp routine add \"Check dependencies\" --to maya --every \"monday 09:00\"");
+                    }
+                    for r in all {
+                        let next = routine::next(&c, &r)?;
+                        let when = if r.on { format!("next {next}") } else { "paused".into() };
+                        let last = r.last_ticket.map(|t| format!(", last {}", c.key(t))).unwrap_or_default();
+                        let note = if r.note.is_empty() { String::new() } else { format!(" ({})", r.note) };
+                        println!("{:<3} {} · {}, {} · {when}{last}{note}", r.id, r.title, r.every.words(), r.assignee);
+                    }
+                }
+                Some(RoutineCmd::Add { title, to, every, description, repo }) => {
+                    let every = routine::Every::parse(&every)?;
+                    let id = routine::add(&c, &title, &description, &slug(&to), repo.as_deref(), &every)?;
+                    let r = routine::get(&c, id)?;
+                    println!("Routine {id}: {}. Next: {}. Run it now: onecorp routine run {id}", every.words(), routine::next(&c, &r)?);
+                }
+                Some(RoutineCmd::Run { id }) => {
+                    let t = routine::run_now(&c, id)?;
+                    println!("Made {}.", c.key(t));
+                }
+                Some(RoutineCmd::Pause { id }) => {
+                    routine::set_on(&c, id, false)?;
+                    println!("Routine {id} is paused. Resume: onecorp routine resume {id}");
+                }
+                Some(RoutineCmd::Resume { id }) => {
+                    routine::set_on(&c, id, true)?;
+                    println!("Routine {id} runs on its schedule again.");
+                }
+                Some(RoutineCmd::Rm { id }) => {
+                    routine::remove(&c, id)?;
+                    println!("Removed routine {id}. The tickets it made stay.");
+                }
             }
         }
         Cmd::Doctor => {
