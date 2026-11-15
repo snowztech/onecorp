@@ -138,6 +138,45 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id)).collect()
 }
 
+/// The most questions one ticket asks teammates. Each answer is a chat run, so this keeps a
+/// confused run from spending its way around the team.
+const ASKS_PER_TICKET: usize = 5;
+
+/// An employee asks a teammate during a ticket and waits for the answer, like asking across the
+/// desk. The question and the answer are posted in chat, in a channel both are in, and kept on the
+/// ticket. The answer comes from a chat reply, which has no company tools, so it can't ask anyone
+/// in turn. Returns what the asker reads: the answer, or why there isn't one.
+pub fn ask_teammate(c: &Company, asker: &str, ticket: i64, who: &str, question: &str) -> Result<String> {
+    let question = question.trim();
+    ensure!(!question.is_empty(), "say what you want to know");
+    let Some(me) = c.employee(asker)? else { anyhow::bail!("{asker} doesn't work here") };
+    let Some(them) = c.employee(&crate::store::slug(who.trim_start_matches('@')))? else {
+        let names: Vec<String> = c.employees()?.into_iter().filter(|e| e.id != me.id).map(|e| format!("{} ({})", e.name, e.role)).collect();
+        anyhow::bail!("nobody called {who} works here. Your teammates: {}", names.join(", "));
+    };
+    ensure!(them.id != me.id, "that's you. Ask a teammate");
+    let first = them.name.split_whitespace().next().unwrap_or(&them.name).to_string();
+    if c.paused()? {
+        return Ok(format!("{first} can't answer: {} is paused. Carry on with your best judgment and say what you assumed in your summary.", c.name));
+    }
+    if crate::limits::away(c)?.contains(&them.id) {
+        return Ok(format!("{first} can't answer right now (their daily cap or their agent's usage limit). Carry on with your best judgment and say what you assumed in your summary."));
+    }
+    let asked = c.events(ticket)?.iter().filter(|(_, kind, _)| kind == "teammate").count();
+    if asked >= ASKS_PER_TICKET {
+        return Ok(format!("You've asked teammates {ASKS_PER_TICKET} times on this ticket already. Decide with what you have, or ask the founder with ask_human."));
+    }
+    // A channel you both read: your team's when they're in it, otherwise #general.
+    let mine = home(c, &me)?;
+    let channel = if members(c, &mine)?.iter().any(|e| e.id == them.id) { mine } else { GENERAL.to_string() };
+    c.post(&channel, &me.id, &format!("@{} {question}", them.id), Some(ticket))?;
+    let slot = c.post_pending(&channel, &them.id)?;
+    reply(c, slot)?;
+    let answer = c.message(slot)?.map(|m| m.text).unwrap_or_default();
+    c.add_event(ticket, "teammate", &format!("asked {first}: {} {first}: {}", crate::runtime::clip(question, 300), crate::runtime::clip(&answer, 600)), "")?;
+    Ok(format!("{first} answered in #{channel}:\n\n{answer}"))
+}
+
 /// Says in the asker's team channel how a question is moving: asked, decided by the lead, passed
 /// to the founder, answered. Only a record of what happened, so it never starts a reply or a loop.
 pub fn note(c: &Company, asker: &str, author: &str, text: &str, ticket: Option<i64>) -> Result<()> {
@@ -162,7 +201,13 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         return c.finish_message(id, "(they've left the company)", 0.0, 0);
     };
     let before: Vec<Message> = c.messages(Some(&slot.channel))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
-    let asked = before.iter().rev().find(|m| m.author == "founder").map(|m| m.text.clone()).unwrap_or_default();
+    // Who asked: whoever wrote last before this reply was asked for, the founder or a teammate.
+    let question = before.iter().rev().find(|m| m.author != e.id);
+    let asked = question.map(|m| m.text.clone()).unwrap_or_default();
+    let asker = match question.map(|m| m.author.as_str()) {
+        Some(id) if id != "founder" => c.employee(id)?.map(|a| format!("{}, {} here,", a.name, a.role)),
+        _ => None,
+    };
     let doing = in_progress(c, &e.id)?;
     let team = team_of(c, &e)?;
     let recent: Vec<&Message> = before.iter().rev().take(12).rev().collect();
@@ -181,7 +226,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         role = e.role,
         company = c.name,
         bio = crate::voice::intro(c, &e)?,
-        founder = crate::founder::name(),
+        founder = asker.unwrap_or_else(crate::founder::name),
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
         knowledge = crate::work::company_knowledge(c, &[])?,
@@ -201,6 +246,10 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let model = crate::work::talk_model(c, &e)?;
     let mut dirs = crate::work::reading_dirs(c)?;
     dirs.extend(doing.and_then(|(wt, _)| wt));
+    // And their work waiting for review, which isn't on the checkout either.
+    for t in c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(e.id.as_str()) && t.status == "review") {
+        dirs.extend(t.worktree.map(std::path::PathBuf::from).filter(|p| p.is_dir()));
+    }
     let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
@@ -348,7 +397,12 @@ fn propose(c: &Company, e: &Employee, team: &[Employee], message: i64, said: &st
 /// The tickets someone has been given, newest last, so a chat reply knows its own work.
 pub fn own_tickets(c: &Company, employee: &str) -> Result<String> {
     const RECENT: usize = 10;
-    let mine: Vec<String> = c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(employee)).map(|t| format!("- {} {} ({})", c.key(t.id), t.title, t.status)).collect();
+    // Work in review isn't on the checkout a reply reads, so where it is comes with it.
+    let line = |t: &crate::store::Ticket| match t.worktree.as_deref().filter(|w| t.status == "review" && std::path::Path::new(w).is_dir()) {
+        Some(wt) => format!("- {} {} (review, your changes are in {wt})", c.key(t.id), t.title),
+        None => format!("- {} {} ({})", c.key(t.id), t.title, t.status),
+    };
+    let mine: Vec<String> = c.tickets()?.iter().filter(|t| t.assignee.as_deref() == Some(employee)).map(line).collect();
     if mine.is_empty() {
         return Ok(String::new());
     }

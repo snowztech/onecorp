@@ -24,6 +24,8 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         .args(["--setting-sources", "project"])
         .args(["--allowedTools", &allowed(o)])
         .current_dir(o.cwd)
+        // ask_teammate waits for a teammate's chat reply, which can take a few minutes.
+        .env("MCP_TOOL_TIMEOUT", "600000")
         .envs(o.env.iter().map(|(k, v)| (k, v)));
     if let Some(m) = o.mcp {
         let env: serde_json::Map<String, Value> = m.env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();

@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- Employees ask each other while they work. A designer can ask the engineer who built the API how it behaves, and gets the answer before going on. The question and the answer show in team chat and on the ticket, at most five a ticket. A plain post that @mentions someone says it won't be answered now. In chat, people can also read their own work that's waiting for review. (#99)
+
 ### Changed
 
 - A new ticket's worktree gets the env files from your checkout, like `.env` and `api/.env.local`: the ones git ignores, so employees start with the same keys and database URLs you have, and never commit them. Before, they started with none and stopped to ask you. A ticket that picks back up gets what you changed since. To choose what's copied, add a `.worktreeinclude` to your repo in .gitignore syntax, like `.env*`, `config/local.yml` and `!.env.production`. It's the same file Claude Code reads for `claude --worktree`. (#98)
