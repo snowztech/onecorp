@@ -24,7 +24,7 @@ Test on throwaway repos with `ONECORP_HOME` pointing somewhere temporary. The `f
 
 - Logic lives in `crates/core`. The CLI and the app only parse, call the library and show the result.
 - The UI is TypeScript in `app/ui`, built by Vite, with no framework. `app/ui/types.ts` mirrors the JSON the Rust commands return: change both together. Follow [docs/DESIGN.md](docs/DESIGN.md) for any screen change, and check it in both themes.
-- When you add a module, table or flow, update [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For anything a user would notice, add a line to [CHANGELOG.md](CHANGELOG.md) under Unreleased, in Added, Changed or Fixed. It follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+- When you add a module, table or flow, update [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For anything a user would notice, add a line to [CHANGELOG.md](CHANGELOG.md) under Unreleased, in Added, Changed or Fixed, and update its part of [docs/GUIDE.md](docs/GUIDE.md), the user guide on onecorp.dev/docs that Ask OneCorp answers from. It follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Style
 

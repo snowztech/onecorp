@@ -11,10 +11,10 @@ use serde_json::json;
 /// Read in full with every question.
 const DOCS: &[(&str, &str)] = &[
     ("README.md", include_str!("../../../README.md")),
-    ("docs/COLLABORATION.md", include_str!("../../../docs/COLLABORATION.md")),
+    ("docs/GUIDE.md", include_str!("../../../docs/GUIDE.md")),
 ];
 /// Long ones, written next to the conversation and read when a question needs them.
-const MORE: &[(&str, &str)] = &[("ARCHITECTURE.md", include_str!("../../../docs/ARCHITECTURE.md")), ("CHANGELOG.md", include_str!("../../../CHANGELOG.md"))];
+const MORE: &[(&str, &str)] = &[("ARCHITECTURE.md", include_str!("../../../docs/ARCHITECTURE.md")), ("COLLABORATION.md", include_str!("../../../docs/COLLABORATION.md")), ("CHANGELOG.md", include_str!("../../../CHANGELOG.md"))];
 
 /// The changelog's latest releases, enough for "is this new?" without the whole history.
 fn recent_changes() -> String {
@@ -64,7 +64,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          **What gets in the way today**, **What would help**. The issue is public: leave out names, repo paths, code and anything \
          about their product. They review it on GitHub before it's posted.\n\n\
          OneCorp's docs are below. For how the code works, which helps tell a bug from intended behavior, read \
-         {more}/ARCHITECTURE.md. The full history is {more}/CHANGELOG.md.\n\n{docs}",
+         {more}/ARCHITECTURE.md. How employees ask, answer and review each other is {more}/COLLABORATION.md. The full history is {more}/CHANGELOG.md.\n\n{docs}",
         version = env!("CARGO_PKG_VERSION"),
         founder = crate::founder::name(),
         docs = docs.join("\n\n"),

@@ -2,7 +2,7 @@
 
 DEMO_HOME := /tmp/onecorp-demo
 
-.PHONY: help dev ui fresh demo demo-reset serve doctor test lint check install install-cli bundle
+.PHONY: help dev ui site fresh demo demo-reset serve doctor test lint check install install-cli bundle
 
 help:
 	@echo "make dev          open a dev build of the app on your real companies (~/.onecorp)"
@@ -39,6 +39,11 @@ fresh: $(UI_DEPS)
 # The UI alone in a browser, on sample data. Add #inbox, #chat and so on to jump to a screen.
 ui: $(UI_DEPS)
 	cd app && npm run dev
+
+# The website at http://localhost:8000, with the guide at /docs/, copied in the way the deploy does.
+site:
+	cp docs/GUIDE.md site/docs/guide.md
+	python3 -m http.server --directory site 8000
 
 demo-reset:
 	rm -rf $(DEMO_HOME)
