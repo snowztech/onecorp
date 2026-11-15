@@ -213,6 +213,7 @@ fn settings(company: String) -> Res<Value> {
         "commits": c.setting("commits").map_err(err)?.unwrap_or_else(|| if onecorp::git::config(&repo, "user.name").is_some() { "you" } else { "team" }.into()),
         "pr_sign": c.setting("pr_sign").map_err(err)?.as_deref() != Some("off"),
         "lead_review": work::leads_review(&c).map_err(err)?,
+        "quiet_limit": work::quiet_limit(&c).map_err(err)?,
         "talk": onecorp::work::talk_tier(&c).map_err(err)?,
         "run_any": onecorp::commands::run_any(&c).map_err(err)?,
         // The model names each choice means, for the agents this team uses.
@@ -345,6 +346,20 @@ fn attention() -> Res<Value> {
 #[tauri::command(async)]
 fn spend_report(company: String) -> Res<Value> {
     onecorp::view::spend_report(&open(&company)?).map_err(err)
+}
+
+/// After how many minutes without output a run is stopped, 0 for never.
+#[tauri::command(async)]
+fn set_quiet_limit(company: String, minutes: i64) -> Res<()> {
+    work::set_quiet_limit(&open(&company)?, minutes).map_err(err)
+}
+
+/// Gives a quiet run the whole limit again.
+#[tauri::command(async)]
+fn keep_waiting(company: String, key: String) -> Res<()> {
+    let c = open(&company)?;
+    let t = c.ticket(c.parse_key(&key).map_err(err)?).map_err(err)?.ok_or("No such ticket.")?;
+    work::keep_waiting(&c, &t).map_err(err)
 }
 
 /// The daily budget in dollars, 0 for none.
@@ -938,6 +953,8 @@ fn main() {
             attention,
             spend_report,
             set_budget,
+            set_quiet_limit,
+            keep_waiting,
             set_run_limit,
             set_cap,
             keep_going_today,

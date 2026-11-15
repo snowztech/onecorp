@@ -105,6 +105,9 @@ fn claim(name: &str, workers: &mut Vec<JoinHandle<()>>, max: usize) -> Result<()
         println!("{key} stopped before it finished. It's marked failed: onecorp retry {key}");
     }
     crate::spend::new_day(&c)?;
+    for key in work::stop_quiet(&c)? {
+        println!("{key} stopped: no output for {} minutes. Retry picks it up where it was: onecorp retry {key}", work::quiet_limit(&c)?);
+    }
     if c.paused()? {
         return Ok(());
     }

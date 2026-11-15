@@ -2,7 +2,7 @@ import { esc, first } from "../lib.ts";
 import { face, icon, prLink, reviewMark } from "../look.ts";
 import { md } from "../md.ts";
 import { S, mergeLabel } from "../state.ts";
-import type { Failed, Question, Review } from "../types.ts";
+import type { Failed, Question, Review, Quiet } from "../types.ts";
 import { STATUS } from "./board.ts";
 
 /* Inbox: everything that needs you, answerable in one click */
@@ -11,11 +11,21 @@ export function viewInbox() {
   const asks = s.inbox.filter(q => q.kind === "question"), runs = s.inbox.filter(q => q.kind === "command");
   const blocking = asks.filter(q => q.blocking), other = asks.filter(q => !q.blocking), books = s.inbox.filter(q => q.kind === "wiki");
   const plans = s.reviews.filter(r => r.kind === "plan"), work = s.reviews.filter(r => r.kind !== "plan");
-  const cards = [...plans.map(planReview), ...(s.failed || []).map(stopped), ...runs.map(commandAsk), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(wiki)];
+  const cards = [...plans.map(planReview), ...(s.quiet || []).map(quiet), ...(s.failed || []).map(stopped), ...runs.map(commandAsk), ...blocking.map(q => question(q)), ...work.map(review), ...other.map(q => question(q)), ...books.map(wiki)];
   const leads = (s.with_leads || []).map(q => question(q, true));
   const zero = `<div class="empty-state calm"><span class="empty-ic">${icon("check")}</span><b>You're all caught up</b><span>Questions, plans and reviews from your team land here when they need you.</span></div>`;
   return `<div class="inbox">${cards.length ? cards.join("") : zero}
     ${leads.length ? `<h2 class="section">With your leads <small class="muted">They decide what they can and pass up the rest. Step in anytime.</small></h2>${leads.join("")}` : ""}</div>`;
+}
+
+// A run that's alive but has shown nothing for a while: probably stuck. It's stopped at the limit
+// either way. Keep waiting gives it the whole limit again.
+export function quiet(q: Quiet) {
+  const left = Math.max(1, (S.snap?.quiet_limit || 30) - q.minutes);
+  return `<article class="ask stopped" id="in-${esc(q.key)}">${face(q.name, "working")}<div>
+    <span class="kind">Quiet · ${esc(q.key)}</span><h4>${esc(q.title)}</h4>
+    <p>${esc(first(q.name))} hasn't shown anything for ${q.minutes} minutes${q.last ? `. Last step: <code>${esc(q.last)}</code>` : ""}. It stops by itself in ${left} ${left === 1 ? "minute" : "minutes"}, with the work kept.</p>
+    <div class="acts"><button class="btn" data-keep-waiting="${esc(q.key)}">Keep waiting</button><button class="btn" data-stop="${esc(q.key)}">Stop</button><button class="btn ghost" data-ticket="${esc(q.key)}">See the log</button></div></div></article>`;
 }
 
 export function stopped(t: Failed) {
