@@ -41,20 +41,44 @@ pub fn add_worktree(repo: &Path, path: &Path, branch: &str, from: &str) -> Resul
     Ok(name)
 }
 
-/// Copies the checkout's env files into a new worktree: `.env` and `.env.*` that git ignores,
-/// at any depth outside ignored folders like node_modules. A worktree gets only what git tracks,
-/// so without these an employee starts with no API keys or database URLs and gets stuck.
-/// Ignored, they never end up in a commit. Returns what it copied, like ".env" and "api/.env".
+/// What `copy_env` copies when the repo says nothing else: env files, at any depth.
+const ENV_FILES: [&str; 4] = [".env", ".env.*", "*/.env", "*/.env.*"];
+
+/// Copies the checkout's env files into a ticket's worktree: by default `.env` and `.env.*` that
+/// git ignores, at any depth outside ignored folders like node_modules. A worktree gets only what
+/// git tracks, so without these an employee starts with no API keys or database URLs and gets stuck.
+/// Being ignored, they never end up in a commit.
+///
+/// The repo can change the list in `.onecorp/worktree`, one pattern a line: more files to copy,
+/// like `config/local.yml`, or `!.env.production` to leave one out. `#` starts a comment.
+///
+/// Run again when a ticket picks back up, it brings over what changed in the checkout since.
+/// The newer file wins: one the employee edited since stays theirs until yours changes again.
+/// Returns what it copied, like ".env" and "api/.env".
 pub fn copy_env(repo: &Path, wt: &Path) -> Vec<String> {
-    let pattern = ["--", ".env", ".env.*", "*/.env", "*/.env.*"];
-    let Ok(listed) = git(repo, &[&["ls-files", "--others", "--ignored", "--exclude-standard", "--directory"][..], &pattern].concat(), &[]) else { return vec![] };
+    let listed = std::fs::read_to_string(repo.join(".onecorp/worktree")).unwrap_or_default();
+    let lines: Vec<&str> = listed.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
+    let mut args: Vec<String> = ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--"].map(String::from).to_vec();
+    args.extend(ENV_FILES.iter().map(|p| p.to_string()));
+    args.extend(lines.iter().map(|l| match l.strip_prefix('!') {
+        Some(out) => format!(":(exclude){}", out.trim()),
+        None => l.to_string(),
+    }));
+    let Ok(found) = git(repo, &args.iter().map(String::as_str).collect::<Vec<_>>(), &[]) else { return vec![] };
+    let modified = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
     let mut copied = vec![];
-    for file in listed.lines().filter(|f| !f.ends_with('/')) {
+    for file in found.lines().filter(|f| !f.ends_with('/')) {
         let (from, to) = (repo.join(file), wt.join(file));
-        if !from.is_file() || to.exists() || !to.parent().is_some_and(Path::is_dir) {
+        if !from.is_file() || !to.parent().is_some_and(Path::is_dir) {
             continue;
         }
-        if std::fs::copy(&from, &to).is_ok() {
+        let Some(at) = modified(&from) else { continue };
+        if modified(&to).is_some_and(|theirs| theirs >= at) {
+            continue;
+        }
+        // The copy keeps the original's time, so "newer" means someone changed it since.
+        let done = std::fs::copy(&from, &to).is_ok() && std::fs::File::options().write(true).open(&to).and_then(|f| f.set_modified(at)).is_ok();
+        if done {
             copied.push(file.to_string());
         }
     }
@@ -424,7 +448,32 @@ mod tests {
         assert_eq!(env, [".env", ".env.local", "api/.env"]);
         assert_eq!(std::fs::read_to_string(wt4.join("api/.env")).unwrap(), "DB=x\n");
         assert!(commit_all(&wt4, "nothing", &me).unwrap().is_none(), "env files never get committed");
-        assert!(copy_env(&repo, &wt4).is_empty(), "never over what's there");
+        assert!(copy_env(&repo, &wt4).is_empty(), "nothing new, nothing copied");
+
+        // Picked back up: what changed in the checkout comes over, what they changed stays theirs.
+        let later = |p: &Path, secs| std::fs::File::options().write(true).open(p).unwrap().set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(secs)).unwrap();
+        write(&repo.join(".env"), "KEY=2\n");
+        later(&repo.join(".env"), 60);
+        write(&wt4.join("api/.env"), "DB=theirs\n");
+        later(&wt4.join("api/.env"), 120);
+        write(&repo.join("api/.env"), "DB=y\n");
+        later(&repo.join("api/.env"), 60);
+        assert_eq!(copy_env(&repo, &wt4), [".env"]);
+        assert_eq!(std::fs::read_to_string(wt4.join(".env")).unwrap(), "KEY=2\n");
+        assert_eq!(std::fs::read_to_string(wt4.join("api/.env")).unwrap(), "DB=theirs\n");
+
+        // The repo's own list: one more file, one env file left out.
+        write(&repo.join(".gitignore"), "target/\n.env\n.env.*\nnode_modules/\nlocal.yml\n");
+        std::fs::create_dir_all(repo.join(".onecorp")).unwrap();
+        write(&repo.join(".onecorp/worktree"), "# what a worktree gets\nlocal.yml\n!.env.production\n");
+        commit_all(&repo, "worktree list", &me).unwrap();
+        write(&repo.join("local.yml"), "port: 1\n");
+        write(&repo.join(".env.production"), "PROD=1\n");
+        let wt5 = root.join("wt5");
+        add_worktree(&repo, &wt5, "t/5", "main").unwrap();
+        let mut env = copy_env(&repo, &wt5);
+        env.sort();
+        assert_eq!(env, [".env", ".env.local", "api/.env", "local.yml"]);
 
         // Ticket 2 started before a conflicting change landed on main.
         let wt2 = root.join("wt2");

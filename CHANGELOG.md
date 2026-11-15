@@ -6,7 +6,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Changed
 
-- A new ticket's worktree gets the env files from your checkout, like `.env` and `api/.env.local`: the ones git ignores, so employees start with the same keys and database URLs you have, and never commit them. Before, they started with none and stopped to ask you. (#98)
+- A new ticket's worktree gets the env files from your checkout, like `.env` and `api/.env.local`: the ones git ignores, so employees start with the same keys and database URLs you have, and never commit them. Before, they started with none and stopped to ask you. A ticket that picks back up gets what you changed since. To copy other files, or leave one out, list them in `.onecorp/worktree` in your repo, like `config/local.yml` or `!.env.production`. (#98)
 
 ## [0.1.13] - 2026-11-14
 

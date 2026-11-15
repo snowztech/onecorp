@@ -1163,6 +1163,12 @@ fn pick_up(c: &Company, t: &Ticket, why: &str, prompt: &str, label: &str) -> Res
     let e = employee_of(c, t)?;
     c.set_status(t.id, "doing")?;
     out(&format!("{key}  {}\n      {} picks it back up {why}\n", t.title, e.name));
+    // What changed in your env files while they waited comes with them.
+    let env = git::copy_env(&c.repo_of(t)?, Path::new(wt));
+    if !env.is_empty() {
+        out(&format!("      updated {} from your checkout", env.join(", ")));
+        c.add_event(t.id, "tool", &format!("updated {} from the founder's checkout", env.join(", ")), "")?;
+    }
     drive(c, &e, t.id, Path::new(wt), Some(session), prompt, label)
 }
 
