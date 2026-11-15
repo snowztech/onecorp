@@ -107,8 +107,24 @@ fn tools() -> Value {
             }
         },
         {
+            "name": "ask_teammate",
+            "description": "Ask a teammate a question and wait for their answer, like asking across the desk: how their API \
+                            works, what a field means, a call that's theirs to make. They answer in team chat from what they know \
+                            and can read in the code, usually within a minute, and you get the answer here. Ask one clear question \
+                            with the context they need. Decisions that are the founder's go to ask_human.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "who": {"type": "string", "description": "Their first name, like Tomás"},
+                    "question": {"type": "string"}
+                },
+                "required": ["who", "question"]
+            }
+        },
+        {
             "name": "post_message",
-            "description": "Post a short message to the team chat. Use it for things teammates should know, not for progress logs. Mention someone with @firstname.",
+            "description": "Post a short message to the team chat. Use it for things teammates should know, not for progress logs. \
+                            Nobody answers it while you work: to ask a teammate something, use ask_teammate.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -275,6 +291,7 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
             c.set_status(ctx.ticket, "blocked")?;
             Ok(format!("Request #{n} is in the founder's Inbox, and the ticket is marked blocked. Stop here and summarize where you are."))
         }
+        "ask_teammate" => crate::chat::ask_teammate(c, &ctx.employee, ctx.ticket, &s("who"), &s("question")),
         "post_message" => {
             let text = s("text");
             anyhow::ensure!(!text.is_empty(), "text is required");
@@ -286,7 +303,11 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
                 },
             };
             c.post(&channel, &ctx.employee, &text, Some(ctx.ticket))?;
-            Ok(format!("Posted in #{channel}."))
+            let asking: Vec<String> = crate::chat::mentions(c, &channel, &text)?.into_iter().filter(|e| e.id != ctx.employee).map(|e| e.name).collect();
+            if asking.is_empty() {
+                return Ok(format!("Posted in #{channel}."));
+            }
+            Ok(format!("Posted in #{channel}. {} will read it with their next ticket, not now. To get an answer now, use ask_teammate.", asking.join(" and ")))
         }
         "propose_wiki" => {
             let text = s("text");
@@ -376,7 +397,7 @@ mod tests {
         assert!(handle(&c, &ctx, &json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).is_none());
 
         let list = handle(&c, &ctx, &req(2, "tools/list", json!({}))).unwrap();
-        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 8);
+        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 9);
 
         let args = json!({"question": "15 or 60 minutes?", "options": ["15", "60"], "default": "15", "blocking": true});
         let ask = handle(&c, &ctx, &req(3, "tools/call", json!({"name": "ask_human", "arguments": args}))).unwrap();

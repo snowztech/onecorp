@@ -16,7 +16,7 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     let mut cmd = Command::new("claude");
     // Without acceptEdits, edits need a permission nobody can give in headless mode, so they're refused.
     let mode = if o.read_only { "default" } else { "acceptEdits" };
-    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode])
+    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", mode])
         // Only the company server loads, if any. The user's own MCP servers stay out.
         .arg("--strict-mcp-config")
         // So do their plugins, skills, hooks and personal CLAUDE.md: they're read again on every
@@ -24,17 +24,20 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
         .args(["--setting-sources", "project"])
         .args(["--allowedTools", &allowed(o)])
         .current_dir(o.cwd)
+        // ask_teammate waits for a teammate's chat reply, which can take a few minutes.
+        .env("MCP_TOOL_TIMEOUT", "600000")
         .envs(o.env.iter().map(|(k, v)| (k, v)));
     if let Some(m) = o.mcp {
         let env: serde_json::Map<String, Value> = m.env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
         let mcp = json!({"mcpServers": {"onecorp": {"command": m.command, "args": m.args, "env": env}}});
         cmd.args(["--mcp-config", &mcp.to_string()]);
     }
-    if let Some(keep) = user_settings() {
-        cmd.args(["--settings", &keep]);
-    }
+    cmd.args(["--settings", &settings(o, user_settings()).to_string()]);
     if let Some(m) = o.model {
         cmd.args(["--model", m]);
+    }
+    if let Some(e) = o.effort {
+        cmd.args(["--effort", e]);
     }
     if o.run_any && !o.read_only {
         let never: Vec<String> = super::NEVER_ANY.iter().map(|c| format!("Bash({c}:*)")).collect();
@@ -52,6 +55,15 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
     if let Some(s) = o.resume {
         cmd.args(["--resume", s]);
     }
+    if let Some(system) = o.system {
+        cmd.args(["--append-system-prompt", system]);
+        // A ticket run's folder is its own worktree, which Claude Code names in its system prompt.
+        // Moved to the first message, the system prompt is the same for every ticket, so the
+        // shared base before it comes from cache. A chat reply always runs in the same folder.
+        if !o.read_only {
+            cmd.arg("--exclude-dynamic-system-prompt-sections");
+        }
+    }
     if let Some(max) = o.max_cost {
         cmd.args(["--max-budget-usd", &format!("{max:.2}")]);
     }
@@ -61,16 +73,29 @@ pub fn run(o: &Opts, prompt: &str, on: impl FnMut(&str, Event) -> Result<()>) ->
 
 /// What a run still needs from the user's own Claude Code settings once they're left out: how
 /// they sign in, and the model "Default" stands for.
-fn user_settings() -> Option<String> {
-    let home = std::env::var("HOME").ok()?;
-    let text = std::fs::read_to_string(std::path::Path::new(&home).join(".claude/settings.json")).ok()?;
-    kept(&serde_json::from_str(&text).ok()?)
+fn user_settings() -> serde_json::Map<String, Value> {
+    let Some(home) = std::env::var("HOME").ok() else { return Default::default() };
+    let text = std::fs::read_to_string(std::path::Path::new(&home).join(".claude/settings.json")).unwrap_or_default();
+    kept(&serde_json::from_str(&text).unwrap_or_default())
 }
 
-fn kept(all: &Value) -> Option<String> {
+fn kept(all: &Value) -> serde_json::Map<String, Value> {
     const KEEP: [&str; 5] = ["env", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "model"];
-    let keep: serde_json::Map<String, Value> = KEEP.iter().filter_map(|k| Some((k.to_string(), all.get(k)?.clone()))).collect();
-    (!keep.is_empty()).then(|| Value::Object(keep).to_string())
+    KEEP.iter().filter_map(|k| Some((k.to_string(), all.get(k)?.clone()))).collect()
+}
+
+/// The most of a successful command's output a ticket run reads inline, in characters. Past it,
+/// Claude Code saves the output to a file and the agent gets the end of it and the path. A long
+/// test log otherwise sits in the conversation and is read again on every later step. Failed
+/// commands keep their whole output: that's where the error is.
+const COMMAND_OUTPUT: u64 = 8_000;
+
+/// The settings a run gets: the user's sign-in and model, and for ticket runs, shorter command output.
+fn settings(o: &Opts, mut keep: serde_json::Map<String, Value>) -> Value {
+    if !o.read_only {
+        keep.insert("bashOutputMaxChars".into(), json!(COMMAND_OUTPUT));
+    }
+    Value::Object(keep)
 }
 
 fn allowed(o: &Opts) -> String {
@@ -103,6 +128,7 @@ pub fn parse(line: &str) -> Vec<Event> {
 
     match v["type"].as_str() {
         Some("system") if v["subtype"] == "init" => vec![Event::Init { session: s(&v, "session_id"), model: s(&v, "model") }],
+        Some("stream_event") if v["event"]["delta"]["type"] == "text_delta" => vec![Event::Delta(s(&v["event"]["delta"], "text"))],
         Some("assistant") => blocks()
             .iter()
             .filter_map(|b| match b["type"].as_str() {
@@ -171,7 +197,7 @@ mod tests {
     #[test]
     fn allowed_tools_follow_the_list_or_run_anything() {
         let (cmds, dirs) = (vec!["tools/check.sh".to_string(), "./gradlew assembleDebug".to_string()], vec![std::path::PathBuf::from("/c/reading/wiki")]);
-        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any, max_cost: None };
+        let opts = |run_any, read_only| Opts { cwd: std::path::Path::new("/wt"), model: None, mcp: None, resume: None, env: &[], read_only, on_spawn: None, commands: &cmds, dirs: &dirs, run_any, max_cost: None, system: None, effort: None };
         let listed = allowed(&opts(false, false));
         for rule in ["Bash(tools/check.sh:*)", "Bash(./tools/check.sh:*)", "Bash(./gradlew assembleDebug:*)", "Bash(gradlew assembleDebug:*)", "Read(//c/reading/wiki/**)"] {
             assert!(listed.split(',').any(|r| r == rule), "{rule} in {listed}");
@@ -184,14 +210,22 @@ mod tests {
     #[test]
     fn keeps_sign_in_and_model_from_the_users_settings() {
         let all = json!({"model": "opus", "env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "hooks": {"SessionStart": []}, "enabledPlugins": {"x": true}});
-        assert_eq!(kept(&all).unwrap(), json!({"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "model": "opus"}).to_string());
-        assert_eq!(kept(&json!({"hooks": {}})), None, "nothing to pass when only the rest is set");
+        assert_eq!(Value::Object(kept(&all)), json!({"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}, "model": "opus"}));
+        assert!(kept(&json!({"hooks": {}})).is_empty(), "nothing to pass when only the rest is set");
     }
 
     #[test]
     fn a_run_stopped_at_its_budget_says_so_and_still_counts() {
         let line = r#"{"type":"result","subtype":"error_max_budget_usd","is_error":true,"total_cost_usd":0.52,"usage":{"input_tokens":0,"output_tokens":0},"modelUsage":{"claude-haiku-5-5":{"inputTokens":4,"outputTokens":248,"cacheReadInputTokens":33466,"cacheCreationInputTokens":1051}},"errors":["Reached maximum budget ($0.5)"]}"#;
         assert_eq!(parse(line), vec![Event::Done { ok: false, cost: 0.52, tokens: 34769, text: crate::runtime::BUDGET_STOP.into() }]);
+    }
+
+    #[test]
+    fn text_comes_as_it_is_written() {
+        let delta = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}}"#;
+        assert_eq!(parse(delta), vec![Event::Delta("Hel".into())]);
+        let other = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{"}}}"#;
+        assert!(parse(other).is_empty(), "only text");
     }
 
     #[test]

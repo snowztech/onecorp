@@ -178,11 +178,12 @@ fn consult(c: &Company, id: i64) -> Result<()> {
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(c.repo()?);
     let mcp = company_tools(c, t.id, &lead.id)?;
     let model = talk_model(c, &lead)?;
-    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false, max_cost: None };
-    let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    let opts = runtime::Opts { cwd: &cwd, model: model.as_deref(), mcp: Some(&mcp), resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &reading_dirs(c)?, run_any: false, max_cost: None, system: None, effort: None };
+    let (mut said, mut cost, mut tokens, mut cached) = (String::new(), 0.0, 0, 0);
     runtime::run(&lead.runtime, &opts, &prompt, |_, ev| {
         match ev {
             Event::Say(text) => said = text,
+            Event::Usage { cached: n, .. } => cached = n,
             Event::Done { cost: c2, tokens: t2, text, .. } => {
                 (cost, tokens) = (c2, t2);
                 if !text.is_empty() {
@@ -193,7 +194,7 @@ fn consult(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     })?;
-    let cost = crate::spend::record(c, "lead", &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record_cached(c, "lead", &lead.id, Some(t.id), &lead.runtime, model.as_deref(), cost, tokens, cached)?;
     c.add_cost(t.id, cost, tokens)?;
 
     match verdict(&said) {
@@ -361,7 +362,7 @@ fn review(c: &Company, ticket: i64, reviewer: &str) -> Result<()> {
     out(&format!("{key}  {} is reviewing {}'s work", who.name, first_line(&author_name)));
 
     let cwd = t.worktree.as_deref().map(std::path::PathBuf::from).filter(|p| p.exists()).unwrap_or(repo.clone());
-    let opts = runtime::Opts { cwd: &cwd, model: who.model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &commands, dirs: &reading_dirs(c)?, run_any: false, max_cost: None };
+    let opts = runtime::Opts { cwd: &cwd, model: who.model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &commands, dirs: &reading_dirs(c)?, run_any: false, max_cost: None, system: None, effort: None };
     let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
     let run = runtime::run(&who.runtime, &opts, &prompt, |_, ev| {
         match ev {
@@ -504,24 +505,19 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     // Said, so they look there before asking you for a key.
     let env = if env.is_empty() { String::new() } else { format!("\n\nYour worktree has the env files from the founder's checkout: {}. Read keys and URLs from there. Never commit them or paste their values anywhere.", env.join(", ")) };
     let (bio, details) = (crate::voice::intro(c, &e)?, format!("{}{setup}{env}", ticket_details(c, t)?));
-    let knowledge = company_knowledge(c, crate::roles::spaces(crate::roles::role_of(c, &e)?))?;
-    let (notes, chat) = (own_notes(c, &e.id)?, crate::chat::catch_up(c, &e)?);
+    // The company's base is the same for everyone on the same side of the wiki: how tickets work
+    // here, the rules and the wiki. It's the system part, which Claude Code caches, so the whole
+    // team reads one copy from cache instead of each ticket paying for it. What's theirs and this
+    // ticket's, and who's doing what right now, is the prompt.
+    let knowledge = format!("{TICKET_RULES}{}", company_rules(c, crate::roles::spaces(crate::roles::role_of(c, &e)?))?);
+    let (notes, chat, team) = (own_notes(c, &e.id)?, crate::chat::catch_up(c, &e)?, team_now(c)?);
     let prompt = format!(
         "You are {name}, {role} at {company}. {bio}\n\n\
          Your ticket is {key}: {title}\n\n{details}\
          You are in a git worktree on branch {branch}{in_repo}. {abilities} {commits} \
          End with two or three sentences: what you changed and anything the reviewer should check.\n\n\
-         If the ticket asks for an audit, research, a review or advice rather than a change, don't write files for it: \
-         your final reply is the work, a report in Markdown the founder reads in OneCorp. Turn each piece of follow-up work \
-         you recommend into a ticket with create_ticket, given to whoever fits, so the founder picks what to start.\n\n\
-         You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
-         or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
-         If something outside your control stops you, use update_ticket to mark the ticket blocked. \
-         Finishing needs no tool: when you end with your summary, OneCorp moves the ticket to review. {review} \
-         If you learn or decide something every teammate should know from now on, propose it with propose_wiki. \
-         If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
-         save it with remember: one line per note.\n\n\
-         {knowledge}{notes}{chat}",
+         {review}\n\n\
+         {team}{notes}{chat}",
         name = e.name,
         role = e.role,
         company = c.name,
@@ -542,9 +538,9 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         },
     );
     // What the prompt is made of, so where the tokens go is something you can see on the ticket.
-    let rest = prompt.len() - bio.len() - details.len() - knowledge.len() - notes.len() - chat.len();
-    c.add_event(id, "prompt", &prompt_sizes(&[("wiki and team", knowledge.len()), ("playbook", bio.len()), ("ticket", details.len() + rest), ("their notes", notes.len()), ("chat", chat.len())]), "")?;
-    drive(c, &e, id, &wt, None, &prompt, title)
+    let rest = prompt.len() - bio.len() - details.len() - team.len() - notes.len() - chat.len();
+    c.add_event(id, "prompt", &prompt_sizes(&[("wiki and rules, shared", knowledge.len()), ("team", team.len()), ("playbook", bio.len()), ("ticket", details.len() + rest), ("their notes", notes.len()), ("chat", chat.len())]), "")?;
+    drive(c, &e, id, &wt, None, &prompt, Some(&knowledge), title)
 }
 
 /// The base branch to watch during a run: the forge's copy when there is one, fetched now, or
@@ -839,7 +835,7 @@ fn run_wiki(c: &Company, t: &Ticket) -> Result<()> {
         first = wiki_pages(t)[0],
         knowledge = company_knowledge(c, &["*"])?,
     );
-    drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
+    drive(c, &e, id, &c.repo()?, None, &prompt, None, &t.title)
 }
 
 /// Saves a writer's pages, including drafts left in review by older versions. Only the pages
@@ -922,7 +918,7 @@ fn run_plan(c: &Company, t: &Ticket) -> Result<()> {
         },
         knowledge = company_knowledge(c, &["*"])?,
     );
-    drive(c, &e, id, &c.repo()?, None, &prompt, &t.title)
+    drive(c, &e, id, &c.repo()?, None, &prompt, None, &t.title)
 }
 
 /// Starts a reviewed plan: each of its tickets starts, and ones waiting for others start in order
@@ -1003,12 +999,25 @@ pub fn dismiss_plan(c: &Company, plan: &Ticket) -> Result<()> {
 }
 
 /// How OneCorp works, said once so nobody goes looking for it in the repo or in .claude/.
+/// How a ticket run works here, the same for every ticket: the start of the cached base.
+const TICKET_RULES: &str = "If the ticket asks for an audit, research, a review or advice rather than a change, don't write files for it: \
+your final reply is the work, a report in Markdown the founder reads in OneCorp. Turn each piece of follow-up work \
+you recommend into a ticket with create_ticket, given to whoever fits, so the founder picks what to start.\n\n\
+You have company tools. If a decision is the founder's to make, ask with ask_human: give a default and carry on, \
+or set blocking=true and stop if you truly can't continue. Use post_message for things teammates should know. \
+If something outside your control stops you, use update_ticket to mark the ticket blocked. \
+Finishing needs no tool: when you end with your summary, OneCorp moves the ticket to review. \
+If you learn or decide something every teammate should know from now on, propose it with propose_wiki. \
+If you learn something that would help you on future tickets, like where code lives or how the founder likes things, \
+save it with remember: one line per note.\n\n";
+
 const HOW_WE_WORK: &str = "How work happens here: tickets live in OneCorp, not in the repo, and you get yours in full when you \
 start one. Your work reaches the base branch through a pull request the founder approves: OneCorp opens one for your \
 branch if you haven't, and merges it once they approve. \
 You never set a ticket's status: when you end with your summary, the ticket goes to review, and OneCorp marks it done and \
 cleans up its branch once the founder approves, or closes it when there's nothing to merge. Merging into the base branch is \
-the founder's call, never yours. Don't redo work that's waiting to merge, and don't create tickets about git or permissions. Questions go to your lead or the founder with ask_human, \
+the founder's call, never yours. Don't redo work that's waiting to merge, and don't create tickets about git or permissions. Questions about a teammate's work go to them with ask_teammate, and you get the answer right \
+away. Questions for a decision go to your lead or the founder with ask_human, \
 rules everyone should follow go to propose_wiki, and in chat you can read the code but not change it.\n\n\
 How we write, in summaries, reports, chat, the wiki, comments and commit messages: plain words and short sentences, the way \
 a good colleague talks. Say it once. No filler, no recap at the end, no headings or bullets for a few lines. Never use \
@@ -1018,6 +1027,16 @@ go in backticks. These rules come first. Your personality sets your tone within 
 /// What every employee should know before starting: the wiki, and who does what. `spaces` are
 /// the wiki spaces read in full besides the rules: someone's own, or `["*"]` for all of it.
 pub fn company_knowledge(c: &Company, spaces: &[&str]) -> Result<String> {
+    Ok(format!("{}{}", company_rules(c, spaces)?, team_now(c)?))
+}
+
+/// Who works here and what they're on right now. Changes all day, so it's kept apart from the rules.
+pub fn team_now(c: &Company) -> Result<String> {
+    Ok(format!("Who works here:\n{}", who_does_what(c)?.join("\n")))
+}
+
+/// The part of `company_knowledge` that changes rarely: the founder, the wiki, how we work, the repos.
+pub fn company_rules(c: &Company, spaces: &[&str]) -> Result<String> {
     // Keeps a runaway wiki from eating the whole context window.
     const MAX: usize = 12_000;
     let mut doc = crate::wiki::for_prompt(c, spaces)?.trim().to_string();
@@ -1026,7 +1045,6 @@ pub fn company_knowledge(c: &Company, spaces: &[&str]) -> Result<String> {
         doc.truncate(cut);
         doc.push_str("\n\n(The wiki goes on. Ask the founder if you need more.)");
     }
-    let team = who_does_what(c)?;
     let mut out = String::new();
     if let Some(f) = crate::founder::load() {
         out.push_str(&format!("You work for {}, the founder of {}. Questions with ask_human go to them.\n\n", f.name, c.name));
@@ -1035,11 +1053,10 @@ pub fn company_knowledge(c: &Company, spaces: &[&str]) -> Result<String> {
         out.push_str(&format!("The company wiki. Follow it:\n\n{doc}\n\n"));
     }
     out.push_str(HOW_WE_WORK);
-    out.push_str(&format!("Who works here:\n{}", team.join("\n")));
     let repos = c.repos()?;
     if repos.len() > 1 {
         let list: Vec<String> = repos.iter().map(|r| format!("- {}{}: {}", r.name, if r.main { " (main)" } else { "" }, r.path.display())).collect();
-        out.push_str(&format!("\n\nThis company works in {} repos. Each ticket happens in one of them:\n{}", repos.len(), list.join("\n")));
+        out.push_str(&format!("This company works in {} repos. Each ticket happens in one of them:\n{}\n\n", repos.len(), list.join("\n")));
     }
     Ok(out)
 }
@@ -1073,6 +1090,23 @@ pub fn who_does_what(c: &Company) -> Result<Vec<String>> {
             format!("- {}, {}{team} (works on {}). Now: {now}", e.name, e.role, e.runtime)
         })
         .collect())
+}
+
+/// How hard someone thinks on a ticket: "low", "medium" or "high", or None for their agent's own
+/// default. Low takes fewer steps on routine work and costs less. Each level keeps its own prompt
+/// cache, so a team on one level shares one cached base.
+pub const EFFORTS: [&str; 3] = ["low", "medium", "high"];
+
+pub fn effort(c: &Company, employee: &str) -> Result<Option<String>> {
+    Ok(c.setting(&format!("effort.{employee}"))?.filter(|e| EFFORTS.contains(&e.as_str())))
+}
+
+pub fn set_effort(c: &Company, employee: &str, effort: Option<&str>) -> Result<()> {
+    match effort.map(str::trim).filter(|e| !e.is_empty()) {
+        Some(e) if EFFORTS.contains(&e) => c.set_setting(&format!("effort.{employee}"), e),
+        Some(e) => bail!("effort is low, medium or high, not {e}"),
+        None => c.delete_setting(&format!("effort.{employee}")),
+    }
 }
 
 /// The model for talk, per the company's choice (setting "talk"): "balanced" by default,
@@ -1420,7 +1454,7 @@ fn pick_up(c: &Company, t: &Ticket, why: &str, prompt: &str, label: &str) -> Res
         out(&format!("      updated {} from your checkout", env.join(", ")));
         c.add_event(t.id, "tool", &format!("updated {} from the founder's checkout", env.join(", ")), "")?;
     }
-    drive(c, &e, t.id, Path::new(wt), Some(session), prompt, label)
+    drive(c, &e, t.id, Path::new(wt), Some(session), prompt, None, label)
 }
 
 /// Who a commit is by, per the company's choice (setting "commits"):
@@ -1451,7 +1485,8 @@ pub fn signature(c: &Company, e: &Employee, repo: &Path) -> Result<Signature> {
 
 /// Runs one agent session on a ticket, logging every event, commits what it left, then reports where the ticket landed.
 /// `label` names this run in the commit message, like the ticket title or "changes from review".
-fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, prompt: &str, label: &str) -> Result<()> {
+#[allow(clippy::too_many_arguments)]
+fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, prompt: &str, system: Option<&str>, label: &str) -> Result<()> {
     let key = c.key(id);
     // The agent starts this same binary as the company's MCP server, scoped to this ticket.
     let mcp = company_tools(c, id, &e.id)?;
@@ -1465,7 +1500,8 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         Some(t) if !planning => crate::commands::for_ticket(c, &t)?,
         _ => vec![],
     };
-    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)? };
+    let effort = effort(c, &e.id)?;
+    let opts = runtime::Opts { cwd: wt, model: e.model.as_deref(), mcp: Some(&mcp), resume, env: &identity, read_only: planning, on_spawn: Some(&remember_pid), commands: &commands, dirs: &reading_dirs(c)?, run_any: !planning && crate::commands::run_any(c)?, max_cost: crate::spend::left(c, &e.id)?, system, effort: effort.as_deref() };
 
     // Where the base branch stood before the run. Your approval is the only way work should reach
     // it, so an employee's commits showing up there are flagged, whatever command put them there.
@@ -1474,6 +1510,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     let wt_prefix = format!("{}/", wt.display());
     let mut outcome = None;
     let mut last_say = String::new();
+    let mut from_cache = 0;
     let run = runtime::run(&e.runtime, &opts, prompt, |raw, ev| {
         let (kind, summary) = match &ev {
             Event::Init { session, model } => {
@@ -1494,8 +1531,9 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
                 ("tool", runtime::clip(&format!("{name} {}", detail.replace(&wt_prefix, "")), 600))
             }
             Event::ToolResult { error: true, text } => ("error", text.clone()),
-            Event::ToolResult { .. } => return Ok(()),
+            Event::ToolResult { .. } | Event::Delta(_) => return Ok(()),
             Event::Usage { fresh, cached, output } => {
+                from_cache = *cached;
                 let k = |n: &u64| format!("{:.1}k", *n as f64 / 1000.0);
                 ("tokens", format!("read {} tokens, {} of them from cache, and wrote {}", k(&(fresh + cached)), k(cached), k(output)))
             }
@@ -1533,12 +1571,12 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
 
     let (ok, cost, tokens, text) = outcome.unwrap_or_default();
     if !ok && crate::limits::hit(&e.runtime, &text)? {
-        let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+        let cost = crate::spend::record_cached(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens, from_cache)?;
         c.finish_ticket(id, "failed", cost, tokens)?;
         return wait_for_limit(c, e, id);
     }
     if !ok && text == runtime::BUDGET_STOP {
-        let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+        let cost = crate::spend::record_cached(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens, from_cache)?;
         c.finish_ticket(id, "failed", cost, tokens)?;
         let t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;
         let after = format!("after ${cost:.2} on this run. Their work is kept");
@@ -1592,7 +1630,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
             c.add_event(id, "report-text", &text, "")?;
         }
     }
-    let cost = crate::spend::record(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record_cached(c, "ticket", &e.id, Some(id), &e.runtime, e.model.as_deref(), cost, tokens, from_cache)?;
     c.finish_ticket(id, if ok { "review" } else { "failed" }, cost, tokens)?;
 
     let mut t = c.ticket(id)?.ok_or_else(|| anyhow!("{key} disappeared"))?;

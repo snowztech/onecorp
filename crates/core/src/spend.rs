@@ -49,13 +49,27 @@ pub fn limit_hits(c: &Company) -> Result<Vec<Value>> {
     Ok(out)
 }
 
+/// What a token read from cache costs, as a share of the runtime's price. Providers bill cached
+/// input at about a tenth, and most of a long run's tokens are cached: pricing them in full made a
+/// Codex ticket look several times what it cost.
+const CACHED_SHARE: f64 = 0.1;
+
 /// One run: what it cost and who ran it. Returns the dollars recorded, reported or estimated.
 #[allow(clippy::too_many_arguments)]
 pub fn record(c: &Company, kind: &str, employee: &str, ticket: Option<i64>, runtime: &str, model: Option<&str>, cost: f64, tokens: u64) -> Result<f64> {
+    record_cached(c, kind, employee, ticket, runtime, model, cost, tokens, 0)
+}
+
+/// Like `record`, when the runtime said how many of `tokens` came from cache. Only matters for an
+/// estimate, when the runtime reports tokens but not dollars.
+#[allow(clippy::too_many_arguments)]
+pub fn record_cached(c: &Company, kind: &str, employee: &str, ticket: Option<i64>, runtime: &str, model: Option<&str>, cost: f64, tokens: u64, cached: u64) -> Result<f64> {
     let (dollars, estimated) = if cost > 0.0 {
         (cost, false)
     } else if tokens > 0 && runtime != "fake" {
-        (tokens as f64 / 1_000_000.0 * price(c, runtime)?, true)
+        let cached = cached.min(tokens) as f64;
+        let billed = tokens as f64 - cached + cached * CACHED_SHARE;
+        (billed / 1_000_000.0 * price(c, runtime)?, true)
     } else {
         (0.0, false)
     };

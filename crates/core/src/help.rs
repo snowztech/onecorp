@@ -43,13 +43,15 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let Some(e) = c.employees()?.into_iter().next() else {
         return c.finish_message(id, "Hire someone first. I run on your team's agent, so I need one to answer.", 0.0, 0);
     };
-    let before: Vec<_> = c.messages(Some(HELP))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
+    let before: Vec<_> = c.recent_messages(HELP, Some(id), 12)?.into_iter().filter(|m| !m.pending).collect();
     let recent: Vec<String> = before.iter().rev().take(12).rev().map(|m| crate::chat::line(c, m)).collect();
     let said: Vec<&str> = before.iter().rev().take(12).map(|m| m.text.as_str()).collect();
     let mut docs: Vec<String> = DOCS.iter().map(|(name, text)| format!("=== {name} ===\n{text}")).collect();
     docs.push(format!("=== Latest releases, from CHANGELOG.md ===\n{}", recent_changes()));
     let more = write_more(c)?;
-    let prompt = format!(
+    // The docs and how to answer stay the same from one question to the next, so they're the
+    // system part, which Claude Code caches. Only the conversation and the company are new.
+    let system = format!(
         "You are Ask OneCorp, the help built into OneCorp {version}, the Mac app where {founder} runs a company of AI employees. \
          You're not an employee and don't work on their product. You explain how OneCorp works, what it can and can't do, \
          and whether something they saw is a bug.\n\n\
@@ -61,25 +63,38 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
          For a bug: **What happened**, **What you expected**, **Steps to get there**. For an idea: **What you're trying to do**, \
          **What gets in the way today**, **What would help**. The issue is public: leave out names, repo paths, code and anything \
          about their product. They review it on GitHub before it's posted.\n\n\
-         The conversation so far:\n{history}\n\n\
-         Their company now:\n{team}\n{tickets}{mentioned}\n\n\
          OneCorp's docs are below. For how the code works, which helps tell a bug from intended behavior, read \
          {more}/ARCHITECTURE.md. The full history is {more}/CHANGELOG.md.\n\n{docs}",
         version = env!("CARGO_PKG_VERSION"),
         founder = crate::founder::name(),
-        history = recent.join("\n"),
-        team = crate::work::who_does_what(c)?.join("\n"),
-        tickets = open_tickets(c)?,
-        mentioned = crate::chat::mentioned_tickets(c, &said.join("\n"))?,
         docs = docs.join("\n\n"),
         more = more.display(),
     );
+    let prompt = format!(
+        "The conversation so far:\n{history}\n\nTheir company now:\n{team}\n{tickets}{done}{mentioned}",
+        history = recent.join("\n"),
+        team = crate::work::who_does_what(c)?.join("\n"),
+        tickets = open_tickets(c)?,
+        done = crate::chat::recent_work(c)?,
+        mentioned = crate::chat::mentioned_tickets(c, &said.join("\n"))?,
+    );
     let model = crate::work::talk_model(c, &e)?;
-    let opts = runtime::Opts { cwd: &c.dir, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &[], run_any: false, max_cost: None };
-    let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    let opts = runtime::Opts { cwd: &c.dir, model: model.as_deref(), mcp: None, resume: None, env: &crate::chat::one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &[], run_any: false, max_cost: None, system: Some(&system), effort: None };
+    let (mut said, mut cost, mut tokens, mut cached) = (String::new(), 0.0, 0, 0);
+    let (mut live, mut shown_at) = (String::new(), std::time::Instant::now());
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {
+            Event::Delta(text) => {
+                live.push_str(&text);
+                if shown_at.elapsed() > std::time::Duration::from_millis(400) {
+                    let so_far = live.split(ISSUE).next().unwrap_or("").trim_end();
+                    c.write_pending(id, &crate::runtime::plain(so_far))?;
+                    shown_at = std::time::Instant::now();
+                }
+            }
+            Event::Tool { .. } => live.clear(),
             Event::Say(text) => said = text,
+            Event::Usage { cached: n, .. } => cached = n,
             Event::Done { cost: c2, tokens: t2, text, .. } => {
                 (cost, tokens) = (c2, t2);
                 if !text.is_empty() {
@@ -90,7 +105,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         }
         Ok(())
     });
-    let cost = crate::spend::record(c, "help", ONECORP, None, &e.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record_cached(c, "help", ONECORP, None, &e.runtime, model.as_deref(), cost, tokens, cached)?;
     let text = match run {
         Err(err) => format!("(couldn't answer: {err:#})"),
         Ok(()) => {

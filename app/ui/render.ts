@@ -26,6 +26,15 @@ export function syncPolling() {
 }
 
 let enterTimer: ReturnType<typeof setTimeout> | undefined;
+// What the page holds now. Polling redraws every 1.5s while the team works, and most of the time
+// nothing on this page changed: then the page is left alone, so it never flickers, jumps, or loses
+// what you hovered, selected or half wrote.
+let drawn = "";
+function put(el: HTMLElement, html: string) {
+  if (html === drawn && el.isConnected) return false;
+  el.innerHTML = drawn = html;
+  return true;
+}
 export function render() {
   syncPolling();
   booted();
@@ -52,21 +61,22 @@ export function render() {
     clearTimeout(enterTimer); enterTimer = setTimeout(() => v.classList.remove("enter"), 400);
   }
   if (S.welcome) {
-    v.innerHTML = viewWelcome();
+    put(v, viewWelcome());
   } else if (S.profile) {
-    v.innerHTML = viewProfile();
+    put(v, viewProfile());
   } else if (S.setup) {
-    v.innerHTML = viewSetup();
+    put(v, viewSetup());
   } else if (!S.company) {
-    v.innerHTML = `<div class="empty-state"><b>No company yet</b>Opening the new company flow…</div>`;
+    put(v, `<div class="empty-state"><b>No company yet</b>Opening the new company flow…</div>`);
   } else if (!S.snap) {
-    v.innerHTML = `<p class="muted">Opening ${esc(S.company)}…</p>`;
+    put(v, `<p class="muted">Opening ${esc(S.company)}…</p>`);
   } else {
     const views: Record<string, () => string> = { inbox: viewInbox, wiki: viewWiki, board: viewBoard, chat: viewChat };
     const chat = keepChatScroll();
-    v.innerHTML = views[S.view]?.() ?? viewCompany();
-    chat();
-    if (S.view === "wiki") markWiki();
+    if (put(v, views[S.view]?.() ?? viewCompany())) {
+      chat();
+      if (S.view === "wiki") markWiki();
+    }
   }
   renderDrawer();
 }

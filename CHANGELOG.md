@@ -6,12 +6,27 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
+- Employees ask each other while they work. A designer can ask the engineer who built the API how it behaves, and gets the answer before going on. The question and the answer show in team chat and on the ticket, at most five a ticket. A plain post that @mentions someone says it won't be answered now. In chat, people can also read their own work that's waiting for review. (#99)
+- Employees remember a chat conversation past its last few messages. Each reply keeps a short summary of what you've talked about, so in a long DM they still know what you told them at the start, for the same cost a reply. The last few messages reach them in full, not cut short.
+- Replies in chat and Ask OneCorp appear as they're written, instead of all at once after "writing…".
+- In chat and Ask OneCorp, employees know what the whole team finished lately: the last 20 merged tickets, who did each, when, and what changed in a sentence. Before, they only knew their own tickets, so work merged since their last answer went unseen. Older work is a ticket key away.
+- Choose how hard each employee thinks on tickets: Low, Medium, High, or their agent's default, in their profile or with `onecorp hire --effort low`. Low takes fewer steps on routine work: in a test, the same ticket took 3 steps instead of 5 and cost about 20% less.
 - Leads review their team's work before it reaches you. When an employee with a lead finishes, the lead reads the changes in their worktree, runs the build and test commands, and leaves a verdict. Changes go straight back to the author, as a comment on the ticket, and the ticket is Up next or Working again until the redo is reviewed. Work they're happy with reaches your Inbox with the verdict and a shield on its card. After two rounds of changes it comes to you anyway, with the lead's notes, to settle. Merging stays your call. It's on for every company: turn it off in Settings, Company, Reviews, and work comes straight to you again. Either way, you can ask a lead to review from the Inbox or with `onecorp ask-review`, an employee can ask someone with `request_review`, and a lead can start one from chat. (#100)
 
 ### Changed
 
 - A new ticket's worktree gets the env files from your checkout, like `.env` and `api/.env.local`: the ones git ignores, so employees start with the same keys and database URLs you have, and never commit them. Before, they started with none and stopped to ask you. A ticket that picks back up gets what you changed since. To choose what's copied, add a `.worktreeinclude` to your repo in .gitignore syntax, like `.env*`, `config/local.yml` and `!.env.production`. It's the same file Claude Code reads for `claude --worktree`. (#98)
 - Quitting OneCorp or restarting to update no longer costs the team their work. A ticket cut short picks up where it left off the next time OneCorp opens, in the same session. Only one that can't, like a plan, waits in the Inbox as stopped. A paused company stays stopped, so Pause before quitting is how you keep the team from starting again. (#75)
+- Chat replies and Ask OneCorp cost about a third of what they did. What stays the same between replies, like who they are, the rules, the wiki and OneCorp's docs, is now cached across replies, and only the conversation is paid in full. Five short messages to an employee went from $0.040 to $0.013 a reply on average, and a follow-up question to Ask OneCorp from $0.054 to about $0.012. (#106)
+- Ticket runs cost less when the team works through several in an hour. The company's rules and wiki are now one cached copy that everyone on the same side of the wiki reads, instead of each ticket paying for its own. In a test, the same small ticket went from about $0.070 to $0.060. A command that prints a long log, like a test run, now hands the employee the end of it and a file with the rest, so a few thousand lines don't sit in the conversation for every step after.
+
+### Fixed
+
+- Chat stays still while the team works. Before, every change anywhere in the company redrew the whole page every 1.5 seconds, so it flickered and lost what you were hovering or selecting. Switching channels no longer flashes "Loading…". The same goes for every page and drawer.
+- When you @mention two people in one message, each answers your message. Before, the second could answer the first one's reply instead. A reply that isn't right under its question shows what it answers.
+- Opening a channel reads only its latest messages, and the company page no longer reads every message to find what's unread.
+- Codex spend is counted right. Codex reports a session's usage as a running total, so a ticket picked back up, after changes from review or a retry, counted every earlier run again. A resumed run that cost $0.38 was recorded as $0.98. Each run now counts only its own share.
+- Codex estimates price tokens read from cache at a tenth, as providers bill them. Most of a run's tokens come from cache, so the same small ticket is now estimated at $0.14 instead of $0.72. Codex tickets also show how their tokens split in their log, like Claude's.
 
 ## [0.1.13] - 2026-11-14
 

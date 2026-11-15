@@ -116,10 +116,10 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
     let text = text.trim();
     ensure!(!text.is_empty(), "say something first");
     let channel = resolve(c, channel)?;
-    let last = c.messages(Some(&channel))?.pop();
-    c.post(&channel, "founder", text, None)?;
+    let last = c.recent_messages(&channel, None, 1)?.pop();
+    let asked = c.post(&channel, "founder", text, None)?;
     if channel == HELP {
-        return Ok(vec![c.post_pending(HELP, ONECORP)?]);
+        return Ok(vec![c.post_pending(HELP, ONECORP, Some(asked))?]);
     }
     // Replies cost money. A paused company reads your message later, with its next ticket.
     if c.paused()? {
@@ -135,7 +135,46 @@ pub fn say(c: &Company, channel: &str, text: &str) -> Result<Vec<i64>> {
         Some(m) => c.employee(&m.author)?.into_iter().collect(),
         None => who,
     };
-    who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id)).collect()
+    who.iter().filter(|e| !capped.contains(&e.id)).map(|e| c.post_pending(&channel, &e.id, Some(asked))).collect()
+}
+
+/// The most questions one ticket asks teammates. Each answer is a chat run, so this keeps a
+/// confused run from spending its way around the team.
+const ASKS_PER_TICKET: usize = 5;
+
+/// An employee asks a teammate during a ticket and waits for the answer, like asking across the
+/// desk. The question and the answer are posted in chat, in a channel both are in, and kept on the
+/// ticket. The answer comes from a chat reply, which has no company tools, so it can't ask anyone
+/// in turn. Returns what the asker reads: the answer, or why there isn't one.
+pub fn ask_teammate(c: &Company, asker: &str, ticket: i64, who: &str, question: &str) -> Result<String> {
+    let question = question.trim();
+    ensure!(!question.is_empty(), "say what you want to know");
+    let Some(me) = c.employee(asker)? else { anyhow::bail!("{asker} doesn't work here") };
+    let Some(them) = c.employee(&crate::store::slug(who.trim_start_matches('@')))? else {
+        let names: Vec<String> = c.employees()?.into_iter().filter(|e| e.id != me.id).map(|e| format!("{} ({})", e.name, e.role)).collect();
+        anyhow::bail!("nobody called {who} works here. Your teammates: {}", names.join(", "));
+    };
+    ensure!(them.id != me.id, "that's you. Ask a teammate");
+    let first = them.name.split_whitespace().next().unwrap_or(&them.name).to_string();
+    if c.paused()? {
+        return Ok(format!("{first} can't answer: {} is paused. Carry on with your best judgment and say what you assumed in your summary.", c.name));
+    }
+    if crate::limits::away(c)?.contains(&them.id) {
+        return Ok(format!("{first} can't answer right now (their daily cap or their agent's usage limit). Carry on with your best judgment and say what you assumed in your summary."));
+    }
+    let asked = c.events(ticket)?.iter().filter(|(_, kind, _)| kind == "teammate").count();
+    if asked >= ASKS_PER_TICKET {
+        return Ok(format!("You've asked teammates {ASKS_PER_TICKET} times on this ticket already. Decide with what you have, or ask the founder with ask_human."));
+    }
+    // A channel you both read: your team's when they're in it, otherwise #general.
+    let mine = home(c, &me)?;
+    let channel = if members(c, &mine)?.iter().any(|e| e.id == them.id) { mine } else { GENERAL.to_string() };
+    let asked = c.post(&channel, &me.id, &format!("@{} {question}", them.id), Some(ticket))?;
+    let slot = c.post_pending(&channel, &them.id, Some(asked))?;
+    reply(c, slot)?;
+    let answer = c.message(slot)?.map(|m| m.text).unwrap_or_default();
+    c.add_event(ticket, "teammate", &format!("asked {first}: {} {first}: {}", crate::runtime::clip(question, 300), crate::runtime::clip(&answer, 600)), "")?;
+    Ok(format!("{first} answered in #{channel}:\n\n{answer}"))
 }
 
 /// Says in the asker's team channel how a question is moving: asked, decided by the lead, passed
@@ -161,30 +200,63 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     let Some(e) = c.employee(&slot.author)? else {
         return c.finish_message(id, "(they've left the company)", 0.0, 0);
     };
-    let before: Vec<Message> = c.messages(Some(&slot.channel))?.into_iter().filter(|m| m.id < id && !m.pending).collect();
-    let asked = before.iter().rev().find(|m| m.author == "founder").map(|m| m.text.clone()).unwrap_or_default();
+    const HISTORY: usize = 12;
+    let before: Vec<Message> = c.recent_messages(&slot.channel, Some(id), HISTORY)?.into_iter().filter(|m| !m.pending).collect();
+    // What this answers: the message it was asked for. Replies from before that was kept answer
+    // whoever wrote last, founder or teammate.
+    let question = match slot.reply_to.map(|q| c.message(q)).transpose()?.flatten() {
+        Some(q) => Some(q),
+        None => before.iter().rev().find(|m| m.author != e.id).cloned(),
+    };
+    let question = question.as_ref();
+    let asked = question.map(|m| m.text.clone()).unwrap_or_default();
+    let asker = match question.map(|m| m.author.as_str()) {
+        Some(id) if id != "founder" => c.employee(id)?.map(|a| format!("{}, {} here,", a.name, a.role)),
+        _ => None,
+    };
     let doing = in_progress(c, &e.id)?;
     let team = team_of(c, &e)?;
-    let recent: Vec<&Message> = before.iter().rev().take(12).rev().collect();
-    let history: Vec<String> = recent.iter().map(|m| line(c, m)).collect();
+    let recent: Vec<&Message> = before.iter().collect();
+    // The last few in full, so nobody thinks their own message was cut off. Older ones shortened.
+    const IN_FULL: usize = 4;
+    let history: Vec<String> = recent
+        .iter()
+        .enumerate()
+        .map(|(i, m)| if i + IN_FULL >= recent.len() { line_full(c, m) } else { line(c, m) })
+        .collect();
+    let earlier = c.setting(&summary_key(&slot.channel))?.map(|s| format!("What this conversation covered before that, in your words from last time: {s}\n\n")).unwrap_or_default();
     let said: Vec<&str> = recent.iter().map(|m| m.text.as_str()).collect();
-    let prompt = format!(
-        "You are {name}, {role} at {company}. {bio}\n\n\
-         {founder} {place}. The conversation so far, with long messages shortened here (everyone saw them in full):\n\n{history}\n\n\
-         They wrote: {asked}\n\n\
-         Reply like a colleague would in chat, in your own manner: plain words, no headings, and short. \
-         A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
+    // What stays the same between this person's replies is their system part, which Claude Code
+    // caches: an exchange of a few messages then pays mostly for the conversation, not the company.
+    // The same for every reply from anyone at this company, so the whole team reads one cached
+    // copy: how chat works here, the rules and the wiki. Who they are is in the prompt.
+    let system = format!(
+        "You're answering in team chat as an employee of {company}. Reply like a colleague would, in your own manner: \
+         plain words, no headings, and short. A few lines at most, unless they asked for detail. Everyone in the channel reads it. \
          Read the code if it helps you answer, but don't change any files or run commands that need approval. \
-         {checkout}\
-         {propose}\n\n{comment}\n\n{knowledge}{tickets}{now}{mentioned}{elsewhere}{notes}",
+         {checkout}\n\n{comment}\n\n{summary}\n\n{rules}",
+        company = c.name,
+        checkout = checkout_note(c),
+        comment = COMMENT_NOTE,
+        summary = SUMMARY_NOTE,
+        rules = crate::work::company_rules(c, &[])?,
+    );
+    let prompt = format!(
+        "You are {name}, {role} at {company}. {bio} {propose}{notes}\n\n\
+         {founder} {place}. {earlier}The latest messages, older ones shortened here (everyone saw them in full):\n\n{history}\n\n\
+         They wrote: {asked}\n\n{team}{done}{tickets}{now}{mentioned}{elsewhere}",
         name = e.name,
         role = e.role,
         company = c.name,
         bio = crate::voice::intro(c, &e)?,
-        founder = crate::founder::name(),
+        propose = propose_note(&e, &team),
+        notes = crate::work::own_notes(c, &e.id)?,
+        founder = asker.unwrap_or_else(crate::founder::name),
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
-        knowledge = crate::work::company_knowledge(c, &[])?,
+        team = crate::work::team_now(c)?,
+        // Changes with every merge, so it's here and not in the cached system part.
+        done = recent_work(c)?,
         tickets = own_tickets(c, &e.id)?,
         now = doing.as_ref().map(|(_, text)| text.clone()).unwrap_or_default(),
         mentioned = mentioned_tickets(c, &said.join("\n"))?,
@@ -192,20 +264,32 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
             lines if lines.is_empty() => String::new(),
             lines => format!("\n\nMeanwhile in your other channels, newest last:\n{}", lines.join("\n")),
         },
-        notes = crate::work::own_notes(c, &e.id)?,
-        checkout = checkout_note(c),
-        propose = propose_note(&e, &team),
-        comment = COMMENT_NOTE,
     );
     let repo = c.repo()?;
     let model = crate::work::talk_model(c, &e)?;
     let mut dirs = crate::work::reading_dirs(c)?;
     dirs.extend(doing.and_then(|(wt, _)| wt));
-    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &[], read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None };
-    let (mut said, mut cost, mut tokens) = (String::new(), 0.0, 0);
+    // And their work waiting for review, which isn't on the checkout either.
+    for t in c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(e.id.as_str()) && t.status == "review") {
+        dirs.extend(t.worktree.map(std::path::PathBuf::from).filter(|p| p.is_dir()));
+    }
+    let opts = runtime::Opts { cwd: &repo, model: model.as_deref(), mcp: None, resume: None, env: &one_off_cache(), read_only: true, on_spawn: None, commands: &[], dirs: &dirs, run_any: false, max_cost: None, system: Some(&system), effort: None };
+    let (mut said, mut cost, mut tokens, mut cached) = (String::new(), 0.0, 0, 0);
+    // The reply shows as it's written, a few times a second, not every word.
+    let (mut live, mut shown_at) = (String::new(), std::time::Instant::now());
     let run = runtime::run(&e.runtime, &opts, &prompt, |_, ev| {
         match ev {
+            Event::Delta(text) => {
+                live.push_str(&text);
+                if shown_at.elapsed() > std::time::Duration::from_millis(400) {
+                    c.write_pending(id, &shown_so_far(&live))?;
+                    shown_at = std::time::Instant::now();
+                }
+            }
+            // Text before a tool call was "let me look": what shows is the answer that follows.
+            Event::Tool { .. } => live.clear(),
             Event::Say(text) => said = text,
+            Event::Usage { cached: n, .. } => cached = n,
             Event::Done { cost: c2, tokens: t2, text, .. } => {
                 (cost, tokens) = (c2, t2);
                 if !text.is_empty() {
@@ -226,6 +310,11 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     };
     let mut reviews = vec![];
     if run.is_ok() && !limited {
+        let (kept, summary) = take_summary(&said);
+        said = kept;
+        if let Some(s) = summary {
+            c.set_setting(&summary_key(&slot.channel), &s)?;
+        }
         (said, reviews) = take_reviews(&said);
         said = comment(c, &e, &said)?;
         said = propose(c, &e, &team, id, &said)?;
@@ -236,7 +325,7 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         (Ok(()), _) => "(no reply)".into(),
         (Err(err), _) => format!("(couldn't reply: {err:#})"),
     };
-    let cost = crate::spend::record(c, "chat", &e.id, None, &e.runtime, model.as_deref(), cost, tokens)?;
+    let cost = crate::spend::record_cached(c, "chat", &e.id, None, &e.runtime, model.as_deref(), cost, tokens, cached)?;
     c.finish_message(id, &text, cost, tokens)?;
     // After the reply is posted: a review run here would keep the channel waiting on it.
     for key in reviews {
@@ -260,6 +349,15 @@ fn take_reviews(said: &str) -> (String, Vec<String>) {
     (keep.join("\n"), keys)
 }
 
+/// For a run that answers once and is done, like a chat reply: its conversation is cached for
+/// 5 minutes instead of Claude Code's hour. Writing to the hour-long cache costs twice the input
+/// price, and nothing comes back to read a one-off answer later. The system part keeps the hour,
+/// so the next reply still reads it from cache. Ticket runs keep the hour: a step there can take
+/// longer than 5 minutes.
+pub(crate) fn one_off_cache() -> [(String, String); 1] {
+    [("CLAUDE_CODE_MESSAGES_PROMPT_CACHE_TTL".into(), "5m".into())]
+}
+
 /// The people a lead can give work to: everyone in the departments they lead.
 fn team_of(c: &Company, e: &Employee) -> Result<Vec<Employee>> {
     let mut team = vec![];
@@ -274,6 +372,48 @@ fn team_of(c: &Company, e: &Employee) -> Result<Vec<Employee>> {
 const TICKET: &str = "TICKET:";
 const COMMENT: &str = "COMMENT:";
 const REVIEW: &str = "REVIEW:";
+const SUMMARY: &str = "SUMMARY:";
+
+/// How a reply keeps the conversation going past the messages it's shown: it ends with a summary
+/// line that nobody sees, saved for the next reply in this channel. A few sentences cost a lot
+/// less than resending a long conversation, and the cost stays the same however long it runs.
+const SUMMARY_NOTE: &str = "End every reply with one last line, SUMMARY: then two or three sentences on what this \
+    conversation has covered and agreed so far, keeping whatever the earlier summary said that still matters. \
+    Nobody sees that line. It's how you remember this conversation next time.";
+
+fn summary_key(channel: &str) -> String {
+    format!("chat.summary.{channel}")
+}
+
+/// The reply without its summary line, and the summary.
+fn take_summary(said: &str) -> (String, Option<String>) {
+    let mut summary = None;
+    let kept: Vec<&str> = said
+        .lines()
+        .filter(|l| match l.trim_start().trim_start_matches(['-', '*', ' ']).strip_prefix(SUMMARY) {
+            Some(rest) => {
+                summary = Some(rest.trim().to_string()).filter(|s| !s.is_empty());
+                false
+            }
+            None => true,
+        })
+        .collect();
+    (kept.join("\n").trim_end().to_string(), summary)
+}
+
+/// What a reply being written shows so far: up to its first line for OneCorp, like a proposed
+/// ticket or its summary, which are taken out when it's done.
+fn shown_so_far(live: &str) -> String {
+    let end = live.lines().position(|l| {
+        let l = l.trim_start().trim_start_matches(['-', '*', ' ']);
+        [TICKET, COMMENT, REVIEW, SUMMARY].iter().any(|m| l.starts_with(m) || (m.starts_with(l) && !l.is_empty() && l.chars().all(|c| c.is_ascii_uppercase())))
+    });
+    let text = match end {
+        Some(n) => live.lines().take(n).collect::<Vec<_>>().join("\n"),
+        None => live.to_string(),
+    };
+    runtime::plain(text.trim_end())
+}
 
 const COMMENT_NOTE: &str = "To add a comment to an existing ticket, so it stays with the ticket and whoever works on it reads it, \
     put it after your reply: a line COMMENT: <ticket key>, then the comment on the lines below. It ends at the next COMMENT: or TICKET: line. \
@@ -373,7 +513,12 @@ fn propose(c: &Company, e: &Employee, team: &[Employee], message: i64, said: &st
 /// The tickets someone has been given, newest last, so a chat reply knows its own work.
 pub fn own_tickets(c: &Company, employee: &str) -> Result<String> {
     const RECENT: usize = 10;
-    let mine: Vec<String> = c.tickets()?.into_iter().filter(|t| t.assignee.as_deref() == Some(employee)).map(|t| format!("- {} {} ({})", c.key(t.id), t.title, t.status)).collect();
+    // Work in review isn't on the checkout a reply reads, so where it is comes with it.
+    let line = |t: &crate::store::Ticket| match t.worktree.as_deref().filter(|w| t.status == "review" && std::path::Path::new(w).is_dir()) {
+        Some(wt) => format!("- {} {} (review, your changes are in {wt})", c.key(t.id), t.title),
+        None => format!("- {} {} ({})", c.key(t.id), t.title, t.status),
+    };
+    let mine: Vec<String> = c.tickets()?.iter().filter(|t| t.assignee.as_deref() == Some(employee)).map(line).collect();
     if mine.is_empty() {
         return Ok(String::new());
     }
@@ -473,28 +618,54 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
     ))
 }
 
+/// What the whole team finished lately, the same for every chat reply and Ask OneCorp: newest
+/// first, one line each with who, when and the first sentence of their summary. Without it a
+/// reply only knows its own tickets, so work merged since the last reply goes unseen. Kept short
+/// on purpose: about 20 lines, a few hundred tokens. Older work is there by naming the ticket.
+pub fn recent_work(c: &Company) -> Result<String> {
+    const SHOWN: usize = 20;
+    const GIST: usize = 160;
+    let done = c.recently_done(SHOWN)?;
+    if done.is_empty() {
+        return Ok(String::new());
+    }
+    let names: std::collections::HashMap<String, String> = c.employees()?.into_iter().map(|e| (e.id, e.name)).collect();
+    let lines: Vec<String> = done
+        .iter()
+        .map(|f| {
+            let (id, title, at, said) = (&f.id, &f.title, &f.at, &f.said);
+            let who = f.assignee.as_deref().map(|w| names.get(w).and_then(|n| n.split_whitespace().next()).unwrap_or(w).to_string()).unwrap_or_else(|| "nobody".into());
+            let flat = said.replace('\n', " ");
+            // The first sentence says what changed. The rest is detail for the reviewer.
+            let gist = flat.split_inclusive(". ").next().unwrap_or("").trim();
+            let gist = if gist.is_empty() { String::new() } else { format!(": {}", runtime::clip(gist, GIST)) };
+            format!("- {} {} ({who}, {}){gist}", c.key(*id), title, at.get(..10).unwrap_or(at))
+        })
+        .collect();
+    let total = c.done_count()?;
+    let more = if total > SHOWN as i64 { format!(" The {} before these: name one, like {}, to see it.", total - SHOWN as i64, c.key(1)) } else { String::new() };
+    Ok(format!("\n\nWhat the team finished lately, newest first. All of it is merged.{more}\n{}", lines.join("\n")))
+}
+
 /// What someone has seen lately outside `skip`: #general, their team's channel, their DMs, and
 /// anything that @mentions them. Newest last.
 fn seen_elsewhere(c: &Company, e: &Employee, skip: &str) -> Result<Vec<String>> {
     const RECENT: usize = 15;
-    let home = home(c, e)?;
-    let tag = format!("@{}", e.id);
-    let msgs: Vec<Message> = c
-        .messages(None)?
-        .into_iter()
-        .filter(|m| !m.pending && m.channel != skip && m.channel != HELP && (m.channel == GENERAL || m.channel == home || m.channel == dm(&e.id) || m.text.to_lowercase().contains(&tag)))
-        .collect();
-    Ok(msgs
+    let (home, dm) = (home(c, e)?, dm(&e.id));
+    Ok(c.messages_seen(&[GENERAL, &home, &dm], &format!("@{}", e.id), skip, RECENT)?
         .iter()
-        .rev()
-        .take(RECENT)
-        .rev()
         .map(|m| format!("{} {}", if dm_of(&m.channel).is_some() { "(direct message)".to_string() } else { format!("#{}", m.channel) }, line(c, m)))
         .collect())
 }
 
 /// "Name: text", with long messages cut so one rant can't fill the prompt. The cut is marked,
 /// or an employee reading its own reply thinks it failed to send and says it again.
+/// Like `line`, with the whole message.
+fn line_full(c: &Company, m: &Message) -> String {
+    let who = line(c, &Message { text: String::new(), ..m.clone() });
+    format!("{who}{}", m.text.replace('\n', " "))
+}
+
 pub(crate) fn line(c: &Company, m: &Message) -> String {
     let who = if m.author == "founder" {
         format!("{} (founder)", crate::founder::name())
@@ -507,4 +678,25 @@ pub(crate) fn line(c: &Company, m: &Message) -> String {
         text.push('…');
     }
     format!("{who}: {}", text.replace('\n', " "))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{shown_so_far, take_summary};
+
+    #[test]
+    fn the_summary_line_is_kept_apart() {
+        let (said, summary) = take_summary("Yes, Friday works.\nSUMMARY: Release is Friday, Sam owns the notes.");
+        assert_eq!((said.as_str(), summary.as_deref()), ("Yes, Friday works.", Some("Release is Friday, Sam owns the notes.")));
+        assert_eq!(take_summary("No summary here").1, None);
+        assert_eq!(take_summary("ok\n- SUMMARY:  ").1, None, "an empty one is no summary");
+    }
+
+    #[test]
+    fn a_reply_being_written_hides_what_isnt_for_people() {
+        assert_eq!(shown_so_far("Sure, on it.\nTICKET: Maya | Fix add"), "Sure, on it.");
+        assert_eq!(shown_so_far("Sure.\nSUMM"), "Sure.", "even half written");
+        assert_eq!(shown_so_far("All good.\nSUMMARY: x"), "All good.");
+        assert_eq!(shown_so_far("Plain text"), "Plain text");
+    }
 }

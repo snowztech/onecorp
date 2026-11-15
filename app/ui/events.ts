@@ -28,7 +28,7 @@ document.addEventListener("click", async e => {
   if (S.switching && !target.closest(".switch")) { S.switching = false; renderSide(); }
   if (S.members && !target.closest(".members-pop, [data-members]")) { S.members = null; render(); }
   if (target.id === "scrim") { S.drawer = null; return renderDrawer(); }
-  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-run-any],[data-run-any-q],[data-repo-main],[data-commands-rescan],[data-spend-by],[data-pb-reset],[data-pb-rewrite],[data-kpick],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-ask-review],[data-lead-notes],[data-lead-review],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-run-limit],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick]");
+  const el = target.closest<HTMLButtonElement>("[data-update-restart],[data-run-any],[data-run-any-q],[data-repo-main],[data-commands-rescan],[data-spend-by],[data-pb-reset],[data-pb-rewrite],[data-kpick],[data-ask],[data-start-all],[data-plan-del],[data-close-report],[data-talk],[data-commits],[data-welcome],[data-step-to],[data-repo-rm],[data-repo-add],[data-face-set],[data-commands-reset],[data-vpick],[data-msg-del],[data-theme-pick],[data-budget],[data-run-limit],[data-budget-custom],[data-look-color],[data-look-logo],[data-you-photo],[data-you-nophoto],[data-dismiss],[data-dismiss-q],[data-pr-sign],[data-discard],[data-cmd-del],[data-members],[data-replan],[data-new-ticket],[data-nt],[data-start],[data-more],[data-switch],[data-settings-tab],[data-keep-going],[data-dm],[data-face],[data-avatar-photo],[data-avatar-clear],[data-skip-setup],[data-su-agent],[data-hb-edit],[data-wk-page],[data-wk-new],[data-wk-history],[data-wk-version],[data-wk-tab],[data-wk-restore],[data-wk-delete],[data-learn],[data-agent],[data-model],[data-copy],[data-term],[data-recheck],[data-hide-start],[data-brief],[data-pause],[data-pick-fill],[data-edit-person],[data-fire],[data-make-lead],[data-dept-cancel],[data-remove],[data-goto],[data-rail],[data-plan-new],[data-project],[data-pop],[data-settings],[data-sheet],[data-sheet-close],[data-toc],[data-close-open],[data-ship],[data-reveal],[data-health],[data-confirm],[data-forget],[data-channel],[data-mention],[data-profile],[data-pf],[data-open-url],[data-ticket],[data-stop],[data-new-co],[data-su],[data-tpl],[data-retry],[data-hb-del],[data-hb-raw],[data-diff],[data-hide-diff],[data-co],[data-view],[data-person],[data-hire],[data-add-dept],[data-close],[data-answer],[data-approve],[data-pick],[data-effort],[data-ask-review],[data-lead-notes],[data-lead-review]");
   if (!el) return;
   const d = el.dataset;
   if (d.updateRestart) return restartToUpdate();
@@ -68,7 +68,7 @@ document.addEventListener("click", async e => {
     await busy(el, "Starting…", () => call("start_ticket", { company: S.company, key: d.start }, `${d.start} is starting`)).catch(() => {});
     return;
   }
-  if (d.channel) { S.channel = d.channel; S.chat = null; render(); return refresh(true); }
+  if (d.channel) return openChannel(d.channel);
   if (d.members) { S.members = S.members === d.members ? null : d.members; return render(); }
   if (d.mention) {
     if (S.members) { S.members = null; render(); }
@@ -97,7 +97,13 @@ document.addEventListener("click", async e => {
     $("#pf-vs").textContent = (S.voices || []).find(v => v.key === d.vpick)?.sample || "Picked to fit their role. Change it any time.";
     return;
   }
-  if ("model" in d && el.classList.contains("mchip") && !el.classList.contains("vchip")) {
+  if ("effort" in d && el.classList.contains("echip")) {
+    $("#pf-e").value = d.effort!;
+    if (S.drawer?.form) S.drawer.form.effort = d.effort!;
+    el.parentElement!.querySelectorAll(".echip").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
+    return;
+  }
+  if ("model" in d && el.classList.contains("mchip") && !el.classList.contains("vchip") && !el.classList.contains("echip")) {
     $("#pf-m").value = d.model!;
     el.parentElement!.querySelectorAll(".mchip").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
     return;
@@ -128,8 +134,8 @@ document.addEventListener("click", async e => {
     return;
   }
   if (d.rail) return toggleRail();
-  if (d.ask) { S.pop = false; renderPop(); S.view = "chat"; S.channel = "help"; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
-  if (d.dm) { S.view = "chat"; S.channel = "dm:" + d.dm; S.chat = null; S.drawer = null; render(); await refresh(true); return $("#say-text")?.focus(); }
+  if (d.ask) { S.pop = false; renderPop(); S.drawer = null; await openChannel("help"); return $("#say-text")?.focus(); }
+  if (d.dm) { S.drawer = null; await openChannel("dm:" + d.dm); return $("#say-text")?.focus(); }
   if (d.spendBy) { S.spendBy = d.spendBy; return renderSheet(); }
   if (d.kpick && S.drawer?.form) { const f = S.drawer.form; f.kind = d.kpick; f.kindPicked = true; return showKind(f); }
   if (d.pbRewrite && S.drawer?.form) { const f = S.drawer.form; f.rewriting = true; f.rewrite = roleInfo(f.kind).playbook; showKind(f); return $("#pf-pb-text")?.focus(); }
@@ -700,3 +706,12 @@ document.addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "," && S.snap && !S.setup && !S.profile) { e.preventDefault(); return openSettings(); }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && S.snap && !S.setup && !S.profile) { e.preventDefault(); S.drawer = { type: "new-ticket" }; renderDrawer(); $("#nt-title")?.focus(); }
 });
+
+// Opens a channel with its messages already there: read from the company's database first, then
+// drawn once, so it never flashes "Loading…" in between. Nothing runs an agent here.
+async function openChannel(channel: string) {
+  const chat = await invoke("chat", { company: S.company, channel }).catch(() => null);
+  S.view = "chat"; S.channel = channel; S.chat = chat;
+  render();
+  return refresh(true);
+}

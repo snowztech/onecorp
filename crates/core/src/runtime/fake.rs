@@ -13,6 +13,9 @@ use anyhow::Result;
 use std::fs;
 
 pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>) -> Result<()> {
+    // Like Codex: what stays the same comes first.
+    let whole = o.system.map(|s| format!("{s}\n\n{prompt}"));
+    let prompt = whole.as_deref().unwrap_or(prompt);
     let session = o.resume.map(str::to_string).unwrap_or_else(|| format!("fake-{}", std::process::id()));
     on("", Event::Init { session, model: "no AI".into() })?;
 

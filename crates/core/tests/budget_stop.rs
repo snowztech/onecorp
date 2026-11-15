@@ -53,5 +53,13 @@ fn a_run_stops_at_the_budget_and_waits() {
     assert_eq!(card["limit"], true);
     assert_eq!(card["why"], "stopped at the $3.00 limit for one run, after $3.00. Their work is kept");
 
+    // How hard someone thinks is theirs to set, and only to a level the agents know.
+    assert_eq!(work::effort(&c, "maya").unwrap(), None);
+    work::set_effort(&c, "maya", Some("low")).unwrap();
+    assert_eq!(work::effort(&c, "maya").unwrap().as_deref(), Some("low"));
+    assert!(work::set_effort(&c, "maya", Some("max")).is_err());
+    work::set_effort(&c, "maya", None).unwrap();
+    assert_eq!(work::effort(&c, "maya").unwrap(), None);
+
     let _ = std::fs::remove_dir_all(&root);
 }

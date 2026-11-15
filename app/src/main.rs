@@ -762,7 +762,7 @@ fn move_to_department(company: String, employee: String, department: i64) -> Res
 /// Hires from the app's candidate cards. Returns the new employee's id.
 #[tauri::command(async)]
 #[allow(clippy::too_many_arguments)]
-fn hire(company: String, name: String, role: String, bio: String, runtime: String, model: Option<String>, department: Option<i64>, voice: Option<String>, kind: Option<String>) -> Res<String> {
+fn hire(company: String, name: String, role: String, bio: String, runtime: String, model: Option<String>, department: Option<i64>, voice: Option<String>, kind: Option<String>, effort: Option<String>) -> Res<String> {
     let c = open(&company)?;
     let id = store::slug(&name);
     if id.is_empty() {
@@ -777,13 +777,14 @@ fn hire(company: String, name: String, role: String, bio: String, runtime: Strin
     if let Some(v) = voice.filter(|v| !v.is_empty()) {
         onecorp::voice::set(&c, &id, &v).map_err(err)?;
     }
+    onecorp::work::set_effort(&c, &id, effort.as_deref()).map_err(err)?;
     Ok(id)
 }
 
 // Tauri maps each named field from the app to an argument, so the list is the form.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command(async)]
-fn update_employee(company: String, id: String, name: String, role: String, runtime: String, model: Option<String>, bio: String, voice: Option<String>, kind: Option<String>, playbook: Option<String>) -> Res<()> {
+fn update_employee(company: String, id: String, name: String, role: String, runtime: String, model: Option<String>, bio: String, voice: Option<String>, kind: Option<String>, playbook: Option<String>, effort: Option<String>) -> Res<()> {
     let c = open(&company)?;
     let e = c.employee(&id).map_err(err)?.ok_or_else(|| format!("Nobody called {id} works here."))?;
     if !onecorp::runtime::RUNTIMES.contains(&runtime.as_str()) {
@@ -792,6 +793,7 @@ fn update_employee(company: String, id: String, name: String, role: String, runt
     if let Some(v) = voice.filter(|v| !v.is_empty()) {
         onecorp::voice::set(&c, &id, &v).map_err(err)?;
     }
+    onecorp::work::set_effort(&c, &id, effort.as_deref()).map_err(err)?;
     onecorp::roles::set(&c, &id, &role, kind.as_deref(), playbook.as_deref()).map_err(err)?;
     c.update_employee(&store::Employee { name, role, runtime, model: model.filter(|m| !m.trim().is_empty()), bio: bio.trim().into(), ..e }).map_err(err)
 }

@@ -70,6 +70,10 @@ enum Cmd {
         /// Left out, it fits their role
         #[arg(long)]
         personality: Option<String>,
+        /// How hard they think on tickets: low, medium or high. Low costs less on routine work.
+        /// Left out, their agent's own default
+        #[arg(long)]
+        effort: Option<String>,
         /// Department to join, like Engineering. Created if it doesn't exist yet
         #[arg(long)]
         dept: Option<String>,
@@ -449,7 +453,7 @@ fn run(cmd: Cmd) -> Result<()> {
                 println!("{} {name}", if name == current { "*" } else { " " });
             }
         }
-        Cmd::Hire { name, preset, role, bio, runtime, model, personality, dept, company } => {
+        Cmd::Hire { name, preset, role, bio, runtime, model, personality, effort, dept, company } => {
             let c = open(company)?;
             let mut e = hire_form(name, preset, role, bio, runtime, model)?;
             if let Some(d) = dept {
@@ -463,6 +467,7 @@ fn run(cmd: Cmd) -> Result<()> {
                 });
             }
             c.hire(&e)?;
+            onecorp::work::set_effort(&c, &e.id, effort.as_deref())?;
             if let Some(p) = personality {
                 onecorp::voice::set(&c, &e.id, &p.to_lowercase())?;
             }
