@@ -75,29 +75,46 @@ fn a_lead_reviews_work_before_the_founder() {
     let later = c.add_ticket("someday", "maya").unwrap();
     assert!(work::ask_review(&c, &c.ticket(later).unwrap().unwrap(), None).is_err());
 
-    // Asked by the author while working: the review starts once the work is in review, with the notes.
+    // Asked by the author while working: the review starts once the work is in review. Changes go
+    // straight back to the author, as a comment on the ticket and in their memory, and they redo it.
     let b = c.add_ticket("add the import button [changes]", "maya").unwrap();
     let ctx = mcp::Ctx { ticket: b, employee: "maya".into() };
     let call = |args: Value| mcp::handle(&c, &ctx, &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "request_review", "arguments": args}})).unwrap();
     assert_eq!(call(json!({"reviewer": "Zed"}))["result"]["isError"], true, "a name nobody has fails while the agent can fix it");
     call(json!({}));
     work::dispatch(&c, b, Job::Start).unwrap();
-    assert_eq!(status(b), "review");
-    let review = card(&c, &c.key(b));
-    assert_eq!(review["lead_review"]["ok"], false);
-    assert!(review["lead_review"]["notes"].as_str().unwrap().contains("Add a test"));
-
-    // Sent back and redone, the old verdict no longer applies, and nobody reviews it again unasked.
-    work::request_changes(&c, &c.ticket(b).unwrap().unwrap(), "add the test Odile asked for").unwrap();
-    assert_eq!(status(b), "review");
+    assert_eq!(status(b), "review", "sent back, redone, and back in review");
+    let kinds = |id: i64, kind: &str| c.events(id).unwrap().iter().filter(|(_, k, _)| k == kind).count();
+    assert_eq!(kinds(b, "review-sendback"), 1);
+    assert!(c.events(b).unwrap().iter().any(|(_, k, s)| k == "comment" && s.starts_with("Odile Martin: ") && s.contains("Add a test")));
+    assert!(c.memory("maya").unwrap().contains("Add a test"));
+    // Reviews are off here and nobody asked again, so the redone work comes to the founder as it is.
     assert!(card(&c, &c.key(b))["lead_review"].is_null());
 
-    // From chat: the lead asks to review it and does.
+    // With leads reviewing first, a lead who keeps asking for changes sends the work back twice,
+    // then it's the founder's call, with the verdict and how many rounds it took.
+    work::set_leads_review(&c, true).unwrap();
+    let d = c.add_ticket("rewrite the sync engine [changes]", "maya").unwrap();
+    work::dispatch(&c, d, Job::Start).unwrap();
+    assert_eq!(status(d), "review");
+    assert_eq!(kinds(d, "review-sendback"), work::MAX_REVIEW_ROUNDS);
+    let review = card(&c, &c.key(d));
+    assert_eq!((review["lead_review"]["ok"].as_bool(), review["lead_review"]["rounds"].as_u64()), (Some(false), Some(2)));
+    assert!(review["lead_review"]["notes"].as_str().unwrap().contains("Add a test"));
+
+    // The founder asking for changes starts the count again.
+    work::set_leads_review(&c, false).unwrap();
+    work::request_changes(&c, &c.ticket(b).unwrap().unwrap(), "add the test Odile asked for").unwrap();
+    assert_eq!(status(b), "review");
+    assert_eq!(work::sent_back(&c, b).unwrap(), 0);
+
+    // From chat: the lead asks to review it, does, and sends it back.
     let channel = chat::home(&c, &c.employee("maya").unwrap().unwrap()).unwrap();
     let slots = chat::say(&c, &channel, &format!("@odile [review] {} please", c.key(b))).unwrap();
     chat::reply(&c, slots[0]).unwrap();
     assert!(!c.message(slots[0]).unwrap().unwrap().text.contains("REVIEW:"), "the line is an action, not part of the reply");
-    assert!(!card(&c, &c.key(b))["lead_review"].is_null());
+    assert_eq!(kinds(b, "review-sendback"), 2);
+    assert_eq!(status(b), "review");
 
     let _ = std::fs::remove_dir_all(&root);
 }

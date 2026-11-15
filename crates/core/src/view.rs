@@ -539,7 +539,7 @@ fn lead_review(c: &Company, ticket: i64) -> Option<Value> {
         return None;
     }
     let v: Value = serde_json::from_str(&raw).ok()?;
-    Some(json!({"name": v["name"], "ok": v["ok"], "notes": v["notes"], "at": at}))
+    Some(json!({"name": v["name"], "ok": v["ok"], "notes": v["notes"], "at": at, "rounds": crate::work::sent_back(c, ticket).unwrap_or(0)}))
 }
 
 pub(crate) fn last_said(c: &Company, ticket: i64) -> Option<String> {

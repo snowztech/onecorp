@@ -1324,6 +1324,20 @@ impl Company {
             .optional()?)
     }
 
+    /// Like `pending_review`, but a review running in this very process doesn't count: it's the one
+    /// that sent the work back and is waiting on the redo, and the redo needs a review of its own.
+    pub fn other_review(&self, ticket: i64) -> Result<bool> {
+        Ok(self
+            .db
+            .query_row(
+                "SELECT 1 FROM jobs WHERE ticket_id = ?1 AND kind = 'review' AND finished_at IS NULL AND NOT (started_at IS NOT NULL AND pid = ?2) LIMIT 1",
+                params![ticket, std::process::id()],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+    }
+
     pub fn events(&self, ticket: i64) -> Result<Vec<(String, String, String)>> {
         let mut st = self.db.prepare("SELECT at, kind, summary FROM events WHERE ticket_id = ?1 ORDER BY id")?;
         let rows = st.query_map([ticket], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;

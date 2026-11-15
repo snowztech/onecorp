@@ -258,7 +258,7 @@ pub fn set_leads_review(c: &Company, on: bool) -> Result<()> {
 /// the author asked with `request_review`, or else from their lead when leads review first. Work
 /// sent back and redone is reviewed again, since what was reviewed has changed.
 fn review_on_finish(c: &Company, t: &Ticket) -> Result<()> {
-    if t.status != "review" || t.kind != "work" || c.pending_review(t.id)?.is_some() {
+    if t.status != "review" || t.kind != "work" || c.other_review(t.id)? {
         return Ok(());
     }
     let reviewed = c.last_event(t.id, "lead-review")?.map(|(id, ..)| id).unwrap_or(0);
@@ -389,11 +389,46 @@ fn review(c: &Company, ticket: i64, reviewer: &str) -> Result<()> {
     let verdict = if good { "looks good" } else { "changes needed" };
     let raw = serde_json::json!({ "by": who.id, "name": who.name, "ok": good, "notes": notes }).to_string();
     c.add_event(t.id, "lead-review", &format!("{}: {verdict}\n{notes}", who.name), &raw)?;
+    // Changes go straight back to the author, so the founder gets work the lead is happy with.
+    // A few rounds at most: past that, lead and author disagree, and it's the founder's call.
+    let back = !good && sent_back(c, t.id)? < MAX_REVIEW_ROUNDS && author.is_some();
     if let Some(a) = &author {
-        crate::chat::note(c, &a.id, &who.id, &format!("@{} Reviewed {key}: {verdict}.", a.id), Some(t.id))?;
+        let then = if back { " Sent back to you." } else if !good { " It's with the founder now." } else { "" };
+        crate::chat::note(c, &a.id, &who.id, &format!("@{} Reviewed {key}: {verdict}.{then}", a.id), Some(t.id))?;
     }
     out(&format!("{key}  {} reviewed it: {verdict}", who.name));
+    if back {
+        return send_back(c, &t, &who, &notes);
+    }
     Ok(())
+}
+
+/// How many times a reviewer may send the same work back before it goes to the founder anyway.
+pub const MAX_REVIEW_ROUNDS: usize = 2;
+
+/// Reviews that sent this work back since the founder last asked for changes themselves.
+pub fn sent_back(c: &Company, ticket: i64) -> Result<usize> {
+    let events = c.events(ticket)?;
+    let since = events.iter().rposition(|(_, k, s)| k == "review" && s.starts_with("changes requested")).map_or(0, |i| i + 1);
+    Ok(events[since..].iter().filter(|(_, k, _)| k == "review-sendback").count())
+}
+
+/// The reviewer's notes go on the ticket as a comment and back to its author, who picks the work up
+/// in the same session: right away, or once they finish what they're on (Up next meanwhile).
+fn send_back(c: &Company, t: &Ticket, who: &Employee, notes: &str) -> Result<()> {
+    let key = c.key(t.id);
+    let notes = if notes.trim().is_empty() { "Changes needed, without details. Look again at what the ticket asked." } else { notes.trim() };
+    c.add_event(t.id, "comment", &format!("{}: {notes}", who.name), "")?;
+    c.add_event(t.id, "review-sendback", &format!("{} sent it back: {}", who.name, runtime::clip(notes, 600)), "")?;
+    if let Some(author) = &t.assignee {
+        c.remember(author, &format!("On {key} {} asked for changes in review: {notes}", who.name))?;
+    }
+    let prompt = format!(
+        "{} reviewed your work before the founder sees it, and asked for changes:\n\n{notes}\n\n\
+         Make them. Same rules as before, and end with two or three sentences on what changed.",
+        who.name
+    );
+    dispatch(c, t.id, Job::Resume { why: format!("with {}'s review", who.name), prompt, label: format!("changes from {}'s review", who.name) })
 }
 
 /// The company MCP server for one ticket and employee: this same binary, started by the agent.

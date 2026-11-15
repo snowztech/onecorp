@@ -155,7 +155,9 @@ function leadReview(r: Review) {
   const v = r.lead_review;
   if (!v) return "";
   const notes = v.notes ? md(v.notes).html : "";
-  return `<div class="via lead-verdict"><p><b>${esc(first(v.name))} reviewed it:</b> ${v.ok ? "looks good." : "changes needed."}</p>${notes}</div>`;
+  // Changes normally go straight back to the author. One here means they disagreed for a few rounds.
+  const rounds = !v.ok && v.rounds ? ` Sent back ${v.rounds === 1 ? "once" : `${v.rounds} times`} already, so it's your call now.` : "";
+  return `<div class="via lead-verdict"><p><b>${esc(first(v.name))} reviewed it:</b> ${v.ok ? "looks good." : "changes needed."}${rounds}</p>${notes}</div>`;
 }
 
 // Ask the lead first, or send their notes back as they are.

@@ -31,7 +31,7 @@ export interface Review {
   /** Who is reviewing it right now, by name. */
   reviewing?: string | null;
   /** The latest teammate review, gone once the work changes again. */
-  lead_review?: { name: string; ok: boolean; notes: string; at: string } | null;
+  lead_review?: { name: string; ok: boolean; notes: string; at: string; rounds?: number } | null;
 }
 
 export interface ReviewMark { name: string; state: "good" | "changes" | "reviewing" }

@@ -44,7 +44,7 @@ flowchart TD
 | Ask someone in chat to look into or fix something | Them | Proposed tickets under their reply, one click to start | `chat::reply`, `chat::propose` |
 | Write the wiki, or Redraft | Whoever drafts it | Wiki pages to save | `work::write_wiki` |
 | Retry a stopped ticket | The same person | The same session picks up, or a clean start | `work::retry` |
-| Nothing: someone with a lead finishes | Their lead | A verdict on the Inbox card, the work still yours to merge | `work::review_on_finish` |
+| Nothing: someone with a lead finishes | Their lead | Work they're happy with, with the verdict on the Inbox card. Changes go back to the author first | `work::review_on_finish`, `send_back` |
 | Ask a lead to review work in review | The lead | The same, for work that came straight to you | `work::ask_review` |
 
 **Who plans.** The planner is whoever you pick, or else the first person whose role sounds like product, or else a department lead (`work::pick_planner`). A plan is a ticket of kind `plan`. Its run is read-only and creates tickets with `create_ticket`. They wait in the backlog until you start the plan, which starts every one that has an owner (`start_proposed`).
@@ -72,7 +72,7 @@ When someone with a lead asks a question, it goes to the lead first (`mcp.rs`, s
 
 Leads are told to pass up anything about product direction, money, anything public, security, or what the wiki says is yours. Anything unclear goes up, which is the safe side (`work::verdict`). Both outcomes are posted in the team's channel, so the team sees how questions get settled.
 
-Leads also review their team's work before it reaches you, on by default (Settings, Company, Reviews). When someone finishes, their lead reviews it, or whoever they named with **`request_review`**. You can also ask from the Inbox, or the lead can start one from chat with a `REVIEW:` line. The lead reads the changes read-only in the author's worktree, can run the build and test commands, and ends with `VERDICT: GOOD` or `VERDICT: CHANGES` and the list (`work::review`). The verdict shows on your Inbox card and in the team's channel. Merging, or sending the notes back, is still yours.
+Leads also review their team's work before it reaches you, on by default (Settings, Company, Reviews). When someone finishes, their lead reviews it, or whoever they named with **`request_review`**. You can also ask from the Inbox, or the lead can start one from chat with a `REVIEW:` line. The lead reads the changes read-only in the author's worktree, can run the build and test commands, and ends with `VERDICT: GOOD` or `VERDICT: CHANGES` and the list (`work::review`). Changes go straight back to the author, as a comment on the ticket and a note in their memory, and the ticket is Up next or Working again until the redo is reviewed. Good work reaches your Inbox with the verdict. After two rounds of changes it comes to you anyway, with the lead's notes, to settle. Merging is always yours.
 
 ### To each other
 
@@ -115,7 +115,7 @@ Keeping these docs true is what keeps its answers true.
 
 Ways a real company works that OneCorp doesn't yet, roughly by how much they'd change things:
 
-1. **A lead's review doesn't send work back.** Leads review their team's work before you see it (see "Through their lead"), but the changes they ask for go back only when you send them.
+1. **A lead's review is all or nothing.** Leads review their team's work and send back what needs changes (see "Through their lead"), but they can't fix a small thing themselves, and after two rounds a disagreement lands on you rather than with a third person.
 2. **Nobody hears a mention live.** `@maya` in a post is read at Maya's next run. There's no "Maya, can you check this?" that gets an answer while the asker waits.
 3. **A ticket that waits doesn't hear about the one it waited for.** When TVC-6 starts after TVC-5 is merged, it gets the code but not TVC-5's summary or what the reviewer said.
 4. **Leads can't move running work.** A lead can propose tickets but can't reassign, stop or reprioritize anything already started.

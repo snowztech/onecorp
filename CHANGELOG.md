@@ -6,7 +6,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
-- Leads review their team's work before it reaches you. When an employee with a lead finishes, the lead reads the changes in their worktree, runs the build and test commands, and leaves a verdict on the Inbox card and the Board: looks good, or changes needed with the list. Merging stays your call, and Send back with their notes passes the list on as it is. It's on for every company: turn it off in Settings, Company, Reviews, and work comes straight to you again. Either way, you can ask a lead to review from the Inbox or with `onecorp ask-review`, an employee can ask someone with `request_review`, and a lead can start one from chat. (#100)
+- Leads review their team's work before it reaches you. When an employee with a lead finishes, the lead reads the changes in their worktree, runs the build and test commands, and leaves a verdict. Changes go straight back to the author, as a comment on the ticket, and the ticket is Up next or Working again until the redo is reviewed. Work they're happy with reaches your Inbox with the verdict and a shield on its card. After two rounds of changes it comes to you anyway, with the lead's notes, to settle. Merging stays your call. It's on for every company: turn it off in Settings, Company, Reviews, and work comes straight to you again. Either way, you can ask a lead to review from the Inbox or with `onecorp ask-review`, an employee can ask someone with `request_review`, and a lead can start one from chat. (#100)
 
 ### Changed
 
