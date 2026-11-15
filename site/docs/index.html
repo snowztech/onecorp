@@ -28,16 +28,19 @@
     .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
     .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
     .brand svg { width: 22px; height: 22px; }
-    .nav nav { display: flex; gap: 24px; font-size: 14px; }
-    .nav nav a { color: var(--sn-fg-muted); text-decoration: none; transition: color 0.15s; }
+    .nav nav { display: flex; align-items: center; gap: 24px; font-size: 14px; }
+    .ico { width: 15px; height: 15px; flex: none; }
+    .nav nav a { display: inline-flex; align-items: center; gap: 7px; color: var(--sn-fg-muted); text-decoration: none; transition: color 0.15s; }
     .nav nav a:hover, .nav nav a[aria-current="page"] { color: var(--sn-fg); }
+    .nav nav a.get { padding: 6px 12px; border-radius: 8px; background: var(--sn-fg); color: var(--sn-bg); font-weight: 500; transition: opacity 0.15s; }
+    .nav nav a.get:hover { color: var(--sn-bg); opacity: 0.85; }
 
     /* The guide: its sections on the left, always in reach, and the text at a readable width. */
     .docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; padding-top: 32px; }
     .toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
     .toc p { margin: 0 0 10px; color: var(--sn-fg-subtle); font: 500 12px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
     .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-    .toc a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--sn-fg-muted); text-decoration: none; }
+    .toc a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--sn-fg-muted); text-decoration: none; transition: color 0.15s, background-color 0.15s; }
     .toc a:hover { color: var(--sn-fg); background: var(--code-bg); }
     .toc a.here { color: var(--sn-fg); background: var(--code-bg); font-weight: 500; }
 
@@ -60,10 +63,18 @@
     article th { color: var(--sn-fg-subtle); font: 500 12px var(--mono); letter-spacing: 0.04em; text-transform: uppercase; }
     article img { display: block; width: 100%; height: auto; margin: 20px 0; border: 1px solid var(--sn-border-subtle); border-radius: 12px; }
     .loading { color: var(--sn-fg-muted); }
+    article .anchor { margin-left: 8px; color: var(--sn-fg-subtle); text-decoration: none; font-weight: 400; opacity: 0; transition: opacity 0.15s; }
+    article :is(h2, h3):hover .anchor, article .anchor:focus-visible { opacity: 1; }
+    article pre { position: relative; }
+    .copy { position: absolute; top: 8px; right: 8px; padding: 3px 8px; border: 1px solid var(--sn-border-subtle); border-radius: 6px; background: var(--sn-bg); color: var(--sn-fg-muted); font: 500 12px var(--mono); cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; }
+    .copy:hover { color: var(--sn-fg); }
+    article pre:hover .copy, .copy:focus-visible { opacity: 1; }
+    /* No hover on a phone, so the button stays in sight. */
+    @media (hover: none) { .copy { opacity: 1; } }
+    @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 
     @media (max-width: 520px) {
       .nav nav { gap: 16px; }
-      .nav nav a[href*="CHANGELOG"] { display: none; }
       article td code { white-space: normal; word-break: break-word; }
     }
     @media (max-width: 860px) {
@@ -79,8 +90,8 @@
     <a class="brand" href="/"><svg viewBox="0 0 32 32" aria-hidden="true"><g fill="currentColor"><circle cx="16" cy="9" r="6"/><circle cx="6" cy="24" r="4"/><circle cx="16" cy="25.5" r="4"/><circle cx="26" cy="24" r="4"/></g><path d="M12.6 13.6 8 20.3M16 15v6.5M19.4 13.6 24 20.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>OneCorp</a>
     <nav aria-label="Main">
       <a href="/docs/" aria-current="page">Docs</a>
-      <a href="https://github.com/snowztech/onecorp/blob/main/CHANGELOG.md">Changelog</a>
-      <a href="https://github.com/snowztech/onecorp">GitHub</a>
+      <a href="https://github.com/snowztech/onecorp"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub</a>
+      <a class="get" href="https://github.com/snowztech/onecorp/releases/latest/download/OneCorp.dmg">Download</a>
     </nav>
   </header>
   <main class="wrap docs">
@@ -90,7 +101,7 @@
   <footer>
     <div class="legal">
       <span>© 2026 <a href="https://github.com/snowztech">snowztech</a>. Not affiliated with Anthropic or OpenAI.</span>
-      <span><a href="https://github.com/snowztech/onecorp/edit/main/docs/GUIDE.md">Edit this page</a> · <a href="https://github.com/snowztech/onecorp/blob/main/LICENSE">MIT</a></span>
+      <span><a href="https://github.com/snowztech/onecorp/edit/main/docs/GUIDE.md">Edit this page</a> · <a href="https://github.com/snowztech/onecorp/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/snowztech/onecorp/blob/main/LICENSE">MIT</a></span>
     </div>
   </footer>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
@@ -102,20 +113,34 @@
     const article = document.getElementById("guide"), toc = document.getElementById("toc");
     fetch("guide.md").then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(md => {
       article.innerHTML = marked.parse(md);
-      article.querySelectorAll("h2, h3").forEach(h => { h.id = slug(h.textContent); });
+      const heads = [...article.querySelectorAll("h2, h3")];
+      heads.forEach(h => { h.id = slug(h.textContent); });
       // Screenshots point at the site's copies when the guide is read in the repo.
       article.querySelectorAll("img").forEach(img => { img.src = img.getAttribute("src").replace("../site/shots/", "/shots/"); img.loading = "lazy"; });
       const sections = [...article.querySelectorAll("h2")];
       toc.innerHTML = sections.map(h => `<li><a href="#${h.id}">${h.textContent}</a></li>`).join("");
-      if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+      heads.forEach(h => h.insertAdjacentHTML("beforeend", `<a class="anchor" href="#${h.id}" aria-label="Link to this section">#</a>`));
+      article.querySelectorAll("pre").forEach(pre => {
+        const copy = document.createElement("button");
+        copy.type = "button"; copy.className = "copy"; copy.textContent = "Copy";
+        copy.onclick = () => navigator.clipboard.writeText(pre.querySelector("code").textContent).then(() => {
+          copy.textContent = "Copied";
+          setTimeout(() => { copy.textContent = "Copy"; }, 1500);
+        });
+        pre.append(copy);
+      });
+      // Straight to the section on load. Smooth scrolling is for clicks.
+      if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView({ behavior: "instant" });
       // The section you're reading stays marked in the list.
       const links = new Map([...toc.querySelectorAll("a")].map(a => [a.getAttribute("href").slice(1), a]));
-      const seen = new IntersectionObserver(entries => entries.forEach(e => {
-        if (!e.isIntersecting) return;
-        links.forEach(a => a.classList.remove("here"));
-        links.get(e.target.id)?.classList.add("here");
-      }), { rootMargin: "0px 0px -70% 0px" });
-      sections.forEach(h => seen.observe(h));
+      // Worked out from where the headings are now, since screenshots loading move them.
+      const mark = () => {
+        const here = sections.filter(h => h.getBoundingClientRect().top < innerHeight * 0.3).pop() ?? sections[0];
+        links.forEach((a, id) => a.classList.toggle("here", id === here.id));
+      };
+      addEventListener("scroll", mark, { passive: true });
+      article.addEventListener("load", mark, true);
+      mark();
     }).catch(() => {
       article.innerHTML = `<p>The guide didn't load. Read it on <a href="https://github.com/snowztech/onecorp/blob/main/docs/GUIDE.md">GitHub</a>.</p>`;
     });
