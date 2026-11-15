@@ -202,7 +202,8 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .rv { display: inline-flex; align-items: center; margin-left: 6px; color: var(--muted); vertical-align: -2px; }
 .rv .ic { width: 14px; height: 14px; }
 .rv-good { color: var(--good); }
-.rv-reviewing { animation: breathe 1.6s var(--ease) infinite; }
+.rv-reviewing .ic { animation: breathe 1.6s var(--ease) infinite; }
+.rv .av { width: 18px; height: 18px; margin-left: 4px; }
 @keyframes breathe { 50% { opacity: .35; } }
 .ask .lead-verdict p { margin: 0 0 4px; white-space: normal; }
 .ask .lead-verdict ul, .ask .lead-verdict ol { margin: 4px 0 0; padding-left: 18px; }

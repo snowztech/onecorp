@@ -102,7 +102,9 @@ export function reviewMark(m: ReviewMark | null | undefined) {
   if (!m) return "";
   const who = esc(String(m.name || "").split(" ")[0]);
   const [ic, tip] = m.state === "good" ? ["reviewed", `Reviewed by ${who}: looks good`] : m.state === "changes" ? ["review-changes", `Reviewed by ${who}: changes needed`] : ["reviewed", `${who} is reviewing it`];
-  return `<span class="rv rv-${m.state}" title="${tip}" aria-label="${tip}">${icon(ic)}</span>`;
+  // While it runs, the reviewer's face sits next to the shield, working, so you see who's on it.
+  const who2 = m.state === "reviewing" ? face(m.name, "working") : "";
+  return `<span class="rv rv-${m.state}" title="${tip}" aria-label="${tip}">${icon(ic)}${who2}</span>`;
 }
 
 export const monogram = (name: string | null | undefined) => `<span class="av mono-av">${String(name || "").trim() ? esc(initials(name)) : icon("user")}</span>`;
