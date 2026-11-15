@@ -679,6 +679,37 @@ fn ticket_details(c: &Company, t: &Ticket) -> Result<String> {
     if !comments.is_empty() {
         out.push_str(&format!("Comments on this ticket:\n{}\n\n", comments.join("\n\n")));
     }
+    out.push_str(&project_of(c, t)?);
+    Ok(out)
+}
+
+/// The project a ticket belongs to, when it came from a plan: its goal, and the other tickets in
+/// it with who has them and where they stand. Without it, the pieces of one project drift: two
+/// tickets choose differently for the same shared thing, or one does more than its part. Kept
+/// short: the goal clipped, at most 10 other tickets.
+pub fn project_of(c: &Company, t: &Ticket) -> Result<String> {
+    const GOAL: usize = 400;
+    const OTHERS: usize = 10;
+    let Some(plan) = t.plan.map(|p| c.ticket(p)).transpose()?.flatten() else { return Ok(String::new()) };
+    let goal = match plan.description.trim() {
+        "" => "the first version, from the brief".to_string(),
+        g => runtime::clip(&g.replace('\n', " "), GOAL),
+    };
+    let others: Vec<String> = c
+        .plan_tickets(plan.id)?
+        .iter()
+        .filter(|o| o.id != t.id)
+        .take(OTHERS)
+        .map(|o| {
+            let who = o.assignee.as_deref().and_then(|a| c.employee(a).ok().flatten()).map(|e| e.name).unwrap_or_else(|| "nobody yet".into());
+            format!("- {} {} ({who}, {})", c.key(o.id), o.title, o.status)
+        })
+        .collect();
+    let mut out = format!("This ticket is part of the project {}, {}. Its goal: {goal}\n", plan.title, c.key(plan.id));
+    if !others.is_empty() {
+        out.push_str(&format!("The other tickets in it, so your part fits theirs:\n{}\n", others.join("\n")));
+    }
+    out.push('\n');
     Ok(out)
 }
 

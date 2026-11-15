@@ -582,6 +582,11 @@ pub fn mentioned_tickets(c: &Company, text: &str) -> Result<String> {
         if let Some(last) = crate::view::last_said(c, id).filter(|s| !s.trim().is_empty()) {
             block.push_str(&format!("\nLast update: {}", cut(last.trim())));
         }
+        // Which project it's part of, in a line: a reply about it shouldn't lose the bigger goal.
+        if let Some(plan) = t.plan.map(|p| c.ticket(p)).transpose()?.flatten() {
+            let goal = if plan.description.trim().is_empty() { "the first version, from the brief".to_string() } else { cut(plan.description.trim()) };
+            block.push_str(&format!("\nPart of the project {}: {goal}", plan.title));
+        }
         out.push(block);
         if out.len() == 3 {
             break;
