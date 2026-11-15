@@ -137,6 +137,14 @@ fn approve(company: String, key: String) -> Res<()> {
     onecorp::ship::approve(&c, &t).map_err(err)
 }
 
+/// Has a teammate review work waiting for you: the author's lead unless `by` names someone.
+#[tauri::command(async)]
+fn ask_review(company: String, key: String, by: Option<String>) -> Res<String> {
+    let c = open(&company)?;
+    let t = ticket(&c, &key)?;
+    work::ask_review(&c, &t, by.as_deref()).map_err(err)
+}
+
 #[tauri::command(async)]
 fn request_changes(company: String, key: String, feedback: String) -> Res<()> {
     let c = open(&company)?;
@@ -972,6 +980,7 @@ fn main() {
             answer,
             approve,
             request_changes,
+            ask_review,
             add_department,
             move_to_department,
             hire

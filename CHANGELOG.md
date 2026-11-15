@@ -4,6 +4,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- A teammate can review work before you do. On a review in the Inbox, Ask {lead} to review has the author's lead read the changes in their worktree, run the build and test commands, and leave a verdict on the card: looks good, or changes needed with the list. Merging stays your call, and Send back with their notes passes the list on as it is. An employee can ask for it themselves when they finish (`request_review`), a lead can start one from chat, and `onecorp ask-review` does it from the terminal. (#100)
+
 ### Changed
 
 - A new ticket's worktree gets the env files from your checkout, like `.env` and `api/.env.local`: the ones git ignores, so employees start with the same keys and database URLs you have, and never commit them. Before, they started with none and stopped to ask you. A ticket that picks back up gets what you changed since. To choose what's copied, add a `.worktreeinclude` to your repo in .gitignore syntax, like `.env*`, `config/local.yml` and `!.env.production`. It's the same file Claude Code reads for `claude --worktree`. (#98)

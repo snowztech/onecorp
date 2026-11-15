@@ -26,6 +26,12 @@ export interface PlanTicket { key: string; title: string; description: string; a
 export interface Review {
   key: string; title: string; employee: string; name: string; kind: string; tickets: PlanTicket[];
   document?: string | null; summary: string; spend: string; pr_number?: number | null; pr_url?: string | null; empty?: boolean;
+  /** The author's lead, who can review the work first. Work only. */
+  lead?: { id: string; name: string } | null;
+  /** Who is reviewing it right now, by name. */
+  reviewing?: string | null;
+  /** The latest teammate review, gone once the work changes again. */
+  lead_review?: { name: string; ok: boolean; notes: string; at: string } | null;
 }
 
 export interface Ticket {
@@ -172,6 +178,7 @@ export interface Results {
   make_main_repo: SettingsRepo[];
   set_setup: SettingsRepo[];
   review: Diff;
+  ask_review: string;
   set_commands: SettingsRepo[];
   set_projects_folder: string;
   settings: Settings;

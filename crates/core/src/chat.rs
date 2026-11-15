@@ -224,7 +224,9 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         Some(why) => crate::limits::hit(&e.runtime, &format!("{why} {said}"))?,
         None => false,
     };
+    let mut reviews = vec![];
     if run.is_ok() && !limited {
+        (said, reviews) = take_reviews(&said);
         said = comment(c, &e, &said)?;
         said = propose(c, &e, &team, id, &said)?;
     }
@@ -235,7 +237,27 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         (Err(err), _) => format!("(couldn't reply: {err:#})"),
     };
     let cost = crate::spend::record(c, "chat", &e.id, None, &e.runtime, model.as_deref(), cost, tokens)?;
-    c.finish_message(id, &text, cost, tokens)
+    c.finish_message(id, &text, cost, tokens)?;
+    // After the reply is posted: a review run here would keep the channel waiting on it.
+    for key in reviews {
+        let started = c.parse_key(&key).ok().and_then(|t| c.ticket(t).ok().flatten()).ok_or_else(|| anyhow::anyhow!("no such ticket")).and_then(|t| crate::work::ask_review(c, &t, Some(&e.id)));
+        if let Err(err) = started {
+            c.post(&slot.channel, &e.id, &format!("(Couldn't start the review of {key}: {err:#})"), None)?;
+        }
+    }
+    Ok(())
+}
+
+/// The ticket keys a reply asks to review, and the reply without those lines.
+fn take_reviews(said: &str) -> (String, Vec<String>) {
+    let (mut keep, mut keys) = (vec![], vec![]);
+    for line in said.lines() {
+        match marker(line) {
+            Some((REVIEW, rest)) => keys.extend(rest.split([',', ' ']).map(str::trim).filter(|k| !k.is_empty()).map(String::from)),
+            _ => keep.push(line),
+        }
+    }
+    (keep.join("\n"), keys)
 }
 
 /// The people a lead can give work to: everyone in the departments they lead.
@@ -251,15 +273,18 @@ fn team_of(c: &Company, e: &Employee) -> Result<Vec<Employee>> {
 
 const TICKET: &str = "TICKET:";
 const COMMENT: &str = "COMMENT:";
+const REVIEW: &str = "REVIEW:";
 
 const COMMENT_NOTE: &str = "To add a comment to an existing ticket, so it stays with the ticket and whoever works on it reads it, \
     put it after your reply: a line COMMENT: <ticket key>, then the comment on the lines below. It ends at the next COMMENT: or TICKET: line. \
-    That and proposing tickets are all you can do from chat: you can't change files, or start, move or close tickets. \
+    To review a teammate's work that's waiting for the founder's review, add a line REVIEW: <ticket key>. Your review starts right after \
+    this reply, with the code in front of you, and its verdict lands on the ticket. \
+    That, comments and proposing tickets are all you can do from chat: you can't change files, or start, move or close tickets. \
     Never say you did something you can't do here. Say what the founder can do instead.";
 
 fn marker(line: &str) -> Option<(&'static str, &str)> {
     let l = line.trim_start().trim_start_matches(['-', '*', ' ']);
-    [TICKET, COMMENT].into_iter().find_map(|m| l.strip_prefix(m).map(|rest| (m, rest)))
+    [TICKET, COMMENT, REVIEW].into_iter().find_map(|m| l.strip_prefix(m).map(|rest| (m, rest)))
 }
 
 /// Saves the reply's comment blocks on their tickets and returns the reply without them. A comment

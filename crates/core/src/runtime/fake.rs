@@ -5,7 +5,8 @@
 //! A test steers it through the prompt: a ticket containing `[fail]` fails, and a conflict
 //! prompt makes it resolve the markers by keeping both sides. `[fail once]` fails the first run
 //! in a worktree and succeeds after, to test retries. `[limit]` answers like a plan that hit its
-//! usage limit, and `[budget]` spends all the run is allowed and stops there.
+//! usage limit, and `[budget]` spends all the run is allowed and stops there. Reviewing a ticket
+//! whose title has `[changes]`, it asks for changes; otherwise it says the work is good.
 
 use super::{Event, Opts};
 use anyhow::Result;
@@ -23,6 +24,15 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         let text = if question.contains("[founder]") { "FOUNDER: this is a product call.".to_string() } else { format!("Looks fine to me.\nDECISION: {pick}") };
         on("", Event::Say(text.clone()))?;
         on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
+        return Ok(());
+    }
+
+    // Asked to review someone's work: changes for a ticket marked [changes], good otherwise.
+    if prompt.contains("\nVERDICT: GOOD\n") {
+        let reviewed = prompt.lines().find(|l| l.contains(" finished ") && l.contains("asked you to review")).unwrap_or("");
+        let text = if reviewed.contains("[changes]") { "- Add a test for the empty case.\nVERDICT: CHANGES" } else { "Does what the ticket asks.\nVERDICT: GOOD" };
+        on("", Event::Say(text.into()))?;
+        on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text: text.into() })?;
         return Ok(());
     }
 
@@ -44,6 +54,11 @@ pub fn run(o: &Opts, prompt: &str, mut on: impl FnMut(&str, Event) -> Result<()>
         if said.contains("[comment]") {
             let key = said.split_whitespace().find(|w| w.contains('-') && w.ends_with(|ch: char| ch.is_ascii_digit())).unwrap_or("");
             text.push_str(&format!("\nCOMMENT: {key}\nPaste this in config.toml:\nport = 8080\nCOMMENT: NOPE-999 | lost"));
+        }
+        // Asked to [review] a ticket: the review line for the key it names.
+        if said.contains("[review]") {
+            let key = said.split_whitespace().find(|w| w.contains('-') && w.ends_with(|ch: char| ch.is_ascii_digit())).unwrap_or("");
+            text.push_str(&format!("\nREVIEW: {key}"));
         }
         on("", Event::Done { ok: true, cost: 0.0, tokens: 0, text })?;
         return Ok(());

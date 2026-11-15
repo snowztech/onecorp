@@ -44,6 +44,7 @@ flowchart TD
 | Ask someone in chat to look into or fix something | Them | Proposed tickets under their reply, one click to start | `chat::reply`, `chat::propose` |
 | Write the wiki, or Redraft | Whoever drafts it | Wiki pages to save | `work::write_wiki` |
 | Retry a stopped ticket | The same person | The same session picks up, or a clean start | `work::retry` |
+| Ask a lead to review work in review | The lead | A verdict on the Inbox card, the work still yours to merge | `work::ask_review` |
 
 **Who plans.** The planner is whoever you pick, or else the first person whose role sounds like product, or else a department lead (`work::pick_planner`). A plan is a ticket of kind `plan`. Its run is read-only and creates tickets with `create_ticket`. They wait in the backlog until you start the plan, which starts every one that has an owner (`start_proposed`).
 
@@ -69,6 +70,8 @@ When someone with a lead asks a question, it goes to the lead first (`mcp.rs`, s
 - `FOUNDER: why`: passed up to you, with the lead's reason shown on the Inbox card.
 
 Leads are told to pass up anything about product direction, money, anything public, security, or what the wiki says is yours. Anything unclear goes up, which is the safe side (`work::verdict`). Both outcomes are posted in the team's channel, so the team sees how questions get settled.
+
+A lead can also review work before you merge it. You ask from the Inbox, the author asks with **`request_review`** when they finish, or the lead starts it from chat with a `REVIEW:` line. The lead reads the changes read-only in the author's worktree, can run the build and test commands, and ends with `VERDICT: GOOD` or `VERDICT: CHANGES` and the list (`work::review`). The verdict shows on your Inbox card and in the team's channel. Merging, or sending the notes back, is still yours.
 
 ### To each other
 
@@ -111,7 +114,7 @@ Keeping these docs true is what keeps its answers true.
 
 Ways a real company works that OneCorp doesn't yet, roughly by how much they'd change things:
 
-1. **Leads don't review.** Work from Maya goes straight to you. A real CTO looks first, sends back what's not ready, and passes up what is.
+1. **Leads review only when asked.** A lead reviews work when you, its author or the lead asks (see "Through their lead"), and leaves a verdict, but nothing makes it the default yet, and changes they ask for go back only when you send them.
 2. **Nobody hears a mention live.** `@maya` in a post is read at Maya's next run. There's no "Maya, can you check this?" that gets an answer while the asker waits.
 3. **A ticket that waits doesn't hear about the one it waited for.** When TVC-6 starts after TVC-5 is merged, it gets the code but not TVC-5's summary or what the reviewer said.
 4. **Leads can't move running work.** A lead can propose tickets but can't reassign, stop or reprioritize anything already started.

@@ -247,6 +247,15 @@ enum Cmd {
         #[arg(short, long)]
         company: Option<String>,
     },
+    /// Have a teammate review a ticket before you merge it: the author's lead unless you name someone
+    AskReview {
+        ticket: String,
+        /// Who should review it, by name
+        #[arg(long)]
+        by: Option<String>,
+        #[arg(short, long)]
+        company: Option<String>,
+    },
     /// Read team chat
     Chat {
         /// Channel, like engineering or #eng. All channels when left out
@@ -773,6 +782,12 @@ fn run(cmd: Cmd) -> Result<()> {
         Cmd::Changes { ticket, feedback, company } => {
             let c = open(company)?;
             work::request_changes(&c, &find_ticket(&c, &ticket)?, &feedback)?;
+        }
+        Cmd::AskReview { ticket, by, company } => {
+            let c = open(company)?;
+            let t = find_ticket(&c, &ticket)?;
+            let who = work::ask_review(&c, &t, by.as_deref())?;
+            println!("{who} is reviewing {}. The verdict shows in onecorp inbox and onecorp logs {}.", c.key(t.id), c.key(t.id));
         }
         Cmd::Chat { channel, company } => {
             let c = open(company)?;

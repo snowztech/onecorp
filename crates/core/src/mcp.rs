@@ -161,6 +161,18 @@ fn tools() -> Value {
             }
         },
         {
+            "name": "request_review",
+            "description": "Ask a teammate to review your work before the founder sees it: your lead, unless you name someone. \
+                Call it once, when your work is ready. The review starts as soon as you finish and your ticket is in review, \
+                and its verdict lands on the ticket next to your summary.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "reviewer": {"type": "string", "description": "Who should review it, by name. Leave it out for your lead"}
+                }
+            }
+        },
+        {
             "name": "update_ticket",
             "description": "Only for when you can't continue: mark your ticket blocked, with what you need. It goes to the founder's Inbox to answer, and the ticket resumes with their answer. Finishing needs no tool: end with your summary and the ticket goes to review on its own.",
             "inputSchema": {
@@ -313,6 +325,13 @@ fn call(c: &Company, ctx: &Ctx, name: &Value, args: &Value) -> Result<String> {
             c.remember(&ctx.employee, &text)?;
             Ok("Saved to your notes. You'll see it at the start of your next ticket.".into())
         }
+        "request_review" => {
+            let t = c.ticket(ctx.ticket)?.ok_or_else(|| anyhow::anyhow!("no ticket"))?;
+            // Checked now, so a wrong name is fixed while the agent is still here to fix it.
+            let who = crate::work::reviewer_for(c, &t, Some(s("reviewer")).filter(|r| !r.is_empty()).as_deref())?;
+            c.add_event(ctx.ticket, "review-requested", &format!("asked {} for a review", who.name), &json!({ "by": who.id }).to_string())?;
+            Ok(format!("{} reviews it once you finish. End with your summary as usual.", who.name))
+        }
         "update_ticket" => {
             anyhow::ensure!(s("status") == "blocked", "the only status you can set is blocked");
             let note = s("note");
@@ -357,7 +376,7 @@ mod tests {
         assert!(handle(&c, &ctx, &json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).is_none());
 
         let list = handle(&c, &ctx, &req(2, "tools/list", json!({}))).unwrap();
-        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 7);
+        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), 8);
 
         let args = json!({"question": "15 or 60 minutes?", "options": ["15", "60"], "default": "15", "blocking": true});
         let ask = handle(&c, &ctx, &req(3, "tools/call", json!({"name": "ask_human", "arguments": args}))).unwrap();
