@@ -13,5 +13,5 @@ homepage = "https://github.com/snowztech/onecorp"
 onecorp = { path = "crates/core" }
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }
-rusqlite = { version = "0.41.1", features = ["bundled"] }
+rusqlite = { version = "0.41.1", features = ["bundled", "backup"] }
 serde_json = "1.0.154"
