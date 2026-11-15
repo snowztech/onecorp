@@ -9,6 +9,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 - Employees ask each other while they work. A designer can ask the engineer who built the API how it behaves, and gets the answer before going on. The question and the answer show in team chat and on the ticket, at most five a ticket. A plain post that @mentions someone says it won't be answered now. In chat, people can also read their own work that's waiting for review. (#99)
 - Employees remember a chat conversation past its last few messages. Each reply keeps a short summary of what you've talked about, so in a long DM they still know what you told them at the start, for the same cost a reply. The last few messages reach them in full, not cut short.
 - Replies in chat and Ask OneCorp appear as they're written, instead of all at once after "writing…".
+- In chat and Ask OneCorp, employees know what the whole team finished lately: the last 20 merged tickets, who did each, when, and what changed in a sentence. Before, they only knew their own tickets, so work merged since their last answer went unseen. Older work is a ticket key away.
 
 ### Changed
 

@@ -71,10 +71,11 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
         more = more.display(),
     );
     let prompt = format!(
-        "The conversation so far:\n{history}\n\nTheir company now:\n{team}\n{tickets}{mentioned}",
+        "The conversation so far:\n{history}\n\nTheir company now:\n{team}\n{tickets}{done}{mentioned}",
         history = recent.join("\n"),
         team = crate::work::who_does_what(c)?.join("\n"),
         tickets = open_tickets(c)?,
+        done = crate::chat::recent_work(c)?,
         mentioned = crate::chat::mentioned_tickets(c, &said.join("\n"))?,
     );
     let model = crate::work::talk_model(c, &e)?;

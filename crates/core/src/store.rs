@@ -200,6 +200,15 @@ pub struct Department {
 /// (time, ticket, employee, kind, summary, ticket title)
 pub type FeedEvent = (String, i64, String, String, String, String);
 
+/// A finished ticket: when it was done and the last thing its employee said about it.
+pub struct Finished {
+    pub id: i64,
+    pub title: String,
+    pub assignee: Option<String>,
+    pub at: String,
+    pub said: String,
+}
+
 /// A chat message. `author` is an employee id, or "founder".
 #[derive(Clone, Debug)]
 pub struct Message {
@@ -1259,6 +1268,23 @@ impl Company {
         let mut out: Vec<Message> = rows.collect::<Result<_, _>>()?;
         out.reverse();
         Ok(out)
+    }
+
+    /// Finished tickets, newest first. Plans are left out: a plan is done once it's started, the
+    /// work is in its tickets.
+    pub fn recently_done(&self, limit: usize) -> Result<Vec<Finished>> {
+        let mut st = self.db.prepare(
+            "SELECT t.id, t.title, t.assignee,
+                    coalesce((SELECT max(at) FROM events WHERE ticket_id = t.id AND kind IN ('merge', 'wiki')), ''),
+                    coalesce((SELECT summary FROM events WHERE ticket_id = t.id AND kind IN ('say', 'report-text') ORDER BY id DESC LIMIT 1), '')
+             FROM tickets t WHERE t.status = 'done' AND t.kind != 'plan' ORDER BY 4 DESC, t.id DESC LIMIT ?1",
+        )?;
+        let rows = st.query_map([limit as i64], |r| Ok(Finished { id: r.get(0)?, title: r.get(1)?, assignee: r.get(2)?, at: r.get(3)?, said: r.get(4)? }))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn done_count(&self) -> Result<i64> {
+        Ok(self.db.query_row("SELECT count(*) FROM tickets WHERE status = 'done' AND kind != 'plan'", [], |r| r.get(0))?)
     }
 
     /// The newest message id in each channel, for unread dots.

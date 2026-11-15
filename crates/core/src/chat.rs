@@ -248,11 +248,13 @@ pub fn reply(c: &Company, id: i64) -> Result<()> {
     );
     let prompt = format!(
         "{founder} {place}. {earlier}The latest messages, older ones shortened here (everyone saw them in full):\n\n{history}\n\n\
-         They wrote: {asked}\n\n{team}{tickets}{now}{mentioned}{elsewhere}",
+         They wrote: {asked}\n\n{team}{done}{tickets}{now}{mentioned}{elsewhere}",
         founder = asker.unwrap_or_else(crate::founder::name),
         place = if dm_of(&slot.channel).is_some() { "sent you a direct message".to_string() } else { format!("mentioned you in #{}, the team chat", slot.channel) },
         history = history.join("\n"),
         team = crate::work::team_now(c)?,
+        // Changes with every merge, so it's here and not in the cached system part.
+        done = recent_work(c)?,
         tickets = own_tickets(c, &e.id)?,
         now = doing.as_ref().map(|(_, text)| text.clone()).unwrap_or_default(),
         mentioned = mentioned_tickets(c, &said.join("\n"))?,
@@ -586,6 +588,35 @@ pub fn catch_up(c: &Company, e: &Employee) -> Result<String> {
         home(c, e)?,
         lines.join("\n")
     ))
+}
+
+/// What the whole team finished lately, the same for every chat reply and Ask OneCorp: newest
+/// first, one line each with who, when and the first sentence of their summary. Without it a
+/// reply only knows its own tickets, so work merged since the last reply goes unseen. Kept short
+/// on purpose: about 20 lines, a few hundred tokens. Older work is there by naming the ticket.
+pub fn recent_work(c: &Company) -> Result<String> {
+    const SHOWN: usize = 20;
+    const GIST: usize = 160;
+    let done = c.recently_done(SHOWN)?;
+    if done.is_empty() {
+        return Ok(String::new());
+    }
+    let names: std::collections::HashMap<String, String> = c.employees()?.into_iter().map(|e| (e.id, e.name)).collect();
+    let lines: Vec<String> = done
+        .iter()
+        .map(|f| {
+            let (id, title, at, said) = (&f.id, &f.title, &f.at, &f.said);
+            let who = f.assignee.as_deref().map(|w| names.get(w).and_then(|n| n.split_whitespace().next()).unwrap_or(w).to_string()).unwrap_or_else(|| "nobody".into());
+            let flat = said.replace('\n', " ");
+            // The first sentence says what changed. The rest is detail for the reviewer.
+            let gist = flat.split_inclusive(". ").next().unwrap_or("").trim();
+            let gist = if gist.is_empty() { String::new() } else { format!(": {}", runtime::clip(gist, GIST)) };
+            format!("- {} {} ({who}, {}){gist}", c.key(*id), title, at.get(..10).unwrap_or(at))
+        })
+        .collect();
+    let total = c.done_count()?;
+    let more = if total > SHOWN as i64 { format!(" The {} before these: name one, like {}, to see it.", total - SHOWN as i64, c.key(1)) } else { String::new() };
+    Ok(format!("\n\nWhat the team finished lately, newest first. All of it is merged.{more}\n{}", lines.join("\n")))
 }
 
 /// What someone has seen lately outside `skip`: #general, their team's channel, their DMs, and

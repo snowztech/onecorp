@@ -91,7 +91,7 @@ Built fresh for each run (`work::company_knowledge`):
 - How OneCorp works: tickets live in OneCorp, OneCorp does git, how to ask, how to write.
 - Who works here: each person's team, whether they lead it, and what they're on right now.
 - Their own notes, and recent chat.
-- In chat, also their own tickets, their current steps and worktree, and any ticket named in the conversation, like TVC-4.
+- In chat, also what the whole team finished lately (the last 20 merged tickets, a line each), their own tickets, their current steps and worktree, and any ticket named in the conversation, like TVC-4.
 
 ## How work comes back to you
 
