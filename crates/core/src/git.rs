@@ -41,35 +41,27 @@ pub fn add_worktree(repo: &Path, path: &Path, branch: &str, from: &str) -> Resul
     Ok(name)
 }
 
-/// What `copy_env` copies when the repo says nothing else: env files, at any depth.
-const ENV_FILES: [&str; 4] = [".env", ".env.*", "*/.env", "*/.env.*"];
-
-/// Copies the checkout's env files into a ticket's worktree: by default `.env` and `.env.*` that
-/// git ignores, at any depth outside ignored folders like node_modules. A worktree gets only what
-/// git tracks, so without these an employee starts with no API keys or database URLs and gets stuck.
-/// Being ignored, they never end up in a commit.
-///
-/// The repo can change the list in `.onecorp/worktree`, one pattern a line: more files to copy,
-/// like `config/local.yml`, or `!.env.production` to leave one out. `#` starts a comment.
+/// Copies the checkout's ignored files a ticket's worktree needs: the ones `.worktreeinclude`
+/// lists, the file Claude Code reads for `claude --worktree` too, in .gitignore syntax. Without
+/// one, `.env` and `.env.*` at any depth. A worktree gets only what git tracks, so without these
+/// an employee starts with no API keys or database URLs and gets stuck. Only files git ignores
+/// are copied, so they never end up in a commit, and never symlinks.
 ///
 /// Run again when a ticket picks back up, it brings over what changed in the checkout since.
 /// The newer file wins: one the employee edited since stays theirs until yours changes again.
 /// Returns what it copied, like ".env" and "api/.env".
 pub fn copy_env(repo: &Path, wt: &Path) -> Vec<String> {
-    let listed = std::fs::read_to_string(repo.join(".onecorp/worktree")).unwrap_or_default();
-    let lines: Vec<&str> = listed.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
-    let mut args: Vec<String> = ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--"].map(String::from).to_vec();
-    args.extend(ENV_FILES.iter().map(|p| p.to_string()));
-    args.extend(lines.iter().map(|l| match l.strip_prefix('!') {
-        Some(out) => format!(":(exclude){}", out.trim()),
-        None => l.to_string(),
-    }));
-    let Ok(found) = git(repo, &args.iter().map(String::as_str).collect::<Vec<_>>(), &[]) else { return vec![] };
+    let listed = if repo.join(".worktreeinclude").is_file() {
+        git(repo, &["ls-files", "--others", "--ignored", "--exclude-from=.worktreeinclude"], &[])
+    } else {
+        git(repo, &["ls-files", "--others", "--ignored", "--exclude=.env", "--exclude=.env.*"], &[])
+    };
+    let Ok(listed) = listed else { return vec![] };
     let modified = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
     let mut copied = vec![];
-    for file in found.lines().filter(|f| !f.ends_with('/')) {
+    for file in listed.lines().filter(|f| ok(repo, &["check-ignore", "-q", f]).unwrap_or(false)) {
         let (from, to) = (repo.join(file), wt.join(file));
-        if !from.is_file() || !to.parent().is_some_and(Path::is_dir) {
+        if !std::fs::symlink_metadata(&from).is_ok_and(|m| m.is_file()) || !to.parent().is_some_and(Path::is_dir) {
             continue;
         }
         let Some(at) = modified(&from) else { continue };
@@ -430,17 +422,16 @@ mod tests {
         }
         assert!(warm_builds(&repo, &wt3).is_empty(), "never twice");
 
-        // And its env files, the ones git ignores. Not ones inside an ignored folder, and never into a commit.
-        write(&repo.join(".gitignore"), "target/\n.env\n.env.local\nnode_modules/\n");
+        // And its env files, the ones git ignores, at any depth. Never into a commit.
+        write(&repo.join(".gitignore"), "target/\n.env\n.env.local\nlocal.yml\n");
         commit_all(&repo, "ignore env", &me).unwrap();
         std::fs::create_dir_all(repo.join("api")).unwrap();
-        std::fs::create_dir_all(repo.join("node_modules/x")).unwrap();
         write(&repo.join("api/.gitignore"), ".env\n");
         commit_all(&repo, "api", &me).unwrap();
         write(&repo.join(".env"), "KEY=1\n");
         write(&repo.join(".env.local"), "LOCAL=1\n");
         write(&repo.join("api/.env"), "DB=x\n");
-        write(&repo.join("node_modules/x/.env"), "no\n");
+        write(&repo.join("local.yml"), "port: 1\n");
         let wt4 = root.join("wt4");
         add_worktree(&repo, &wt4, "t/4", "main").unwrap();
         let mut env = copy_env(&repo, &wt4);
@@ -462,18 +453,14 @@ mod tests {
         assert_eq!(std::fs::read_to_string(wt4.join(".env")).unwrap(), "KEY=2\n");
         assert_eq!(std::fs::read_to_string(wt4.join("api/.env")).unwrap(), "DB=theirs\n");
 
-        // The repo's own list: one more file, one env file left out.
-        write(&repo.join(".gitignore"), "target/\n.env\n.env.*\nnode_modules/\nlocal.yml\n");
-        std::fs::create_dir_all(repo.join(".onecorp")).unwrap();
-        write(&repo.join(".onecorp/worktree"), "# what a worktree gets\nlocal.yml\n!.env.production\n");
+        // A .worktreeinclude, the file Claude Code reads too, says exactly what to copy.
+        write(&repo.join(".worktreeinclude"), "# what a worktree gets\n.env*\nlocal.yml\n!.env.local\n");
         commit_all(&repo, "worktree list", &me).unwrap();
-        write(&repo.join("local.yml"), "port: 1\n");
-        write(&repo.join(".env.production"), "PROD=1\n");
         let wt5 = root.join("wt5");
         add_worktree(&repo, &wt5, "t/5", "main").unwrap();
         let mut env = copy_env(&repo, &wt5);
         env.sort();
-        assert_eq!(env, [".env", ".env.local", "api/.env", "local.yml"]);
+        assert_eq!(env, [".env", "api/.env", "local.yml"]);
 
         // Ticket 2 started before a conflicting change landed on main.
         let wt2 = root.join("wt2");
