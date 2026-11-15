@@ -270,13 +270,20 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
     if !warmed.is_empty() {
         out(&format!("      reusing your builds in {}", warmed.join(", ")));
     }
+    let env = git::copy_env(&repo, &wt);
+    if !env.is_empty() {
+        out(&format!("      copied {} from your checkout", env.join(", ")));
+        c.add_event(id, "tool", &format!("copied {} from the founder's checkout", env.join(", ")), "")?;
+    }
     // The ticket's branch is the only one its worktree can push.
     if let Err(err) = git::guard_pushes(&repo, &wt, &branch, &c.dir.join("hooks").join(key.to_lowercase())) {
         out(&format!("      warning: couldn't guard pushes: {err:#}"));
     }
     let setup = run_setup(c, t, id, &wt)?;
 
-    let (bio, details) = (crate::voice::intro(c, &e)?, format!("{}{setup}", ticket_details(c, t)?));
+    // Said, so they look there before asking you for a key.
+    let env = if env.is_empty() { String::new() } else { format!("\n\nYour worktree has the env files from the founder's checkout: {}. Read keys and URLs from there. Never commit them or paste their values anywhere.", env.join(", ")) };
+    let (bio, details) = (crate::voice::intro(c, &e)?, format!("{}{setup}{env}", ticket_details(c, t)?));
     let knowledge = company_knowledge(c, crate::roles::spaces(crate::roles::role_of(c, &e)?))?;
     let (notes, chat) = (own_notes(c, &e.id)?, crate::chat::catch_up(c, &e)?);
     let prompt = format!(
@@ -1183,6 +1190,12 @@ fn pick_up(c: &Company, t: &Ticket, why: &str, prompt: &str, label: &str) -> Res
     let e = employee_of(c, t)?;
     c.set_status(t.id, "doing")?;
     out(&format!("{key}  {}\n      {} picks it back up {why}\n", t.title, e.name));
+    // What changed in your env files while they waited comes with them.
+    let env = git::copy_env(&c.repo_of(t)?, Path::new(wt));
+    if !env.is_empty() {
+        out(&format!("      updated {} from your checkout", env.join(", ")));
+        c.add_event(t.id, "tool", &format!("updated {} from the founder's checkout", env.join(", ")), "")?;
+    }
     drive(c, &e, t.id, Path::new(wt), Some(session), prompt, label)
 }
 
