@@ -397,6 +397,8 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .close { margin-left: auto; border: 0; background: transparent; font-size: 22px; color: var(--muted); width: 36px; height: 36px; border-radius: 8px; }
 .close:hover { background: var(--surface-2); }
 .dbody { overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 18px; }
+/* The drawer scrolls, not its parts. Without this the log, which scrolls itself, gets squeezed to a line. */
+.dbody > * { flex-shrink: 0; }
 .dbody h5 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .term { background: var(--term-bg); color: var(--term-fg); font: 12px/1.6 var(--mono); border-radius: 8px; padding: 10px 12px; max-height: 380px; overflow: auto; }
 .term .lr { display: grid; grid-template-columns: auto 40px minmax(0, 1fr); gap: 0 8px; padding: 2px 0; }

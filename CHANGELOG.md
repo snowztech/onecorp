@@ -8,6 +8,10 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 - A guide to everything OneCorp does, at [onecorp.dev/docs](https://onecorp.dev/docs/): setting up, your team, tickets, the Inbox, reviews, chat, the wiki, spending, routines, backups, the command line, and what to do when something's off. Help in the app links to it, and Ask OneCorp answers from it.
 
+### Fixed
+
+- A ticket's log no longer shrinks to a single line when the ticket has long details, and Everything that happened opens right away on a ticket that hasn't started yet.
+
 ## [0.1.14] - 2026-11-15
 
 Your team runs more on its own: leads review work before it reaches you, routines bring back recurring work, employees ask each other, and a stuck run stops by itself. Each company is backed up, and chat and tickets cost less.

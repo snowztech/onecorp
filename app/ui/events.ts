@@ -206,7 +206,7 @@ document.addEventListener("click", async e => {
       S.founder = null; S.confirm = null; S.pop = false; S.sheet = null; S.profile = { name: "" }; renderPop(); renderSheet(); return render();
     });
   }
-  if (d.more) { if (/^(chg|ans|rty)-/.test(d.more)) S.confirm = null; S.open[d.more] = !S.open[d.more]; render(); return document.getElementById(d.more)?.focus(); }
+  if (d.more) { if (/^(chg|ans|rty)-/.test(d.more)) S.confirm = null; S.open[d.more] = !S.open[d.more]; render(); renderDrawer(); return document.getElementById(d.more)?.focus(); }
   if (d.profile) return openSettings("you");
   if (d.pop) { S.pop = d.pop === "menu" && S.pop === "menu" ? false : d.pop as "menu" | "forget"; renderPop(); return $("#pf-name")?.focus(); }
   if (d.settings) return openSettings();
