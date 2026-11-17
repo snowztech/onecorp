@@ -297,9 +297,10 @@ pub fn rev(repo: &Path, name: &str) -> Option<String> {
     git(repo, &["rev-parse", "--verify", "--quiet", name], &[]).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
-/// "hash subject" for each commit between `from` and `to` written by `email`.
-pub fn authored_by(repo: &Path, from: &str, to: &str, email: &str) -> Vec<String> {
-    git(repo, &["log", "--format=%h %s", &format!("--author=<{email}>"), &format!("{from}..{to}")], &[])
+/// "hash subject" for each commit `to` gained since `from` that came from `branch`.
+pub fn from_branch(repo: &Path, from: &str, to: &str, branch: &str) -> Vec<String> {
+    let Ok(shared) = git(repo, &["merge-base", to, branch], &[]) else { return vec![] };
+    git(repo, &["log", "--format=%h %s", &format!("{from}..{}", shared.trim())], &[])
         .map(|s| s.lines().map(String::from).collect())
         .unwrap_or_default()
 }
