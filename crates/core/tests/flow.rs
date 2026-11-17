@@ -132,6 +132,20 @@ fn a_ticket_goes_from_start_to_merged() {
     assert!(c.events(sneak).unwrap().iter().any(|(_, kind, s)| kind == "error" && s.contains("main changed during this run") && s.contains("Maya Okafor")), "{:?}", c.events(sneak).unwrap());
     git(&repo, &["reset", "-q", "--hard", "main"]);
 
+    // With commits as you, what they commit during a run is yours too, and still flagged if it reaches main.
+    git(&repo, &["config", "user.name", "Founder"]);
+    git(&repo, &["config", "user.email", "founder@example.com"]);
+    c.set_setting("commits", "you").unwrap();
+    let mine = c.add_ticket("another fix [land on main]", "maya").unwrap();
+    work::dispatch(&c, mine, Job::Start).unwrap();
+    assert!(c.events(mine).unwrap().iter().any(|(_, kind, s)| kind == "error" && s.contains("main changed during this run")), "{:?}", c.events(mine).unwrap());
+    let author = std::process::Command::new("git").arg("-C").arg(&repo).args(["log", "-1", "--format=%ae", "main"]).output().unwrap();
+    assert_eq!(String::from_utf8_lossy(&author.stdout).trim(), "founder@example.com");
+    git(&repo, &["reset", "-q", "--hard", "main"]);
+    git(&repo, &["config", "--unset", "user.name"]);
+    git(&repo, &["config", "--unset", "user.email"]);
+    c.set_setting("commits", "team").unwrap();
+
     // Tickets saved for later, chained: the second starts by itself once the first is merged.
     let saved = |title: &str, who: &str, after: Option<i64>| {
         let new = NewTicket { title: title.into(), description: format!("Details for {title}"), assignee: Some(who.into()), after, ..Default::default() };

@@ -169,6 +169,8 @@ Spending also breaks it down by person, project, kind of run and agent, over the
 
 **What employees can run.** By default, anything in their worktree, and their branch is theirs to commit and push. Changing git config or remotes, other branches, sudo, gh and deleting folders stay off. A pre-push guard keeps each worktree's pushes on its own branch. With "Only allowed" (Settings, Company, Commands), they run your repo's build and test commands only, and ask you for anything else in one request.
 
+**Whose name is on the commits.** Settings, Company, Commits. As you: every commit is yours, from your git config, including the ones an employee makes during a run. As your team: the employee is the author and you're credited as co-author.
+
 **Build and test commands.** OneCorp reads your repo and lists its build and test commands, for Rust, Node, Python, Go, Ruby, Java, .NET, Swift, Elixir, PHP, Flutter and more. Change the list per repo in Settings, Company.
 
 **Env files.** A new worktree gets the env files from your checkout: `.env` and `.env.*` that git ignores, so employees start with the same keys and database URLs you have, and never commit them. When a ticket picks back up, it gets what you changed since.

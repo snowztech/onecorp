@@ -553,9 +553,9 @@ fn run_ticket(c: &Company, t: &Ticket) -> Result<()> {
         },
         abilities = runtime::abilities(&e.runtime, &crate::commands::for_ticket(c, t)?, crate::commands::run_any(c)?, &branch),
         commits = if crate::commands::run_any(c)? {
-            "Commit as you go if it helps: when you finish, OneCorp commits whatever you left, under your name."
+            "Commit as you go if it helps: when you finish, OneCorp commits whatever you left."
         } else {
-            "Don't commit: when you finish, OneCorp commits your changes under your name."
+            "Don't commit: when you finish, OneCorp commits your changes."
         },
         in_repo = match &t.repo {
             Some(r) => format!(", in the {r} repo"),
@@ -579,14 +579,16 @@ fn base_watch(c: &Company, id: i64) -> Result<Option<(std::path::PathBuf, String
     Ok(git::rev(&repo, &name).map(|sha| (repo, name, sha)))
 }
 
-/// Flags commits by this employee that reached the base branch during the run. Only your approval
+/// Flags commits from this ticket's branch that reached the base branch during the run. Only your approval
 /// should put work there, so this means something went around it.
 fn check_base(c: &Company, id: i64, e: &Employee, (repo, name, before): &(std::path::PathBuf, String, String)) -> Result<()> {
     if let Some(base) = name.strip_prefix("origin/") {
         let _ = git::fetch(repo, base);
     }
     let Some(after) = git::rev(repo, name).filter(|a| a != before) else { return Ok(()) };
-    let theirs = git::authored_by(repo, before, &after, &format!("{}@{}.onecorp", e.id, c.name));
+    // By branch, not author: under "As you" their commits carry your name.
+    let Some(branch) = c.ticket(id)?.and_then(|t| t.branch) else { return Ok(()) };
+    let theirs = git::from_branch(repo, before, &after, &branch);
     if theirs.is_empty() {
         return Ok(());
     }
@@ -1615,7 +1617,8 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
     let key = c.key(id);
     // The agent starts this same binary as the company's MCP server, scoped to this ticket.
     let mcp = company_tools(c, id, &e.id)?;
-    let identity = git::identity(&e.name, &format!("{}@{}.onecorp", e.id, c.name));
+    // Commits the employee makes during the run follow the Commits setting, like OneCorp's own at the end.
+    let identity = signature(c, e, wt)?.env;
     let remember_pid = |pid: u32| {
         let _ = c.set_agent_pid(id, Some(pid));
     };
@@ -1737,7 +1740,8 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
         };
         if let Some(hash) = git::commit_all(wt, &full, &sig.env)? {
             c.add_event(id, "commit", &format!("{hash} {msg}"), "")?;
-            out(&format!("  commit {hash} as {}", e.name));
+            let by = sig.env.iter().find(|(k, _)| k == "GIT_AUTHOR_NAME").map_or(e.name.as_str(), |(_, v)| v.as_str());
+            out(&format!("  commit {hash} as {by}"));
         }
         // A ticket that changed nothing, like an audit, is a report: its reply is the work, and
         // there's no branch to push or merge.
