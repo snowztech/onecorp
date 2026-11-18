@@ -6,10 +6,12 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Added
 
+- Reset your Claude or ChatGPT plan before the time it gave? Try now, in the usage limit banner, starts the waiting work right away instead of holding it until then.
 - A guide to everything OneCorp does, at [onecorp.dev/docs](https://onecorp.dev/docs/): setting up, your team, tickets, the Inbox, reviews, chat, the wiki, spending, routines, backups, the command line, and what to do when something's off. Help in the app links to it, and Ask OneCorp answers from it.
 
 ### Fixed
 
+- A weekly usage limit, like Claude's "resets Nov 20 at 1am", now waits until that day. Before, OneCorp didn't read the date and tried again every half hour, and the banner said tomorrow for any day after today.
 - With commits set to As you, the commits an employee makes during a run are yours too. Before, only the one OneCorp makes at the end was, and the rest showed the employee's OneCorp address on GitHub.
 - Show changes wraps long lines under themselves, next to their line numbers. Scrolling one sideways used to hide the numbers and the start of every other line.
 - A ticket's log no longer shrinks to a single line when the ticket has long details, and Everything that happened opens right away on a ticket that hasn't started yet.

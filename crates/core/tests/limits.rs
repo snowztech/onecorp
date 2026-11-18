@@ -29,8 +29,10 @@ fn a_usage_limit_queues_work_until_it_resets() {
     assert!(limits::away(&c).unwrap().contains(&"odile".to_string()), "everyone on that agent waits");
     assert!(c.claim_job().unwrap().is_none());
 
-    // The limit resets: the queued work is picked up again.
-    std::fs::remove_file(root.join("home/limits/fake")).unwrap();
+    // The plan was reset by hand before its time: trying now picks the queued work up again.
+    limits::clear("fake").unwrap();
+    assert!(limits::until("fake").is_none());
+    limits::clear("fake").unwrap();
     assert!(c.claim_job().unwrap().is_some());
 
     let _ = std::fs::remove_dir_all(&root);

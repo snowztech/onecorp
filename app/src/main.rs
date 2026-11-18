@@ -447,6 +447,12 @@ fn keep_going_today(company: String) -> Res<()> {
     onecorp::spend::resume_for_today(&open(&company)?).map_err(err)
 }
 
+/// Stop waiting for these agents' plan limits, after resetting the plan before its time.
+#[tauri::command(async)]
+fn try_limits_now(runtimes: Vec<String>) -> Res<()> {
+    runtimes.iter().try_for_each(|r| onecorp::limits::clear(r)).map_err(err)
+}
+
 /// The same checks as `onecorp doctor`.
 #[tauri::command(async)]
 fn health() -> Res<Value> {
@@ -1025,6 +1031,7 @@ fn main() {
             set_run_limit,
             set_cap,
             keep_going_today,
+            try_limits_now,
             delete_company,
             take_backup,
             restore_backup,

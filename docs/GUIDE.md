@@ -159,7 +159,7 @@ Settings, Spending is where you control it:
 - **Limit for one run**: $5 unless you change it. A ticket run that gets there stops with its work kept, and the Inbox asks whether to keep going.
 - **A daily cap per person**, in their profile.
 - **Chat and lead decisions** can run on a cheaper model than tickets: Cheapest, Balanced, or each person's own.
-- **Plan limits.** On a Claude or ChatGPT plan, when the usage limit is hit, work waits and picks back up by itself when it resets. Spending says how often that happened this week.
+- **Plan limits.** On a Claude or ChatGPT plan, when the usage limit is hit, work waits and picks back up by itself when it resets. Reset it sooner? Try now in the banner. Spending says how often that happened this week.
 
 Spending also breaks it down by person, project, kind of run and agent, over the last two weeks.
 
@@ -252,7 +252,7 @@ onecorp serve                                     # run queued work, several peo
 
 **A run stopped.** The Inbox card says why. Retry continues in the same session when it can. Retry with a note to tell them what to do differently.
 
-**Work is waiting.** Check the banner at the top: the company may be paused, at its daily budget, or an agent may have hit its plan's usage limit. Work picks up by itself when a limit resets.
+**Work is waiting.** Check the banner at the top: the company may be paused, at its daily budget, or an agent may have hit its plan's usage limit. Work picks up by itself when a limit resets. If you reset your plan sooner, Try now in the banner starts it right away.
 
 **An employee is missing a key or a database.** Their worktree gets your env files. If a file isn't copied, list it in `.worktreeinclude`. If they need a command that isn't allowed, they'll ask in the Inbox.
 

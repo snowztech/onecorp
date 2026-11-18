@@ -46,8 +46,8 @@ export function render() {
   const banner = $("#paused");
   const limits = S.snap?.limits || [];
   banner.hidden = !((S.snap?.paused || limits.length) && !S.profile && !S.setup);
-  // A plan limit isn't something you can fix from here, so it's said plainly, with no button.
-  if (!banner.hidden && !S.snap!.paused) banner.innerHTML = `<span>${icon("pause")}<b>${limits.map(l => `${esc(AGENTS[l.runtime]?.name || l.runtime)} reached its plan's usage limit`).join(", ")}.</b> That work waits and starts again by itself at ${esc(limits.map(l => l.back).join(" and "))}.</span>`;
+  // A plan can be reset before the time it gave, so Try now stops waiting. If it's still reached, the next run says so.
+  if (!banner.hidden && !S.snap!.paused) banner.innerHTML = `<span>${icon("pause")}<b>${limits.map(l => `${esc(AGENTS[l.runtime]?.name || l.runtime)} reached its plan's usage limit`).join(", ")}.</b> That work waits and starts again by itself at ${esc(limits.map(l => l.back).join(" and "))}.</span><button class="btn" data-limits-now="${esc(limits.map(l => l.runtime).join(","))}">Try now</button>`;
   else if (!banner.hidden) banner.innerHTML = S.snap!.spend?.paused_by_budget
     ? `<span>${icon("pause")}<b>${esc(S.company)} reached its ${money(S.snap!.spend.budget)} daily budget.</b> Running work finishes, and nothing new starts until tomorrow.</span><button class="btn" data-settings-tab="spend">Raise budget</button><button class="btn" data-keep-going="1">Keep going today</button>`
     : `<span>${icon("pause")}<b>${esc(S.company)} is paused.</b> Running work finishes, nothing new starts, and nobody replies in chat.</span><button class="btn" data-pause="0">Resume</button>`;
