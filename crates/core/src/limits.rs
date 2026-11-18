@@ -17,6 +17,8 @@ pub enum Reset {
     In(i64),
     /// A local clock time, like "resets 3pm" or "resets at 15:30".
     Clock(u32, u32),
+    /// A local date and time, like a weekly limit's "resets Nov 20 at 1am": month, day, hour, minute.
+    Date(u32, u32, u32, u32),
     /// A limit, but no time we could read. We try again in a while.
     Unknown,
 }
@@ -52,24 +54,43 @@ pub fn detect(text: &str) -> Option<Reset> {
         }
     }
     if let Some(rest) = t.split("reset").nth(1) {
-        let rest = rest.trim_start_matches(|c: char| c.is_alphabetic()).trim_start().trim_start_matches("at").trim_start();
+        let mut rest = rest.trim_start_matches(|c: char| c.is_alphabetic()).trim_start();
+        // A weekly limit gives a date first: "nov 20 at 1am".
+        let mut date = None;
+        if let Some(month) = MONTHS.iter().position(|m| rest.starts_with(m)) {
+            let after = rest.trim_start_matches(|c: char| c.is_alphabetic() || c == '.').trim_start();
+            let digits: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if let Ok(day) = digits.parse::<u32>() {
+                date = Some((month as u32 + 1, day));
+                rest = after[digits.len()..].trim_start_matches(|c: char| c.is_alphabetic() || c == ',').trim_start();
+            }
+        }
+        let rest = rest.trim_start_matches("at").trim_start();
         let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-        if let Ok(mut h) = digits.parse::<u32>() {
+        let (mut h, mut m) = (None, 0);
+        if let Ok(mut hour) = digits.parse::<u32>() {
             let after = &rest[digits.len()..];
-            let m = after.strip_prefix(':').and_then(|s| s.get(..2)?.parse::<u32>().ok()).unwrap_or(0);
+            let minute = after.strip_prefix(':').and_then(|s| s.get(..2)?.parse::<u32>().ok()).unwrap_or(0);
             let tail = after.trim_start_matches(|c: char| c == ':' || c.is_ascii_digit()).trim_start();
-            if tail.starts_with("pm") && h < 12 {
-                h += 12;
-            } else if tail.starts_with("am") && h == 12 {
-                h = 0;
+            if tail.starts_with("pm") && hour < 12 {
+                hour += 12;
+            } else if tail.starts_with("am") && hour == 12 {
+                hour = 0;
             }
-            if h < 24 && m < 60 {
-                return Some(Reset::Clock(h, m));
+            if hour < 24 && minute < 60 {
+                (h, m) = (Some(hour), minute);
             }
+        }
+        match (date, h) {
+            (Some((mo, d)), h) => return Some(Reset::Date(mo, d, h.unwrap_or(0), m)),
+            (None, Some(h)) => return Some(Reset::Clock(h, m)),
+            _ => {}
         }
     }
     Some(Reset::Unknown)
 }
+
+const MONTHS: [&str; 12] = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
 fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
@@ -90,6 +111,27 @@ fn next_clock(h: u32, m: u32) -> Result<i64> {
     Ok(if at <= now() { at + 86_400 } else { at })
 }
 
+/// The next time it's that local date and time: this year, or next year in late December for
+/// "resets Jan 2". None for a date that doesn't exist.
+fn next_date(mo: u32, d: u32, h: u32, m: u32) -> Result<Option<i64>> {
+    let db = rusqlite::Connection::open_in_memory()?;
+    let year: u32 = db.query_row("SELECT CAST(strftime('%Y','now','localtime') AS INTEGER)", [], |r| r.get(0))?;
+    for y in [year, year + 1] {
+        let at: Option<i64> = db.query_row(
+            // SQLite rolls Feb 30 over to March, so a date that doesn't come back the same isn't one.
+            "SELECT CASE WHEN date(d) = substr(d, 1, 10) THEN CAST(strftime('%s', datetime(d, 'utc')) AS INTEGER) END FROM (SELECT printf('%04d-%02d-%02d %02d:%02d:00', ?1, ?2, ?3, ?4, ?5) AS d)",
+            [y, mo, d, h, m],
+            |r| r.get(0),
+        )?;
+        match at {
+            Some(at) if at > now() => return Ok(Some(at)),
+            Some(_) => continue,
+            None => return Ok(None),
+        }
+    }
+    Ok(None)
+}
+
 /// Records a limit for this runtime if the text says it hit one. True when it did.
 pub fn hit(runtime: &str, text: &str) -> Result<bool> {
     let Some(reset) = detect(text) else { return Ok(false) };
@@ -97,6 +139,7 @@ pub fn hit(runtime: &str, text: &str) -> Result<bool> {
         Reset::At(t) if t > now() => t,
         Reset::In(m) => now() + m * 60,
         Reset::Clock(h, m) => next_clock(h, m)?,
+        Reset::Date(mo, d, h, m) => next_date(mo, d, h, m)?.unwrap_or_else(|| now() + 30 * 60),
         // A time already past, or none at all: look again in half an hour.
         _ => now() + 30 * 60,
     };
@@ -111,13 +154,30 @@ pub fn until(runtime: &str) -> Option<i64> {
     (at > now()).then_some(at)
 }
 
-/// "15:00", or "tomorrow 09:00", in local time.
+/// Forgets this runtime's limit. A plan can be reset or upgraded before the time it gave, and work
+/// shouldn't sit waiting for nothing. If the limit is still there, the next run sets it again.
+pub fn clear(runtime: &str) -> Result<()> {
+    match std::fs::remove_file(file(runtime)) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
+        _ => Ok(()),
+    }
+}
+
+/// "15:00", "tomorrow 09:00", or "Nov 20 01:00" further out, in local time.
 pub fn label(at: i64) -> String {
     let db = rusqlite::Connection::open_in_memory().ok();
-    let q = |f: &str| db.as_ref().and_then(|d| d.query_row(&format!("SELECT strftime('{f}', ?1, 'unixepoch', 'localtime')"), [at], |r| r.get::<_, String>(0)).ok());
-    let (day, today, time) = (q("%Y-%m-%d"), db.as_ref().and_then(|d| d.query_row("SELECT date('now','localtime')", [], |r| r.get::<_, String>(0)).ok()), q("%H:%M"));
-    let time = time.unwrap_or_default();
-    if day == today { time } else { format!("tomorrow {time}") }
+    let q = |sql: &str| db.as_ref().and_then(|d| d.query_row(sql, [at], |r| r.get::<_, String>(0)).ok()).unwrap_or_default();
+    let day = q("SELECT date(?1, 'unixepoch', 'localtime')");
+    let time = q("SELECT strftime('%H:%M', ?1, 'unixepoch', 'localtime')");
+    if day == q("SELECT date('now','localtime') WHERE ?1 IS NOT NULL") {
+        time
+    } else if day == q("SELECT date('now','localtime','+1 day') WHERE ?1 IS NOT NULL") {
+        format!("tomorrow {time}")
+    } else {
+        let month = day.get(5..7).and_then(|s| s.parse::<usize>().ok()).and_then(|n| MONTHS.get(n.wrapping_sub(1))).unwrap_or(&"");
+        let month = month.get(..1).unwrap_or("").to_uppercase() + month.get(1..).unwrap_or("");
+        format!("{month} {} {time}", day.get(8..).unwrap_or("").trim_start_matches('0'))
+    }
 }
 
 /// Everyone who can't take work right now: at their daily cap, or on an agent that hit its limit.
@@ -141,8 +201,19 @@ mod tests {
         assert_eq!(detect("You've hit your limit · resets 3pm (Europe/Paris)"), Some(Reset::Clock(15, 0)));
         assert_eq!(detect("5-hour limit reached ∙ resets at 9:30am"), Some(Reset::Clock(9, 30)));
         assert_eq!(detect("You've hit your usage limit. Try again in 2 hours 10 minutes."), Some(Reset::In(130)));
+        assert_eq!(detect("You've hit your weekly limit · resets Nov 20 at 1am (Europe/Paris)"), Some(Reset::Date(11, 20, 1, 0)));
+        assert_eq!(detect("weekly limit reached, resets Dec 3, 4:30pm"), Some(Reset::Date(12, 3, 16, 30)));
         assert_eq!(detect("usage_limit_reached"), Some(Reset::Unknown));
         assert_eq!(detect("cargo test failed: 3 tests"), None);
         assert_eq!(detect("Added rate limiting to the API"), None);
+    }
+
+    #[test]
+    fn a_date_is_the_next_one_and_says_its_day() {
+        let at = next_date(1, 1, 0, 0).unwrap().unwrap();
+        assert!(at > now() && at <= now() + 366 * 86_400, "the coming New Year");
+        assert_eq!(next_date(2, 30, 0, 0).unwrap(), None, "no Feb 30");
+        assert!(label(now() + 3 * 86_400).starts_with(char::is_uppercase), "three days out: {}", label(now() + 3 * 86_400));
+        assert!(label(now() + 86_400).starts_with("tomorrow"));
     }
 }
