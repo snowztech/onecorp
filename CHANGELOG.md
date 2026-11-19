@@ -10,6 +10,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 
 ### Fixed
 
+- A message you started in chat stays in the box when you go to another page or channel and come back, even after quitting OneCorp. Before, it was gone. (#87)
 - With commits set to As you, the commits an employee makes during a run are yours too. Before, only the one OneCorp makes at the end was, and the rest showed the employee's OneCorp address on GitHub.
 - Show changes wraps long lines under themselves, next to their line numbers. Scrolling one sideways used to hide the numbers and the start of every other line.
 - A ticket's log no longer shrinks to a single line when the ticket has long details, and Everything that happened opens right away on a ticket that hasn't started yet.

@@ -5,7 +5,7 @@ import { alertNew, watchAll } from "./notify.ts";
 import { renderSide, renderTop } from "./shell.ts";
 import { S, booted, invoke, seenFirstTime, settling } from "./state.ts";
 import { viewBoard } from "./views/board.ts";
-import { viewChat } from "./views/chat.ts";
+import { restoreDraft, viewChat } from "./views/chat.ts";
 import { viewCompany } from "./views/company.ts";
 import { viewInbox } from "./views/inbox.ts";
 import { startSetup, viewProfile, viewSetup, viewWelcome } from "./views/onboarding.ts";
@@ -75,6 +75,7 @@ export function render() {
     const chat = keepChatScroll();
     if (put(v, views[S.view]?.() ?? viewCompany())) {
       chat();
+      if (S.view === "chat") restoreDraft();
       if (S.view === "wiki") markWiki();
     }
   }

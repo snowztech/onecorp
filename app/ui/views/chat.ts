@@ -121,13 +121,29 @@ export function updateMentions(input: HTMLInputElement) {
     : quiet ? `<span class="muted">No one is mentioned, so no one will reply. Add @ to ask someone.</span>` : "";
 }
 
+// What you were writing in each channel, so leaving the page, switching channel or quitting doesn't lose it.
+// Kept out of the page's HTML: a value in it would make every keystroke look like a change to redraw.
+const DRAFTS_KEY = "onecorp.drafts";
+const drafts: Record<string, string> = (() => { try { return JSON.parse(localStorage.getItem(DRAFTS_KEY) || "{}"); } catch { return {}; } })();
+const draftKey = () => `${S.company}/${S.channel}`;
+export function saveDraft(text: string) {
+  if (text) drafts[draftKey()] = text; else delete drafts[draftKey()];
+  try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts)); } catch {}
+}
+export function restoreDraft() {
+  const input = $<HTMLInputElement>("#say-text"), text = drafts[draftKey()];
+  if (!input || !text || input.value) return;
+  input.value = text;
+  updateMentions(input);
+}
+
 export function pickMention(k: number) {
   const input = $("#say-text"), o = S.mention?.opts[k];
   if (!o) return;
   const at = input.selectionStart ?? input.value.length, before = input.value.slice(0, at).replace(/@[\p{L}\d]*$/u, "@" + (("all" in o) ? "all" : first(o.name)) + " ");
   input.value = before + input.value.slice(at);
   input.setSelectionRange(before.length, before.length);
-  S.mention = null; input.focus(); updateMentions(input);
+  S.mention = null; input.focus(); updateMentions(input); saveDraft(input.value);
 }
 
 // Mentions and ticket keys stand out, and a ticket key opens the ticket.

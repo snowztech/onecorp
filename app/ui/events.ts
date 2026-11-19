@@ -7,7 +7,7 @@ import { renderPop, renderSide, toggleRail } from "./shell.ts";
 import { S, busy, byId, call, invoke, myName } from "./state.ts";
 import type { PersonForm } from "./types.ts";
 import { restartToUpdate } from "./update.ts";
-import { pickMention, updateMentions } from "./views/chat.ts";
+import { pickMention, saveDraft, updateMentions } from "./views/chat.ts";
 import { approvalCopy } from "./views/inbox.ts";
 import { currentPage, filterTree, markWiki } from "./views/wiki.ts";
 import { addExtraRepo, addRepo, backToYou, checkRepo, hasPhoto, loadGithub, makeRepo, readSetup, recheckTools, saveProfile, setTemplate, startSetup, setupPlaybook } from "./views/onboarding.ts";
@@ -74,6 +74,7 @@ document.addEventListener("click", async e => {
     if (S.members) { S.members = null; render(); }
     const input = $("#say-text"), name = first(byId(d.mention)?.name || d.mention);
     input.value = (input.value.trim() ? input.value.trimEnd() + " " : "") + "@" + name + " ";
+    saveDraft(input.value);
     return input.focus();
   }
   if (d.skipSetup) { if (await saveProfile(S.profile!.photo, S.profile!.noPhoto)) { S.profile = null; toast(`Welcome back, ${myName()}`); refresh(true); } return; }
@@ -588,8 +589,8 @@ document.addEventListener("submit", async e => {
   if (f.id === "say") {
     const input = $("#say-text"), text = input.value.trim();
     if (!text) return input.focus();
-    input.value = ""; updateMentions(input); chatToEnd();
-    await call("say", { company: S.company, channel: S.channel, text }).catch(() => { input.value = text; updateMentions(input); });
+    input.value = ""; updateMentions(input); saveDraft(""); chatToEnd();
+    await call("say", { company: S.company, channel: S.channel, text }).catch(() => { input.value = text; updateMentions(input); saveDraft(text); });
     return $("#say-text")?.focus();
   }
   if (f.id === "dept-form") {
@@ -662,7 +663,7 @@ document.addEventListener("input", e => {
     document.querySelectorAll<HTMLElement>(".gh-list li").forEach(li => (li.hidden = !!q && !(li.dataset.name || "").includes(q)));
     return;
   }
-  if (target.id === "say-text") updateMentions(target);
+  if (target.id === "say-text") { updateMentions(target); saveDraft(target.value); }
   if (target.id === "pf-pb-text" && S.drawer?.form) S.drawer.form.rewrite = target.value;
   // An open playbook on the team step follows the role as you type it.
   const row = target.id.match(/^su-p(\d+)-role$/), p = row && S.setup?.people[Number(row[1])];
