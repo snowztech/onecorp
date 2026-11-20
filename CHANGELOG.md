@@ -7,6 +7,7 @@ Notable changes to OneCorp. The format follows [Keep a Changelog](https://keepac
 ### Added
 
 - A guide to everything OneCorp does, at [onecorp.dev/docs](https://onecorp.dev/docs/): setting up, your team, tickets, the Inbox, reviews, chat, the wiki, spending, routines, backups, the command line, and what to do when something's off. Help in the app links to it, and Ask OneCorp answers from it.
+- On a Claude plan, Settings, Spending can show plan usage instead of dollars: the top bar shows the session and the week in percent, with when each resets on hover, and each person and ticket shows an estimate of the session they used.
 
 ### Fixed
 

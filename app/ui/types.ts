@@ -49,7 +49,9 @@ export interface Dm { id: string; channel: string; last: number | null }
 export interface FeedItem { at: string; key: string; employee: string; name: string; kind: string; summary: string; title: string }
 export interface Failed { key: string; title: string; employee: string; name: string; why: string; limit?: boolean }
 export interface Project { key: string; title: string; goal: string; status: Status; planner: string | null; planner_name: string; total: number; done: number }
-export interface Spend { cost: number; tokens: number; label: string; today: number; today_label: string; budget: number; warn: boolean; paused_by_budget: boolean }
+// The Claude plan as the last run saw it: percents, and unix times when each window starts over.
+export interface Plan { session: number; session_resets: number | null; week: number; week_resets: number | null }
+export interface Spend { cost: number; tokens: number; label: string; today: number; today_label: string; budget: number; warn: boolean; paused_by_budget: boolean; show: "dollars" | "plan"; plan: Plan | null }
 
 export interface Quiet { key: string; title: string; employee: string; name: string; minutes: number; last: string }
 export interface Routine { id: number; title: string; description: string; assignee: string; name: string; every: string; when: string; on: boolean; next: string; last: string | null; note: string }

@@ -73,8 +73,9 @@ pub fn record_cached(c: &Company, kind: &str, employee: &str, ticket: Option<i64
     } else {
         (0.0, false)
     };
-    if dollars > 0.0 || tokens > 0 {
-        c.add_spend(&crate::store::Spent { employee, ticket, runtime, model, cost: dollars, tokens, estimated, kind })?;
+    let plan = crate::plan::take();
+    if dollars > 0.0 || tokens > 0 || plan > 0.0 {
+        c.add_spend(&crate::store::Spent { employee, ticket, runtime, model, cost: dollars, tokens, estimated, kind, plan })?;
     }
     check(c)?;
     Ok(dollars)

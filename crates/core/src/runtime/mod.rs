@@ -30,6 +30,9 @@ pub enum Event {
     Done { ok: bool, cost: f64, tokens: u64, text: String },
     /// How a run's tokens split, when the runtime says: read fresh, read from cache, and written.
     Usage { fresh: u64, cached: u64, output: u64 },
+    /// The subscription's session and week, when the runtime reports them. Kept by `stream`,
+    /// never passed on.
+    Plan(crate::plan::Usage),
 }
 
 /// The company MCP server, described once and written in each runtime's config format.
@@ -302,9 +305,14 @@ pub fn stream(
     });
 
     let mut finished = false;
+    crate::plan::start();
     for line in BufReader::new(child.stdout.take().unwrap()).lines() {
         let line = line?;
         for ev in parse(&line) {
+            if let Event::Plan(u) = ev {
+                crate::plan::seen(u);
+                continue;
+            }
             finished |= matches!(ev, Event::Done { .. });
             on(&line, ev)?;
         }

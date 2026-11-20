@@ -430,6 +430,12 @@ fn set_budget(company: String, dollars: f64) -> Res<()> {
     onecorp::spend::set_budget(&open(&company)?, dollars).map_err(err)
 }
 
+/// Show the Claude plan's usage instead of dollars.
+#[tauri::command(async)]
+fn set_spend_show(company: String, plan: bool) -> Res<()> {
+    onecorp::plan::set_shown(&open(&company)?, plan).map_err(err)
+}
+
 /// The most one ticket run may spend, 0 for no limit.
 #[tauri::command(async)]
 fn set_run_limit(company: String, dollars: f64) -> Res<()> {
@@ -1015,6 +1021,7 @@ fn main() {
             attention,
             spend_report,
             set_budget,
+            set_spend_show,
             routines,
             add_routine,
             run_routine,

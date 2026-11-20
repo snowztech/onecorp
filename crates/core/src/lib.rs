@@ -8,6 +8,7 @@ pub mod git;
 pub mod help;
 pub mod limits;
 pub mod mcp;
+pub mod plan;
 pub mod roles;
 pub mod routine;
 pub mod runtime;

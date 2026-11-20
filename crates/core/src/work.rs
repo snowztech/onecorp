@@ -1659,7 +1659,7 @@ fn drive(c: &Company, e: &Employee, id: i64, wt: &Path, resume: Option<&str>, pr
                 ("tool", runtime::clip(&format!("{name} {}", detail.replace(&wt_prefix, "")), 600))
             }
             Event::ToolResult { error: true, text } => ("error", text.clone()),
-            Event::ToolResult { .. } | Event::Delta(_) => return Ok(()),
+            Event::ToolResult { .. } | Event::Delta(_) | Event::Plan(_) => return Ok(()),
             Event::Usage { fresh, cached, output } => {
                 from_cache = *cached;
                 let k = |n: &u64| format!("{:.1}k", *n as f64 / 1000.0);
