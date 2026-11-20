@@ -682,6 +682,10 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .navbtn .ic { opacity: .75; }
 .navbtn[aria-current="page"] .ic { opacity: 1; }
 .navbtn .badge, .navbtn .dot { margin-left: auto; }
+/* Inset by the badge's side padding so a dot sits centered under a one-digit badge. */
+.navbtn .dot { margin-right: 7px; }
+.dot.working { background: var(--good); animation: live 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .dot.working { animation: none; } }
 .side-foot { border-radius: var(--r-sm); padding: 10px 8px; border-top: 0; margin-top: auto; }
 .side-foot:hover, .side-foot[aria-expanded="true"] { background: var(--surface); }
 .side-foot:hover b { text-decoration: none; }
@@ -802,7 +806,7 @@ button.room-new:hover { border-color: var(--muted); color: var(--fg); background
 .app.rail .navbtn { width: 44px; justify-content: center; position: relative; padding: 9px 0; }
 .app.rail .navbtn > span:not(.badge), .app.rail .coname, .app.rail .chev, .app.rail .side-foot > div, .app.rail .foot-more { display: none; }
 .app.rail .navbtn .badge { position: absolute; top: 2px; right: 0; font-size: 10px; padding: 0 5px; }
-.app.rail .navbtn .dot { position: absolute; top: 6px; right: 6px; }
+.app.rail .navbtn .dot { position: absolute; top: 6px; right: 6px; margin: 0; }
 .app.rail .co-switch, .app.rail .side-foot { width: auto; justify-content: center; }
 .app.rail .switch { width: 100%; display: flex; justify-content: center; }
 .app.rail .menu { right: auto; min-width: 220px; }

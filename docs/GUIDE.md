@@ -77,6 +77,8 @@ A ticket is one piece of work for one person. When it starts, OneCorp makes a br
 | Needs you | A question, work to review, or a run that stopped |
 | Done | Merged or closed |
 
+A green dot next to Board in the sidebar means a ticket is in Working right now.
+
 Click a ticket for everything that happened on it: what they read, the commands they ran, the tests that failed and passed, the commit, and what it cost.
 
 ![A ticket's log](../site/shots/ticket.jpg)
