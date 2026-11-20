@@ -165,6 +165,8 @@ pub struct Spent<'a> {
     pub estimated: bool,
     /// What the run was: ticket, chat, lead (a lead deciding a question) or help (Ask OneCorp).
     pub kind: &'a str,
+    /// The share of the plan's session it used, in percent, estimated. 0 off a subscription.
+    pub plan: f64,
 }
 
 pub fn home() -> PathBuf {
@@ -497,8 +499,8 @@ impl Company {
     /// One run's cost, in the spend ledger.
     pub fn add_spend(&self, s: &Spent) -> Result<()> {
         self.db.execute(
-            "INSERT INTO spend (employee, ticket_id, runtime, model, cost_usd, tokens, estimated, kind) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![s.employee, s.ticket, s.runtime, s.model, s.cost, s.tokens as i64, s.estimated, s.kind],
+            "INSERT INTO spend (employee, ticket_id, runtime, model, cost_usd, tokens, estimated, kind, plan_pct) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![s.employee, s.ticket, s.runtime, s.model, s.cost, s.tokens as i64, s.estimated, s.kind, s.plan],
         )?;
         Ok(())
     }
@@ -511,6 +513,13 @@ impl Company {
             params![days, employee],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?)
+    }
+
+    /// The share of the plan's session each ticket used, in percent, for tickets that used any.
+    pub fn plan_by_ticket(&self) -> Result<std::collections::HashMap<i64, f64>> {
+        let mut st = self.db.prepare("SELECT ticket_id, sum(plan_pct) FROM spend WHERE ticket_id IS NOT NULL AND plan_pct > 0 GROUP BY ticket_id")?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     pub fn spend_rows(&self) -> Result<Vec<SpendRow>> {
@@ -1560,6 +1569,7 @@ fn migrate(db: &Connection) -> Result<()> {
         ("messages", "issue", "TEXT"),
         ("messages", "reply_to", "INTEGER REFERENCES messages(id)"),
         ("spend", "kind", "TEXT NOT NULL DEFAULT 'ticket'"),
+        ("spend", "plan_pct", "REAL NOT NULL DEFAULT 0"),
     ];
     for (table, column, decl) in ADDED {
         let has: bool = db.query_row(

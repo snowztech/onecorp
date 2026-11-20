@@ -128,6 +128,15 @@ pub fn parse(line: &str) -> Vec<Event> {
 
     match v["type"].as_str() {
         Some("system") if v["subtype"] == "init" => vec![Event::Init { session: s(&v, "session_id"), model: s(&v, "model") }],
+        Some("rate_limit_event") => {
+            let w = &v["rate_limit_info"]["unifiedWindows"];
+            let pct = |k: &str| w[k]["utilization"].as_f64().map(|u| u * 100.0);
+            let at = |k: &str| w[k]["resetsAt"].as_i64();
+            match (pct("five_hour"), at("five_hour"), pct("seven_day"), at("seven_day")) {
+                (Some(session), Some(session_resets), Some(week), Some(week_resets)) => vec![Event::Plan(crate::plan::Usage { session, session_resets, week, week_resets })],
+                _ => vec![],
+            }
+        }
         Some("stream_event") if v["event"]["delta"]["type"] == "text_delta" => vec![Event::Delta(s(&v["event"]["delta"], "text"))],
         Some("assistant") => blocks()
             .iter()
@@ -246,5 +255,14 @@ mod tests {
         assert_eq!(parse(done), vec![Event::Usage { fresh: 10, cached: 90, output: 5 }, Event::Done { ok: true, cost: 0.42, tokens: 105, text: "Done".into() }]);
 
         assert!(parse("not json").is_empty());
+    }
+
+    #[test]
+    fn reads_the_plan_from_rate_limit_events() {
+        let line = r#"{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1795188000,"rateLimitType":"five_hour","unifiedWindows":{"five_hour":{"utilization":0.13,"resetsAt":1795188000,"status":"allowed"},"seven_day":{"utilization":0.1,"resetsAt":1795737600,"status":"allowed"}}}}"#;
+        let Event::Plan(u) = &parse(line)[0] else { panic!("a plan event") };
+        assert_eq!((u.session.round(), u.session_resets, u.week.round(), u.week_resets), (13.0, 1795188000, 10.0, 1795737600));
+        let api_key = r#"{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}"#;
+        assert!(parse(api_key).is_empty(), "no plan on an API key");
     }
 }

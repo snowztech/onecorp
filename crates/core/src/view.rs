@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 pub fn snapshot(c: &Company) -> Result<Value> {
     let tickets = c.tickets()?;
     let team = c.employees()?;
+    let money = crate::plan::Labels::new(c)?;
     let name_of = |id: &str| team.iter().find(|e| e.id == id).map(|e| e.name.clone()).unwrap_or_else(|| id.to_string());
 
     let employees: Vec<Value> = team
@@ -31,15 +32,13 @@ pub fn snapshot(c: &Company) -> Result<Value> {
                 ("queued", Some(t)) => format!("Up next: {}", c.key(t.id)),
                 _ => String::new(),
             };
-            let cost = theirs.iter().fold(0.0, |s, t| s + t.cost_usd);
-            let tokens: i64 = theirs.iter().map(|t| t.tokens).sum();
             // How they look: a chosen face seed, their photo's file, and a stamp so the app knows when it changed.
             let (seed, photo_path) = c.avatar(&e.id).unwrap_or_default();
             let photo = photo_path.as_ref().and_then(|p| std::fs::metadata(p).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs().to_string());
             json!({
                 "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "face": seed, "photo": photo, "photo_path": photo_path,
                 "today": c.spent_since(0, Some(&e.id)).map(|s| s.0).unwrap_or(0.0), "cap": c.daily_cap(&e.id).unwrap_or(0.0),
-                "status": status, "bubble": bubble, "spend": spend(cost, tokens), "department": e.department,
+                "status": status, "bubble": bubble, "spend": money.tickets(&theirs), "department": e.department,
                 "ticket": ticket.map(|t| json!({"key": c.key(t.id), "title": t.title})),
             })
         })
@@ -87,7 +86,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             json!({
                 "key": c.key(t.id), "title": t.title, "employee": who, "name": name_of(&who), "kind": t.kind, "tickets": tickets,
                 "document": wiki_draft(c, t),
-                "summary": last_said(c, t.id).unwrap_or_default(), "spend": spend(t.cost_usd, t.tokens),
+                "summary": last_said(c, t.id).unwrap_or_default(), "spend": money.ticket(t),
                 "pr_number": t.pr_number, "pr_url": t.pr_url,
                 "lead": (t.kind == "work").then(|| c.lead_of(&who).ok().flatten()).flatten().filter(|l| l.id != who).map(|l| json!({"id": l.id, "name": l.name})),
                 "reviewing": c.pending_review(t.id).ok().flatten().map(|r| name_of(&r)),
@@ -198,7 +197,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
         "employees": employees,
         "tickets": tickets.iter().map(|t| json!({
             "key": c.key(t.id), "title": t.title, "assignee": t.assignee, "status": t.status,
-            "spend": spend(t.cost_usd, t.tokens), "after": t.after.map(|a| c.key(a)), "kind": t.kind,
+            "spend": money.ticket(t), "after": t.after.map(|a| c.key(a)), "kind": t.kind,
             // Only a repo other than the main one: most tickets need no tag.
             "repo": t.repo,
             "created_by": (t.created_by != "founder").then(|| name_of(&t.created_by)),
@@ -222,6 +221,7 @@ pub fn snapshot(c: &Company) -> Result<Value> {
             "cost": cost, "tokens": tokens, "label": spend(cost, tokens),
             "today": today.0, "today_label": spend(today.0, today.1), "budget": crate::spend::budget(c)?,
             "warn": crate::spend::warned_today(c)?, "paused_by_budget": crate::spend::paused_by_budget(c)?,
+            "show": if crate::plan::shown(c)? { "plan" } else { "dollars" }, "plan": crate::plan::now(),
         },
     }))
 }
@@ -407,7 +407,7 @@ pub fn ticket(c: &Company, t: &Ticket) -> Result<Value> {
     let log: Vec<Value> = c.events(t.id)?.into_iter().map(|(at, kind, summary)| json!({"at": at, "kind": kind, "summary": summary})).collect();
     Ok(json!({
         "key": c.key(t.id), "title": t.title, "status": t.status, "kind": t.kind, "document": wiki_draft(c, t), "employee": who, "name": name,
-        "branch": t.branch, "base": t.base, "spend": spend(t.cost_usd, t.tokens), "log": log,
+        "branch": t.branch, "base": t.base, "spend": crate::plan::Labels::new(c)?.ticket(t), "log": log,
         "pr_number": t.pr_number, "pr_url": t.pr_url, "repo": t.repo.clone().or_else(|| c.repos().ok().filter(|r| r.len() > 1).map(|r| r[0].name.clone())),
         "description": t.description, "after": t.after.map(|a| c.key(a)),
         "created_by": (t.created_by != "founder").then(|| c.employee(&t.created_by).ok().flatten().map(|e| e.name).unwrap_or_else(|| t.created_by.clone())),
@@ -457,6 +457,7 @@ pub fn person(c: &Company, id: &str) -> Result<Value> {
     };
     let memory = c.memory(id)?;
     let notes: Vec<&str> = memory.lines().filter(|l| !l.trim().is_empty()).map(|l| l.trim_start_matches("- ")).collect();
+    let money = crate::plan::Labels::new(c)?;
     Ok(json!({
         "id": e.id, "name": e.name, "role": e.role, "runtime": e.runtime, "model": e.model, "department": e.department,
         "bio": crate::roles::notes(&e).unwrap_or(""), "kind": crate::roles::role_of(c, &e)?.key, "playbook": crate::roles::rewrite(c, &e)?,
@@ -466,7 +467,7 @@ pub fn person(c: &Company, id: &str) -> Result<Value> {
         "voices": crate::voice::list(),
         "current": current.map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status})),
         "activity": activity,
-        "tickets": mine.iter().rev().map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status, "kind": t.kind, "spend": spend(t.cost_usd, t.tokens)})).collect::<Vec<_>>(),
+        "tickets": mine.iter().rev().map(|t| json!({"key": c.key(t.id), "title": t.title, "status": t.status, "kind": t.kind, "spend": money.ticket(t)})).collect::<Vec<_>>(),
         "memory": notes,
     }))
 }

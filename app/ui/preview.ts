@@ -41,6 +41,7 @@ export async function previewScreen() {
   if (screen === "dm") { S.view = "chat"; S.channel = "dm:tomas"; await refresh(true); }
   if (screen === "edit-avatar") { await openPerson("tomas"); S.drawer!.edit = true; renderDrawer(); }
   if (screen === "spend") await openSettings("spend");
+  if (screen === "plan-usage") { planShown = true; await refresh(true); }
   if (screen === "paused") { S.snap!.paused = true; render(); }
   if (screen === "hire") openHire(1);
   if (screen === "person-edit") { await openPerson("tomas"); S.drawer!.edit = true; renderDrawer(); }
@@ -70,6 +71,7 @@ export async function previewScreen() {
 
 /* Sample data for the UI in a plain browser (make ui). Never used inside the app. */
 export let previewFounder: Founder | null = null;
+let planShown = false;
 
 export function preview(cmd: string, args: Record<string, string> = {}): Promise<unknown> {
   const team = [
@@ -118,7 +120,7 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
         { key: "SNO-11", kind: "work", tickets: [], title: "Pricing page", employee: "odile", name: "Odile Martin", summary: "Added the pricing page with Free and Pro plans, reusing `PlanCard` from settings. `cargo test` and `pnpm lint` pass. Check the copy on mobile.", spend: "$0.31", pr_number: 41, pr_url: "https://github.com/snowztech/notes/pull/41",
           lead_review: { name: "Rui Alves", ok: false, notes: "- The Pro price reads 9.00 on mobile and 9 on desktop.\n- Add a test for the yearly toggle.", at: "2026-11-09 11:10:00" } }],
       feed: [{ at: "2026-11-09 11:02:00", key: "SNO-11", employee: "odile", name: "Odile Martin", kind: "done", summary: "finished, $0.31", title: "Pricing page" }, { at: "2026-11-09 10:52:00", key: "SNO-15", employee: "tomas", name: "Tomás Reis", kind: "start", summary: "started", title: "Retry failed Stripe webhooks" }, { at: "2026-11-09 10:31:00", key: "SNO-12", employee: "maya", name: "Maya Okafor", kind: "block", summary: "asked you about magic link expiry", title: "Magic link login" }],
-      spend: { cost: 3.24, tokens: 180000, label: "$3.24", today: 3.24, today_label: "$3.24", budget: 5, warn: false, paused_by_budget: false },
+      spend: { cost: 3.24, tokens: 180000, label: "$3.24", today: 3.24, today_label: "$3.24", budget: 5, warn: false, paused_by_budget: false, show: planShown ? "plan" : "dollars", plan: { session: 13, session_resets: Math.floor(Date.now() / 1000) + 8040, week: 41, week_resets: Math.floor(Date.now() / 1000) + 280800 } },
       dms: [["odile", 12], ["maya", null], ["tomas", 14], ["rui", null], ["lina", null], ["sam", null]].map(([id, last]) => ({ id, channel: "dm:" + id, last })),
       channels: [{ name: "general", title: "General", department: null, last: 9 }, { name: "engineering", title: "Engineering", department: 1, last: 8 }, { name: "product", title: "Product", department: 2, last: 4 }, { name: "growth", title: "Growth", department: 3, last: null }],
     },
@@ -201,6 +203,7 @@ export function preview(cmd: string, args: Record<string, string> = {}): Promise
        { id: 14, at: "2026-11-09 11:41:00", author: "tomas", name: "Tomás Reis", text: "Close. Retries back off over 3 days now, and handlers are idempotent. Tests next, then it's in your Inbox as SNO-15.", key: "SNO-15", pending: false }] : [] });
   // Saving your name sticks for the rest of the preview, like it does in the app.
   if (cmd === "clone_target") return Promise.resolve(`/Users/you/dev/${String(args.name).split("/").pop()}`);
+  if (cmd === "set_spend_show") { planShown = !!args.plan; return Promise.resolve(null); }
   if (cmd === "save_founder") { previewFounder = { name: args.name, photo: null }; return Promise.resolve(null); }
   if (cmd === "founder" && previewFounder) return Promise.resolve(previewFounder);
   if (cmd === "check_repo" && args?.path) return Promise.resolve({ ...(data.check_repo as object), path: args.path, suggested: args.path.split("/").pop() });

@@ -155,6 +155,7 @@ OneCorp shows what every run cost, at API prices: what you'd pay on an API key, 
 
 Settings, Spending is where you control it:
 
+- **Show**: Dollars, or Plan usage on a Claude subscription. With Plan usage, the top bar shows how much of the 5-hour session and of the week is used, and hovering one says when it resets. People and tickets show the share of a session they used. That part is an estimate: Claude Code reports the plan in whole percents, and your own use of Claude counts too. Budgets stay in dollars.
 - **Daily budget**: $10 to start. At 80% you get a heads-up. At 100% the company pauses until tomorrow, and a Claude Code run stops near the budget instead of going far past it. "Keep going today" lifts it until tomorrow.
 - **Limit for one run**: $5 unless you change it. A ticket run that gets there stops with its work kept, and the Inbox asks whether to keep going.
 - **A daily cap per person**, in their profile.

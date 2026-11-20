@@ -216,6 +216,8 @@ export function spendTab() {
   const kinds = r.kinds || [];
   return `<div class="spend-now"><span class="label" title="On a subscription, what the same work would cost on the API. On an API key, what you pay.">Today, at API prices</span><b>${money(t.today.cost)}</b>
       ${b > 0 ? `<span class="meter big ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}"><i style="width:${pct}%"></i></span><span class="muted">${Math.round(pct)}% of ${money(b)}</span>` : ""}</div>
+    <div class="row-set"><div><b>Show</b><span>Dollars at API prices, or how much of your Claude plan's session and week is used. Per person and ticket, plan use is an estimate.</span></div>
+      <div class="seg">${[["dollars", "Dollars"], ["plan", "Plan usage"]].map(([m, n]) => `<button data-spend-show="${m}" aria-pressed="${m === (S.snap?.spend.show || "dollars")}">${n}</button>`).join("")}</div></div>
     <div class="row-set"><div><b>Daily budget</b><span>The company pauses there until tomorrow.</span></div>
       <div class="seg">${presets.map(p => `<button data-budget="${p}" aria-pressed="${p === b && !S.customBudget}">${p ? `$${p}` : "None"}</button>`).join("")}<button data-budget-custom="1" aria-pressed="${custom || !!S.customBudget}">${custom ? money(b) : "Other"}</button></div></div>
     ${S.customBudget ? `<form id="budget-form" class="row-set"><div><b>Your budget</b><span>Press Enter to save.</span></div><label class="money-in inline"><span>$</span><input id="budget-in" type="number" min="0" step="1" value="${b || ""}" placeholder="12"><span class="unit">a day</span></label></form>` : ""}

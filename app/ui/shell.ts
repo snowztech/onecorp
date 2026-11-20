@@ -2,6 +2,7 @@ import { $, esc, money } from "./lib.ts";
 import { badge, icon, me } from "./look.ts";
 import { S, myName, unread } from "./state.ts";
 import { updateReady } from "./update.ts";
+import type { Plan } from "./types.ts";
 
 // The frame around every page: sidebar, top bar and your menu.
 export const waiting = () => (S.snap ? S.snap.inbox.length + S.snap.reviews.length + (S.snap.failed || []).length : 0);
@@ -43,12 +44,32 @@ export function renderTop() {
   // Today's spend, a glance from every page: the amount, a meter, the budget. Words only on hover.
   const sp = $("#top-spend");
   sp.hidden = $("#new-ticket").hidden;
+  if (!sp.hidden && s?.spend.show === "plan") return topPlan(sp, s.spend.plan);
   if (!sp.hidden && s) {
     const b = s.spend.budget, pct = b > 0 ? Math.min(100, (s.spend.today / b) * 100) : 0;
     sp.className = `top-spend ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}`;
     sp.title = b > 0 ? `Spent today, of a ${money(b)} daily budget` : "Spent today. Set a daily budget in Spend";
     sp.innerHTML = `<span>${money(s.spend.today)}</span>${b > 0 ? `<span class="meter"><i style="width:${pct}%"></i></span><span class="of">${money(b)}</span>` : ""}`;
   }
+}
+
+// "2 h 14 min", "3 days 4 h": how long until a plan window starts over.
+function until(at: number) {
+  const m = Math.max(1, Math.round((at * 1000 - Date.now()) / 60000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60);
+  return d ? `${d} day${d > 1 ? "s" : ""}${h ? ` ${h} h` : ""}` : h ? `${h} h${m % 60 ? ` ${m % 60} min` : ""}` : `${m} min`;
+}
+
+// The Claude plan instead of dollars: the session and the week, each with when it resets on hover.
+function topPlan(sp: HTMLElement, p: Plan | null) {
+  const part = (name: string, pct: number, resets: number | null) => {
+    const tip = resets ? `${name}: resets in ${until(resets)}` : `${name}: reset since the last run`;
+    return `<span class="plan-part ${pct >= 100 ? "over" : pct >= 80 ? "near" : ""}" title="${esc(tip)}">${name} ${Math.round(pct)}%</span>`;
+  };
+  const html = p ? `${part("Session", p.session, p.session_resets)}${part("Week", p.week, p.week_resets)}` : `<span>Plan</span>`;
+  sp.className = "top-spend plan";
+  sp.title = p ? "" : "Your Claude plan shows here after the next Claude Code run";
+  // Polling redraws often: the same text left alone keeps a tooltip open.
+  if (sp.innerHTML !== html) sp.innerHTML = html;
 }
 
 export function renderPop() {

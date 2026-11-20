@@ -1149,6 +1149,8 @@ table.sp .who .av { width: 20px; height: 20px; }
 .top-spend .of { opacity: .7; }
 .top-spend.near { color: var(--signal); } .top-spend.near .meter i { background: var(--signal); }
 .top-spend.over { color: #d4483e; } .top-spend.over .meter i { background: #d4483e; }
+.top-spend.plan { gap: 12px; }
+.plan-part.near { color: var(--signal); } .plan-part.over { color: #d4483e; }
 /* Settings: section list on the left, the section on the right. */
 .settings-sheet { width: min(1000px, 100%); height: min(720px, 88vh); flex-direction: row; }
 .set-nav { width: 184px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 18px 10px; background: var(--surface-2); border-right: 1px solid var(--line); }
